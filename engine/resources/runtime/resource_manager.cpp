@@ -12,11 +12,7 @@ elysia::resources::ResourceManager::ResourceManager()
 std::expected<void,elysia::resources::ResourceFailure>
 elysia::resources::ResourceManager::begin_atlas_build(const AtlasBuildRequest& request)
 {
-	if (_atlas_manager.begin_build(request))
-		return {};
-	return std::unexpected(make_resource_failure(
-		ResourceError::InvalidBuildState,"Begin atlas build failed.",
-		"atlas",request.atlas_key,request.source_path,request.origin));
+	return _atlas_manager.begin_build(request);
 }
 
 std::expected<void,elysia::resources::ResourceFailure>
@@ -37,11 +33,7 @@ elysia::resources::ResourceManager::commit_prepared_atlas_frame(
 	const AtlasFramePreparedResult& result
 )
 {
-	if (_atlas_manager.commit_prepared_frame(renderer,result))
-		return {};
-	return std::unexpected(make_resource_failure(
-		ResourceError::InvalidBuildState,"Commit prepared atlas frame failed.",
-		"atlas-frame",result.task.atlas_key,result.task.frame_path,result.task.origin));
+	return _atlas_manager.commit_prepared_frame(renderer,result);
 }
 
 std::expected<void,elysia::resources::ResourceFailure>

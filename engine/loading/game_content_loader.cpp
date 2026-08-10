@@ -31,22 +31,8 @@ ContentLoadFailure from_resource_failure(
 {
 	if (const auto* paths = elysia::io::PathManager::instance();
 		paths && paths->is_initialized())
-	{
-		for (auto& entry : failure.diagnostic.entries)
-		{
-			for (auto* path : {&entry.expected_path,&entry.declaration_path})
-			{
-				if (!path->is_absolute()) continue;
-				std::error_code error;
-				auto relative = std::filesystem::relative(*path,paths->root(),error);
-				if (!error && !relative.empty() && relative != ".."
-					&& !relative.generic_string().starts_with("../"))
-					*path = relative.lexically_normal();
-				else
-					*path = path->filename();
-			}
-		}
-	}
+		elysia::core::normalize_failure_diagnostic_paths(
+			failure.diagnostic,paths->root());
 	return make_content_load_failure(code,std::move(failure.diagnostic));
 }
 

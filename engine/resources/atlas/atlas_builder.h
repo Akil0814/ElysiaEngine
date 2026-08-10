@@ -1,9 +1,11 @@
 #pragma once
 
 #include "atlas.h"
+#include "../resource_failure.h"
 #include "../resource_types.h"
 
 #include <filesystem>
+#include <expected>
 #include <optional>
 #include <vector>
 
@@ -21,7 +23,7 @@ struct AtlasCommittedFrame
 class AtlasBuilder
 {
 public:
-	bool build_atlas(
+    [[nodiscard]] std::expected<void,ResourceFailure> build_atlas(
 		const AtlasBuildRequest& request,
 		const std::vector<AtlasCommittedFrame>& committed_frames,
 		Atlas& atlas

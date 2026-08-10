@@ -2,7 +2,6 @@
 #include "effect_definition_config_loader.h"
 
 #include "../json/json_loader.h"
-#include "../json/json_duplicate_key_checker.h"
 
 #include <algorithm>
 #include <utility>
@@ -26,13 +25,10 @@ EffectDefinitionConfigLoader::load(
 	if (auto source = validate_manifest_source(config_path,"effect-config");
 		!source)
 		return std::unexpected(std::move(source.error()));
-	if (has_duplicate_json_object_key(config_path))
-		return fail(ManifestLoadError::DuplicateKey,
-			"Load effect definition config failed: duplicate object key.");
 	JsonLoader loader;
 	const auto read = loader.open_file(config_path);
-	if (!read) return fail(ManifestLoadError::OpenFailed,
-		"Load effect definition config failed: " + read.error);
+	if (!read) return std::unexpected(manifest_failure_from_json(
+		read.error(),"effect-config","Load effect definition config failed: "));
 	if (!loader.root().is_object() || loader.root().size() != 1
 		|| !loader.root().contains("effects") || !loader.root().at("effects").is_object())
 		return fail(ManifestLoadError::InvalidSchema,

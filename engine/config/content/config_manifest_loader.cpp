@@ -13,13 +13,20 @@ std::expected<ConfigManifest,ConfigLoadFailure> ConfigManifestLoader::load(
     const std::string source = config_project_relative(path);
     if (!parsed)
     {
-        const std::string duplicate = duplicate_config_property(parsed.error());
-        if (!duplicate.empty())
+        const auto& json_failure = parsed.error();
+        if (json_failure.code == elysia::io::JsonFileError::DuplicateProperty)
         {
-            ConfigOrigin origin{source,"/"+config_pointer_component(duplicate),{},duplicate};
-            return std::unexpected(make_config_load_failure(ConfigLoadError::DuplicateKey,parsed.error(),origin,origin));
+            ConfigOrigin origin{source,json_failure.json_pointer,{},json_failure.duplicate_property};
+            return std::unexpected(make_config_load_failure(
+                ConfigLoadError::DuplicateKey,json_failure.message,origin,origin,
+                json_failure.origin));
         }
-        return std::unexpected(make_config_load_failure(ConfigLoadError::OpenFailed,parsed.error()));
+        const ConfigLoadError code = json_failure.code == elysia::io::JsonFileError::FileMissing
+            ? ConfigLoadError::FileMissing
+            : json_failure.code == elysia::io::JsonFileError::FilesystemAccess
+                ? ConfigLoadError::FilesystemAccess : ConfigLoadError::OpenFailed;
+        return std::unexpected(make_config_load_failure(code,json_failure.message,
+            ConfigOrigin{source,json_failure.json_pointer,{},{}},{},json_failure.origin));
     }
     const auto& root = *parsed;
     if (!root.is_object() || root.size() != 2 || !root.contains("schema_version") || !root.contains("configs"))
@@ -33,7 +40,7 @@ std::expected<ConfigManifest,ConfigLoadFailure> ConfigManifestLoader::load(
             "Config manifest configs must be an object."));
     auto* paths = elysia::io::PathManager::instance();
     if (!paths->is_initialized())
-        return std::unexpected(make_config_load_failure(ConfigLoadError::InvalidValue,
+        return std::unexpected(make_config_load_failure(ConfigLoadError::UnavailableDependency,
             "PathManager must be initialized before loading game configs."));
 
     ConfigManifest manifest;
@@ -50,9 +57,16 @@ std::expected<ConfigManifest,ConfigLoadFailure> ConfigManifestLoader::load(
             return std::unexpected(make_config_load_failure(ConfigLoadError::InvalidSchema,
                 "Config document path must be a non-empty string: " + key_namespace,origin));
         const auto document_path = paths->to_asset_path(path_value.get<std::string>());
-        if (!std::filesystem::is_regular_file(document_path))
-            return std::unexpected(make_config_load_failure(ConfigLoadError::OpenFailed,
-                "Config document does not exist: " + config_project_relative(document_path),origin));
+        std::error_code status_error;
+        if (!std::filesystem::is_regular_file(document_path,status_error))
+        {
+            if (status_error && status_error != std::errc::no_such_file_or_directory)
+                return std::unexpected(make_config_load_failure(
+                    ConfigLoadError::FilesystemAccess,
+                    "Config document status could not be read: " + status_error.message(),origin));
+            return std::unexpected(make_config_load_failure(ConfigLoadError::FileMissing,
+                "Config document does not exist or is not a regular file.",origin));
+        }
         manifest.entries.push_back({key_namespace,document_path,std::move(origin)});
     }
     return manifest;

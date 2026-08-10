@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/diagnostics/failure_diagnostic.h"
+#include "../json/strict_json.h"
 
 #include <expected>
 #include <system_error>
@@ -65,6 +66,27 @@ struct ManifestLoadFailure
                 std::move(expected_path),std::move(declaration_path),
                 std::move(declaration_pointer),reason,origin)},origin)
     };
+}
+
+[[nodiscard]] inline ManifestLoadFailure manifest_failure_from_json(
+    const JsonFileFailure& failure,
+    std::string subject_type,
+    std::string message_prefix = {})
+{
+    ManifestLoadError code = ManifestLoadError::InvalidDocument;
+    switch (failure.code)
+    {
+    case JsonFileError::EmptyPath:
+    case JsonFileError::FileMissing: code = ManifestLoadError::FileMissing; break;
+    case JsonFileError::FilesystemAccess: code = ManifestLoadError::FilesystemAccess; break;
+    case JsonFileError::OpenFailed: code = ManifestLoadError::OpenFailed; break;
+    case JsonFileError::DuplicateProperty: code = ManifestLoadError::DuplicateKey; break;
+    case JsonFileError::ParseFailed: code = ManifestLoadError::InvalidDocument; break;
+    }
+    return make_manifest_load_failure(
+        code,message_prefix + failure.message,std::move(subject_type),
+        failure.duplicate_property,failure.file_path,failure.file_path,
+        failure.json_pointer,failure.origin);
 }
 
 [[nodiscard]] inline std::expected<void,ManifestLoadFailure>

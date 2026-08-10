@@ -66,7 +66,7 @@ Bootstrapper::parse_runtime_settings(const std::filesystem::path& executable_pat
     if (!config_result)
         return std::unexpected(BootstrapFailure{
             BootstrapFailure::Code::UserConfig,
-            elysia::core::make_failure_diagnostic(config_result.error().message)});
+            std::move(config_result.error().diagnostic)});
 
     BootstrapOutput output;
     output.runtime_settings.window_title = app_config_result->window_title;

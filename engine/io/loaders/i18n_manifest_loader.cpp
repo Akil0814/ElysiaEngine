@@ -1,6 +1,5 @@
 #include "i18n_manifest_loader.h"
 
-#include "../json/json_duplicate_key_checker.h"
 #include "../json/json_loader.h"
 #include <utility>
 
@@ -20,15 +19,11 @@ std::expected<I18nManifest,ManifestLoadFailure> I18nManifestLoader::load(
 	if (auto source = validate_manifest_source(manifest_path,"i18n-manifest");
 		!source)
 		return std::unexpected(std::move(source.error()));
-	if (has_duplicate_json_object_key(manifest_path))
-		return fail(ManifestLoadError::DuplicateKey,
-			"Load i18n manifest failed: duplicate JSON object key.");
-
 	JsonLoader loader;
-	const JsonReadResult open_result = loader.open_file(manifest_path);
+	const auto open_result = loader.open_file(manifest_path);
 	if (!open_result)
-		return fail(ManifestLoadError::OpenFailed,
-			"Load i18n manifest failed: " + open_result.error);
+		return std::unexpected(manifest_failure_from_json(
+			open_result.error(),"i18n-manifest","Load i18n manifest failed: "));
 
 	if (!loader.root().is_object())
 		return fail(ManifestLoadError::InvalidDocument,

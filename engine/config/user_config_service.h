@@ -43,7 +43,7 @@ public:
     void register_user_config_change_handler(IUserConfigChangeHandler& handler) noexcept;
     void unregister_user_config_change_handler(IUserConfigChangeHandler& handler) noexcept;
     [[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
-    [[nodiscard]] std::expected<UserConfigLoadResult,UserConfigInitializationFailure> initialize(
+    [[nodiscard]] std::expected<UserConfigLoadResult,UserConfigFailure> initialize(
         const UserConfigData& default_settings,
         const std::filesystem::path& user_config_path);
     void shutdown() noexcept;

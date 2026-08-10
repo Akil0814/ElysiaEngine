@@ -7,9 +7,22 @@
 #include "../io/loaders/texture_manifest_loader.h"
 #include "../config/content/config_load_pipeline.h"
 #include "animated_entity_content_loader.h"
+#include "../io/path/path_manager.h"
 
 namespace elysia::loading
 {
+namespace
+{
+ContentLoadFailure manifest_failure(
+    ContentLoadError code,elysia::core::FailureDiagnostic diagnostic)
+{
+    if (const auto* paths = elysia::io::PathManager::instance();
+        paths && paths->is_initialized())
+        elysia::core::normalize_failure_diagnostic_paths(diagnostic,paths->root());
+    return make_content_load_failure(code,std::move(diagnostic));
+}
+}
+
 std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline::load(
 	const elysia::io::ContentRegistry& content_registry)
 {
@@ -20,12 +33,11 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	if (!config_snapshot)
 	{
 		const auto& config_failure = config_snapshot.error();
-		return std::unexpected(make_content_load_failure(ContentLoadError::Config,
-			"Content manifest pipeline failed: game config load failed: " + config_failure.message,
-			config_failure.first.full_key,
-			config_failure.first.config_path.empty()
-				? manifest_paths.configs : std::filesystem::path(config_failure.first.config_path),
-			config_failure.origin));
+        auto diagnostic = config_failure.diagnostic();
+        diagnostic.message = "Content manifest pipeline failed: game config load failed: "
+            + config_failure.message;
+		return std::unexpected(manifest_failure(
+            ContentLoadError::Config,std::move(diagnostic)));
 	}
 	result.config_snapshot = *config_snapshot;
 
@@ -33,7 +45,7 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	auto fonts = fonts_manifest_loader.load(manifest_paths.fonts);
 	if (!fonts)
 	{
-		return std::unexpected(make_content_load_failure(
+		return std::unexpected(manifest_failure(
 			ContentLoadError::Manifest,std::move(fonts.error().diagnostic)));
 	}
 	result.font_manifest = std::move(*fonts);
@@ -42,7 +54,7 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	auto audio = audio_manifest_loader.load(manifest_paths.audio);
 	if (!audio)
 	{
-		return std::unexpected(make_content_load_failure(
+		return std::unexpected(manifest_failure(
 			ContentLoadError::Manifest,std::move(audio.error().diagnostic)));
 	}
 	result.audio_manifest = std::move(*audio);
@@ -51,7 +63,7 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	auto textures = texture_manifest_loader.load(manifest_paths.textures);
 	if (!textures)
 	{
-		return std::unexpected(make_content_load_failure(
+		return std::unexpected(manifest_failure(
 			ContentLoadError::Manifest,std::move(textures.error().diagnostic)));
 	}
 	result.texture_manifest = std::move(*textures);
@@ -60,7 +72,7 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	auto animations = animation_manifest_loader.load(manifest_paths.animations);
 	if (!animations)
 	{
-		return std::unexpected(make_content_load_failure(
+		return std::unexpected(manifest_failure(
 			ContentLoadError::Manifest,std::move(animations.error().diagnostic)));
 	}
 	result.animation_manifest = std::move(*animations);
@@ -69,7 +81,7 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	auto effects = animation_effect_manifest_loader.load(manifest_paths.effects);
 	if (!effects)
 	{
-		return std::unexpected(make_content_load_failure(
+		return std::unexpected(manifest_failure(
 			ContentLoadError::Manifest,std::move(effects.error().diagnostic)));
 	}
 	result.animation_effect_manifest = std::move(*effects);

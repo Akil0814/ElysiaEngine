@@ -1,115 +1,86 @@
-# 物理与 Gameplay 碰撞框架
+# ElysiaEngine 物理与 Gameplay 碰撞文档
 
-## 当前状态
+> 当前结论：物理模块目前是**可编译的契约骨架**，不是可工作的物理引擎。`Scene` 已经能够发现 Body/Collider Provider，并会调用系统入口；但运动积分、碰撞检测、阻挡修正、事件和查询尚未执行。
 
-本目录记录 Moonline 的物理与 Gameplay 碰撞框架边界。当前阶段提供可编译的数据契约、可注入的碰撞策略槽，以及由 `Scene` 调用的系统入口，尚未实现：
+## 文档边界
 
-- 运动积分、重力和阻尼；
-- 粗检测、形状相交、连续检测和空间索引；
-- 阻挡、穿透修正和接地判断；
-- PushBox 推挤；
-- HitBox/HurtBox 配对、命中去重和伤害结算。
+本文档集同时记录两类内容：
 
-`Scene` 会自动登记实现 `PhysicsBodyProvider` 或 `ColliderProvider` 的 `GameObject`，并在非暂停帧依次调用 `PhysicsSystem::step` 和 `CollisionSystem::dispatch_events`。这两个入口目前不会改变对象或产生碰撞事件。
+- **当前实现**：仓库里已经存在并由测试约束的类型或行为；
+- **目标设计**：为了完成第一版 2D 物理而建议新增或调整的接口。目标设计不会被描述成已经可用。
 
-## 分层边界
+第一版目标是无旋转的 2D AABB/Circle 物理、规则 Tile Map、单向平台、Block/Overlap、Ray/Segment 查询，以及 Gameplay Body/PushBox/HitBox 事件路由。旋转、斜坡、多边形、摩擦、弹性、关节和睡眠不在首版范围内。
 
-### `engine/physics`
+## 阅读路线
 
-物理核心只认识 Collider、几何形状、过滤位、响应类型和接触数据，不认识 Actor、玩家、敌人、阵营、攻击或伤害。
+### 快速确认还缺什么
 
-- `ColliderId` 是 Collider 的稳定标识；零值表示无效 ID。
-- `CollisionFilter::category` 表示 Collider 所属类别，`mask` 表示候选对象类别，`group` 为后续成组过滤预留。
-- `CollisionResponse` 描述 Ignore、Overlap 或 Block 意图。
-- `CollisionDetectionMode` 描述 Collider 使用离散或连续检测的意图。
-- `CollisionManifold` 使用法线、穿透深度和接触点表达与形状无关的几何结果。
-- `CollisionHit::time_of_impact` 为归一化帧区间内的命中时刻。
-- `Collider::tag` 仅用于调试，不参与碰撞规则。
+1. [当前状态与缺失审计](01-current-state-audit.md)
+2. [目标架构与一帧数据流](02-target-architecture.md)
 
-`CollisionResponse::Overlap` 是 Collider 表达重叠或触发语义的唯一方式。物理核心不提供独立的 trigger 标志或旧事件兼容接口。
+### 按顺序实现完整物理系统
 
-具体 category 位由使用物理核心的上层模块定义。物理核心不得加入 Player、Enemy、HitBox 等固定类别。
+1. [当前状态与缺失审计](01-current-state-audit.md)
+2. [目标架构与一帧数据流](02-target-architecture.md)
+3. [逐类职责](03-class-responsibilities.md)
+4. [逐函数实现契约](04-function-responsibilities.md)
+5. [碰撞算法与数值约定](05-collision-algorithms.md)
+6. [Tile Map 碰撞适配](06-tile-map-collision.md)
+7. [Gameplay 碰撞 Runtime](07-gameplay-collision-runtime.md)
+8. [实施路线与测试验收](08-implementation-roadmap-and-tests.md)
 
-### 形状与策略
+### 只关注 Tile Map 碰撞
 
-持久 Collider 当前只声明两种局部空间形状：
+1. [目标架构与一帧数据流](02-target-architecture.md)
+2. [碰撞算法与数值约定](05-collision-algorithms.md)
+3. [Tile Map 碰撞适配](06-tile-map-collision.md)
+4. [实施路线与测试验收](08-implementation-roadmap-and-tests.md#阶段-8tile-collision-world)
 
-- `AabbShape`：相对 GameObject 原点的轴对齐矩形；
-- `CircleShape`：相对 GameObject 原点的圆心和非负半径。
+## 不可破坏的分层原则
 
-`ColliderShape` 使用 `std::variant` 保存形状，不提供旧的矩形字段或形状继承层。Capsule、旋转矩形和多边形不属于当前契约。
-
-`Collider::one_way` 是可选的单向通过配置；无值表示普通碰撞，有值时 `PassThroughDirection` 可用 `|` 组合允许通过的世界轴方向。`Up` 表示另一个 Collider 可以相对此 Collider 从下向上通过。单向配置只修饰原本为 `Block` 的响应，不改变 `Ignore` 或 `Overlap`；第一版只承诺 AABB 语义，具体判断算法尚未实现。
-
-未来的单向判断必须同时使用双方 previous/current origin 的相对位移和接触法线，不能只检查某个对象自己的移动方向。`OneWayCollision::tolerance` 默认值为 `0.01f`，当前只声明非负契约，不做运行时校验或修正。
-
-碰撞流水线预留三个由 `CollisionSystem` 独占持有的策略槽：
-
-- `IBroadPhaseStrategy`：从帧内 `ColliderView` 生成候选 `CollisionPair`；
-- discrete `ICollisionDetectionStrategy`：处理普通离散检测；
-- continuous `ICollisionDetectionStrategy`：处理需要 previous/current origin 的连续检测；
-- `ICollisionResponseStrategy`：在命中后根据双方 Collider、manifold 和帧时间选择最终 Ignore、Overlap 或 Block。
-
-策略槽默认允许为空，当前 `dispatch_events` 不调用策略。检测策略生成的 manifold 法线统一从 `CollisionPair::first` 指向 `second`，供响应策略进行稳定的方向判断。BruteForce、Sweep-and-Prune、AABB/Circle 相交、Swept AABB 和单向响应都属于后续具体实现。分步 AABB 属于 PhysicsSystem 的时间步进策略，不作为 Collider 检测模式。
-
-### PhysicsService
-
-`PhysicsService` 是全局策略配置入口，不是全局物理世界。它只保存 BroadPhase、Discrete、Continuous 和 Response 四个策略工厂，并能为任意 `CollisionSystem` 安装一组独立策略实例。
-
-- 四个工厂必须一次性完整配置；
-- 配置成功后保持不变，直到显式 `shutdown()`；
-- 每次 `apply_to()` 都创建新的策略实例，不在 Scene 之间共享状态；
-- 任一工厂返回空指针时不修改目标 `CollisionSystem`；
-- 工厂异常继续向调用者传播，目标系统保持原状。
-
-当前 PhysicsService 不保存 Collider、PhysicsBody、CollisionFrame 或场景生命周期状态，也尚未自动接入 Scene/Application。具体策略实现和应用启动配置完成后，再由基础 Scene 统一应用 Service 配置。
-
-### 查询契约
-
-`RayCastQuery` 和 `SegmentCastQuery` 只描述最近命中查询；`ICollisionQueryService` 是纯接口，当前没有实现。Ray 与 Segment 是瞬时查询，不属于 `ColliderShape`，也不能作为零厚度 Block Collider。
-
-### `engine/gameplay/collision`
-
-Gameplay 便利层把通用 Collider 绑定为 Actor 相关语义：
-
-- `ColliderBinding`：Collider 所属 Actor、Team 和 Role；
-- `ActorCollisionRig`：一个 Actor 的 Body、PushBox、HurtBox 和 Sensor 集合；
-- `HitBoxBinding`：HitBox 的 owner、instigator、攻击实例和攻击定义；
-- `TeamRelationResolver`：由项目决定两个 Team 是 Friendly、Neutral 还是 Hostile；
-- `GameplayCollisionListener`：预留 Body、PushBox 和命中事件入口；
-- `IGameplayCollisionRuntime`：由具体 Scene runtime 实现 binding、解绑和临时穿透请求；
-- `GameplayCollisionService`：全局无状态门面，只保存当前 runtime 的非 owning 指针并转发调用。
-
-`GameplayCollisionService` 不保存 Collider、binding 或临时忽略碰撞对。没有 active runtime 时，业务调用记录 `collision` 类别错误日志并返回 false；挂载不同 runtime 会被拒绝，卸载时执行身份检查，防止旧场景清除新场景的 runtime。本阶段只提供显式 attach/detach，不接入 Scene、SceneManager 或 Application。
-
-`DropThroughRequest` 只指定 actor 与当前支撑平台的 ColliderId。未来 runtime 应只临时忽略这一对 Collider，并在 actor 完全离开目标平台后恢复；宽限时间、支撑追踪和恢复算法本轮不实现。
-
-`teams::Player`、`teams::Enemy` 和 `teams::Neutral` 是常用预设，不限制项目创建更多 `TeamId`。敌对关系不能通过 Team 数值直接推断，必须由 `TeamRelationResolver` 决定。
-
-## 来源与目标
-
-物理接触本身没有攻击方向，只包含一对 Collider。Gameplay 层按 Role 将事件规范化：
+`engine/physics` 只认识 Body、Collider、几何形状、过滤、响应、接触、Tile 碰撞单元和查询，不认识 Actor、玩家、敌人、阵营、攻击或伤害。
 
 ```text
-Body     <-> World    -> BodyContactEvent
-PushBox  <-> PushBox  -> PushBoxOverlapEvent
-HitBox   ->  HurtBox  -> HitOverlapEvent
+engine/physics
+    ↑ 只输出几何接触与查询结果
+engine/gameplay/collision
+    ↑ 将 Collider 绑定为 Body / PushBox / HurtBox / HitBox / Sensor
+game 或具体项目
+    ↑ 决定 Tile 数据、阵营关系、伤害、硬直、击退和角色规则
 ```
 
-普通 Collider 的来源由 `ColliderBinding::owner` 表示。攻击的责任来源由 `HitBoxBinding::instigator` 表示；这允许飞行道具拥有自己的 Collider，同时把命中归属给发射它的 Actor。`attack_instance` 用于未来的一次攻击内命中去重，`attack_definition` 用于查找招式数据。
+因此：
 
-过滤和语义判断分两阶段进行：
+- category 位由上层定义，物理核心不得硬编码 Player、Enemy、HitBox；
+- Tile Map 的数据结构属于项目，物理核心只声明 `ITileCollisionWorld`；
+- `CollisionResponse::Overlap` 是物理层唯一的触发语义；
+- 伤害和攻击去重发生在 Gameplay 层，不进入窄检或响应策略；
+- `PhysicsService` 是策略配置入口，不是全局物理世界；每个 `Scene` 应拥有自己的 `PhysicsWorld`。
 
-1. 物理核心根据 category/mask 产生可能接触的 Collider 对。
-2. Gameplay 层查询 binding 和 Team 关系，将 Collider 对路由到 Body、PushBox 或战斗处理器。
+## 当前实际调用点
 
-## 后续实现顺序
+`Scene::register_scene_object_interfaces` 会登记实现 `PhysicsBodyProvider` 或 `ColliderProvider` 的 `GameObject`。非暂停帧中，`Scene::on_update` 目前依次调用：
 
-1. 实现 AABB/Circle 世界坐标转换和 BruteForce 粗检测策略。
-2. 实现 AABB/AABB、Circle/Circle 和 AABB/Circle 离散检测策略。
-3. 实现 PhysicsBody 积分以及 Body 与世界的阻挡、接地和墙体处理。
-4. 按实际高速物体需求实现连续检测和 Ray/Segment 查询服务。
-5. 实现 Gameplay binding、PushBox、HitBox/HurtBox 路由和命中去重。
-6. 在项目 `gameplay` 层实现伤害、硬直、击退和具体角色规则。
+```cpp
+_physics_system.step(_physics_body_entries, delta);
+_collision_system.dispatch_events(_collider_entries, delta);
+```
 
-每个阶段都应先补齐单元测试，再接入下一个阶段；不得把 Gameplay 语义下沉到 `engine/physics`。
+这两个入口当前都不会修改对象或产生事件。实施目标架构后，`Scene` 应只把注册与 `advance(delta)` 交给自己的 `PhysicsWorld`，由世界内部保证固定步进、检测、响应和事件顺序。
+
+## 实现时的默认决策
+
+| 项目 | 首版约定 |
+| --- | --- |
+| 坐标系 | X 向右、Y 向下 |
+| 固定步长 | `1 / 60` 秒 |
+| 单帧最大物理步 | 8 |
+| 求解迭代 | 4 |
+| Body 类型 | Static / Kinematic / Dynamic |
+| Tile World | 每个 Scene 一个活动世界 |
+| Tile 越界 | 默认 Block，可配置 Empty |
+| 接触事件 | Begin / Stay / End |
+| Circle CCD | 首版不承诺，保持离散检测 |
+| 对象局部 time scale | 首版不参与物理 |
+
+返回：[引擎文档入口](../README.md)

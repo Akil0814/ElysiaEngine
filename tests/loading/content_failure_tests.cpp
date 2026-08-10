@@ -14,12 +14,15 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <source_location>
 #include <string>
 #include <thread>
 #include <utility>
 
 #include <SDL.h>
+#include <SDL_mixer.h>
+#include <SDL_ttf.h>
 
 int main()
 {
@@ -128,6 +131,7 @@ int main()
     }
     require(saw_texture && saw_font && saw_sound && saw_music && saw_strip && saw_frame,
         "aggregated preflight diagnostics must identify each concrete resource type");
+
     const std::string formatted = elysia::core::format_failure_diagnostic(
         preflight.error().diagnostic,preflight.error().error_code(),"startup",paths->root());
     require(formatted.find("CONTENT-MISSING") != std::string::npos
@@ -175,6 +179,10 @@ int main()
     require(registry,"missing-resource start test must parse the copied registry");
     require(SDL_Init(SDL_INIT_VIDEO) == 0,
         "missing-resource start test must initialize SDL video");
+    require(TTF_Init() == 0,
+        "post-preflight font deletion tests must initialize SDL_ttf");
+    require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,
+        "post-preflight audio deletion tests must initialize SDL_mixer");
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
         0,32,32,32,SDL_PIXELFORMAT_RGBA32);
     SDL_Renderer* renderer = surface ? SDL_CreateSoftwareRenderer(surface) : nullptr;
@@ -232,8 +240,76 @@ int main()
 		&& runtime_entry.declaration_pointer == "/textures/ui.moon",
 		"asynchronous failures must preserve concrete type, key, safe path and manifest origin");
 	runtime_loader.reset();
+
+    const auto verify_post_preflight_deletion = [&](std::filesystem::path relative_path,
+        std::string_view expected_code,std::string_view expected_type,
+        std::string_view expected_key,bool add_music = false)
+    {
+        std::filesystem::remove_all(temporary_root / "assets");
+        std::filesystem::copy(source_root / "assets",temporary_root / "assets",
+            std::filesystem::copy_options::recursive);
+        if (add_music)
+        {
+            std::filesystem::copy_file(
+                temporary_root / "assets/audio/system/button_click_down.wav",
+                temporary_root / relative_path,
+                std::filesystem::copy_options::overwrite_existing);
+            std::ofstream(temporary_root / "assets/configs/manifests/audio_manifest.json",
+                std::ios::trunc)
+                << R"({"sounds":{},"music":{"test.music":{"path":"system/test_music.wav"}}})";
+        }
+        require(paths->initialize(temporary_root),
+            "post-preflight deletion case must initialize its isolated root");
+        auto isolated_registry = elysia::io::ContentRegistryLoader{}.load(
+            paths->content_registry());
+        require(isolated_registry,
+            "post-preflight deletion case must load the isolated registry");
+        elysia::loading::GameContentLoader isolated_loader;
+        require(isolated_loader.start(renderer,*isolated_registry,point_sizes),
+            "post-preflight deletion case must pass synchronous preflight");
+        std::filesystem::remove(temporary_root / relative_path);
+        for (int attempt = 0; attempt < 3000 && isolated_loader.is_running(); ++attempt)
+        {
+            isolated_loader.update();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        const bool failed_as_expected = isolated_loader.has_failed()
+            && isolated_loader.failure()
+            && isolated_loader.failure()->error_code() == expected_code
+            && !isolated_loader.failure()->diagnostic.entries.empty();
+        if (!failed_as_expected)
+            std::cerr << "post-preflight case failed: expected=" << expected_code
+                << " actual=" << (isolated_loader.failure()
+                    ? isolated_loader.failure()->error_code() : "none") << '\n';
+        require(failed_as_expected,
+            "post-preflight deletion must remain a typed asynchronous stage failure");
+        const auto& entry = isolated_loader.failure()->diagnostic.entries.front();
+        require(entry.subject_type == expected_type
+            && entry.subject_key == expected_key
+            && !entry.expected_path.is_absolute()
+            && !entry.declaration_path.is_absolute()
+            && !entry.declaration_pointer.empty(),
+            "post-preflight deletion must preserve concrete type, key and declaration origin");
+        isolated_loader.reset();
+    };
+
+    verify_post_preflight_deletion(
+        "assets/textures/test/frame_group.png","CONTENT-ATLAS",
+        "atlas-frame","test.animation");
+    verify_post_preflight_deletion(
+        "assets/fonts/fusion-pixel-10px-proportional-latin.ttf","CONTENT-FONT",
+        "font","ui.latin.10");
+    verify_post_preflight_deletion(
+        "assets/audio/system/button_click_down.wav","CONTENT-AUDIO",
+        "sound","system.button_click_down");
+    verify_post_preflight_deletion(
+        "assets/audio/system/test_music.wav","CONTENT-AUDIO",
+        "music","test.music",true);
+
     SDL_DestroyRenderer(renderer);
     SDL_FreeSurface(surface);
+    Mix_CloseAudio();
+    TTF_Quit();
     SDL_Quit();
     require(paths->initialize(source_root),
         "missing-resource start test must restore the source project root");

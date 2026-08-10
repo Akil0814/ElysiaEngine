@@ -1,7 +1,6 @@
 #include "animation_layout_loader.h"
 
 #include "../json/json_loader.h"
-#include "../json/json_duplicate_key_checker.h"
 #include "../../resources/pipeline/resource_key_builder.h"
 
 namespace elysia::io
@@ -21,13 +20,10 @@ std::expected<AnimationLayout,ManifestLoadFailure> AnimationLayoutLoader::load(
 	if (auto source = validate_manifest_source(layout_path,"animation-layout");
 		!source)
 		return std::unexpected(std::move(source.error()));
-	if (has_duplicate_json_object_key(layout_path))
-		return fail(ManifestLoadError::DuplicateKey,
-			"Load animation layout failed: duplicate JSON object key.");
 	JsonLoader loader;
 	const auto read = loader.open_file(layout_path);
-	if (!read) return fail(ManifestLoadError::OpenFailed,
-		"Load animation layout failed: " + read.error);
+	if (!read) return std::unexpected(manifest_failure_from_json(
+		read.error(),"animation-layout","Load animation layout failed: "));
 	if (!loader.root().is_object() || loader.root().size() != 1
 		|| !loader.root().contains("animations") || !loader.root().at("animations").is_object())
 		return fail(ManifestLoadError::InvalidSchema,

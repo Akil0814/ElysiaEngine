@@ -8,7 +8,7 @@ namespace elysia::config
 {
 UserConfigService::UserConfigService() = default;
 
-std::expected<UserConfigLoadResult,UserConfigInitializationFailure> UserConfigService::initialize(
+std::expected<UserConfigLoadResult,UserConfigFailure> UserConfigService::initialize(
     const UserConfigData& default_settings,
     const std::filesystem::path& user_config_path)
 {
@@ -16,7 +16,7 @@ std::expected<UserConfigLoadResult,UserConfigInitializationFailure> UserConfigSe
     _user_config_store = std::make_unique<UserConfigStore>();
     const auto settings_result = _user_config_store->load(user_config_path,default_settings);
     if (!settings_result)
-        return std::unexpected(UserConfigInitializationFailure{settings_result.error().message});
+        return std::unexpected(settings_result.error());
     _user_config.initialize(settings_result->settings);
     _user_config_path = user_config_path;
     _initialized = true;

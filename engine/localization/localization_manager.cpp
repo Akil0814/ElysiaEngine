@@ -374,13 +374,14 @@ LocalizationManager::load_language_table(const std::string& language) const
 		const std::filesystem::path full_file_path =
 			*locale_directory / manifest_file.path;
 		elysia::io::JsonLoader loader;
-		const elysia::io::JsonReadResult open_result = loader.open_file(full_file_path);
+		const auto open_result = loader.open_file(full_file_path);
 		if (!open_result)
 			return std::unexpected(make_localization_failure(
 				LocalizationError::Language,
-				"Load language table failed: " + open_result.error,
+				"Load language table failed: " + open_result.error().message,
 				"language-file",language,full_file_path,
-				manifest_file.origin.config_path,manifest_file.origin.json_pointer));
+				manifest_file.origin.config_path,manifest_file.origin.json_pointer,
+				open_result.error().origin));
 
 		auto flattened = flatten_locale_json(loader.root(),"","",merged_table);
 		if (!flattened)

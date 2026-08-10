@@ -1,7 +1,6 @@
 #include "../../resources/pipeline/resource_key_builder.h"
 #include "entity_audio_layout_loader.h"
 #include "../json/json_loader.h"
-#include "../json/json_duplicate_key_checker.h"
 
 namespace elysia::io
 {
@@ -20,13 +19,10 @@ EntityAudioLayoutLoader::load(const std::filesystem::path& path) const
 	if (auto source = validate_manifest_source(path,"entity-audio-layout");
 		!source)
 		return std::unexpected(std::move(source.error()));
-	if (has_duplicate_json_object_key(path))
-		return fail(ManifestLoadError::DuplicateKey,
-			"Load entity audio layout failed: duplicate JSON object key.");
 	JsonLoader loader;
 	const auto read = loader.open_file(path);
-	if (!read) return fail(ManifestLoadError::OpenFailed,
-		"Load entity audio layout failed: " + read.error);
+	if (!read) return std::unexpected(manifest_failure_from_json(
+		read.error(),"entity-audio-layout","Load entity audio layout failed: "));
 	if (!loader.root().is_object()) return fail(ManifestLoadError::InvalidDocument,
 		"Load entity audio layout failed: root is not an object.");
 	EntityAudioLayout layout;

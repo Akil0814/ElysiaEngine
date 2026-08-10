@@ -73,8 +73,13 @@ bool Application::startup_fail(
 bool Application::startup_fail(
     const elysia::bootstrap::BootstrapFailure& failure)
 {
+    std::filesystem::path project_root;
+    if (failure.code != elysia::bootstrap::BootstrapFailure::Code::ProjectRoot)
+        if (const auto* paths = elysia::io::PathManager::instance();
+            paths && paths->is_initialized())
+            project_root = paths->root();
     const std::string formatted = elysia::core::format_failure_diagnostic(
-        failure.diagnostic,failure.error_code(),"bootstrap");
+        failure.diagnostic,failure.error_code(),"bootstrap",project_root);
     auto* logger = elysia::tools::Logger::instance();
     logger->error("bootstrap",formatted,failure.diagnostic.origin);
     logger->terminating(
@@ -192,10 +197,13 @@ bool Application::initialize(
         return startup_fail("save",save_result.error().message);
     }
 
-    if (!bootstrap_output.warning.empty())
+    if (bootstrap_output.warning)
         ELYSIA_LOG_WARN(
             "application",
-            "Startup warning: " << bootstrap_output.warning);
+            elysia::core::format_failure_diagnostic(
+                bootstrap_output.warning->diagnostic,
+                "BOOTSTRAP-USER-CONFIG","user-config",
+                elysia::io::PathManager::instance()->root()));
 
     elysia::bootstrap::RuntimeSettings runtime_settings =
         std::move(bootstrap_output.runtime_settings);

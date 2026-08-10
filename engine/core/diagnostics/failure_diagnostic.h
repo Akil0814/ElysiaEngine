@@ -86,4 +86,12 @@ struct FailureDiagnostic
 
 [[nodiscard]] std::string_view source_file_basename(
     const std::source_location& origin) noexcept;
+
+[[nodiscard]] std::filesystem::path normalize_diagnostic_path(
+    const std::filesystem::path& path,
+    const std::filesystem::path& project_root);
+
+void normalize_failure_diagnostic_paths(
+    FailureDiagnostic& diagnostic,
+    const std::filesystem::path& project_root);
 }

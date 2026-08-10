@@ -1,7 +1,6 @@
 #include "entity_manifest_loader.h"
 
 #include "../json/json_loader.h"
-#include "../json/json_duplicate_key_checker.h"
 #include "../../resources/pipeline/resource_key_builder.h"
 
 #include <unordered_map>
@@ -23,13 +22,10 @@ std::expected<EntityManifest,ManifestLoadFailure> EntityManifestLoader::load(
 	if (auto source = validate_manifest_source(manifest_path,"entity-manifest");
 		!source)
 		return std::unexpected(std::move(source.error()));
-	if (has_duplicate_json_object_key(manifest_path))
-		return fail(ManifestLoadError::DuplicateKey,
-			"Load entity manifest failed: duplicate JSON object key.");
 	JsonLoader loader;
 	const auto read = loader.open_file(manifest_path);
-	if (!read) return fail(ManifestLoadError::OpenFailed,
-		"Load entity manifest failed: " + read.error);
+	if (!read) return std::unexpected(manifest_failure_from_json(
+		read.error(),"entity-manifest","Load entity manifest failed: "));
 	if (!loader.root().is_object() || loader.root().size() != 1
 		|| !loader.root().contains("entities") || !loader.root().at("entities").is_array())
 		return fail(ManifestLoadError::InvalidSchema,

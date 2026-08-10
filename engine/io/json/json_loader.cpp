@@ -1,6 +1,5 @@
 #include "json_loader.h"
 
-#include <fstream>
 #include <utility>
 
 namespace elysia::io
@@ -14,45 +13,20 @@ void JsonLoader::add_error_message(
     result.error += '\n';
 }
 
-JsonReadResult JsonLoader::open_file(
-    const std::filesystem::path& path
+std::expected<void,JsonFileFailure> JsonLoader::open_file(
+    const std::filesystem::path& path,
+    std::source_location origin
 )
 {
     reset();
+    auto parsed = load_strict_json(path,origin);
+    if (!parsed) return std::unexpected(std::move(parsed.error()));
 
-    JsonReadResult result;
-
-    if (path.empty())
-    {
-        add_error_message(result, "JSON path is empty.");
-        return result;
-    }
-
-    std::ifstream file(path);
-
-    if (!file.is_open())
-    {
-        add_error_message(result, "JSON open failed: " + path.string());
-        return result;
-    }
-
-    try
-    {
-        json parsed;
-        file >> parsed;
-        _root = std::move(parsed);
-    }
-    catch (const std::exception& error)
-    {
-        add_error_message(result, "JSON parse failed: " + path.string());
-        add_error_message(result, std::string("Reason: ") + error.what());
-        return result;
-    }
+    _root = std::move(*parsed);
 
     _path = path;
     _loaded = true;
-    result.success = true;
-    return result;
+    return {};
 }
 
 void JsonLoader::reset()

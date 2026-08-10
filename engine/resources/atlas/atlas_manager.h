@@ -24,8 +24,9 @@ class AtlasManager : public ResourceSubManager
 public:
 	explicit AtlasManager(TextureManager& texture_manager);
 
-	bool begin_build(const AtlasBuildRequest& request);
-	bool commit_prepared_frame(SDL_Renderer* renderer,
+	[[nodiscard]] std::expected<void,ResourceFailure> begin_build(
+		const AtlasBuildRequest& request);
+	[[nodiscard]] std::expected<void,ResourceFailure> commit_prepared_frame(SDL_Renderer* renderer,
 		const AtlasFramePreparedResult& prepared_result);
 
 	Atlas* find_atlas(const std::string_view& key) const;
@@ -54,7 +55,8 @@ private:
 		std::vector<AnimationTextureResource> pending_textures;
 	};
 
-	bool finalize_build(const std::string& atlas_key);
+	[[nodiscard]] std::expected<void,ResourceFailure> finalize_build(
+		const std::string& atlas_key);
 	std::string make_texture_key(
 		const std::string& atlas_key,
 		size_t frame_index

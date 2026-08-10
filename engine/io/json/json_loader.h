@@ -1,5 +1,6 @@
 #pragma once
 #include "../../../thirdparty/nlohmann/json.hpp"
+#include "strict_json.h"
 
 #include <exception>
 #include <filesystem>
@@ -28,7 +29,9 @@ class JsonLoader
 {
 public:
     // 读取并解析文件；成功后可通过 root()/get*() 访问内容
-    JsonReadResult open_file(const std::filesystem::path& path);
+    [[nodiscard]] std::expected<void,JsonFileFailure> open_file(
+        const std::filesystem::path& path,
+        std::source_location origin = std::source_location::current());
 
     // 清空当前已加载内容，回到未加载状态
     void reset();

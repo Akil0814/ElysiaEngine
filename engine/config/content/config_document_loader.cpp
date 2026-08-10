@@ -12,15 +12,20 @@ std::expected<ConfigDocument,ConfigLoadFailure> ConfigDocumentLoader::load(
     const std::string source = config_project_relative(entry.document_path);
     if (!parsed)
     {
-        const std::string duplicate = duplicate_config_property(parsed.error());
-        if (!duplicate.empty())
+        const auto& json_failure = parsed.error();
+        if (json_failure.code == elysia::io::JsonFileError::DuplicateProperty)
         {
-            ConfigOrigin origin{source,"/"+config_pointer_component(duplicate),entry.key_namespace,
-                entry.key_namespace+"."+duplicate};
+            ConfigOrigin origin{source,json_failure.json_pointer,entry.key_namespace,
+                entry.key_namespace+"."+json_failure.duplicate_property};
             return std::unexpected(make_config_load_failure(ConfigLoadError::DuplicateKey,
-                parsed.error(),origin,origin));
+                json_failure.message,origin,origin,json_failure.origin));
         }
-        return std::unexpected(make_config_load_failure(ConfigLoadError::OpenFailed,parsed.error(),entry.origin));
+        const ConfigLoadError code = json_failure.code == elysia::io::JsonFileError::FileMissing
+            ? ConfigLoadError::FileMissing
+            : json_failure.code == elysia::io::JsonFileError::FilesystemAccess
+                ? ConfigLoadError::FilesystemAccess : ConfigLoadError::OpenFailed;
+        return std::unexpected(make_config_load_failure(code,json_failure.message,
+            entry.origin,{},json_failure.origin));
     }
     return ConfigDocument{entry.key_namespace,entry.document_path,*parsed,
         ConfigOrigin{source,"",entry.key_namespace,entry.key_namespace}};

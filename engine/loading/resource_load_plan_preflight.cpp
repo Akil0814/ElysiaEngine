@@ -13,15 +13,9 @@ namespace
 {
 std::filesystem::path relative_to_project(const std::filesystem::path& path)
 {
-    if (path.empty() || !path.is_absolute()) return path.lexically_normal();
     auto* paths = elysia::io::PathManager::instance();
-    if (!paths || !paths->is_initialized()) return path.filename();
-    std::error_code error;
-    auto relative = std::filesystem::relative(path,paths->root(),error);
-    if (error || relative.empty() || relative == ".."
-        || relative.generic_string().starts_with("../"))
-        return path.filename();
-    return relative.lexically_normal();
+    return elysia::core::normalize_diagnostic_path(
+        path,paths && paths->is_initialized() ? paths->root() : std::filesystem::path{});
 }
 
 void add_missing(
@@ -37,20 +31,27 @@ void add_missing(
         std::move(reason),origin));
 }
 
-bool regular_file(const std::filesystem::path& path,std::string& reason)
+std::expected<bool,ContentLoadFailure> probe_path(
+    const std::filesystem::path& path,bool expect_directory,
+    std::string type,std::string key,
+    const elysia::resources::ResourceOrigin& resource_origin,
+    std::source_location origin = std::source_location::current())
 {
     std::error_code error;
-    if (std::filesystem::is_regular_file(path,error)) return true;
-    reason = error ? error.message() : "file does not exist or is not a regular file";
-    return false;
-}
+    const bool matches = expect_directory
+        ? std::filesystem::is_directory(path,error)
+        : std::filesystem::is_regular_file(path,error);
+    if (matches) return true;
+    if (!error || error == std::errc::no_such_file_or_directory) return false;
 
-bool directory(const std::filesystem::path& path,std::string& reason)
-{
-    std::error_code error;
-    if (std::filesystem::is_directory(path,error)) return true;
-    reason = error ? error.message() : "directory does not exist or is not a directory";
-    return false;
+    auto diagnostic = elysia::core::make_failure_diagnostic(
+        "Content resource status could not be read.",
+        {elysia::core::make_failure_diagnostic_entry(
+            std::move(type),std::move(key),relative_to_project(path),
+            relative_to_project(resource_origin.config_path),
+            resource_origin.json_pointer,error.message(),origin)},origin);
+    return std::unexpected(make_content_load_failure(
+        ContentLoadError::Plan,std::move(diagnostic)));
 }
 
 std::filesystem::path frame_path(
@@ -72,39 +73,46 @@ std::expected<void,ContentLoadFailure> ResourceLoadPlanPreflight::validate(
         entry.expected_path = relative_to_project(entry.expected_path);
         entry.declaration_path = relative_to_project(entry.declaration_path);
     }
-    std::string reason;
+    const auto check = [&](std::string type,std::string key,
+        const std::filesystem::path& path,
+        const elysia::resources::ResourceOrigin& resource_origin,
+        bool expect_directory = false) -> std::expected<void,ContentLoadFailure>
+    {
+        auto probe = probe_path(path,expect_directory,type,key,resource_origin);
+        if (!probe) return std::unexpected(std::move(probe.error()));
+        if (!*probe)
+            add_missing(missing,std::move(type),std::move(key),path,resource_origin,
+                expect_directory ? "directory does not exist or is not a directory"
+                                 : "file does not exist or is not a regular file");
+        return {};
+    };
     for (const auto& request : plan.texture_requests())
-        if (!regular_file(request.file_path,reason))
-            add_missing(missing,"texture",request.key,request.file_path,request.origin,reason);
+        if (auto result = check("texture",request.key,request.file_path,request.origin); !result)
+            return result;
     for (const auto& request : plan.font_requests())
-        if (!regular_file(request.file_path,reason))
-            add_missing(missing,"font",request.key,request.file_path,request.origin,reason);
+        if (auto result = check("font",request.key,request.file_path,request.origin); !result)
+            return result;
     for (const auto& request : plan.sound_requests())
-        if (!regular_file(request.file_path,reason))
-            add_missing(missing,"sound",request.key,request.file_path,request.origin,reason);
+        if (auto result = check("sound",request.key,request.file_path,request.origin); !result)
+            return result;
     for (const auto& request : plan.music_requests())
-        if (!regular_file(request.file_path,reason))
-            add_missing(missing,"music",request.key,request.file_path,request.origin,reason);
+        if (auto result = check("music",request.key,request.file_path,request.origin); !result)
+            return result;
     for (const auto& request : plan.atlas_build_requests())
     {
         if (request.source_type == elysia::resources::AtlasSourceType::HorizontalStrip)
         {
-            if (!regular_file(request.source_path,reason))
-                add_missing(missing,"atlas-strip",request.atlas_key,
-                    request.source_path,request.origin,reason);
+            if (auto result = check("atlas-strip",request.atlas_key,
+                request.source_path,request.origin); !result) return result;
             continue;
         }
-        if (!directory(request.source_path,reason))
-        {
-            add_missing(missing,"atlas-directory",request.atlas_key,
-                request.source_path,request.origin,reason);
-        }
+        if (auto result = check("atlas-directory",request.atlas_key,
+            request.source_path,request.origin,true); !result) return result;
         for (std::size_t index = 0; index < request.frame_count; ++index)
         {
             const auto expected = frame_path(request,index);
-            if (!regular_file(expected,reason))
-                add_missing(missing,"atlas-frame",request.atlas_key,
-                    expected,request.origin,reason);
+            if (auto result = check("atlas-frame",request.atlas_key,
+                expected,request.origin); !result) return result;
         }
     }
     if (missing.empty()) return {};

@@ -131,6 +131,15 @@ void test_horizontal_strip_manifest_schema()
 	std::filesystem::remove_all(test_root);
 	std::filesystem::create_directories(test_root);
 
+	const auto missing_manifest = elysia::io::AnimationManifestLoader{}.load(
+		test_root / "missing.json");
+	require(!missing_manifest
+		&& missing_manifest.error().code == elysia::io::ManifestLoadError::FileMissing
+		&& !missing_manifest.error().diagnostic.entries.empty()
+		&& missing_manifest.error().diagnostic.message.find(test_root.string())
+			== std::string::npos,
+		"core manifests must distinguish missing files without embedding paths in summaries");
+
 	const std::filesystem::path animation_manifest_path = test_root / "animations.json";
 	std::ofstream(animation_manifest_path)
 		<< R"({"animations":[{"key":"bad","path":"bad.png","frame_count":1,"fps":10,"loop":true,"horizontal_strip":"yes"}]})";
@@ -212,8 +221,14 @@ void test_horizontal_strip_manifest_schema()
 	const std::filesystem::path duplicate_animation_property_path = test_root / "duplicate_animation_property.json";
 	std::ofstream(duplicate_animation_property_path)
 		<< R"({"animations":[{"key":"core.strip","key":"core.other","path":"strip.png","frame_count":2,"fps":10,"loop":true,"horizontal_strip":true}]})";
-	require(!elysia::io::AnimationManifestLoader{}.load(duplicate_animation_property_path),
-		"core animation manifests must reject duplicate JSON object properties before parsing");
+	auto duplicate_animation = elysia::io::AnimationManifestLoader{}.load(
+		duplicate_animation_property_path);
+	require(!duplicate_animation
+		&& duplicate_animation.error().code == elysia::io::ManifestLoadError::DuplicateKey
+		&& !duplicate_animation.error().diagnostic.entries.empty()
+		&& duplicate_animation.error().diagnostic.entries.front().declaration_pointer
+			== "/animations/0/key",
+		"core animation duplicate properties must preserve the exact typed pointer");
 
 	const std::filesystem::path duplicate_effect_property_path = test_root / "duplicate_effect_property.json";
 	std::ofstream(duplicate_effect_property_path)

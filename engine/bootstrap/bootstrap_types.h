@@ -1,12 +1,13 @@
 #pragma once
 
-#include "../config/user_config_data.h"
+#include "../config/user_config_types.h"
 #include "../core/diagnostics/failure_diagnostic.h"
 #include "../io/loaders/asset_config_types.h"
 
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <optional>
 #include <utility>
 
 namespace elysia::bootstrap
@@ -69,6 +70,6 @@ struct BootstrapOutput
     RuntimeSettings runtime_settings;
     elysia::io::ContentRegistry content_registry;
     std::filesystem::path i18n_manifest_path;
-    std::string warning;
+    std::optional<elysia::config::UserConfigFailure> warning;
 };
 }

@@ -148,7 +148,7 @@ std::expected<bool,std::string> add_typed_value(
 ParseResult parse_document(const std::filesystem::path& path)
 {
     const auto loaded = elysia::io::load_strict_json(path);
-    if (!loaded) return {ParseKind::Invalid,{},loaded.error()};
+    if (!loaded) return {ParseKind::Invalid,{},loaded.error().message};
     const Json& root = *loaded;
     if (!has_exact_fields(root,{"format_version","types","values"}))
         return {ParseKind::Invalid,{},"Save root must contain exactly format_version, types, and values."};

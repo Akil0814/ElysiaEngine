@@ -1,6 +1,7 @@
 #pragma once
 
 #include "user_config_data.h"
+#include "../core/diagnostics/failure_diagnostic.h"
 
 #include <optional>
 #include <string>
@@ -21,6 +22,7 @@ struct UserConfigFailure
     UserConfigError error = UserConfigError::InvalidValue;
     std::string setting_name;
     std::string message;
+    elysia::core::FailureDiagnostic diagnostic;
 };
 
 struct UserConfigCommitFailure
@@ -41,15 +43,10 @@ enum class UserConfigApplyStatus
     PendingRestart
 };
 
-struct UserConfigInitializationFailure
-{
-    std::string message;
-};
-
 struct UserConfigLoadResult
 {
     UserConfigData settings;
-    std::string warning;
+    std::optional<UserConfigFailure> warning;
     bool recovered = false;
     bool rebuilt = false;
 };

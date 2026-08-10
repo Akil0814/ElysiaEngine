@@ -87,8 +87,11 @@ int main()
     const auto old_v0_path = dir / "old_v0.json";
     write(old_v0_path,R"({"window":{"width":1600}})");
     const auto old_v0 = store.load(old_v0_path,defaults);
-    require(old_v0 && old_v0->rebuilt && old_v0->settings == defaults,
-        "UserConfig v0 must be archived and rebuilt from AppConfig defaults");
+    require(old_v0 && old_v0->rebuilt && old_v0->settings == defaults
+        && old_v0->warning && !old_v0->warning->diagnostic.entries.empty()
+        && old_v0->warning->diagnostic.entries.front().declaration_path
+            == old_v0_path,
+        "UserConfig v0 recovery must retain a structured warning");
 
     const auto old_v1_path = dir / "old_v1.json";
     write(old_v1_path,R"({"schema_version":1,"window":{"width":1600,"height":900,"fullscreen":false},"render":{"fps":60,"vsync":true},"audio":{"master_volume":100,"music_volume":100,"sound_volume":100},"localization":{"language":"en"}})");
@@ -132,7 +135,11 @@ int main()
         "a valid temporary v2 file must recover a missing primary");
 
     write(path,R"({"schema_version":99})");
-    require(!store.load(path,defaults),"future UserConfig version must stop loading without downgrade recovery");
+    const auto future = store.load(path,defaults);
+    require(!future && !future.error().diagnostic.entries.empty()
+        && future.error().diagnostic.entries.front().declaration_pointer
+            == "/schema_version",
+        "future UserConfig version must stop loading with structured diagnostics");
     std::ifstream preserved(path); std::string text((std::istreambuf_iterator<char>(preserved)),{});
     require(text.find("99") != std::string::npos,"future UserConfig must be preserved");
     preserved.close();

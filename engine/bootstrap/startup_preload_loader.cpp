@@ -1,7 +1,6 @@
 #include "startup_preload_loader.h"
 
 #include "../builtin/resources/builtin_asset_keys.h"
-#include "../io/json/json_duplicate_key_checker.h"
 #include "../resources/texture/surface_loader.h"
 #include "../resources/texture/texture_loader.h"
 #include "../io/path/path_manager.h"
@@ -93,16 +92,13 @@ SDL_Texture* StartupPreloadLoader::find_texture(
 std::expected<void,BootstrapFailure> StartupPreloadLoader::load_manifest()
 {
     _project_textures.clear();
-    if (elysia::io::has_duplicate_json_object_key(_manifest_path))
+    const auto result = _manifest_loader.open_file(_manifest_path);
+    if (!result)
         return std::unexpected(preload_failure(
-            "Load preload manifest failed: duplicate JSON object key.",
-            "preload-manifest",{},_manifest_path,_manifest_path));
-
-    const elysia::io::JsonReadResult result = _manifest_loader.open_file(_manifest_path);
-    if (!result.success)
-        return std::unexpected(preload_failure(
-            "Load preload manifest failed: " + result.error,
-            "preload-manifest",{},_manifest_path,_manifest_path));
+            "Load preload manifest failed: " + result.error().message,
+            "preload-manifest",result.error().duplicate_property,
+            _manifest_path,_manifest_path,result.error().json_pointer,
+            result.error().origin));
 
     const elysia::io::json& root = _manifest_loader.root();
     if (!root.is_object() || root.size() != 1 || !root.contains("textures")

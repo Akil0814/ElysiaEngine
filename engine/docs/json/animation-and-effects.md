@@ -2,6 +2,8 @@
 
 Animation 负责 Atlas 与 Animation 资源。Effect 只将已存在的 Animation 注册为 EffectDefinition，不会单独请求图片或创建动画。核心 manifest 和 additional module 最终进入同一请求计划与资源 registry。
 
+依赖查询与阶段终止是两个独立事件：`find_atlas()` / `find_definition()` 查询失败时的 Warn 记录缺失依赖；随后 Animation 或 EffectDefinition 注册终止时的 Error 记录加载阶段失败。两条日志不得合并或按重复日志删除。
+
 ## 核心动画
 
 `assets/configs/manifests/animations_manifest.json`：

@@ -1,6 +1,9 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/resources/atlas/atlas_build_preparer.h"
+#include "engine/resources/atlas/atlas_builder.h"
+#include "engine/resources/atlas/atlas_manager.h"
+#include "engine/resources/texture/texture_manager.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
@@ -69,11 +72,53 @@ void test_explicit_frame_directory_expansion()
 		"horizontal strip loading must expand to one preparation task");
 	std::filesystem::remove_all(atlas_test_root);
 }
+
+void test_typed_atlas_state_failures()
+{
+    using namespace elysia::resources;
+    TextureManager textures;
+    AtlasManager manager(textures);
+
+    AtlasBuildRequest invalid;
+    auto result = manager.begin_build(invalid);
+    require(!result && result.error().code == ResourceError::InvalidRequest,
+        "invalid atlas build requests must have a typed InvalidRequest failure");
+
+    AtlasBuildRequest request;
+    request.atlas_key = "test.atlas";
+    request.source_path = "frames";
+    request.frame_count = 1;
+    request.frame_filename_prefix = "frame";
+    require(manager.begin_build(request),"a valid atlas build must begin");
+    result = manager.begin_build(request);
+    require(!result && result.error().code == ResourceError::InvalidBuildState,
+        "a duplicate in-progress atlas build must report InvalidBuildState");
+
+    AtlasFramePreparedResult missing_state;
+    missing_state.task.atlas_key = "missing.atlas";
+    missing_state.task.frame_path = "frames/missing.png";
+    result = manager.commit_prepared_frame(
+        reinterpret_cast<SDL_Renderer*>(1),missing_state);
+    require(!result && result.error().code == ResourceError::MissingBuildState
+        && !result.error().diagnostic.entries.empty()
+        && result.error().diagnostic.entries.front().subject_type == "atlas-frame",
+        "committing without build state must retain atlas-frame diagnostics");
+
+    Atlas atlas;
+    AtlasBuilder builder;
+    auto built = builder.build_atlas(invalid,{},atlas);
+    require(!built && built.error().code == ResourceError::InvalidRequest,
+        "AtlasBuilder must report invalid requests through ResourceFailure");
+    built = builder.build_atlas(request,{},atlas);
+    require(!built && built.error().code == ResourceError::InvalidBuildState,
+        "AtlasBuilder must report frame-count mismatch through ResourceFailure");
+}
 }
 
 int main()
 {
     test_explicit_frame_directory_expansion();
+    test_typed_atlas_state_failures();
     std::cout << "atlas build preparer tests passed\n";
     return EXIT_SUCCESS;
 }

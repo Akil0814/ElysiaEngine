@@ -1,7 +1,6 @@
 #include "../../resources/pipeline/filesystem_segment_formatter.h"
 #include "../../resources/pipeline/resource_key_builder.h"
 #include "animation_config_loader.h"
-#include "../json/json_duplicate_key_checker.h"
 
 #include <string>
 #include <optional>
@@ -50,16 +49,11 @@ std::expected<AnimationConfig,ManifestLoadFailure> AnimationConfigLoader::load(
 	if (auto source = validate_manifest_source(
 		animation_config_path,"animation-config"); !source)
 		return std::unexpected(std::move(source.error()));
-	if (has_duplicate_json_object_key(animation_config_path))
-		return std::unexpected(animation_failure(
-			animation_config_path,ManifestLoadError::DuplicateKey,
-			"Load animation config failed: duplicate JSON object key."));
 	JsonLoader loader;
-	const JsonReadResult result = loader.open_file(animation_config_path);
+	const auto result = loader.open_file(animation_config_path);
 	if (!result)
-		return std::unexpected(animation_failure(
-			animation_config_path,ManifestLoadError::OpenFailed,
-			"Load animation config failed: " + result.error));
+		return std::unexpected(manifest_failure_from_json(
+			result.error(),"animation-config","Load animation config failed: "));
 	if (!loader.root().is_object())
 		return std::unexpected(animation_failure(
 			animation_config_path,ManifestLoadError::InvalidDocument,

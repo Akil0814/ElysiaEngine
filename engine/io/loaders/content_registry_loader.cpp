@@ -1,6 +1,5 @@
 #include "content_registry_loader.h"
 
-#include "../json/json_duplicate_key_checker.h"
 #include "../json/json_loader.h"
 #include "../path/path_manager.h"
 
@@ -84,15 +83,21 @@ std::expected<ContentRegistry,ContentRegistryFailure> ContentRegistryLoader::loa
             "Content registry file does not exist or is not a regular file.",
             registry_path,{},registry_path));
     }
-    if (has_duplicate_json_object_key(registry_path))
-        return std::unexpected(failure(ContentRegistryError::InvalidDocument,
-            "Content registry contains a duplicate JSON object key.",registry_path));
-
     JsonLoader loader;
-    const JsonReadResult read = loader.open_file(registry_path);
-    if (!read || !loader.root().is_object())
+    const auto read = loader.open_file(registry_path);
+    if (!read)
+    {
+        ContentRegistryError code = ContentRegistryError::InvalidDocument;
+        if (read.error().code == JsonFileError::FileMissing)
+            code = ContentRegistryError::FileMissing;
+        else if (read.error().code == JsonFileError::FilesystemAccess)
+            code = ContentRegistryError::FilesystemAccess;
+        return std::unexpected(failure(code,read.error().message,registry_path,
+            read.error().json_pointer,registry_path,read.error().origin));
+    }
+    if (!loader.root().is_object())
         return std::unexpected(failure(ContentRegistryError::InvalidDocument,
-            read ? "Content registry root is not an object." : read.error,registry_path));
+            "Content registry root is not an object.",registry_path));
     const json& root = loader.root();
     if (root.size() != 2 || !root.contains("bootstrap") || !root.contains("manifests"))
         return std::unexpected(failure(ContentRegistryError::InvalidSchema,

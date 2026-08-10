@@ -6,7 +6,6 @@
 #include "../io/loaders/entity_audio_layout_loader.h"
 #include "../io/loaders/entity_manifest_loader.h"
 #include "../io/loaders/entity_texture_layout_loader.h"
-#include "../io/json/json_duplicate_key_checker.h"
 #include "../io/json/json_loader.h"
 #include "../io/path/path_manager.h"
 #include "../resources/pipeline/resource_key_builder.h"
@@ -106,14 +105,11 @@ public:
 				error.diagnostic.entries.front().subject_key = _module_name;
 			return std::unexpected(std::move(error));
 		}
-		if (elysia::io::has_duplicate_json_object_key(_manifest_path))
-			return std::unexpected(failure(elysia::io::ManifestLoadError::DuplicateKey,
-				"Entity content module failed: module manifest contains duplicate object keys."));
 		elysia::io::JsonLoader loader;
 		const auto read = loader.open_file(_manifest_path);
 		if (!read)
-			return std::unexpected(failure(elysia::io::ManifestLoadError::OpenFailed,
-				"Entity content module failed: " + read.error));
+			return std::unexpected(elysia::io::manifest_failure_from_json(
+				read.error(),"additional-module","Entity content module failed: "));
 		if (!loader.root().is_object())
 			return std::unexpected(failure(elysia::io::ManifestLoadError::InvalidDocument,
 				"Entity content module failed: module manifest root is not an object."));
@@ -558,20 +554,8 @@ AnimatedEntityContentLoader::load(
 	auto content = ModuleParser(module_name,manifest_path,*paths).parse();
 	if (!content)
 	{
-		for (auto& entry : content.error().diagnostic.entries)
-		{
-			for (auto* path : {&entry.expected_path,&entry.declaration_path})
-			{
-				if (!path->is_absolute()) continue;
-				std::error_code error;
-				auto relative = std::filesystem::relative(*path,paths->root(),error);
-				if (!error && !relative.empty() && relative != ".."
-					&& !relative.generic_string().starts_with("../"))
-					*path = relative.lexically_normal();
-				else
-					*path = path->filename();
-			}
-		}
+		elysia::core::normalize_failure_diagnostic_paths(
+			content.error().diagnostic,paths->root());
 		return std::unexpected(make_content_load_failure(
 			ContentLoadError::Manifest,std::move(content.error().diagnostic)));
 	}

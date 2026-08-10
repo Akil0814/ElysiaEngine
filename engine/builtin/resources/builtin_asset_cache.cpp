@@ -394,7 +394,7 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
         const std::filesystem::path path = catalog.resolve(descriptor.relative_path);
         const auto document = elysia::io::load_strict_json(path);
         if (!document)
-            return std::unexpected("Built-in i18n load failed: " + document.error());
+            return std::unexpected("Built-in i18n load failed: " + document.error().message);
         if (!document->is_object() || document->size() != 1 || !document->contains("engine"))
             return std::unexpected(make_prepare_error("Built-in i18n root is invalid", path));
 

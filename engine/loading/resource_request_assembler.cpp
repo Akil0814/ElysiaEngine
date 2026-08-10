@@ -45,9 +45,13 @@ std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::ass
             ContentLoadError::Plan,
             "Resource request assembly failed: path manager is not initialized."));
     const auto textures_root = paths->textures();
-    const auto consume = [&missing](BuildResult result)
+    const auto consume = [&missing,paths](BuildResult result)
     {
-        return consume_build_result(std::move(result),missing);
+        auto failure = consume_build_result(std::move(result),missing);
+        if (failure)
+            elysia::core::normalize_failure_diagnostic_paths(
+                failure->diagnostic,paths->root());
+        return failure;
     };
 
     if (auto failure = consume(builder.append_animation_manifest_requests(

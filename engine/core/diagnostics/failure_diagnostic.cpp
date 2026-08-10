@@ -13,16 +13,7 @@ std::string display_path(
     if (path.empty())
         return {};
     if (!project_root.empty())
-    {
-        std::error_code error;
-        const auto relative = std::filesystem::relative(path,project_root,error);
-        if (!error && !relative.empty())
-        {
-            const auto text = relative.generic_string();
-            if (text != ".." && !text.starts_with("../"))
-                return text;
-        }
-    }
+        return normalize_diagnostic_path(path,project_root).generic_string();
     return path.generic_string();
 }
 
@@ -33,6 +24,38 @@ std::string_view source_file_basename(const std::source_location& origin) noexce
     std::string_view file = origin.file_name() ? origin.file_name() : "";
     const auto slash = file.find_last_of("/\\");
     return slash == std::string_view::npos ? file : file.substr(slash + 1);
+}
+
+std::filesystem::path normalize_diagnostic_path(
+    const std::filesystem::path& path,
+    const std::filesystem::path& project_root)
+{
+    if (path.empty() || !path.is_absolute()) return path.lexically_normal();
+    if (!project_root.empty())
+    {
+        std::error_code error;
+        const auto relative = std::filesystem::relative(path,project_root,error);
+        if (!error && !relative.empty())
+        {
+            const auto text = relative.generic_string();
+            if (text != ".." && !text.starts_with("../"))
+                return relative.lexically_normal();
+        }
+    }
+    return path.filename();
+}
+
+void normalize_failure_diagnostic_paths(
+    FailureDiagnostic& diagnostic,
+    const std::filesystem::path& project_root)
+{
+    for (auto& entry : diagnostic.entries)
+    {
+        entry.expected_path = normalize_diagnostic_path(
+            entry.expected_path,project_root);
+        entry.declaration_path = normalize_diagnostic_path(
+            entry.declaration_path,project_root);
+    }
 }
 
 std::string format_failure_diagnostic(
