@@ -18,8 +18,9 @@ public:
     ControllerManager(ControllerManager&&) = delete;
     ControllerManager& operator=(ControllerManager&&) = delete;
 
-    void init();
+    void initialize();
     void shutdown();
+    [[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
     void handle_event(const SDL_Event& event);
 
 private:
@@ -30,7 +31,7 @@ private:
 
 private:
     std::vector<SDL_GameController*> _controllers;
-    bool _is_initialized = false;
+    bool _initialized = false;
 };
 
 }

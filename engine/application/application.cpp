@@ -70,7 +70,7 @@ bool Application::startup_fail(
     return false;
 }
 
-bool Application::init(
+bool Application::initialize(
     int argc,
     char** argv,
     const IGameModule& game_module)
@@ -148,7 +148,7 @@ bool Application::init(
 
     elysia::bootstrap::RuntimeSettings runtime_settings =
         std::move(bootstrap_output.runtime_settings);
-    if (!init_runtime(runtime_settings,descriptor))
+    if (!initialize_runtime(runtime_settings,descriptor))
         return false;
 
     const elysia::builtin::BuiltinAssetCatalog builtin_asset_catalog(
@@ -167,7 +167,7 @@ bool Application::init(
         _builtin_asset_cache,
         runtime_settings.user.audio);
 
-    if (!elysia::localization::LocalizationManager::instance()->init(
+    if (!elysia::localization::LocalizationManager::instance()->initialize(
         _renderer,
         bootstrap_output.i18n_manifest_path,
         runtime_settings.user.language,
@@ -216,7 +216,7 @@ bool Application::init(
         }
     }
 
-    _input_system.init();
+    _input_system.initialize();
     _input_system.set_renderer(_renderer);
 
     if (const auto preload_result =
@@ -238,7 +238,7 @@ bool Application::init(
     return enter_initial_scene(game_module,descriptor);
 }
 
-bool Application::init_runtime(
+bool Application::initialize_runtime(
     const elysia::bootstrap::RuntimeSettings& settings,
     const ApplicationDescriptor& descriptor)
 {
@@ -288,9 +288,9 @@ bool Application::init_runtime(
     if (!check_startup_step(audio_device_open,"audio","Mix_OpenAudio Error"))
         return false;
     if (!check_startup_step(
-        elysia::audio::AudioService::instance()->init(user_settings.audio),
+        elysia::audio::AudioService::instance()->initialize(user_settings.audio),
         "audio",
-        "AudioService init failed"))
+        "AudioService initialization failed"))
     {
         return false;
     }

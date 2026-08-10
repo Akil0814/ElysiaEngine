@@ -53,7 +53,7 @@ std::filesystem::path write_registry(
 void test_current_repository_loads_minimal_sample()
 {
 	auto* path_manager = elysia::io::PathManager::instance();
-	require(path_manager->init(), "path manager must initialize from the project root");
+	require(path_manager->initialize(), "path manager must initialize from the project root");
 
 	elysia::loading::ContentManifestPipeline pipeline;
 	elysia::loading::ContentManifestResult result;
@@ -296,7 +296,7 @@ void test_content_registry_still_allows_core_only()
 void test_config_manifest_registry_contract()
 {
 	auto* paths = elysia::io::PathManager::instance();
-	require(paths->init(),"PathManager must initialize for registry contract tests");
+	require(paths->initialize(),"PathManager must initialize for registry contract tests");
 	elysia::io::ContentRegistryLoader loader;
 	elysia::io::ContentRegistry registry;
 	require(loader.load(paths->content_registry(),registry)

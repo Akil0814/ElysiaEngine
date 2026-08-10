@@ -37,7 +37,7 @@ SDL_mixer
 应用初始化 SDL_mixer 音频设备后调用：
 
 ```cpp
-audio->init(runtime_settings.audio);
+audio->initialize(runtime_settings.audio);
 ```
 
 `init()` 会：

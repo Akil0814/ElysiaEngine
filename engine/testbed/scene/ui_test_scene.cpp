@@ -130,7 +130,7 @@ void UiTestScene::on_enter(const elysia::scene::ScenePayload& payload)
     if (!test_payload || !is_valid_return_route(test_payload->return_route))
         throw std::logic_error("UiTestScene requires TestbedScenePayload with a valid return route.");
     const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->initialized())
+    if (!cache || !cache->is_initialized())
         throw std::logic_error("UiTestScene requires an initialized BuiltinAssetCache.");
     _return_route = test_payload->return_route;
     _paused = false;

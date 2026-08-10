@@ -62,7 +62,7 @@ public:
         const BuiltinAssetCatalog& catalog,std::span<const int> point_sizes);
     void shutdown() noexcept;
 
-    [[nodiscard]] bool initialized() const noexcept;
+    [[nodiscard]] bool is_initialized() const noexcept;
 
     [[nodiscard]] SDL_Texture* find_texture(std::string_view key) const noexcept;
     [[nodiscard]] TTF_Font* find_font(std::string_view locale,int point_size) const noexcept;

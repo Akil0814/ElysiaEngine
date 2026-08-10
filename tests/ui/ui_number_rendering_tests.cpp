@@ -56,7 +56,7 @@ void test_ui_number_uses_shared_localized_glyphs()
     auto* resources = resources::ResourceManager::instance();
     auto* localization_manager = localization::LocalizationManager::instance();
     auto* localization = ELYSIA_LOCALIZATION;
-    require(paths->init(),"UI number tests must initialize paths");
+    require(paths->initialize(),"UI number tests must initialize paths");
     resources->clear();
     const auto resolved_font_settings =
         typography::resolve_font_settings(typography::FontSettings{});
@@ -70,7 +70,7 @@ void test_ui_number_uses_shared_localized_glyphs()
         "UI number tests must initialize built-in fonts");
     typography::FontResolver font_resolver;
     localization_manager->shutdown();
-    require(localization_manager->init(
+    require(localization_manager->initialize(
         renderer,
         paths->configs() / "manifests" / "i18n_manifest.json",
         "en",

@@ -35,7 +35,7 @@ class LocalizationManager : public elysia::tools::Singleton<LocalizationManager>
 	friend class LocalizationService;
 
 public:
-	bool init(
+	bool initialize(
 		SDL_Renderer* renderer,
 		const std::filesystem::path& manifest_path,
 		std::string initial_language,
@@ -43,6 +43,7 @@ public:
 		const elysia::builtin::BuiltinAssetCache* builtin_asset_cache = nullptr
 	);
 	void shutdown();
+	[[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
 	void clear_texture_cache();
 
 private:

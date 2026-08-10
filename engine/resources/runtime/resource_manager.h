@@ -24,8 +24,6 @@ class ResourceManager : public elysia::tools::Singleton<ResourceManager>
 	friend class ResourceService;
 
 public:
-	bool init();
-
 	bool begin_atlas_build(const AtlasBuildRequest& request);
 	bool begin_atlas_builds(const std::vector<AtlasBuildRequest>& requests);
 	bool commit_prepared_atlas_frame(SDL_Renderer* renderer,

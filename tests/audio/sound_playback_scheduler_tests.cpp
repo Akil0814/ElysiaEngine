@@ -263,6 +263,29 @@ void test_runtime_sound_group_volumes()
     require(audio->sound_group_volume(SoundGroup::Extra) == 100,"group volumes must remain independent");
 }
 
+void test_audio_service_initialization_lifecycle()
+{
+    auto* audio = elysia::audio::AudioService::instance();
+    audio->shutdown();
+    require(!audio->is_initialized(),
+        "audio service must begin the lifecycle test uninitialized");
+    require(audio->initialize({}),
+        "audio service must initialize with default settings");
+    require(audio->is_initialized(),
+        "audio service initialization must publish initialized state");
+    require(audio->initialize({}),
+        "audio service repeated initialization must preserve existing behavior");
+    require(audio->is_initialized(),
+        "audio service must remain initialized after repeated initialization");
+    audio->shutdown();
+    audio->shutdown();
+    require(!audio->is_initialized(),
+        "audio service shutdown must be idempotent");
+    require(audio->initialize({}),
+        "audio service must support initialization after shutdown");
+    audio->shutdown();
+}
+
 void test_delayed_requests_cancellation_and_capacity_drop()
 {
     SoundPlaybackScheduler scheduler;
@@ -309,6 +332,7 @@ int main()
     test_delayed_replace_oldest();
     test_sound_handles_and_active_channel_enumeration();
     test_runtime_sound_group_volumes();
+    test_audio_service_initialization_lifecycle();
     std::cout << "sound playback scheduler tests passed\n";
     return EXIT_SUCCESS;
 }

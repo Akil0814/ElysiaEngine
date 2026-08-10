@@ -63,7 +63,7 @@ public:
             "FontResolver tests must create a software renderer");
 
         const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
-        require(elysia::io::PathManager::instance()->init(source_root),
+        require(elysia::io::PathManager::instance()->initialize(source_root),
             "FontResolver tests must initialize project paths");
         require(_engine_cache.initialize(
             _renderer,

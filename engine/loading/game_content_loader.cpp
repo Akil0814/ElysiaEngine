@@ -82,7 +82,7 @@ bool GameContentLoader::start(
 	elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
 	if (!path_manager->is_initialized())
 	{
-		fail("GameContentLoader start failed: path manager is not init.");
+		fail("GameContentLoader start failed: path manager is not initialized.");
 		return false;
 	}
 

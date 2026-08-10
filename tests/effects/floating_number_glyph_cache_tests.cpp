@@ -28,7 +28,7 @@ struct GlyphCacheFixture
         second_renderer = SDL_CreateSoftwareRenderer(second_surface);
         require(renderer && second_renderer,"glyph cache tests must create software renderers");
 
-        require(elysia::io::PathManager::instance()->init(),"glyph cache tests must initialize paths");
+        require(elysia::io::PathManager::instance()->initialize(),"glyph cache tests must initialize paths");
         elysia::resources::ResourceManager::instance()->clear();
         require(elysia::resources::ResourceManager::instance()->load_font(
             "ui.latin.20",

@@ -104,7 +104,7 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     effect_manager->clear_content();
     localization_manager->shutdown();
     resource_manager->clear();
-    require(path_manager->init(), "floating number tests must initialize the project path manager");
+    require(path_manager->initialize(), "floating number tests must initialize the project path manager");
     const auto resolved_font_settings =
         typography::resolve_font_settings(typography::FontSettings{});
     require(resolved_font_settings.has_value(),
@@ -116,7 +116,7 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         resolved_font_settings->engine_point_sizes()).has_value(),
         "floating number tests must initialize built-in fonts");
     typography::FontResolver font_resolver;
-    require(localization_manager->init(
+    require(localization_manager->initialize(
         renderer,
         path_manager->configs() / "manifests" / "i18n_manifest.json",
         "en",

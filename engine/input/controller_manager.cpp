@@ -11,26 +11,26 @@ ControllerManager::~ControllerManager()
     shutdown();
 }
 
-void ControllerManager::init()
+void ControllerManager::initialize()
 {
-    if (_is_initialized)
+    if (_initialized)
     {
         return;
     }
 
-    _is_initialized = true;
+    _initialized = true;
     open_connected_controllers();
 }
 
 void ControllerManager::shutdown()
 {
-    if (!_is_initialized)
+    if (!_initialized)
     {
         return;
     }
 
     close_all_controllers();
-    _is_initialized = false;
+    _initialized = false;
 }
 
 void ControllerManager::handle_event(const SDL_Event& event)

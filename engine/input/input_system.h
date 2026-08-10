@@ -17,8 +17,9 @@ namespace elysia::input
 class InputSystem
 {
 public:
-    void init();
+    void initialize();
     void shutdown();
+    [[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
     void begin_frame();
     void end_frame();
     void process_event(const SDL_Event& event);
@@ -58,6 +59,7 @@ private:
     int _mouse_delta_y = 0;
     bool _has_mouse_position = false;
     std::optional<SDL_JoystickID> _active_controller_id;
+    bool _initialized = false;
 };
 
 }

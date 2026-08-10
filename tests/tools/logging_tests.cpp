@@ -96,7 +96,7 @@ void test_logger_console_sink()
 {
     using namespace elysia;
     auto* path_manager = io::PathManager::instance();
-    require(path_manager->init() && path_manager->ensure_runtime_dirs(),
+    require(path_manager->initialize() && path_manager->ensure_runtime_dirs(),
         "console logger test must initialize runtime paths");
     auto* logger = tools::Logger::instance();
     logger->shutdown();
@@ -395,7 +395,7 @@ void test_logger_file_modes_and_noexcept()
 {
     using namespace elysia;
     auto* path_manager = io::PathManager::instance();
-    require(path_manager->init(),"logger test must initialize PathManager");
+    require(path_manager->initialize(),"logger test must initialize PathManager");
     require(path_manager->ensure_runtime_dirs(),"logger test must create runtime directories");
 
     auto* logger = tools::Logger::instance();
@@ -554,7 +554,7 @@ void test_path_manager_failure_logging()
     std::streambuf* previous_console_buffer = std::clog.rdbuf(&captured);
 
     std::filesystem::current_path(temporary_root);
-    require(!path_manager->init(),"a directory without an Elysia project root must fail initialization");
+    require(!path_manager->initialize(),"a directory without an Elysia project root must fail initialization");
     require(captured.messages.size() == 1
             && captured.messages.front().find("[ERROR]") != std::string::npos
             && captured.messages.front().find("[path]") != std::string::npos
@@ -568,7 +568,7 @@ void test_path_manager_failure_logging()
     std::filesystem::create_directories(assets / "fonts");
     std::filesystem::create_directories(assets / "configs");
     std::ofstream(assets / "content_registry.json") << "{}";
-    require(path_manager->init(),"the controlled temporary project root must initialize");
+    require(path_manager->initialize(),"the controlled temporary project root must initialize");
     std::ofstream(temporary_root / "player_data") << "blocking file";
     require(!path_manager->ensure_runtime_dirs(),"a file at the runtime data path must fail directory setup");
     require(captured.messages.size() == 1
@@ -578,7 +578,7 @@ void test_path_manager_failure_logging()
         "runtime directory setup failures must emit a path-specific error");
 
     std::filesystem::current_path(original_working_directory);
-    require(path_manager->init() && path_manager->ensure_runtime_dirs(),
+    require(path_manager->initialize() && path_manager->ensure_runtime_dirs(),
         "path logger test must restore the workspace path manager state");
     std::clog.rdbuf(previous_console_buffer);
     logger->shutdown();

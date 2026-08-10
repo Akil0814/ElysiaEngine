@@ -53,7 +53,7 @@ public:
                 720).has_value(),
             "pointer coordinate tests must configure logical presentation");
 
-        _input_system.init();
+        _input_system.initialize();
         _input_system.set_renderer(_renderer);
     }
 

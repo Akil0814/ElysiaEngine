@@ -4,12 +4,12 @@
 
 namespace elysia::io
 {
-bool PathManager::init()
+bool PathManager::initialize()
 {
-    return init({});
+    return initialize({});
 }
 
-bool PathManager::init(const std::filesystem::path& start_path)
+bool PathManager::initialize(const std::filesystem::path& start_path)
 {
     std::optional<std::filesystem::path> root_path;
     try
@@ -21,14 +21,14 @@ bool PathManager::init(const std::filesystem::path& start_path)
     }
     catch (const std::filesystem::filesystem_error& error)
     {
-        ELYSIA_LOG_ERROR("path","Path manager init failed while reading the current working directory: "
+        ELYSIA_LOG_ERROR("path","Path manager initialization failed while reading the current working directory: "
             << error.what());
         return false;
     }
 
     if (!root_path.has_value())
     {
-        ELYSIA_LOG_ERROR("path","Path manager init failed: project root was not found from the current working directory.");
+        ELYSIA_LOG_ERROR("path","Path manager initialization failed: project root was not found from the current working directory.");
         return false;
     }
 
@@ -36,7 +36,7 @@ bool PathManager::init(const std::filesystem::path& start_path)
     if (!validate_core_asset_dirs())
         return false;
 
-    _is_init = true;
+    _initialized = true;
 
     return true;
 }
@@ -64,7 +64,7 @@ bool PathManager::validate_core_asset_dirs() const
         if (std::filesystem::is_directory(dir_path))
             return true;
 
-        ELYSIA_LOG_ERROR("path","Path manager init failed: required asset directory does not exist: "
+        ELYSIA_LOG_ERROR("path","Path manager initialization failed: required asset directory does not exist: "
             << dir_name << " -> " << dir_path);
         return false;
     };
@@ -78,7 +78,7 @@ bool PathManager::validate_core_asset_dirs() const
     }
     catch (const std::filesystem::filesystem_error&)
     {
-        ELYSIA_LOG_ERROR("path","Path manager init failed: filesystem error while validating asset directories.");
+        ELYSIA_LOG_ERROR("path","Path manager initialization failed: filesystem error while validating asset directories.");
         return false;
     }
 }

@@ -67,7 +67,7 @@ int main()
     LocalizationFixture fixture;
     const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
     auto* path_manager = elysia::io::PathManager::instance();
-    require(path_manager->init(source_root), "localization fallback tests must initialize project paths");
+    require(path_manager->initialize(source_root), "localization fallback tests must initialize project paths");
 
     elysia::builtin::BuiltinAssetCache cache;
     require(cache.initialize(
@@ -79,13 +79,17 @@ int main()
     auto* localization_manager = elysia::localization::LocalizationManager::instance();
     auto* localization = ELYSIA_LOCALIZATION;
     elysia::typography::FontResolver font_resolver;
-    require(localization_manager->init(
+    require(!localization_manager->is_initialized(),
+        "LocalizationManager must begin uninitialized");
+    require(localization_manager->initialize(
         fixture.renderer(),
         source_root / "assets" / "configs" / "manifests" / "i18n_manifest.json",
         "en",
         &font_resolver,
         &cache),
         "LocalizationManager must initialize with built-in defaults");
+    require(localization_manager->is_initialized(),
+        "successful localization initialization must publish initialized state");
 
     elysia::typography::UiTypographyProfile::PointSizes point_sizes{};
     point_sizes.fill(20);
@@ -204,6 +208,9 @@ int main()
         "LocalizationService measurement must honor an explicit Engine font source");
 
     localization_manager->shutdown();
+    localization_manager->shutdown();
+    require(!localization_manager->is_initialized(),
+        "localization shutdown must be idempotent and clear initialized state");
     font_resolver.shutdown();
     cache.shutdown();
     return 0;

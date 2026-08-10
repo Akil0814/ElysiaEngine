@@ -349,15 +349,58 @@ void test_axis_can_activate_and_focus_loss_resets_selection()
             && input.current_device() == InputDevice::Gamepad,
         "a meaningful event after focus loss must reacquire the controller");
 }
+
+void test_input_and_controller_initialization_lifecycle()
+{
+    ControllerManager controllers;
+    require(!controllers.is_initialized(),
+        "controller manager must begin uninitialized");
+    controllers.initialize();
+    require(controllers.is_initialized(),
+        "controller manager initialization must publish initialized state");
+    controllers.initialize();
+    require(controllers.is_initialized(),
+        "controller manager initialization must be idempotent");
+    controllers.shutdown();
+    controllers.shutdown();
+    require(!controllers.is_initialized(),
+        "controller manager shutdown must be idempotent");
+    controllers.initialize();
+    require(controllers.is_initialized(),
+        "controller manager must support initialization after shutdown");
+    controllers.shutdown();
+
+    InputSystem input;
+    require(!input.is_initialized(),
+        "input system must begin uninitialized");
+    input.initialize();
+    require(input.is_initialized(),
+        "input system initialization must publish initialized state");
+    input.initialize();
+    require(input.is_initialized(),
+        "input system repeated initialization must remain initialized");
+    input.shutdown();
+    input.shutdown();
+    require(!input.is_initialized(),
+        "input system shutdown must be idempotent");
+    input.initialize();
+    require(input.is_initialized(),
+        "input system must support initialization after shutdown");
+    input.shutdown();
+}
 }
 
 int main()
 {
+    require(SDL_Init(SDL_INIT_GAMECONTROLLER) == 0,
+        "controller lifecycle tests must initialize SDL game controller support");
+    test_input_and_controller_initialization_lifecycle();
     test_disconnect_releases_button_and_cancels_action();
     test_disconnect_zeros_axes_and_trigger_button();
     test_first_gamepad_input_survives_device_switch();
     test_axis_dead_zone_and_single_active_controller();
     test_axis_can_activate_and_focus_loss_resets_selection();
+    SDL_Quit();
     std::cout << "input system controller lifecycle tests passed\n";
     return EXIT_SUCCESS;
 }

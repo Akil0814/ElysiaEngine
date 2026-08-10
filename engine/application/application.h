@@ -26,8 +26,8 @@
 
 #define ELYSIA_APP (elysia::application::Application::instance())
 
-#define ELYSIA_INIT_APP(argc, argv, game_module) \
-    (elysia::application::Application::instance()->init((argc), (argv), (game_module)))
+#define ELYSIA_INITIALIZE_APP(argc, argv, game_module) \
+    (elysia::application::Application::instance()->initialize((argc), (argv), (game_module)))
 
 #define ELYSIA_RUN_APP \
     (elysia::application::Application::instance()->run())
@@ -44,7 +44,7 @@ class Application final
 public:
     ~Application();
 
-    bool init(int argc,char** argv,const IGameModule& game_module);
+    bool initialize(int argc,char** argv,const IGameModule& game_module);
     ApplicationRunResult run();
 
     std::expected<void,elysia::config::UserConfigFailure> apply_master_volume(int value) override;
@@ -58,7 +58,7 @@ public:
 private:
     Application() = default;
 
-    bool init_runtime(
+    bool initialize_runtime(
         const elysia::bootstrap::RuntimeSettings& settings,
         const ApplicationDescriptor& descriptor);
     bool enter_initial_scene(

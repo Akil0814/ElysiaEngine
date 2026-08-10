@@ -271,7 +271,7 @@ void test_horizontal_strip_build_and_render_commands()
 		"horizontal strip tests must create a software renderer");
 
 	io::PathManager* path_manager = io::PathManager::instance();
-	require(path_manager->init(),
+	require(path_manager->initialize(),
 		"horizontal strip tests must initialize the project path manager");
 	resources::ResourceManager* resource_manager = resources::ResourceManager::instance();
 	resource_manager->clear();

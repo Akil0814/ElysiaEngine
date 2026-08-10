@@ -81,7 +81,7 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
     _return_route = test_payload->return_route;
     _paused = false;
     const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->initialized())
+    if (!cache || !cache->is_initialized())
         throw std::logic_error("EngineFeatureTestScene requires an initialized BuiltinAssetCache.");
     _audio_player = runtime_context().builtin_audio_player();
     if (!_audio_player || !_audio_player->bound())

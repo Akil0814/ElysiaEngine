@@ -8,7 +8,7 @@
 #include <algorithm>
 namespace elysia::audio
 {
-bool AudioService::init(const AudioSettings& settings)
+bool AudioService::initialize(const AudioSettings& settings)
 {
     _settings.master_volume = clamp_volume(settings.master_volume);
     _settings.music_volume = clamp_volume(settings.music_volume);

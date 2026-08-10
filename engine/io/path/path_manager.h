@@ -11,8 +11,8 @@ class PathManager : public elysia::tools::Singleton<PathManager>
     friend elysia::tools::Singleton<PathManager>;
 
 public:
-    bool init();
-    bool init(const std::filesystem::path& start_path);
+    bool initialize();
+    bool initialize(const std::filesystem::path& start_path);
     bool ensure_runtime_dirs() const;
 
     const std::filesystem::path& root() const;
@@ -35,7 +35,7 @@ public:
     std::filesystem::path to_asset_path(const std::filesystem::path& path) const;
     std::filesystem::path to_config_path(const std::filesystem::path& path) const;
 
-    bool is_initialized() const { return _is_init; };
+    [[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
 
 private:
     PathManager() = default;
@@ -50,7 +50,7 @@ private:
 
 private:
     std::filesystem::path _root;
-    bool _is_init = false;
+    bool _initialized = false;
 };
 
 }

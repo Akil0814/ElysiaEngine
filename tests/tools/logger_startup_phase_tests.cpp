@@ -100,7 +100,7 @@ void test_console_precedes_paths_and_file_follows()
         std::filesystem::temp_directory_path() / "elysia-logger-missing-project-root";
     remove_path(missing_root);
     std::filesystem::create_directories(missing_root);
-    require(!paths->init(missing_root),
+    require(!paths->initialize(missing_root),
         "a directory without an Elysia root must fail PathManager initialization");
     logger->terminating("startup-test","early terminating marker");
     require(captured.lines.size() == 2
@@ -113,7 +113,7 @@ void test_console_precedes_paths_and_file_follows()
     require(!logger->active_file_path().has_value(),
         "file initialization before PathManager must remain pending and retryable");
 
-    require(paths->init(ELYSIA_SOURCE_DIR) && paths->ensure_runtime_dirs(),
+    require(paths->initialize(ELYSIA_SOURCE_DIR) && paths->ensure_runtime_dirs(),
         "the test must restore the real project paths before attaching the file sink");
     const std::filesystem::path log_path = paths->logs() / config.append_file_name;
     remove_path(log_path);

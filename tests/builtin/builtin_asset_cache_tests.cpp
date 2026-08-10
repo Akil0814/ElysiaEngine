@@ -77,7 +77,7 @@ int main()
         catalog,
         default_point_sizes);
     require(initialized.has_value(), "Built-in asset cache must load all repository built-in resources");
-    require(cache.initialized(), "successful cache initialization must publish a live cache");
+    require(cache.is_initialized(), "successful cache initialization must publish a live cache");
     require(cache.texture_count() == 7, "cache must own all seven Engine textures");
     require(cache.font_count() == 35, "cache must own five font faces at seven fixed sizes");
     require(cache.locale_count() == 5, "cache must own all five Engine translation tables");
@@ -233,7 +233,7 @@ int main()
     audio_player.unbind();
     require(!audio_player.bound(), "unbinding must detach the built-in audio player");
     cache.shutdown();
-    require(!cache.initialized() && cache.texture_count() == 0 && cache.font_count() == 0
+    require(!cache.is_initialized() && cache.texture_count() == 0 && cache.font_count() == 0
             && cache.locale_count() == 0 && cache.animation_count() == 0
             && cache.sound_count() == 0 && cache.music_count() == 0,
         "cache shutdown must release all Engine-owned runtime resources");

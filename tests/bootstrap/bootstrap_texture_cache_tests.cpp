@@ -66,7 +66,7 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
 
         auto* paths = io::PathManager::instance();
         auto* resource_manager = resources::ResourceManager::instance();
-        require(paths->init(),"bootstrap texture tests must initialize project paths");
+        require(paths->initialize(),"bootstrap texture tests must initialize project paths");
         resource_manager->clear();
         const std::size_t resource_count_before = resource_manager->resource_count();
 

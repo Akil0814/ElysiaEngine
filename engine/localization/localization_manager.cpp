@@ -48,7 +48,7 @@ bool flatten_locale_json(
 
 }
 
-bool LocalizationManager::init(
+bool LocalizationManager::initialize(
 	SDL_Renderer* renderer,
 	const std::filesystem::path& manifest_path,
 	std::string initial_language,
@@ -60,33 +60,33 @@ bool LocalizationManager::init(
 
 	if (!renderer)
 	{
-		ELYSIA_LOG_WARN("localization","Localization init failed: renderer is null.");
+		ELYSIA_LOG_WARN("localization","Localization initialization failed: renderer is null.");
 		return false;
 	}
 	if (!font_resolver)
 	{
 		ELYSIA_LOG_WARN("localization",
-			"Localization init failed: FontResolver is null.");
+			"Localization initialization failed: FontResolver is null.");
 		return false;
 	}
 
 	elysia::io::I18nManifestLoader manifest_loader;
 	if (!manifest_loader.load(manifest_path, _manifest))
 	{
-		ELYSIA_LOG_WARN("localization","Localization init failed: i18n manifest load failed: "
+		ELYSIA_LOG_WARN("localization","Localization initialization failed: i18n manifest load failed: "
 			<< manifest_path);
 		return false;
 	}
 
 	if (_manifest.default_language.empty())
 	{
-		ELYSIA_LOG_WARN("localization","Localization init failed: default language is empty.");
+		ELYSIA_LOG_WARN("localization","Localization initialization failed: default language is empty.");
 		return false;
 	}
 
 	if (_manifest.languages.empty())
 	{
-		ELYSIA_LOG_WARN("localization","Localization init failed: supported language list is empty.");
+		ELYSIA_LOG_WARN("localization","Localization initialization failed: supported language list is empty.");
 		return false;
 	}
 
@@ -96,7 +96,7 @@ bool LocalizationManager::init(
 	elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
 	if (!path_manager->is_initialized())
 	{
-		ELYSIA_LOG_WARN("localization","Localization init failed: path manager is not initialized.");
+		ELYSIA_LOG_WARN("localization","Localization initialization failed: path manager is not initialized.");
 		return false;
 	}
 

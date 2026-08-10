@@ -9,11 +9,6 @@ elysia::resources::ResourceManager::ResourceManager()
 {
 }
 
-bool elysia::resources::ResourceManager::init()
-{
-	return true;
-}
-
 bool elysia::resources::ResourceManager::begin_atlas_build(const AtlasBuildRequest& request)
 {
 	return _atlas_manager.begin_build(request);

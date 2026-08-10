@@ -21,7 +21,7 @@ std::string entry(std::string_view key,const std::filesystem::path& path)
 
 int main()
 {
-    require(elysia::io::PathManager::instance()->init(),"PathManager must initialize for config path resolution");
+    require(elysia::io::PathManager::instance()->initialize(),"PathManager must initialize for config path resolution");
     const auto dir = std::filesystem::temp_directory_path() / "elysia_config_service_tests";
     std::filesystem::remove_all(dir); std::filesystem::create_directories(dir);
     const auto game = dir/"game.json"; const auto list = dir/"list.json";

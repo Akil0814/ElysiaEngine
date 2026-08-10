@@ -102,7 +102,7 @@ void ElysiaScene::on_enter(const elysia::scene::ScenePayload& payload)
     }
 
     const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->initialized())
+    if (!cache || !cache->is_initialized())
         throw std::logic_error("ElysiaScene requires an initialized BuiltinAssetCache.");
 
     const auto* audio_player = runtime_context().builtin_audio_player();

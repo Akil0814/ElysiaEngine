@@ -90,7 +90,7 @@ int main()
     require(renderer != nullptr, "game content loader config test must create a software renderer");
 
     auto* paths = elysia::io::PathManager::instance();
-    require(paths->init(), "game content loader config test must initialize PathManager");
+    require(paths->initialize(), "game content loader config test must initialize PathManager");
     auto* configs = elysia::config::ConfigService::instance();
     elysia::loading::clear_loaded_content();
 	elysia::resources::ResourceManager* resources = elysia::resources::ResourceManager::instance();

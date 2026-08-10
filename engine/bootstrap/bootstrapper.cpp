@@ -20,8 +20,8 @@ Bootstrapper::parse_runtime_settings(const std::filesystem::path& executable_pat
     elysia::config::UserConfigService::instance()->shutdown();
 
     elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
-    if (!path_manager->init(executable_path))
-        return std::unexpected(BootstrapFailure{ "Bootstrapper phase1 failed: path manager init failed."});
+    if (!path_manager->initialize(executable_path))
+        return std::unexpected(BootstrapFailure{ "Bootstrapper phase1 failed: path manager initialization failed."});
 
     if (!path_manager->ensure_runtime_dirs())
         return std::unexpected(BootstrapFailure{"Bootstrapper phase1 failed: ensure runtime dirs failed."});

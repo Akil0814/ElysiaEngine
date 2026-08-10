@@ -36,7 +36,7 @@ const Request* find_request(
 void test_minimal_repository_resource_plan()
 {
     auto* paths = elysia::io::PathManager::instance();
-    require(paths->init(), "path manager must initialize from the project root");
+    require(paths->initialize(), "path manager must initialize from the project root");
 
     elysia::io::ContentRegistry registry;
     require(elysia::io::ContentRegistryLoader{}.load(paths->content_registry(), registry),

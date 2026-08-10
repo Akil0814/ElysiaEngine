@@ -61,7 +61,7 @@ void test_text_input_uses_private_editing_texture()
     auto* resource_manager = resources::ResourceManager::instance();
     auto* localization_manager = localization::LocalizationManager::instance();
     auto* localization_service = ELYSIA_LOCALIZATION;
-    require(path_manager->init(),"text input texture test must initialize the project path manager");
+    require(path_manager->initialize(),"text input texture test must initialize the project path manager");
 
     resource_manager->clear();
     const auto resolved_font_settings =
@@ -77,7 +77,7 @@ void test_text_input_uses_private_editing_texture()
     typography::FontResolver font_resolver;
 
     localization_manager->shutdown();
-    require(localization_manager->init(
+    require(localization_manager->initialize(
             renderer,
             path_manager->configs() / "manifests" / "i18n_manifest.json",
             "en",

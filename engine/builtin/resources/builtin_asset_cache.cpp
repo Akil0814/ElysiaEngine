@@ -132,7 +132,7 @@ void BuiltinAssetCache::shutdown() noexcept
     _renderer = nullptr;
 }
 
-bool BuiltinAssetCache::initialized() const noexcept
+bool BuiltinAssetCache::is_initialized() const noexcept
 {
     return _renderer != nullptr;
 }

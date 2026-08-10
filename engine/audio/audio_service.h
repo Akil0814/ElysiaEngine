@@ -18,8 +18,9 @@ class AudioService : public elysia::tools::Singleton<AudioService>
     friend elysia::tools::Singleton<AudioService>;
 
 public:
-    bool init(const AudioSettings& settings);
+    bool initialize(const AudioSettings& settings);
     void shutdown();
+    [[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
 
     bool play_sound(const std::string_view& key, int loops = 0);
     SoundRequestResult request_sound(const std::string_view& key, const SoundPlayOptions& options = {});

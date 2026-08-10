@@ -17,16 +17,18 @@ constexpr float k_controller_activation_dead_zone = 0.22f;
 }
 }
 
-void InputSystem::init()
+void InputSystem::initialize()
 {
     reset_input_lifecycle();
-    _controller_manager.init();
+    _controller_manager.initialize();
+    _initialized = true;
 }
 
 void InputSystem::shutdown()
 {
     _controller_manager.shutdown();
     reset_input_lifecycle();
+    _initialized = false;
 }
 
 void InputSystem::begin_frame()
