@@ -22,7 +22,13 @@
   },
   "sandbox_scene": {
     "title": "샌드박스",
-    "description": "Elysia Engine을 실험하기 위한 최소 장면입니다.",
+    "description": "RyougiShiki의 프레임 디렉터리와 다단 공격 애니메이션을 확인합니다.",
+    "animation_idle": "대기",
+    "animation_run": "달리기",
+    "attack_segment": "공격 단계",
+    "attack_previous": "이전 단계",
+    "attack_replay": "공격 다시 재생",
+    "attack_next": "다음 단계",
     "back": "뒤로"
   }
 }

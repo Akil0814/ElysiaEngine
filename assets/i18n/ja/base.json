@@ -22,7 +22,13 @@
   },
   "sandbox_scene": {
     "title": "サンドボックス",
-    "description": "Elysia Engineを試すための最小シーンです。",
+    "description": "RyougiShikiのフレームディレクトリと多段攻撃アニメーションを確認します。",
+    "animation_idle": "待機",
+    "animation_run": "走行",
+    "attack_segment": "攻撃段",
+    "attack_previous": "前の段",
+    "attack_replay": "攻撃を再生",
+    "attack_next": "次の段",
     "back": "戻る"
   }
 }

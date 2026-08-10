@@ -129,6 +129,12 @@ const std::set<std::string> expected_keys = {
     "menu_scene.project_name",
     "menu_scene.settings",
     "menu_scene.start",
+    "sandbox_scene.animation_idle",
+    "sandbox_scene.animation_run",
+    "sandbox_scene.attack_next",
+    "sandbox_scene.attack_previous",
+    "sandbox_scene.attack_replay",
+    "sandbox_scene.attack_segment",
     "sandbox_scene.back",
     "sandbox_scene.description",
     "sandbox_scene.title"

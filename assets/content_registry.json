@@ -12,6 +12,9 @@
       "textures": "configs/manifests/textures_manifest.json",
       "animations": "configs/manifests/animations_manifest.json",
       "effects": "configs/manifests/effects_manifest.json"
+    },
+    "additional": {
+      "ryougi_sample": "configs/examples/ryougi/content_manifest.json"
     }
   }
 }

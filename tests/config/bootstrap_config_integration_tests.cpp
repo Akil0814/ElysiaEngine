@@ -39,7 +39,10 @@ int main()
 		result->content_registry.required.configs.filename() == "config_manifest.json"
 			&& result->content_registry.required.i18n.filename() == "i18n_manifest.json"
 			&& result->content_registry.bootstrap.preload_manifest.filename() == "preload_manifest.json"
-			&& result->content_registry.additional_module_manifests.empty(),
+			&& result->content_registry.additional_module_manifests.size() == 1
+			&& result->content_registry.additional_module_manifests.contains("ryougi_sample")
+			&& result->content_registry.additional_module_manifests.at("ryougi_sample").filename()
+				== "content_manifest.json",
 		"Bootstrapper must return the resolved immutable content registry snapshot");
     auto* configs = elysia::config::ConfigService::instance();
     elysia::tests::require(!configs->is_initialized(),

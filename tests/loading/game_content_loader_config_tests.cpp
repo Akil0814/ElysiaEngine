@@ -16,11 +16,50 @@
 #include <SDL_mixer.h>
 #include <SDL_ttf.h>
 
+#include <algorithm>
 #include <array>
+#include <string_view>
 
 namespace
 {
 using elysia::tests::require;
+
+constexpr std::array<std::string_view, 8> ryougi_animation_keys{
+    "RyougiShiki.idle",
+    "RyougiShiki.run_loop",
+    "RyougiShiki.attack_normal.0",
+    "RyougiShiki.attack_normal.1",
+    "RyougiShiki.attack_normal.2",
+    "RyougiShiki.attack_normal.3",
+    "RyougiShiki.attack_normal.4",
+    "RyougiShiki.attack_normal.5"
+};
+
+bool ryougi_sample_is_registered(
+    const elysia::animation::AnimationService& animations,
+    const elysia::resources::ResourceService& resources)
+{
+    return std::all_of(
+        ryougi_animation_keys.begin(), ryougi_animation_keys.end(),
+        [&animations, &resources](std::string_view key)
+        {
+            return animations.find_definition(key) != nullptr
+                && resources.find_atlas(key) != nullptr;
+        });
+}
+
+bool ryougi_sample_is_unavailable(
+    const elysia::animation::AnimationService& animations,
+    const elysia::resources::ResourceService& resources)
+{
+    return std::none_of(
+        ryougi_animation_keys.begin(), ryougi_animation_keys.end(),
+        [&animations, &resources](std::string_view key)
+        {
+            return animations.find_definition(key) != nullptr
+                || resources.find_atlas(key) != nullptr;
+        });
+}
 
 void run_to_completion(elysia::loading::GameContentLoader& loader)
 {
@@ -72,8 +111,9 @@ int main()
         "ConfigService must publish the deferred snapshot only after content loading finishes");
 	require(resources->resource_count() > 0
 		&& animations->find_definition("test.animation") != nullptr
+		&& ryougi_sample_is_registered(*animations, *resource_service)
 		&& effects->find_animation_effect_definition("effect.test") != nullptr,
-		"a finished content load must register resources, animations, and effects together");
+		"a finished content load must register core resources, all Ryougi clips, and effects together");
 	require(resource_service->find_atlas("test.animation") != nullptr
 		&& resource_service->find_texture("ui.moon") != nullptr
 		&& resource_service->find_font("ui.latin.20") != nullptr
@@ -83,9 +123,10 @@ int main()
 		"ResourceService must expose the complete minimal runtime resource set");
 
     loader.reset();
-    require(configs->is_initialized()
+	require(configs->is_initialized()
 		&& resources->resource_count() > 0
 		&& animations->find_definition("test.animation") != nullptr
+		&& ryougi_sample_is_registered(*animations, *resource_service)
 		&& effects->find_animation_effect_definition("effect.test") != nullptr,
 		"resetting a finished loader must preserve published content for the next scene");
 
@@ -94,6 +135,7 @@ int main()
 	require(!configs->is_initialized()
 		&& resources->resource_count() == 0
 		&& animations->find_definition("test.animation") == nullptr
+		&& ryougi_sample_is_unavailable(*animations, *resource_service)
 		&& effects->find_animation_effect_definition("effect.test") == nullptr,
 		"a new loading cycle must not expose the old content while it is preparing");
 	run_to_completion(loader);
@@ -104,6 +146,7 @@ int main()
 		&& !configs->is_initialized()
 		&& resources->resource_count() == 0
 		&& animations->find_definition("test.animation") == nullptr
+		&& ryougi_sample_is_unavailable(*animations, *resource_service)
 		&& effects->find_animation_effect_definition("effect.test") == nullptr,
 		"failed content loading must leave every runtime registry empty");
 

@@ -22,7 +22,13 @@
   },
   "sandbox_scene": {
     "title": "Sandbox",
-    "description": "A minimal scene for experimenting with Elysia Engine.",
+    "description": "Preview the RyougiShiki frame-directory and segmented animations.",
+    "animation_idle": "Idle",
+    "animation_run": "Run",
+    "attack_segment": "Attack segment",
+    "attack_previous": "Previous segment",
+    "attack_replay": "Replay attack",
+    "attack_next": "Next segment",
     "back": "Back"
   }
 }

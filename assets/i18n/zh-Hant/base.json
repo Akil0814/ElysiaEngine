@@ -22,7 +22,13 @@
   },
   "sandbox_scene": {
     "title": "沙盒",
-    "description": "用於試驗 Elysia Engine 的最小場景。",
+    "description": "預覽 RyougiShiki 的目錄影格動畫和多段攻擊動畫。",
+    "animation_idle": "待機",
+    "animation_run": "奔跑",
+    "attack_segment": "攻擊段",
+    "attack_previous": "上一段",
+    "attack_replay": "重播攻擊",
+    "attack_next": "下一段",
     "back": "返回"
   }
 }

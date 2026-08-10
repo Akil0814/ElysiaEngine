@@ -46,8 +46,9 @@ void test_minimal_repository_resource_plan()
     elysia::loading::ContentManifestPipeline pipeline;
     require(pipeline.load(registry, content),
         "all required manifests in the minimal resource closure must load");
-    require(content.additional_modules.empty(),
-        "the standalone example must not load project-specific content modules");
+    require(content.additional_modules.size() == 1
+            && content.additional_modules.contains("ryougi_sample"),
+        "the standalone example must load only the Ryougi animation sample module");
 
     elysia::loading::ResourceLoadPlan plan;
     elysia::loading::ResourceRequestAssembler assembler;
@@ -58,11 +59,11 @@ void test_minimal_repository_resource_plan()
             && plan.sound_requests().size() == 2
             && plan.music_requests().empty()
             && plan.font_requests().size() == 10
-            && plan.atlas_build_requests().size() == 1
-            && plan.animation_build_requests().size() == 1
+            && plan.atlas_build_requests().size() == 9
+            && plan.animation_build_requests().size() == 9
             && plan.animation_effect_build_requests().size() == 1
-            && plan.total_request_count() == 16,
-        "the plan must contain only the reviewed standalone example resources");
+            && plan.total_request_count() == 32,
+        "the plan must contain the reviewed core resources and eight Ryougi animation clips");
 
     const auto* texture = find_request(
         plan.texture_requests(), "ui.moon",
@@ -131,10 +132,69 @@ void test_minimal_repository_resource_plan()
             && effect->origin.config_path.filename() == "effects_manifest.json",
         "effect.test must bind the only example animation");
 
+    const auto* ryougi_idle = find_request(
+        plan.atlas_build_requests(), "RyougiShiki.idle",
+        [](const auto& request) -> const std::string& { return request.atlas_key; });
+    require(ryougi_idle != nullptr
+            && ryougi_idle->source_path == paths->textures() / "examples" / "ryougi"
+                / "RyougiShiki" / "animation" / "base" / "idle"
+            && ryougi_idle->frame_count == 7
+            && ryougi_idle->frame_filename_prefix == "RyougiShiki_idle"
+            && ryougi_idle->source_type == elysia::resources::AtlasSourceType::FrameDirectory
+            && ryougi_idle->origin.module == "ryougi_sample"
+            && ryougi_idle->origin.entity_id == "RyougiShiki"
+            && ryougi_idle->origin.capability == "animations"
+            && !ryougi_idle->origin.segment_index.has_value(),
+        "Ryougi idle must preserve its frame-directory path, prefix, and module origin");
+
+    const auto* ryougi_run = find_request(
+        plan.animation_build_requests(), "RyougiShiki.run_loop",
+        [](const auto& request) -> const std::string& { return request.animation_key; });
+    require(ryougi_run != nullptr
+            && ryougi_run->atlas_key == "RyougiShiki.run_loop"
+            && ryougi_run->fps == 10.0
+            && ryougi_run->loop,
+        "Ryougi run must remain a ten-FPS looping animation");
+
+    constexpr std::array<std::size_t, 6> attack_frame_counts{7, 7, 8, 14, 9, 12};
+    for (std::size_t segment = 0; segment < attack_frame_counts.size(); ++segment)
+    {
+        const std::string key =
+            "RyougiShiki.attack_normal." + std::to_string(segment);
+        const std::string filesystem_segment =
+            segment < 10 ? "0" + std::to_string(segment) : std::to_string(segment);
+        const auto* attack_atlas = find_request(
+            plan.atlas_build_requests(), key,
+            [](const auto& request) -> const std::string& { return request.atlas_key; });
+        const auto* attack_animation = find_request(
+            plan.animation_build_requests(), key,
+            [](const auto& request) -> const std::string& { return request.animation_key; });
+
+        require(attack_atlas != nullptr
+                && attack_atlas->source_path == paths->textures() / "examples" / "ryougi"
+                    / "RyougiShiki" / "animation" / "attack" / "normal"
+                    / filesystem_segment
+                && attack_atlas->frame_count == attack_frame_counts[segment]
+                && attack_atlas->frame_filename_prefix
+                    == "RyougiShiki_attack_normal_" + filesystem_segment
+                && attack_atlas->source_type
+                    == elysia::resources::AtlasSourceType::FrameDirectory
+                && attack_atlas->origin.module == "ryougi_sample"
+                && attack_atlas->origin.segment_index == segment,
+            "each Ryougi attack atlas must map its runtime segment to the two-digit frame directory");
+        require(attack_animation != nullptr
+                && attack_animation->atlas_key == key
+                && attack_animation->fps == 10.0
+                && !attack_animation->loop
+                && attack_animation->segment_index == segment
+                && attack_animation->origin.segment_index == segment,
+            "each Ryougi attack segment must remain a non-looping ten-FPS animation");
+    }
+
     elysia::loading::ResourceLoadPlan no_fonts;
     require(assembler.assemble(content, std::span<const int>{}, no_fonts)
             && no_fonts.font_requests().empty()
-            && no_fonts.total_request_count() == 6,
+            && no_fonts.total_request_count() == 22,
         "an empty project font-size set must omit only project font requests");
 }
 }

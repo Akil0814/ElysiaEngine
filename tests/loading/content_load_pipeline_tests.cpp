@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 
 namespace
@@ -49,7 +50,7 @@ std::filesystem::path write_registry(
 		+ manifests + "}");
 }
 
-void test_current_repository_loads_core_only()
+void test_current_repository_loads_minimal_sample()
 {
 	auto* path_manager = elysia::io::PathManager::instance();
 	require(path_manager->init(), "path manager must initialize from the project root");
@@ -63,14 +64,35 @@ void test_current_repository_loads_core_only()
 		"current content registry must load through the generic content pipeline");
 	require(result.config_snapshot != nullptr,
 		"content manifest loading must build the deferred generic config snapshot");
-	require(result.additional_modules.empty()
+	const auto module = result.additional_modules.find("ryougi_sample");
+	std::set<std::string> animation_names;
+	if (module != result.additional_modules.end()
+		&& module->second.animation_entries.size() == 1)
+	{
+		for (const auto& clip :
+			module->second.animation_entries.front().animation_config.clips)
+		{
+			animation_names.insert(clip.animation_name);
+		}
+	}
+	require(module != result.additional_modules.end()
+		&& result.additional_modules.size() == 1
+		&& module->second.entities.size() == 1
+		&& module->second.entities.front().id == "RyougiShiki"
+		&& module->second.animation_entries.size() == 1
+		&& module->second.animation_entries.front().animation_config.clips.size() == 8
+		&& animation_names == std::set<std::string>{
+			"attack_normal", "idle", "run_loop" }
+		&& module->second.effect_entries.empty()
+		&& module->second.texture_entries.empty()
+		&& module->second.audio_entries.empty()
 		&& result.font_manifest.fonts.size() == 5
 		&& result.texture_manifest.textures.size() == 1
 		&& result.audio_manifest.sounds.size() == 2
 		&& result.audio_manifest.music.empty()
 		&& result.animation_manifest.animations.size() == 1
 		&& result.animation_effect_manifest.effects.size() == 1,
-		"the standalone repository must expose only the reviewed minimal core manifests");
+		"the standalone repository must expose the reviewed core resources and Ryougi animation sample");
 }
 
 void test_arbitrary_and_empty_additional_module()
@@ -296,7 +318,7 @@ void test_config_manifest_registry_contract()
 
 int main()
 {
-	test_current_repository_loads_core_only();
+	test_current_repository_loads_minimal_sample();
 	test_arbitrary_and_empty_additional_module();
 	test_module_schema_rejections();
 	test_texture_only_and_audio_only_modules();
