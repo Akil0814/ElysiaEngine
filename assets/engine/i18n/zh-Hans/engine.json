@@ -22,7 +22,24 @@
         "message": "程序遇到致命问题，请查看日志了解详情。",
         "exit": "退出",
         "reopen": "显示错误"
-      }
+      },
+      "stage": {
+        "config": "无法加载游戏配置。",
+        "manifest": "无法加载内容清单。",
+        "plan": "无法生成内容加载计划。",
+        "texture": "无法加载必需的纹理。",
+        "atlas": "无法构建必需的纹理图集。",
+        "font": "无法加载必需的字体。",
+        "audio": "无法加载必需的音频资源。",
+        "animation": "无法注册必需的动画。",
+        "effect": "无法注册必需的视觉特效。"
+      },
+      "labels": { "error_code": "错误代码", "log": "日志文件", "details": "诊断详情" },
+      "log_unavailable": "不可用",
+      "details_in_log": "诊断详情请查看日志。",
+      "copy": "复制信息",
+      "copied": "已复制",
+      "copy_failed": "复制失败"
     },
     "settings": {
       "title": "设置",

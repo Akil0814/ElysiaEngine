@@ -6,6 +6,7 @@
 #include "../../loading/game_content_loader.h"
 
 #include <string_view>
+#include <source_location>
 
 namespace elysia::ui
 {
@@ -55,7 +56,9 @@ private:
     void handle_logo_action(StartupLogoAction action);
     void handle_completion_action(StartupLoadingAction action);
     void transition_to_success();
-    void handle_failure(std::string_view message);
+    void handle_failure(std::string_view message,
+        std::source_location origin = std::source_location::current());
+    void handle_failure(const elysia::loading::ContentLoadFailure& failure);
     void destroy_ui();
     void clear_state() noexcept;
 

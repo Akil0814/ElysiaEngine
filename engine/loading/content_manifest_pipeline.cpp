@@ -1,4 +1,3 @@
-#include "../tools/logger.h"
 #include "content_manifest_pipeline.h"
 
 #include "../io/loaders/animation_manifest_loader.h"
@@ -11,57 +10,69 @@
 
 namespace elysia::loading
 {
-bool ContentManifestPipeline::load(
-	const elysia::io::ContentRegistry& content_registry,
-	ContentManifestResult& result
-)
+std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline::load(
+	const elysia::io::ContentRegistry& content_registry)
 {
-	result = ContentManifestResult{};
-	_error_message.clear();
+	ContentManifestResult result;
 
 	const elysia::io::CoreManifestPaths& manifest_paths = content_registry.required;
 	const auto config_snapshot = elysia::config::ConfigLoadPipeline{}.load(manifest_paths.configs);
 	if (!config_snapshot)
 	{
-		fail("Content manifest pipeline failed: game config load failed: " + config_snapshot.error().message);
-		return false;
+		const auto& config_failure = config_snapshot.error();
+		return std::unexpected(make_content_load_failure(ContentLoadError::Config,
+			"Content manifest pipeline failed: game config load failed: " + config_failure.message,
+			config_failure.first.full_key,
+			config_failure.first.config_path.empty()
+				? manifest_paths.configs : std::filesystem::path(config_failure.first.config_path),
+			config_failure.origin));
 	}
 	result.config_snapshot = *config_snapshot;
 
 	elysia::io::FontsManifestLoader fonts_manifest_loader;
-	if (!fonts_manifest_loader.load(manifest_paths.fonts, result.font_manifest))
+	auto fonts = fonts_manifest_loader.load(manifest_paths.fonts);
+	if (!fonts)
 	{
-		fail("Content manifest pipeline failed: fonts manifest load failed.");
-		return false;
+		return std::unexpected(make_content_load_failure(
+			ContentLoadError::Manifest,std::move(fonts.error().diagnostic)));
 	}
+	result.font_manifest = std::move(*fonts);
 
 	elysia::io::AudioManifestLoader audio_manifest_loader;
-	if (!audio_manifest_loader.load(manifest_paths.audio, result.audio_manifest))
+	auto audio = audio_manifest_loader.load(manifest_paths.audio);
+	if (!audio)
 	{
-		fail("Content manifest pipeline failed: audio manifest load failed.");
-		return false;
+		return std::unexpected(make_content_load_failure(
+			ContentLoadError::Manifest,std::move(audio.error().diagnostic)));
 	}
+	result.audio_manifest = std::move(*audio);
 
 	elysia::io::TextureManifestLoader texture_manifest_loader;
-	if (!texture_manifest_loader.load(manifest_paths.textures, result.texture_manifest))
+	auto textures = texture_manifest_loader.load(manifest_paths.textures);
+	if (!textures)
 	{
-		fail("Content manifest pipeline failed: textures manifest load failed.");
-		return false;
+		return std::unexpected(make_content_load_failure(
+			ContentLoadError::Manifest,std::move(textures.error().diagnostic)));
 	}
+	result.texture_manifest = std::move(*textures);
 
 	elysia::io::AnimationManifestLoader animation_manifest_loader;
-	if (!animation_manifest_loader.load(manifest_paths.animations, result.animation_manifest))
+	auto animations = animation_manifest_loader.load(manifest_paths.animations);
+	if (!animations)
 	{
-		fail("Content manifest pipeline failed: animations manifest load failed.");
-		return false;
+		return std::unexpected(make_content_load_failure(
+			ContentLoadError::Manifest,std::move(animations.error().diagnostic)));
 	}
+	result.animation_manifest = std::move(*animations);
 
 	elysia::io::AnimationEffectManifestLoader animation_effect_manifest_loader;
-	if (!animation_effect_manifest_loader.load(manifest_paths.effects, result.animation_effect_manifest))
+	auto effects = animation_effect_manifest_loader.load(manifest_paths.effects);
+	if (!effects)
 	{
-		fail("Content manifest pipeline failed: effects manifest load failed.");
-		return false;
+		return std::unexpected(make_content_load_failure(
+			ContentLoadError::Manifest,std::move(effects.error().diagnostic)));
 	}
+	result.animation_effect_manifest = std::move(*effects);
 
 
 	AnimatedEntityContentLoader module_loader;
@@ -71,24 +82,13 @@ bool ContentManifestPipeline::load(
 		std::string module_error;
 		if (!module_loader.load(module_name, module_manifest_path, module, module_error))
 		{
-			fail("Content manifest pipeline failed: " + module_error);
-			return false;
+			return std::unexpected(make_content_load_failure(ContentLoadError::Manifest,
+				"Content manifest pipeline failed: " + module_error,module_name,module_manifest_path));
 		}
 		result.additional_modules.emplace(module_name, std::move(module));
 	}
 
-	return true;
-}
-
-const std::string& ContentManifestPipeline::error_message() const
-{
-	return _error_message;
-}
-
-void ContentManifestPipeline::fail(std::string message)
-{
-	_error_message = std::move(message);
-	ELYSIA_LOG_ERROR("resource",_error_message);
+	return result;
 }
 
 }

@@ -180,24 +180,21 @@ std::expected<void,BootstrapFailure> StartupPreloadLoader::load_texture(
     surface_request._frame_index = 0;
 
     elysia::resources::SurfaceLoader surface_loader;
-    elysia::resources::SurfaceLoadResult surface_result =
+    auto surface_result =
         surface_loader.load_surface(surface_request);
-    if (!surface_result._success)
+    if (!surface_result)
         return std::unexpected(BootstrapFailure{
-            "Load required preload texture surface failed: key="
-                + std::string(key) + ", file=" + file.string()
+            surface_result.error().diagnostic.message
         });
 
     elysia::resources::TextureLoader texture_loader;
-    elysia::resources::TextureLoadResult texture_result =
-        texture_loader.load_texture(renderer,surface_result);
-    if (!texture_result._success)
+    auto texture_result = texture_loader.load_texture(renderer,*surface_result);
+    if (!texture_result)
         return std::unexpected(BootstrapFailure{
-            "Create required preload texture failed: key="
-                + std::string(key) + ", file=" + file.string()
+            texture_result.error().diagnostic.message
         });
 
-    if (!destination.store(std::string(key),std::move(texture_result._texture)))
+    if (!destination.store(std::string(key),std::move(texture_result->_texture)))
         return std::unexpected(BootstrapFailure{
             "Load preload texture failed: duplicate or invalid cache key: "
                 + std::string(key)

@@ -3,14 +3,17 @@
 #include <SDL.h>
 
 #include "resource_load_plan.h"
+#include "content_load_failure.h"
 #include "../io/loaders/asset_config_types.h"
 #include "../resources/atlas/atlas_build_preparer.h"
 
 #include <atomic>
 #include <condition_variable>
 #include <deque>
+#include <expected>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <thread>
@@ -45,7 +48,7 @@ public:
 
 	void reset();
 
-	bool start(
+	[[nodiscard]] std::expected<void,ContentLoadFailure> start(
 		SDL_Renderer* renderer,
 		const elysia::io::ContentRegistry& content_registry,
 		std::span<const int> project_font_point_sizes);
@@ -55,10 +58,16 @@ public:
 	bool is_finished() const;
 	bool has_failed() const;
 	float progress() const;
-	const std::string& error_message() const;
+	[[nodiscard]] const ContentLoadFailure* failure() const noexcept;
 	GameContentLoaderState state() const;
 
 private:
+	template<typename T>
+	struct PrepareOutcome
+	{
+		std::expected<T,elysia::resources::ResourceFailure> result;
+	};
+
 	struct PrepareJob
 	{
 		std::variant<elysia::resources::TextureLoadRequest, elysia::resources::AtlasFramePrepareTask> payload;
@@ -80,13 +89,13 @@ private:
 	bool register_animations();
 	bool register_animation_effects();
 	void update_progress_value();
-	void fail(std::string message);
+	void fail(ContentLoadFailure failure);
 
 private:
 	SDL_Renderer* _renderer = nullptr;
 	ResourceLoadPlan _load_plan;
 	std::shared_ptr<const elysia::config::ConfigSnapshot> _config_snapshot;
-	std::string _error_message;
+	std::optional<ContentLoadFailure> _failure;
 	GameContentLoaderState _state = GameContentLoaderState::Idle;
 	float _progress = 0.0f;
 	std::size_t _total_work_units = 0;
@@ -105,10 +114,10 @@ private:
 	std::vector<std::thread> _worker_threads;
 
 	std::mutex _completed_results_mutex;
-	std::deque<elysia::resources::SurfaceLoadResult> _completed_texture_results;
-	std::deque<elysia::resources::AtlasFramePreparedResult> _completed_atlas_frame_results;
-	std::deque<elysia::resources::SurfaceLoadResult> _ready_texture_results;
-	std::deque<elysia::resources::AtlasFramePreparedResult> _ready_atlas_frame_results;
+	std::deque<PrepareOutcome<elysia::resources::SurfaceLoadResult>> _completed_texture_results;
+	std::deque<PrepareOutcome<elysia::resources::AtlasFramePreparedResult>> _completed_atlas_frame_results;
+	std::deque<PrepareOutcome<elysia::resources::SurfaceLoadResult>> _ready_texture_results;
+	std::deque<PrepareOutcome<elysia::resources::AtlasFramePreparedResult>> _ready_atlas_frame_results;
 
 	std::size_t _prepared_texture_count = 0;
 	std::size_t _prepared_atlas_frame_count = 0;

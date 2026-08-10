@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../io/loaders/asset_config_types.h"
+#include "content_load_failure.h"
 
+#include <expected>
 #include <map>
 #include <memory>
 #include <string>
@@ -29,18 +31,8 @@ struct ContentManifestResult
 class ContentManifestPipeline
 {
 public:
-	bool load(
-		const elysia::io::ContentRegistry& content_registry,
-		ContentManifestResult& result
-	);
-
-	const std::string& error_message() const;
-
-private:
-	void fail(std::string message);
-
-private:
-	std::string _error_message;
+	[[nodiscard]] std::expected<ContentManifestResult,ContentLoadFailure> load(
+		const elysia::io::ContentRegistry& content_registry);
 };
 
 }

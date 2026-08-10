@@ -3,8 +3,11 @@
 #include <SDL.h>
 
 #include <filesystem>
+#include <expected>
 #include <memory>
 #include <string>
+
+#include "../resource_failure.h"
 
 namespace elysia::resources
 {
@@ -24,7 +27,6 @@ struct SurfaceLoadRequest
 
 struct SurfaceLoadResult
 {
-	bool _success = false;
 	std::string _asset_key;
 	std::filesystem::path _frame_path;
 	size_t _frame_index = 0;
@@ -34,10 +36,11 @@ struct SurfaceLoadResult
 class SurfaceLoader
 {
 public:
-	SurfaceLoadResult load_surface(const SurfaceLoadRequest& request) const;
+	[[nodiscard]] std::expected<SurfaceLoadResult,ResourceFailure>
+	load_surface(const SurfaceLoadRequest& request) const;
 };
 
-[[nodiscard]] SurfacePtr create_coverage_mask_surface(
+[[nodiscard]] std::expected<SurfacePtr,ResourceFailure> create_coverage_mask_surface(
 	const SDL_Surface& source_surface);
 
 }

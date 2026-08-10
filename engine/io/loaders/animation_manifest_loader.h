@@ -1,7 +1,9 @@
 #pragma once
 
 #include "asset_config_types.h"
+#include "manifest_load_failure.h"
 
+#include <expected>
 #include <filesystem>
 
 namespace elysia::io
@@ -9,9 +11,7 @@ namespace elysia::io
 class AnimationManifestLoader
 {
 public:
-	bool load(
-		const std::filesystem::path& manifest_path,
-		AnimationManifest& manifest
-	) const;
+	[[nodiscard]] std::expected<AnimationManifest,ManifestLoadFailure> load(
+		const std::filesystem::path& manifest_path) const;
 };
 }

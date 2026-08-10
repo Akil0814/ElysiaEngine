@@ -81,13 +81,14 @@ void StartupLoadingScene::on_enter(const ScenePayload& payload)
         return;
 
     begin_logo_sequence();
-    if (!_content_loader.start(
+    const auto start_result = _content_loader.start(
         runtime_context().renderer(),
         runtime_context().content_registry(),
         font_resolver->project_point_sizes()
-    ))
+    );
+    if (!start_result)
     {
-        handle_failure(_content_loader.error_message());
+        handle_failure(start_result.error());
     }
 }
 
@@ -124,7 +125,8 @@ void StartupLoadingScene::on_update(double delta)
 
     if (_content_loader.has_failed())
     {
-        handle_failure(_content_loader.error_message());
+        if (const auto* failure = _content_loader.failure())
+            handle_failure(*failure);
         return;
     }
 
@@ -413,13 +415,42 @@ void StartupLoadingScene::transition_to_success()
     request_scene_switch(_startup_payload.success_route);
 }
 
-void StartupLoadingScene::handle_failure(std::string_view message)
+void StartupLoadingScene::handle_failure(
+    std::string_view message,std::source_location origin)
 {
     if (_completion.fail()
         != StartupLoadingAction::TransitionToFailure)
         return;
 
-    ELYSIA_LOG_ERROR("startup",message);
+    elysia::tools::Logger::instance()->error("startup",message,origin);
+    if (_startup_payload.failure_route)
+    {
+        request_scene_switch(*_startup_payload.failure_route);
+        return;
+    }
+    request_scene_switch(elysia::scene::SceneRoute{
+        .target = SceneKeys::ApplicationFailure,
+        .payload = ApplicationFailureScenePayload{
+            .presentation = ApplicationFailurePresentation::StartupLoading,
+            .reason = ApplicationFailureReason::Startup,
+            .error_code = "STARTUP-PRESENTATION",
+            .category = "startup",
+            .diagnostic = elysia::core::make_failure_diagnostic(
+                std::string(message),{},{},origin)
+        },
+        .reload_mode = elysia::scene::SceneReloadMode::Reuse
+    });
+}
+
+void StartupLoadingScene::handle_failure(
+    const elysia::loading::ContentLoadFailure& failure)
+{
+    if (_completion.fail()
+        != StartupLoadingAction::TransitionToFailure)
+        return;
+
+    elysia::tools::Logger::instance()->error(
+        "startup",failure.diagnostic.message,failure.diagnostic.origin);
 
     if (_startup_payload.failure_route)
     {
@@ -427,10 +458,7 @@ void StartupLoadingScene::handle_failure(std::string_view message)
         return;
     }
 
-    request_scene_switch(make_application_failure_route(
-        ApplicationFailurePresentation::StartupLoading,
-        "startup",
-        std::string(message)));
+    request_scene_switch(make_application_failure_route(failure,"startup"));
 }
 
 void StartupLoadingScene::destroy_ui()

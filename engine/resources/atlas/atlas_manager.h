@@ -25,7 +25,6 @@ public:
 	explicit AtlasManager(TextureManager& texture_manager);
 
 	bool begin_build(const AtlasBuildRequest& request);
-	bool begin_builds(const std::vector<AtlasBuildRequest>& requests);
 	bool commit_prepared_frame(SDL_Renderer* renderer,
 		const AtlasFramePreparedResult& prepared_result);
 

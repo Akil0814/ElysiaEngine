@@ -1,6 +1,8 @@
 #pragma once
 #include "asset_config_types.h"
+#include "manifest_load_failure.h"
 
+#include <expected>
 #include <filesystem>
 
 namespace elysia::io
@@ -8,10 +10,8 @@ namespace elysia::io
 class TextureManifestLoader
 {
 public:
-	bool load(
-		const std::filesystem::path& manifest_path,
-		TextureManifest& manifest
-	) const;
+	[[nodiscard]] std::expected<TextureManifest,ManifestLoadFailure> load(
+		const std::filesystem::path& manifest_path) const;
 };
 
 }

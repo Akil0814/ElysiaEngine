@@ -5,6 +5,7 @@
 #include "../texture/surface_loader.h"
 
 #include <vector>
+#include <expected>
 
 namespace elysia::resources
 {
@@ -27,12 +28,11 @@ struct AtlasFramePreparedResult
 class AtlasBuildPreparer
 {
 public:
-	bool expand_build_request(
-		const AtlasBuildRequest& request,
-		std::vector<AtlasFramePrepareTask>& out_tasks
-	) const;
+	[[nodiscard]] std::expected<std::vector<AtlasFramePrepareTask>,ResourceFailure>
+	expand_build_request(const AtlasBuildRequest& request) const;
 
-	AtlasFramePreparedResult prepare_frame(const AtlasFramePrepareTask& task) const;
+	[[nodiscard]] std::expected<AtlasFramePreparedResult,ResourceFailure>
+	prepare_frame(const AtlasFramePrepareTask& task) const;
 };
 
 }

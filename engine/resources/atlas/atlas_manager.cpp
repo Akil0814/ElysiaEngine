@@ -39,22 +39,16 @@ bool AtlasManager::begin_build(const AtlasBuildRequest& request)
 {
 	if (!request.is_valid())
 	{
-		ELYSIA_LOG_WARN("resource","Begin atlas build failed: request is invalid: "
-			<< request.atlas_key);
 		return false;
 	}
 
 	if (_atlas_pool.contains(request.atlas_key))
 	{
-		ELYSIA_LOG_WARN("resource","Begin atlas build failed: atlas already exists: "
-			<< request.atlas_key);
 		return false;
 	}
 
 	if (_assembly_states.contains(request.atlas_key))
 	{
-		ELYSIA_LOG_WARN("resource","Begin atlas build failed: atlas build already exists: "
-			<< request.atlas_key);
 		return false;
 	}
 
@@ -67,17 +61,6 @@ bool AtlasManager::begin_build(const AtlasBuildRequest& request)
 	return true;
 }
 
-bool AtlasManager::begin_builds(const std::vector<AtlasBuildRequest>& requests)
-{
-	for (const AtlasBuildRequest& request : requests)
-	{
-		if (!begin_build(request))
-			return false;
-	}
-
-	return true;
-}
-
 bool AtlasManager::commit_prepared_frame(
 	SDL_Renderer* renderer,
 	const AtlasFramePreparedResult& prepared_result
@@ -85,14 +68,11 @@ bool AtlasManager::commit_prepared_frame(
 {
 	if (!renderer)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: renderer is null: "
-			<< prepared_result.task.atlas_key);
 		return false;
 	}
 
 	if (prepared_result.task.atlas_key.empty())
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: atlas key is empty.");
 		return false;
 	}
 
@@ -100,59 +80,42 @@ bool AtlasManager::commit_prepared_frame(
 		_assembly_states.find(prepared_result.task.atlas_key);
 	if (iterator == _assembly_states.end())
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: build state does not exist: "
-			<< prepared_result.task.atlas_key);
 		return false;
 	}
 
 	AtlasAssemblyState& state = iterator->second;
 	if (state.finalized)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: atlas already finalized: "
-			<< prepared_result.task.atlas_key);
 		return false;
 	}
 
 	if (prepared_result.task.expected_frame_count != state.request.frame_count)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: frame count mismatch: "
-			<< prepared_result.task.atlas_key);
 		return false;
 	}
 	if (prepared_result.task.source_type != state.request.source_type)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: source type mismatch: "
-			<< prepared_result.task.atlas_key);
 		return false;
 	}
 
 	if (prepared_result.task.frame_index >= state.committed_frames.size())
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: frame index out of range: "
-			<< prepared_result.task.atlas_key << ", frame "
-			<< prepared_result.task.frame_index);
 		return false;
 	}
 
 	const SurfaceLoadResult& surface_result = prepared_result.surface_result;
-	if (!surface_result._success || !surface_result._surface)
+	if (!surface_result._surface)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: prepared surface is invalid: "
-			<< prepared_result.task.frame_path);
 		return false;
 	}
 
 	if (surface_result._asset_key != prepared_result.task.atlas_key)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: asset key mismatch: "
-			<< surface_result._asset_key);
 		return false;
 	}
 
 	if (surface_result._frame_index != prepared_result.task.frame_index)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: frame index mismatch: "
-			<< prepared_result.task.atlas_key);
 		return false;
 	}
 
@@ -160,8 +123,6 @@ bool AtlasManager::commit_prepared_frame(
 	{
 		if (prepared_result.task.frame_index != 0)
 		{
-			ELYSIA_LOG_WARN("resource","Commit horizontal strip failed: task index must be zero: "
-				<< prepared_result.task.atlas_key);
 			return false;
 		}
 
@@ -171,9 +132,6 @@ bool AtlasManager::commit_prepared_frame(
 			|| state.request.frame_count > static_cast<size_t>(texture_width)
 			|| static_cast<size_t>(texture_width) % state.request.frame_count != 0)
 		{
-			ELYSIA_LOG_WARN("resource","Commit horizontal strip failed: image width must be divisible by frame count: "
-				<< prepared_result.task.atlas_key << ", width " << texture_width
-				<< ", frames " << state.request.frame_count);
 			return false;
 		}
 
@@ -182,31 +140,27 @@ bool AtlasManager::commit_prepared_frame(
 		);
 		if (frame_width <= 0)
 		{
-			ELYSIA_LOG_WARN("resource","Commit horizontal strip failed: frame width is zero: "
-				<< prepared_result.task.atlas_key);
 			return false;
 		}
 
 		TextureLoader texture_loader;
-		TextureLoadResult texture_result = texture_loader.load_texture(renderer, surface_result);
-		if (!texture_result._success || !texture_result._texture)
+		auto texture_result = texture_loader.load_texture(renderer, surface_result);
+		if (!texture_result || !texture_result->_texture)
 			return false;
 		TexturePtr coverage_mask =
 			create_coverage_mask_texture(texture_loader,renderer,prepared_result);
 		if (!coverage_mask)
 		{
-			ELYSIA_LOG_WARN("resource","Commit horizontal strip failed: coverage mask creation failed: "
-				<< prepared_result.task.atlas_key);
 			return false;
 		}
 
 		const std::string texture_key =
 			make_strip_texture_key(prepared_result.task.atlas_key);
-		SDL_Texture* shared_texture = texture_result._texture.get();
+		SDL_Texture* shared_texture = texture_result->_texture.get();
 		SDL_Texture* shared_coverage_mask = coverage_mask.get();
 		state.pending_textures.push_back(AnimationTextureResource{
 			.key = texture_key,
-			.texture = std::move(texture_result._texture),
+			.texture = std::move(texture_result->_texture),
 			.coverage_mask = std::move(coverage_mask)
 		});
 
@@ -232,24 +186,18 @@ bool AtlasManager::commit_prepared_frame(
 		state.committed_frames[prepared_result.task.frame_index];
 	if (frame_state.committed)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: frame already committed: "
-			<< prepared_result.task.atlas_key << ", frame "
-			<< prepared_result.task.frame_index);
 		return false;
 	}
 
 	TextureLoader texture_loader;
-	TextureLoadResult texture_result =
+	auto texture_result =
 		texture_loader.load_texture(renderer, surface_result);
-	if (!texture_result._success || !texture_result._texture)
+	if (!texture_result || !texture_result->_texture)
 		return false;
 	TexturePtr coverage_mask =
 		create_coverage_mask_texture(texture_loader,renderer,prepared_result);
 	if (!coverage_mask)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: coverage mask creation failed: "
-			<< prepared_result.task.atlas_key << ", frame "
-			<< prepared_result.task.frame_index);
 		return false;
 	}
 
@@ -258,20 +206,18 @@ bool AtlasManager::commit_prepared_frame(
 		prepared_result.task.frame_index
 	);
 	frame_state.frame_path = surface_result._frame_path;
-	frame_state.texture = texture_result._texture.get();
+	frame_state.texture = texture_result->_texture.get();
 	frame_state.coverage_mask = coverage_mask.get();
 	frame_state.committed = true;
 	state.pending_textures.push_back(AnimationTextureResource{
 		.key = texture_key,
-		.texture = std::move(texture_result._texture),
+		.texture = std::move(texture_result->_texture),
 		.coverage_mask = std::move(coverage_mask)
 	});
 	++state.committed_frame_count;
 
 	if (!frame_state.texture || !frame_state.coverage_mask)
 	{
-		ELYSIA_LOG_WARN("resource","Commit atlas frame failed: stored texture lookup failed: "
-			<< texture_key);
 		return false;
 	}
 
@@ -327,24 +273,17 @@ bool AtlasManager::finalize_build(const std::string& atlas_key)
 		_assembly_states.find(atlas_key);
 	if (iterator == _assembly_states.end())
 	{
-		ELYSIA_LOG_WARN("resource","Finalize atlas build failed: build state does not exist: "
-			<< atlas_key);
 		return false;
 	}
 
 	AtlasAssemblyState& state = iterator->second;
 	if (state.finalized)
 	{
-		ELYSIA_LOG_WARN("resource","Finalize atlas build failed: atlas already finalized: "
-			<< atlas_key);
 		return false;
 	}
 
 	if (state.committed_frame_count != state.request.frame_count)
 	{
-		ELYSIA_LOG_WARN("resource","Finalize atlas build failed: committed frame count mismatch: "
-			<< atlas_key << ", expected " << state.request.frame_count
-			<< ", actual " << state.committed_frame_count);
 		return false;
 	}
 
@@ -355,14 +294,10 @@ bool AtlasManager::finalize_build(const std::string& atlas_key)
 		const AtlasAssemblyFrame& frame_state = state.committed_frames[index];
 		if (!frame_state.committed || !frame_state.texture)
 		{
-			ELYSIA_LOG_WARN("resource","Finalize atlas build failed: frame is missing: "
-				<< atlas_key << ", frame " << index);
 			return false;
 		}
 		if (!frame_state.coverage_mask)
 		{
-			ELYSIA_LOG_WARN("resource","Finalize atlas build failed: coverage mask is missing: "
-				<< atlas_key << ", frame " << index);
 			return false;
 		}
 

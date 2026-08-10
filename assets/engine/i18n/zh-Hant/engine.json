@@ -22,7 +22,24 @@
         "message": "程式遇到嚴重問題，必須關閉。請查看日誌以瞭解詳情。",
         "exit": "離開",
         "reopen": "顯示錯誤"
-      }
+      },
+      "stage": {
+        "config": "無法載入遊戲設定。",
+        "manifest": "無法載入內容清單。",
+        "plan": "無法建立內容載入計畫。",
+        "texture": "無法載入必要的紋理。",
+        "atlas": "無法建立必要的紋理圖集。",
+        "font": "無法載入必要的字型。",
+        "audio": "無法載入必要的音訊資源。",
+        "animation": "無法註冊必要的動畫。",
+        "effect": "無法註冊必要的視覺特效。"
+      },
+      "labels": { "error_code": "錯誤代碼", "log": "日誌檔案", "details": "診斷詳情" },
+      "log_unavailable": "不可用",
+      "details_in_log": "診斷詳情請查看日誌。",
+      "copy": "複製資訊",
+      "copied": "已複製",
+      "copy_failed": "複製失敗"
     },
     "settings": {
       "title": "設定",

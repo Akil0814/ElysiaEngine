@@ -1,4 +1,3 @@
-#include "../../tools/logger.h"
 #include "atlas_build_preparer.h"
 
 #include "../texture/surface_loader.h"
@@ -22,28 +21,24 @@ std::filesystem::path make_frame_path(
 }
 }
 
-bool AtlasBuildPreparer::expand_build_request(
-	const AtlasBuildRequest& request,
-	std::vector<AtlasFramePrepareTask>& out_tasks
-) const
+std::expected<std::vector<AtlasFramePrepareTask>,ResourceFailure>
+AtlasBuildPreparer::expand_build_request(const AtlasBuildRequest& request) const
 {
-	out_tasks.clear();
+	std::vector<AtlasFramePrepareTask> out_tasks;
 
 	if (!request.is_valid())
-	{
-		ELYSIA_LOG_WARN("resource","Expand atlas build request failed: request is invalid: "
-			<< request.atlas_key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,
+			"Expand atlas build request failed: request is invalid.",
+			request.atlas_key,request.source_path));
 
 	if (request.source_type == AtlasSourceType::HorizontalStrip)
 	{
 		if (!std::filesystem::is_regular_file(request.source_path))
-		{
-			ELYSIA_LOG_WARN("resource","Expand atlas build request failed: horizontal strip does not exist: "
-				<< request.source_path);
-			return false;
-		}
+			return std::unexpected(make_resource_failure(
+				ResourceError::MissingFile,
+				"Expand atlas build request failed: horizontal strip does not exist.",
+				request.atlas_key,request.source_path));
 
 		AtlasFramePrepareTask task;
 		task.atlas_key = request.atlas_key;
@@ -52,15 +47,14 @@ bool AtlasBuildPreparer::expand_build_request(
 		task.expected_frame_count = request.frame_count;
 		task.source_type = request.source_type;
 		out_tasks.push_back(std::move(task));
-		return true;
+		return out_tasks;
 	}
 
 	if (!std::filesystem::is_directory(request.source_path))
-	{
-		ELYSIA_LOG_WARN("resource","Expand atlas build request failed: directory does not exist: "
-			<< request.source_path);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::MissingFile,
+			"Expand atlas build request failed: directory does not exist.",
+			request.atlas_key,request.source_path));
 
 	std::vector<std::filesystem::path> frame_paths;
 	frame_paths.reserve(request.frame_count);
@@ -72,11 +66,10 @@ bool AtlasBuildPreparer::expand_build_request(
 			index
 		);
 		if (!std::filesystem::is_regular_file(frame_path))
-		{
-			ELYSIA_LOG_WARN("resource","Expand atlas build request failed: expected frame is missing: "
-				<< frame_path);
-			return false;
-		}
+			return std::unexpected(make_resource_failure(
+				ResourceError::MissingFile,
+				"Expand atlas build request failed: expected frame is missing.",
+				request.atlas_key,frame_path));
 		frame_paths.push_back(std::move(frame_path));
 	}
 
@@ -92,10 +85,11 @@ bool AtlasBuildPreparer::expand_build_request(
 		out_tasks.push_back(std::move(task));
 	}
 
-	return true;
+	return out_tasks;
 }
 
-AtlasFramePreparedResult AtlasBuildPreparer::prepare_frame(
+std::expected<AtlasFramePreparedResult,ResourceFailure>
+AtlasBuildPreparer::prepare_frame(
 	const AtlasFramePrepareTask& task
 ) const
 {
@@ -103,24 +97,19 @@ AtlasFramePreparedResult AtlasBuildPreparer::prepare_frame(
 	result.task = task;
 
 	if (task.atlas_key.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Prepare atlas frame failed: atlas key is empty.");
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Prepare atlas frame failed: atlas key is empty."));
 
 	if (task.frame_path.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Prepare atlas frame failed: frame path is empty: "
-			<< task.atlas_key);
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Prepare atlas frame failed: frame path is empty.",
+			task.atlas_key));
 
 	if (task.expected_frame_count == 0)
-	{
-		ELYSIA_LOG_WARN("resource","Prepare atlas frame failed: expected frame count is zero: "
-			<< task.atlas_key);
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,
+			"Prepare atlas frame failed: expected frame count is zero.",
+			task.atlas_key,task.frame_path));
 
 	SurfaceLoadRequest surface_request;
 	surface_request._asset_key = task.atlas_key;
@@ -128,17 +117,14 @@ AtlasFramePreparedResult AtlasBuildPreparer::prepare_frame(
 	surface_request._frame_index = task.frame_index;
 
 	SurfaceLoader surface_loader;
-	result.surface_result = surface_loader.load_surface(surface_request);
-	if (result.surface_result._success && result.surface_result._surface)
-	{
-		result.coverage_mask_surface =
-			create_coverage_mask_surface(*result.surface_result._surface);
-		if (!result.coverage_mask_surface)
-		{
-			result.surface_result._success = false;
-			result.surface_result._surface.reset();
-		}
-	}
+	auto surface_result = surface_loader.load_surface(surface_request);
+	if (!surface_result)
+		return std::unexpected(surface_result.error());
+	result.surface_result = std::move(*surface_result);
+	auto coverage_mask = create_coverage_mask_surface(*result.surface_result._surface);
+	if (!coverage_mask)
+		return std::unexpected(coverage_mask.error());
+	result.coverage_mask_surface = std::move(*coverage_mask);
 	return result;
 }
 

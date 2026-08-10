@@ -1,4 +1,3 @@
-#include "../../tools/logger.h"
 #include "surface_loader.h"
 
 #include <SDL_image.h>
@@ -13,7 +12,8 @@ void SurfaceDeleter::operator()(SDL_Surface* surface) const
 		SDL_FreeSurface(surface);
 }
 
-SurfaceLoadResult SurfaceLoader::load_surface(const SurfaceLoadRequest& request) const
+std::expected<SurfaceLoadResult,ResourceFailure>
+SurfaceLoader::load_surface(const SurfaceLoadRequest& request) const
 {
 	SurfaceLoadResult result;
 	result._asset_key = request._asset_key;
@@ -21,50 +21,43 @@ SurfaceLoadResult SurfaceLoader::load_surface(const SurfaceLoadRequest& request)
 	result._frame_index = request._frame_index;
 
 	if (request._asset_key.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load surface failed: asset key is empty.");
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load surface failed: asset key is empty."));
 
 	if (request._frame_path.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load surface failed: frame path is empty: "
-			<< request._asset_key);
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load surface failed: frame path is empty.",
+			request._asset_key));
 
 	SDL_Surface* surface = IMG_Load(request._frame_path.string().c_str());
 	if (!surface)
-	{
-		ELYSIA_LOG_WARN("resource","Load surface failed: " << request._frame_path
-			<< ", reason: " << IMG_GetError());
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::DecodeFailed,
+			std::string("Load surface failed: ") + IMG_GetError(),
+			request._asset_key,request._frame_path));
 
 	result._surface.reset(surface);
-	result._success = true;
 	return result;
 }
 
-SurfacePtr create_coverage_mask_surface(const SDL_Surface& source_surface)
+std::expected<SurfacePtr,ResourceFailure> create_coverage_mask_surface(
+	const SDL_Surface& source_surface)
 {
 	if (source_surface.w <= 0 || source_surface.h <= 0
 		|| !source_surface.format || !source_surface.pixels)
-	{
-		ELYSIA_LOG_WARN("resource","Create coverage mask failed: source surface is invalid.");
-		return {};
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,
+			"Create coverage mask failed: source surface is invalid."));
 
 	SurfacePtr converted(SDL_ConvertSurfaceFormat(
 		const_cast<SDL_Surface*>(&source_surface),
 		SDL_PIXELFORMAT_RGBA32,
 		0));
 	if (!converted)
-	{
-		ELYSIA_LOG_WARN("resource","Create coverage mask failed: convert source surface failed: "
-			<< SDL_GetError());
-		return {};
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::CreateFailed,
+			std::string("Create coverage mask failed: convert source surface failed: ")
+				+ SDL_GetError()));
 
 	SurfacePtr mask(SDL_CreateRGBSurfaceWithFormat(
 		0,
@@ -73,11 +66,10 @@ SurfacePtr create_coverage_mask_surface(const SDL_Surface& source_surface)
 		32,
 		SDL_PIXELFORMAT_RGBA32));
 	if (!mask)
-	{
-		ELYSIA_LOG_WARN("resource","Create coverage mask failed: create surface failed: "
-			<< SDL_GetError());
-		return {};
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::CreateFailed,
+			std::string("Create coverage mask failed: create surface failed: ")
+				+ SDL_GetError()));
 
 	const bool lock_converted = SDL_MUSTLOCK(converted.get()) != 0;
 	const bool lock_mask = SDL_MUSTLOCK(mask.get()) != 0;
@@ -88,9 +80,10 @@ SurfacePtr create_coverage_mask_surface(const SDL_Surface& source_surface)
 			SDL_UnlockSurface(converted.get());
 		if (lock_mask && mask->locked)
 			SDL_UnlockSurface(mask.get());
-		ELYSIA_LOG_WARN("resource","Create coverage mask failed: lock surface failed: "
-			<< SDL_GetError());
-		return {};
+		return std::unexpected(make_resource_failure(
+			ResourceError::CreateFailed,
+			std::string("Create coverage mask failed: lock surface failed: ")
+				+ SDL_GetError()));
 	}
 
 	for (int y = 0; y < converted->h; ++y)

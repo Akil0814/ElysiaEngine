@@ -1,16 +1,15 @@
 #pragma once
 
 #include "application_failure_scene_payload.h"
+#include "application_failure_dialog.h"
 #include "../../scene/scene.h"
 
 #include <string>
 
 namespace elysia::ui
 {
-class UiConfirmationDialog;
 class UiButton;
 class UiWindow;
-struct UiConfirmationDialogConfig;
 }
 
 namespace elysia::builtin
@@ -35,16 +34,19 @@ private:
     void sync_dialog_state();
     void confirm_exit();
     void destroy_ui() noexcept;
-    [[nodiscard]] static elysia::ui::UiConfirmationDialogConfig
-        make_dialog_config(ApplicationFailurePresentation presentation);
+    [[nodiscard]] ApplicationFailureDialogConfig make_dialog_config() const;
+    [[nodiscard]] static elysia::core::Vector2 dialog_size(
+        float logical_width,float logical_height) noexcept;
 
 private:
     ApplicationFailurePresentation _presentation =
         ApplicationFailurePresentation::RuntimeFatal;
+    ApplicationFailureReason _reason = ApplicationFailureReason::RuntimeFatal;
+    std::string _error_code;
     std::string _category;
-    std::string _diagnostic_message;
+    elysia::core::FailureDiagnostic _diagnostic;
     elysia::ui::UiWindow* _window = nullptr;
-    elysia::ui::UiConfirmationDialog* _dialog = nullptr;
+    ApplicationFailureDialog* _dialog = nullptr;
     elysia::ui::UiButton* _reopen_button = nullptr;
 };
 }

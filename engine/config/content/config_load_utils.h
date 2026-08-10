@@ -45,8 +45,9 @@ inline std::string duplicate_config_property(std::string_view message)
 }
 
 inline ConfigLoadFailure make_config_load_failure(ConfigLoadError error,std::string message,
-    ConfigOrigin first = {},ConfigOrigin second = {})
+    ConfigOrigin first = {},ConfigOrigin second = {},
+    std::source_location origin = std::source_location::current())
 {
-    return {error,std::move(message),std::move(first),std::move(second)};
+    return {error,std::move(message),std::move(first),std::move(second),origin};
 }
 }

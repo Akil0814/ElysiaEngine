@@ -5,7 +5,6 @@
 #include "resource_load_plan_validator.h"
 #include "../io/path/path_manager.h"
 #include "../resources/pipeline/resource_request_builder.h"
-#include "../tools/logger.h"
 
 namespace elysia::loading
 {
@@ -34,21 +33,18 @@ bool append_module_effects(
 }
 }
 
-bool ResourceRequestAssembler::assemble(
+std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::assemble(
 	const ContentManifestResult& config,
-	std::span<const int> project_font_point_sizes,
-	ResourceLoadPlan& plan) const
+	std::span<const int> project_font_point_sizes) const
 {
-	plan.clear();
-	_error_message.clear();
+	ResourceLoadPlan plan;
 	elysia::resources::ResourceRequestBuilder builder;
 	const auto textures_root = elysia::io::PathManager::instance()->textures();
-	const auto fail = [this, &plan](std::string message)
+	const auto fail = [&plan](std::string message, std::string key = {})
 	{
-		_error_message = std::move(message);
-		ELYSIA_LOG_ERROR("resource", _error_message);
 		plan.clear();
-		return false;
+		return std::expected<ResourceLoadPlan,ContentLoadFailure>{std::unexpected(
+			make_content_load_failure(ContentLoadError::Plan,std::move(message),std::move(key)))};
 	};
 
 	// Phase 1: core animations.
@@ -75,7 +71,7 @@ bool ResourceRequestAssembler::assemble(
 	for (const auto& [name, module] : config.additional_modules)
 		for (const auto& entry : module.texture_entries)
 			if (!builder.append_entity_texture_requests(module.key_namespace, entry, plan.texture_requests()))
-				return fail("Resource request assembly failed while building module textures: " + name);
+			return fail("Resource request assembly failed while building module textures: " + name,name);
 
 	// Phase 5: fonts and audio.
 	if (!builder.append_font_requests(
@@ -92,6 +88,6 @@ bool ResourceRequestAssembler::assemble(
 	ResourceLoadPlanValidationError validation_error;
 	if (!ResourceLoadPlanValidator{}.validate(plan, validation_error))
 		return fail(validation_error.describe());
-	return true;
+	return plan;
 }
 }

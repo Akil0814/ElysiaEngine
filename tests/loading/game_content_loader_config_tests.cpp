@@ -143,6 +143,9 @@ int main()
 	require(!loader.start(nullptr, content_registry, project_font_point_sizes),
 		"an invalid renderer must fail the new content loading cycle");
 	require(loader.has_failed()
+		&& loader.failure()
+		&& loader.failure()->error_code() == "CONTENT-PLAN"
+		&& !loader.failure()->diagnostic.message.empty()
 		&& !configs->is_initialized()
 		&& resources->resource_count() == 0
 		&& animations->find_definition("test.animation") == nullptr
@@ -151,6 +154,8 @@ int main()
 		"failed content loading must leave every runtime registry empty");
 
 	loader.reset();
+	require(!loader.has_failed() && loader.failure() == nullptr,
+		"reset must clear the published structured failure object");
 
 	elysia::loading::clear_loaded_content();
     SDL_DestroyRenderer(renderer);

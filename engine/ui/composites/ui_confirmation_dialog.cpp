@@ -19,9 +19,9 @@ using elysia::typography::UiTypographyRole;
 namespace
 {
 constexpr float kHeaderHeight = 48.0f;
-constexpr float kMessageHeight = 96.0f;
 constexpr float kButtonHeight = 56.0f;
 constexpr float kButtonSpacing = 20.0f;
+constexpr float kMessageButtonSpacing = 16.0f;
 
 UiLayoutChildOptions anchored_options(UiLayoutAnchor anchor,const elysia::core::Vector2& size)
 {
@@ -236,8 +236,10 @@ void UiConfirmationDialog::rebuild_layout()
 
     const elysia::core::Rect panel_rect = _body_panel->screen_rect();
     const float action_width = std::max(0.0f,panel_rect.width());
+    const float message_height = std::max(
+        0.0f,panel_rect.height() - kButtonHeight - kMessageButtonSpacing);
     _body_panel->set_child_layout_options(
-        0,anchored_options(UiLayoutAnchor::TopCenter,elysia::core::Vector2(panel_rect.width(),kMessageHeight)));
+        0,anchored_options(UiLayoutAnchor::TopCenter,elysia::core::Vector2(panel_rect.width(),message_height)));
     _body_panel->set_child_layout_options(
         1,anchored_options(UiLayoutAnchor::BottomCenter,elysia::core::Vector2(action_width,kButtonHeight)));
     _body_panel->update_layout_if_dirty();
@@ -285,12 +287,12 @@ void UiConfirmationDialog::create_internal_children()
     _body_panel = body.get();
 
     auto message = std::make_unique<UiTextBlock>(
-        elysia::core::Rect{ 0,0,380,kMessageHeight });
+        elysia::core::Rect{ 0,0,380,0 });
     message->set_typography_role(UiTypographyRole::DialogBody);
     message->set_horizontal_align(TextHorizontalAlign::Center);
     _message_text = message.get();
     _body_panel->add_child(std::move(message),anchored_options(
-        UiLayoutAnchor::TopCenter,elysia::core::Vector2(380.0f,kMessageHeight)));
+        UiLayoutAnchor::TopCenter,elysia::core::Vector2(380.0f,0.0f)));
 
     auto action_row = std::make_unique<UiListContainer>(elysia::core::Rect{ 0,0,380,kButtonHeight });
     action_row->set_direction(UiListDirection::Horizontal);

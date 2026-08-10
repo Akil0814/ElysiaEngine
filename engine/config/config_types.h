@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <source_location>
 
 namespace elysia::config
 {
@@ -21,6 +22,7 @@ struct ConfigLoadFailure
     std::string message;
     ConfigOrigin first;
     ConfigOrigin second;
+    std::source_location origin = std::source_location::current();
 };
 
 enum class ConfigAccessError { NotInitialized, MissingKey, TypeMismatch, InvalidValue };

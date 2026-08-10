@@ -1,5 +1,5 @@
-#include "../../tools/logger.h"
 #include "audio_manager.h"
+#include "../../tools/logger.h"
 namespace elysia::resources
 {
 AudioManager::~AudioManager()
@@ -7,60 +7,54 @@ AudioManager::~AudioManager()
 	clear();
 }
 
-bool AudioManager::load_sound(
+std::expected<void,ResourceFailure> AudioManager::load_sound(
 	const std::string& key,
 	const std::filesystem::path& file_path
 )
 {
 	if (key.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load sound failed: key is empty.");
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load sound failed: key is empty."));
 
 	if (file_path.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load sound failed: file path is empty: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load sound failed: file path is empty.",key));
 
 	Mix_Chunk* sound = Mix_LoadWAV(file_path.string().c_str());
 	if (!sound)
-	{
-		ELYSIA_LOG_WARN("resource","Load sound failed: " << file_path
-			<< " error: " << Mix_GetError());
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::DecodeFailed,std::string("Load sound failed: ") + Mix_GetError(),
+			key,file_path));
 
 	return store_sound(key, sound);
 }
 
-bool AudioManager::load_sounds(const std::vector<SoundLoadRequest>& requests)
+std::expected<void,ResourceFailure> AudioManager::load_sounds(
+	const std::vector<SoundLoadRequest>& requests)
 {
 	for (const SoundLoadRequest& request : requests)
 	{
-		if (!load_sound(request.key, request.file_path))
-			return false;
+		if (auto result = load_sound(request.key,request.file_path); !result)
+			return result;
 	}
 
-	return true;
+	return {};
 }
 
-bool AudioManager::store_sound(const std::string& key, Mix_Chunk* sound)
+std::expected<void,ResourceFailure> AudioManager::store_sound(
+	const std::string& key,Mix_Chunk* sound)
 {
 	if (key.empty())
 	{
-		ELYSIA_LOG_WARN("resource","Store sound failed: key is empty.");
 		if (sound)
 			Mix_FreeChunk(sound);
-		return false;
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store sound failed: key is empty."));
 	}
 
 	if (!sound)
-	{
-		ELYSIA_LOG_WARN("resource","Store sound failed: sound is null: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store sound failed: sound is null.",key));
 
 	SoundPool::iterator iterator = _sound_pool.find(key);
 	if (iterator != _sound_pool.end())
@@ -69,11 +63,11 @@ bool AudioManager::store_sound(const std::string& key, Mix_Chunk* sound)
 			Mix_FreeChunk(iterator->second);
 
 		iterator->second = sound;
-		return true;
+		return {};
 	}
 
 	_sound_pool.emplace(key, sound);
-	return true;
+	return {};
 }
 
 Mix_Chunk* AudioManager::find_sound(const std::string_view& key) const
@@ -95,65 +89,60 @@ Mix_Chunk* AudioManager::find_sound(const std::string_view& key) const
 	return iterator->second;
 }
 
-bool AudioManager::load_music(
+std::expected<void,ResourceFailure> AudioManager::load_music(
 	const std::string& key,
 	const std::filesystem::path& file_path
 )
 {
 	if (key.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load music failed: key is empty.");
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load music failed: key is empty."));
 
 	if (file_path.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load music failed: file path is empty: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load music failed: file path is empty.",key));
 
 	Mix_Music* music = Mix_LoadMUS(file_path.string().c_str());
 	if (!music)
-	{
-		ELYSIA_LOG_WARN("resource","Load music failed: " << file_path
-			<< " error: " << Mix_GetError());
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::DecodeFailed,std::string("Load music failed: ") + Mix_GetError(),
+			key,file_path));
 
 	return store_music(key, music);
 }
 
-bool AudioManager::load_music(const MusicLoadRequest& request)
+std::expected<void,ResourceFailure> AudioManager::load_music(
+	const MusicLoadRequest& request)
 {
 	return load_music(request.key, request.file_path);
 }
 
-bool AudioManager::load_music(const std::vector<MusicLoadRequest>& requests)
+std::expected<void,ResourceFailure> AudioManager::load_music(
+	const std::vector<MusicLoadRequest>& requests)
 {
 	for (const MusicLoadRequest& request : requests)
 	{
-		if (!load_music(request))
-			return false;
+		if (auto result = load_music(request); !result)
+			return result;
 	}
 
-	return true;
+	return {};
 }
 
-bool AudioManager::store_music(const std::string& key, Mix_Music* music)
+std::expected<void,ResourceFailure> AudioManager::store_music(
+	const std::string& key,Mix_Music* music)
 {
 	if (key.empty())
 	{
-		ELYSIA_LOG_WARN("resource","Store music failed: key is empty.");
 		if (music)
 			Mix_FreeMusic(music);
-		return false;
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store music failed: key is empty."));
 	}
 
 	if (!music)
-	{
-		ELYSIA_LOG_WARN("resource","Store music failed: music is null: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store music failed: music is null.",key));
 
 	MusicPool::iterator iterator = _music_pool.find(key);
 	if (iterator != _music_pool.end())
@@ -162,11 +151,11 @@ bool AudioManager::store_music(const std::string& key, Mix_Music* music)
 			Mix_FreeMusic(iterator->second);
 
 		iterator->second = music;
-		return true;
+		return {};
 	}
 
 	_music_pool.emplace(key, music);
-	return true;
+	return {};
 }
 
 Mix_Music* AudioManager::find_music(const std::string_view& key) const

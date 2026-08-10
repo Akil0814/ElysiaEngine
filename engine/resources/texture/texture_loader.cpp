@@ -1,4 +1,3 @@
-#include "../../tools/logger.h"
 #include "texture_loader.h"
 namespace elysia::resources
 {
@@ -20,7 +19,7 @@ TexturePtr TextureLoader::create_texture(
 		const_cast<SDL_Surface*>(&surface)));
 }
 
-TextureLoadResult TextureLoader::load_texture(
+std::expected<TextureLoadResult,ResourceFailure> TextureLoader::load_texture(
 	SDL_Renderer* renderer,
 	const SurfaceLoadResult& surface_result
 ) const
@@ -31,29 +30,23 @@ TextureLoadResult TextureLoader::load_texture(
 	result._frame_index = surface_result._frame_index;
 
 	if (!renderer)
-	{
-		ELYSIA_LOG_WARN("resource","Load texture failed: renderer is null: "
-			<< surface_result._asset_key);
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load texture failed: renderer is null.",
+			surface_result._asset_key,surface_result._frame_path));
 
-	if (!surface_result._success || !surface_result._surface)
-	{
-		ELYSIA_LOG_WARN("resource","Load texture failed: surface is invalid: "
-			<< surface_result._frame_path);
-		return result;
-	}
+	if (!surface_result._surface)
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load texture failed: surface is invalid.",
+			surface_result._asset_key,surface_result._frame_path));
 
 	TexturePtr texture = create_texture(renderer,*surface_result._surface);
 	if (!texture)
-	{
-		ELYSIA_LOG_WARN("resource","Load texture failed: " << surface_result._frame_path
-			<< ", reason: " << SDL_GetError());
-		return result;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::CreateFailed,
+			std::string("Load texture failed: ") + SDL_GetError(),
+			surface_result._asset_key,surface_result._frame_path));
 
 	result._texture = std::move(texture);
-	result._success = true;
 	return result;
 }
 

@@ -24,14 +24,15 @@ void test_explicit_frame_directory_expansion()
 	std::ofstream(atlas_test_root / "frames" / "unconfigured_extra.png").put('\0');
 
 	elysia::resources::AtlasBuildPreparer atlas_build_preparer;
-	std::vector<elysia::resources::AtlasFramePrepareTask> atlas_tasks;
 	elysia::resources::AtlasBuildRequest request;
 	request.atlas_key = "ExampleEntity.idle";
 	request.source_path = atlas_test_root / "frames";
 	request.frame_count = 2;
 	request.frame_filename_prefix = "ExampleEntity_idle";
-	require(atlas_build_preparer.expand_build_request(request, atlas_tasks),
+	auto atlas_tasks_result = atlas_build_preparer.expand_build_request(request);
+	require(atlas_tasks_result,
 		"frame-directory atlas loading must expand its explicit prefix and frame count");
+	auto atlas_tasks = std::move(*atlas_tasks_result);
 	require(atlas_tasks.size() == 2
 		&& atlas_tasks[0].frame_path.filename() == "ExampleEntity_idle_000.png"
 		&& atlas_tasks[1].frame_path.filename() == "ExampleEntity_idle_001.png"
@@ -43,11 +44,11 @@ void test_explicit_frame_directory_expansion()
 
 	elysia::resources::AtlasBuildRequest no_prefix = request;
 	no_prefix.frame_filename_prefix.clear();
-	require(!atlas_build_preparer.expand_build_request(no_prefix, atlas_tasks),
+	require(!atlas_build_preparer.expand_build_request(no_prefix),
 		"frame-directory requests without an explicit prefix must fail");
 
 	request.frame_count = 3;
-	require(!atlas_build_preparer.expand_build_request(request, atlas_tasks),
+	require(!atlas_build_preparer.expand_build_request(request),
 		"frame-directory loading must fail when an explicitly configured frame is missing");
 
 	const std::filesystem::path strip_path = atlas_test_root / "strip.png";
@@ -57,8 +58,10 @@ void test_explicit_frame_directory_expansion()
 	strip_request.source_path = strip_path;
 	strip_request.frame_count = 14;
 	strip_request.source_type = elysia::resources::AtlasSourceType::HorizontalStrip;
-	require(atlas_build_preparer.expand_build_request(strip_request, atlas_tasks),
+	atlas_tasks_result = atlas_build_preparer.expand_build_request(strip_request);
+	require(atlas_tasks_result,
 		"horizontal strip loading must accept a single image source");
+	atlas_tasks = std::move(*atlas_tasks_result);
 	require(atlas_tasks.size() == 1
 		&& atlas_tasks[0].frame_path == strip_path
 		&& atlas_tasks[0].source_type == elysia::resources::AtlasSourceType::HorizontalStrip

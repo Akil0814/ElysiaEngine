@@ -1,5 +1,5 @@
-#include "../../tools/logger.h"
 #include "font_manager.h"
+#include "../../tools/logger.h"
 namespace elysia::resources
 {
 FontManager::~FontManager()
@@ -7,58 +7,50 @@ FontManager::~FontManager()
 	clear();
 }
 
-bool FontManager::load_font(
+std::expected<void,ResourceFailure> FontManager::load_font(
 	const std::string& key,
 	const std::filesystem::path& file_path,
 	int point_size
 )
 {
 	if (key.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load font failed: key is empty.");
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load font failed: key is empty."));
 
 	if (file_path.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Load font failed: file path is empty: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load font failed: file path is empty.",key));
 
 	if (point_size <= 0)
-	{
-		ELYSIA_LOG_WARN("resource","Load font failed: point size is invalid: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Load font failed: point size is invalid.",
+			key,file_path));
 
 	TTF_Font* font = TTF_OpenFont(file_path.string().c_str(), point_size);
 	if (!font)
-	{
-		ELYSIA_LOG_WARN("resource","Load font failed: " << file_path
-			<< " error: " << TTF_GetError());
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::DecodeFailed,std::string("Load font failed: ") + TTF_GetError(),
+			key,file_path));
 
 	return store_font(key, font);
 }
 
-bool FontManager::store_font(const std::string& key, TTF_Font* font)
+std::expected<void,ResourceFailure> FontManager::store_font(
+	const std::string& key,TTF_Font* font)
 {
 	if (key.empty())
 	{
-		ELYSIA_LOG_WARN("resource","Store font failed: key is empty.");
 		if (font)
 		{
 			TTF_CloseFont(font);
 		}
-		return false;
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store font failed: key is empty."));
 	}
 
 	if (!font)
-	{
-		ELYSIA_LOG_WARN("resource","Store font failed: font is null: " << key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store font failed: font is null.",key));
 
 	FontPool::iterator iterator = _font_pool.find(key);
 	if (iterator != _font_pool.end())
@@ -69,11 +61,11 @@ bool FontManager::store_font(const std::string& key, TTF_Font* font)
 		}
 
 		iterator->second = font;
-		return true;
+		return {};
 	}
 
 	_font_pool.emplace(key, font);
-	return true;
+	return {};
 }
 
 bool FontManager::has_font(std::string_view key) const noexcept

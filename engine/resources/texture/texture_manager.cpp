@@ -5,24 +5,23 @@
 
 namespace elysia::resources
 {
-bool TextureManager::store_texture(const std::string& key, TexturePtr texture)
+std::expected<void,ResourceFailure> TextureManager::store_texture(
+	const std::string& key,TexturePtr texture)
 {
 	return store_resource(key,TextureResource{
 		.texture = std::move(texture)
 	});
 }
 
-bool TextureManager::store_animation_texture(
+std::expected<void,ResourceFailure> TextureManager::store_animation_texture(
 	const std::string& key,
 	TexturePtr texture,
 	TexturePtr coverage_mask)
 {
 	if (!coverage_mask)
-	{
-		ELYSIA_LOG_WARN("resource","Store animation texture failed: coverage mask is null: "
-			<< key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,
+			"Store animation texture failed: coverage mask is null.",key));
 
 	return store_resource(key,TextureResource{
 		.texture = std::move(texture),
@@ -30,7 +29,7 @@ bool TextureManager::store_animation_texture(
 	});
 }
 
-bool TextureManager::store_animation_textures(
+std::expected<void,ResourceFailure> TextureManager::store_animation_textures(
 	std::vector<AnimationTextureResource>&& resources)
 {
 	std::unordered_set<std::string> keys;
@@ -42,10 +41,9 @@ bool TextureManager::store_animation_textures(
 			|| _texture_pool.contains(resource.key)
 			|| !keys.emplace(resource.key).second)
 		{
-			ELYSIA_LOG_WARN("resource",
-				"Store animation texture batch failed validation: "
-				<< resource.key);
-			return false;
+			return std::unexpected(make_resource_failure(
+				ResourceError::InvalidRequest,
+				"Store animation texture batch failed validation.",resource.key));
 		}
 	}
 
@@ -58,31 +56,26 @@ bool TextureManager::store_animation_textures(
 				.coverage_mask = std::move(resource.coverage_mask)
 			});
 	}
-	return true;
+	return {};
 }
 
-bool TextureManager::store_resource(
+std::expected<void,ResourceFailure> TextureManager::store_resource(
 	const std::string& key,
 	TextureResource resource)
 {
 	if (key.empty())
-	{
-		ELYSIA_LOG_WARN("resource","Store texture failed: key is empty.");
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store texture failed: key is empty."));
 
 	if (!resource.texture)
-	{
-		ELYSIA_LOG_WARN("resource","Store texture failed: texture is null: "
-			<< key);
-		return false;
-	}
+		return std::unexpected(make_resource_failure(
+			ResourceError::InvalidRequest,"Store texture failed: texture is null.",key));
 
 	if (_texture_pool.contains(key))
-		return true;
+		return {};
 
 	_texture_pool.emplace(key, std::move(resource));
-	return true;
+	return {};
 }
 
 SDL_Texture* TextureManager::find_texture(const std::string_view& key) const

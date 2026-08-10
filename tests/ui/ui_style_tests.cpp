@@ -69,6 +69,7 @@ public:
     [[nodiscard]] static float message_height(
         const UiConfirmationDialog& dialog) noexcept
     {
+        const_cast<UiConfirmationDialog&>(dialog).update_layout_if_dirty();
         return dialog._message_text ? dialog._message_text->size().y : 0.0f;
     }
 };
@@ -551,10 +552,14 @@ void test_confirmation_dialog_applies_roles_and_wraps_messages()
     require(
         elysia::ui::UiConfirmationDialogTestAccess::message_wraps(*dialog_raw),
         "confirmation dialog messages must use wrapping DialogBody typography");
-    require(
-        elysia::ui::UiConfirmationDialogTestAccess::message_height(*dialog_raw)
-            >= 96.0f,
-        "confirmation dialog must reserve enough height for a multi-line message");
+    const float compact_message_height =
+        elysia::ui::UiConfirmationDialogTestAccess::message_height(*dialog_raw);
+    dialog_raw->set_size({ 520,340 });
+    const float expanded_message_height =
+        elysia::ui::UiConfirmationDialogTestAccess::message_height(*dialog_raw);
+    require(compact_message_height > 0.0f
+            && expanded_message_height > compact_message_height,
+        "confirmation dialog message area must fill the space above its action row");
 }
 
 void test_elysia_dark_bar_fill_contrast()

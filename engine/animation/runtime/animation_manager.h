@@ -4,7 +4,9 @@
 #include "../../resources/resource_service.h"
 #include "../../tools/singleton.h"
 #include "../../resources/resource_types.h"
+#include "../animation_registration_failure.h"
 
+#include <expected>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -20,8 +22,8 @@ class AnimationManager : public elysia::tools::Singleton<AnimationManager>
 	friend class AnimationService;
 
 public:
-	bool register_animation(const elysia::resources::AnimationBuildRequest& request,const elysia::resources::Atlas* atlas);
-	bool register_animations(const std::vector<elysia::resources::AnimationBuildRequest>& requests,
+	[[nodiscard]] std::expected<void,AnimationRegistrationFailure> register_animation(const elysia::resources::AnimationBuildRequest& request,const elysia::resources::Atlas* atlas);
+	[[nodiscard]] std::expected<void,AnimationRegistrationFailure> register_animations(const std::vector<elysia::resources::AnimationBuildRequest>& requests,
 		const elysia::resources::ResourceService& resource_service);
 
 	void clear() noexcept;

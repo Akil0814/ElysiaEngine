@@ -5,7 +5,9 @@
 #include "../number/floating_number_effect_factory.h"
 #include "../../resources/resource_types.h"
 #include "../../tools/singleton.h"
+#include "../effect_registration_failure.h"
 
+#include <expected>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -37,9 +39,9 @@ public:
 		SDL_Renderer* renderer,
 		const elysia::typography::FontResolver* font_resolver) noexcept;
 
-	bool register_animation_effect(
+	[[nodiscard]] std::expected<void,EffectRegistrationFailure> register_animation_effect(
 		const elysia::resources::AnimationEffectBuildRequest& request);
-	bool register_animation_effect(
+	[[nodiscard]] std::expected<void,EffectRegistrationFailure> register_animation_effect(
 		const std::vector<elysia::resources::AnimationEffectBuildRequest>& requests);
 
 	[[nodiscard]] const AnimationEffectDefinition* find_animation_effect_definition(

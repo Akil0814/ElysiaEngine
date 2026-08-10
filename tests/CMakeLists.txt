@@ -218,6 +218,11 @@ target_compile_definitions(application_failure_scene_tests
     PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
 
+add_elysia_test(content_failure_tests
+    LABEL loading
+    SOURCES loading/content_failure_tests.cpp
+)
+
 add_elysia_test(physics_framework_contract_tests
     LABEL physics
     SOURCES physics/physics_framework_contract_tests.cpp

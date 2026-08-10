@@ -9,32 +9,51 @@ elysia::resources::ResourceManager::ResourceManager()
 {
 }
 
-bool elysia::resources::ResourceManager::begin_atlas_build(const AtlasBuildRequest& request)
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::begin_atlas_build(const AtlasBuildRequest& request)
 {
-	return _atlas_manager.begin_build(request);
+	if (_atlas_manager.begin_build(request))
+		return {};
+	return std::unexpected(make_resource_failure(
+		ResourceError::InvalidBuildState,"Begin atlas build failed.",
+		request.atlas_key,request.source_path));
 }
 
-bool elysia::resources::ResourceManager::begin_atlas_builds(const std::vector<AtlasBuildRequest>& requests)
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::begin_atlas_builds(
+	const std::vector<AtlasBuildRequest>& requests)
 {
-	return _atlas_manager.begin_builds(requests);
+	for (const AtlasBuildRequest& request : requests)
+	{
+		if (auto result = begin_atlas_build(request); !result)
+			return result;
+	}
+	return {};
 }
 
-bool elysia::resources::ResourceManager::commit_prepared_atlas_frame(
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::commit_prepared_atlas_frame(
 	SDL_Renderer* renderer,
 	const AtlasFramePreparedResult& result
 )
 {
-	return _atlas_manager.commit_prepared_frame(renderer, result);
+	if (_atlas_manager.commit_prepared_frame(renderer,result))
+		return {};
+	return std::unexpected(make_resource_failure(
+		ResourceError::InvalidBuildState,"Commit prepared atlas frame failed.",
+		result.task.atlas_key,result.task.frame_path));
 }
 
-bool elysia::resources::ResourceManager::store_texture(
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::store_texture(
 	const std::string& key,
 	TexturePtr texture)
 {
 	return _texture_manager.store_texture(key,std::move(texture));
 }
 
-bool elysia::resources::ResourceManager::load_font(
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::load_font(
 	const std::string& key,
 	const std::filesystem::path& file_path,
 	int point_size
@@ -43,22 +62,28 @@ bool elysia::resources::ResourceManager::load_font(
 	return _font_manager.load_font(key, file_path, point_size);
 }
 
-bool elysia::resources::ResourceManager::load_sounds(const std::vector<SoundLoadRequest>& requests)
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::load_sounds(
+	const std::vector<SoundLoadRequest>& requests)
 {
 	return _audio_manager.load_sounds(requests);
 }
 
-bool elysia::resources::ResourceManager::load_sound(const SoundLoadRequest& request)
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::load_sound(const SoundLoadRequest& request)
 {
 	return _audio_manager.load_sound(request.key,request.file_path);
 }
 
-bool elysia::resources::ResourceManager::load_music(const MusicLoadRequest& request)
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::load_music(const MusicLoadRequest& request)
 {
 	return _audio_manager.load_music(request);
 }
 
-bool elysia::resources::ResourceManager::load_music(const std::vector<MusicLoadRequest>& requests)
+std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::load_music(
+	const std::vector<MusicLoadRequest>& requests)
 {
 	return _audio_manager.load_music(requests);
 }

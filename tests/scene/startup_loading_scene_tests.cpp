@@ -193,7 +193,8 @@ void test_failure_without_route_uses_builtin_failure_scene()
             && payload->presentation
                 == ApplicationFailurePresentation::StartupLoading
             && payload->category == "startup"
-            && payload->diagnostic_message == "fatal startup failure",
+            && payload->error_code == "STARTUP-PRESENTATION"
+            && payload->diagnostic.message == "fatal startup failure",
         "startup failure without a custom route must use the built-in application failure scene");
     scene.detach(&probe);
 }

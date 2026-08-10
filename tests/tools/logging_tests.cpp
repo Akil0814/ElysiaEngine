@@ -140,9 +140,8 @@ void test_logger_console_sink()
     require(!request_builder.append_texture_manifest_requests(
             texture_manifest,{},texture_requests),
         "invalid resource request input must remain a recoverable failure");
-    require(captured.messages.size() == 1
-            && captured.messages.front().find("[WARN]") != std::string::npos,
-        "recoverable resource request failures must log at Warn level");
+    require(captured.messages.empty(),
+        "resource request failures that propagate to the startup boundary must not log early");
 
     resources::ResourceManager* resource_manager = resources::ResourceManager::instance();
     resources::ResourceService* resource_service = ELYSIA_RESOURCES;
@@ -214,16 +213,12 @@ void test_logger_console_sink()
 
     captured.messages.clear();
     loading::ContentManifestPipeline content_manifest_pipeline;
-    loading::ContentManifestResult config_result;
-    require(!content_manifest_pipeline.load(content_registry,config_result),
+    const auto manifest_result = content_manifest_pipeline.load(content_registry);
+    require(!manifest_result,
         "invalid supplied registry must fail the content manifest pipeline");
-    bool saw_pipeline_error = false;
-    for (const std::string& message : captured.messages)
-    {
-        saw_pipeline_error = saw_pipeline_error || message.find("[ERROR]") != std::string::npos;
-    }
-    require(saw_pipeline_error,
-        "content manifest pipeline failure must record an error diagnostic");
+    require(captured.messages.empty()
+            && !manifest_result.error().diagnostic.message.empty(),
+        "content manifest pipeline must return diagnostics without logging below the handling boundary");
 
     captured.messages.clear();
     const std::source_location root_failure_location = std::source_location::current();

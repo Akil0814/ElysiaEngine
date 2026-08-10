@@ -13,44 +13,48 @@ void EffectManager::set_runtime_dependencies(
 	_floating_number_effect_factory.set_runtime_dependencies(renderer,font_resolver);
 }
 
-bool EffectManager::register_animation_effect(
+std::expected<void,EffectRegistrationFailure> EffectManager::register_animation_effect(
 	const std::vector<elysia::resources::AnimationEffectBuildRequest>& requests)
 {
 	for (const elysia::resources::AnimationEffectBuildRequest& request : requests)
 	{
-		if (!register_animation_effect(request))
-			return false;
+		if (auto result = register_animation_effect(request); !result)
+			return result;
 	}
 
-	return true;
+	return {};
 }
 
-bool EffectManager::register_animation_effect(
+std::expected<void,EffectRegistrationFailure> EffectManager::register_animation_effect(
 	const elysia::resources::AnimationEffectBuildRequest& request)
 {
 	if (request.effect_key.empty())
 	{
-		ELYSIA_LOG_WARN("effects","Register effect failed: effect key is empty.");
-		return false;
+		return std::unexpected(EffectRegistrationFailure{
+			EffectRegistrationError::InvalidKey,
+			elysia::core::make_failure_diagnostic("Register effect failed: effect key is empty.")});
 	}
 
 	if (request.animation_key.empty())
 	{
-		ELYSIA_LOG_WARN("effects","Register effect failed: animation key is empty.");
-		return false;
+		return std::unexpected(EffectRegistrationFailure{
+			EffectRegistrationError::InvalidAnimationKey,
+			elysia::core::make_failure_diagnostic("Register effect failed: animation key is empty.",request.effect_key)});
 	}
 
 	if (request.default_size.x < 0.0f || request.default_size.y < 0.0f
 		|| ((request.default_size.x == 0.0f) != (request.default_size.y == 0.0f)))
 	{
-		ELYSIA_LOG_WARN("effects","Register effect failed: default size must provide positive width and height.");
-		return false;
+		return std::unexpected(EffectRegistrationFailure{
+			EffectRegistrationError::InvalidSize,
+			elysia::core::make_failure_diagnostic("Register effect failed: default size must provide positive width and height.",request.effect_key)});
 	}
 
 	if (!ELYSIA_ANIMATIONS->find_definition(request.animation_key))
 	{
-		ELYSIA_LOG_WARN("effects","Register effect failed: can't find animation definition.");
-		return false;
+		return std::unexpected(EffectRegistrationFailure{
+			EffectRegistrationError::MissingAnimation,
+			elysia::core::make_failure_diagnostic("Register effect failed: can't find animation definition.",request.effect_key,request.origin.config_path)});
 	}
 
 	AnimationEffectDefinition definition;
@@ -59,7 +63,7 @@ bool EffectManager::register_animation_effect(
 	definition.default_size = request.default_size;
 	definition.angle_degrees = request.default_angle_degrees;
 	_animation_effect_definitions[request.effect_key] = std::move(definition);
-	return true;
+	return {};
 }
 
 const AnimationEffectDefinition* EffectManager::find_animation_effect_definition(

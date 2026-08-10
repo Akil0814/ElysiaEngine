@@ -1,113 +1,84 @@
-#include "../../tools/logger.h"
 #include "audio_manifest_loader.h"
 
 #include "../json/json_loader.h"
 #include "../json/json_duplicate_key_checker.h"
 #include "../../resources/pipeline/resource_key_builder.h"
-#include <string>
+
 #include <utility>
 
 namespace elysia::io
 {
 namespace
 {
-bool append_audio_entries(
-	const json& node,
-	const char* group_name,
-	const std::filesystem::path& manifest_path,
-	std::vector<AudioManifestEntry>& out_entries
-)
+std::expected<std::vector<AudioManifestEntry>,ManifestLoadFailure> load_group(
+    const json& node,std::string group,const std::filesystem::path& manifest_path)
 {
-	if (!node.is_object())
-	{
-		ELYSIA_LOG_WARN("io","Load audio manifest failed: " << group_name
-			<< " is not an object.");
-		return false;
-	}
-
-	for (json::const_iterator item = node.begin(); item != node.end(); ++item)
-	{
-		std::string key_error;
-		if (!elysia::resources::ResourceKeyBuilder::validate_key(item.key(), key_error))
-		{
-			ELYSIA_LOG_WARN("io", "Load audio manifest failed: " << key_error);
-			return false;
-		}
-		if (!item.value().is_object())
-		{
-			ELYSIA_LOG_WARN("io","Load audio manifest failed: entry is not an object: "
-				<< item.key());
-			return false;
-		}
-
-		const json& entry_node = item.value();
-		if (!entry_node.contains("path") || !entry_node.at("path").is_string())
-		{
-			ELYSIA_LOG_WARN("io","Load audio manifest failed: path is missing or not a string: "
-				<< item.key());
-			return false;
-		}
-
-		AudioManifestEntry entry;
-		entry.key = item.key();
-		entry.file_path = entry_node.at("path").get<std::string>();
-		for (auto field = entry_node.begin(); field != entry_node.end(); ++field)
-			if (field.key() != "path") return false;
-		entry.origin = elysia::resources::make_resource_origin(
-			manifest_path, "/" + std::string(group_name) + "/" + item.key(), {}, group_name, {}, item.key());
-		out_entries.push_back(std::move(entry));
-	}
-
-	return true;
+    const auto fail = [&](ManifestLoadError error,std::string message,
+        std::string key = {},std::source_location origin = std::source_location::current())
+        -> std::expected<std::vector<AudioManifestEntry>,ManifestLoadFailure>
+    {
+        return std::unexpected(make_manifest_load_failure(
+            error,std::move(message),std::move(key),manifest_path,origin));
+    };
+    if (!node.is_object())
+        return fail(ManifestLoadError::InvalidSchema,
+            "Load audio manifest failed: " + group + " is not an object.");
+    std::vector<AudioManifestEntry> entries;
+    for (auto item = node.begin();item != node.end();++item)
+    {
+        std::string key_error;
+        if (!elysia::resources::ResourceKeyBuilder::validate_key(item.key(),key_error))
+            return fail(ManifestLoadError::InvalidResourceKey,
+                "Load audio manifest failed: " + key_error,item.key());
+        if (!item.value().is_object())
+            return fail(ManifestLoadError::InvalidSchema,
+                "Load audio manifest failed: entry is not an object.",item.key());
+        const json& entry_node = item.value();
+        if (!entry_node.contains("path") || !entry_node.at("path").is_string())
+            return fail(ManifestLoadError::MissingField,
+                "Load audio manifest failed: path is missing or not a string.",item.key());
+        for (auto field = entry_node.begin();field != entry_node.end();++field)
+            if (field.key() != "path")
+                return fail(ManifestLoadError::UnknownField,
+                    "Load audio manifest failed: unknown field: " + field.key(),item.key());
+        AudioManifestEntry entry;
+        entry.key = item.key();
+        entry.file_path = entry_node.at("path").get<std::string>();
+        entry.origin = elysia::resources::make_resource_origin(
+            manifest_path,"/" + group + "/" + item.key(),{},group,{},item.key());
+        entries.push_back(std::move(entry));
+    }
+    return entries;
 }
 }
 
-bool AudioManifestLoader::load(
-	const std::filesystem::path& manifest_path,
-	AudioManifest& manifest
-) const
+std::expected<AudioManifest,ManifestLoadFailure> AudioManifestLoader::load(
+    const std::filesystem::path& manifest_path) const
 {
-	manifest = AudioManifest{};
-	if (has_duplicate_json_object_key(manifest_path)) return false;
-
-	JsonLoader loader;
-	JsonReadResult result = loader.open_file(manifest_path);
-	if (!result)
-	{
-		ELYSIA_LOG_WARN("io","Load audio manifest failed: " << result.error);
-		return false;
-	}
-
-	if (!loader.root().is_object())
-	{
-		ELYSIA_LOG_WARN("io","Load audio manifest failed: root is not an object: "
-			<< manifest_path);
-		return false;
-	}
-
-	if (!loader.root().contains("sounds"))
-	{
-		ELYSIA_LOG_WARN("io","Load audio manifest failed: sounds is missing: "
-			<< manifest_path);
-		return false;
-	}
-
-	if (!loader.root().contains("music"))
-	{
-		ELYSIA_LOG_WARN("io","Load audio manifest failed: music is missing: "
-			<< manifest_path);
-		return false;
-	}
-
-	AudioManifest parsed_manifest;
-	if (!append_audio_entries(loader.root().at("sounds"), "sounds", manifest_path, parsed_manifest.sounds))
-		return false;
-
-	if (!append_audio_entries(loader.root().at("music"), "music", manifest_path, parsed_manifest.music))
-		return false;
-
-	manifest = std::move(parsed_manifest);
-	return true;
+    const auto fail = [&manifest_path](ManifestLoadError error,std::string message,
+        std::source_location origin = std::source_location::current())
+        -> std::expected<AudioManifest,ManifestLoadFailure>
+    {
+        return std::unexpected(make_manifest_load_failure(
+            error,std::move(message),{},manifest_path,origin));
+    };
+    if (has_duplicate_json_object_key(manifest_path))
+        return fail(ManifestLoadError::DuplicateKey,
+            "Load audio manifest failed: duplicate JSON object key.");
+    JsonLoader loader;
+    const JsonReadResult read = loader.open_file(manifest_path);
+    if (!read)
+        return fail(ManifestLoadError::OpenFailed,"Load audio manifest failed: " + read.error);
+    if (!loader.root().is_object())
+        return fail(ManifestLoadError::InvalidSchema,
+            "Load audio manifest failed: root is not an object.");
+    if (!loader.root().contains("sounds") || !loader.root().contains("music"))
+        return fail(ManifestLoadError::MissingField,
+            "Load audio manifest failed: sounds or music is missing.");
+    auto sounds = load_group(loader.root().at("sounds"),"sounds",manifest_path);
+    if (!sounds) return std::unexpected(std::move(sounds.error()));
+    auto music = load_group(loader.root().at("music"),"music",manifest_path);
+    if (!music) return std::unexpected(std::move(music.error()));
+    return AudioManifest{ .sounds = std::move(*sounds),.music = std::move(*music) };
 }
-
 }

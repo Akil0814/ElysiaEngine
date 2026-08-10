@@ -1,9 +1,11 @@
 #pragma once
 #include "../resource_sub_manager.h"
+#include "../resource_failure.h"
 
 #include <SDL_ttf.h>
 
 #include <filesystem>
+#include <expected>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -17,12 +19,13 @@ class FontManager : public ResourceSubManager
 public:
 	~FontManager() override;
 
-	bool load_font(
+	[[nodiscard]] std::expected<void,ResourceFailure> load_font(
 		const std::string& key,
 		const std::filesystem::path& file_path,
 		int point_size
 	);
-	bool store_font(const std::string& key, TTF_Font* font);
+	[[nodiscard]] std::expected<void,ResourceFailure> store_font(
+		const std::string& key,TTF_Font* font);
 	bool has_font(std::string_view key) const noexcept;
 	TTF_Font* find_font(const std::string_view& key) const;
 

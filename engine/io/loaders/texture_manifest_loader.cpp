@@ -1,82 +1,66 @@
-#include "../../tools/logger.h"
 #include "texture_manifest_loader.h"
 
 #include "../json/json_loader.h"
 #include "../json/json_duplicate_key_checker.h"
 #include "../../resources/pipeline/resource_key_builder.h"
+
 #include <utility>
 
 namespace elysia::io
 {
-bool TextureManifestLoader::load(
-	const std::filesystem::path& manifest_path,
-	TextureManifest& manifest
-) const
+std::expected<TextureManifest,ManifestLoadFailure> TextureManifestLoader::load(
+    const std::filesystem::path& manifest_path) const
 {
-	manifest = TextureManifest{};
-	if (has_duplicate_json_object_key(manifest_path)) return false;
+    const auto fail = [&manifest_path](ManifestLoadError error,std::string message,
+        std::string key = {},std::source_location origin = std::source_location::current())
+        -> std::expected<TextureManifest,ManifestLoadFailure>
+    {
+        return std::unexpected(make_manifest_load_failure(
+            error,std::move(message),std::move(key),manifest_path,origin));
+    };
+    if (has_duplicate_json_object_key(manifest_path))
+        return fail(ManifestLoadError::DuplicateKey,
+            "Load texture manifest failed: duplicate JSON object key.");
 
-	JsonLoader loader;
-	JsonReadResult result = loader.open_file(manifest_path);
-	if (!result)
-	{
-		ELYSIA_LOG_WARN("io","Load texture manifest failed: " << result.error);
-		return false;
-	}
+    JsonLoader loader;
+    const JsonReadResult read = loader.open_file(manifest_path);
+    if (!read)
+        return fail(ManifestLoadError::OpenFailed,
+            "Load texture manifest failed: " + read.error);
+    if (!loader.root().is_object())
+        return fail(ManifestLoadError::InvalidSchema,
+            "Load texture manifest failed: root is not an object.");
+    if (!loader.root().contains("textures") || !loader.root().at("textures").is_object())
+        return fail(ManifestLoadError::MissingField,
+            "Load texture manifest failed: textures is missing or not an object.");
 
-	if (!loader.root().is_object())
-	{
-		ELYSIA_LOG_WARN("io","Load texture manifest failed: root is not an object: "
-			<< manifest_path);
-		return false;
-	}
+    TextureManifest manifest;
+    for (auto texture = loader.root().at("textures").begin();
+        texture != loader.root().at("textures").end();++texture)
+    {
+        std::string key_error;
+        if (!elysia::resources::ResourceKeyBuilder::validate_key(texture.key(),key_error))
+            return fail(ManifestLoadError::InvalidValue,
+                "Load texture manifest failed: " + key_error,texture.key());
+        if (!texture.value().is_object())
+            return fail(ManifestLoadError::InvalidSchema,
+                "Load texture manifest failed: texture entry is not an object.",texture.key());
+        const json& node = texture.value();
+        if (!node.contains("path") || !node.at("path").is_string())
+            return fail(ManifestLoadError::MissingField,
+                "Load texture manifest failed: path is missing or not a string.",texture.key());
+        for (auto field = node.begin();field != node.end();++field)
+            if (field.key() != "path")
+                return fail(ManifestLoadError::UnknownField,
+                    "Load texture manifest failed: unknown field: " + field.key(),texture.key());
 
-	if (!loader.root().contains("textures") || !loader.root().at("textures").is_object())
-	{
-		ELYSIA_LOG_WARN("io","Load texture manifest failed: textures is missing or not an object: "
-			<< manifest_path);
-		return false;
-	}
-
-	TextureManifest parsed_manifest;
-	const json& textures = loader.root().at("textures");
-	for (json::const_iterator texture = textures.begin();
-		texture != textures.end();
-		++texture)
-	{
-		std::string key_error;
-		if (!elysia::resources::ResourceKeyBuilder::validate_key(texture.key(), key_error))
-		{
-			ELYSIA_LOG_WARN("io", "Load texture manifest failed: " << key_error);
-			return false;
-		}
-		if (!texture.value().is_object())
-		{
-			ELYSIA_LOG_WARN("io","Load texture manifest failed: texture entry is not an object: "
-				<< texture.key());
-			return false;
-		}
-
-		const json& texture_node = texture.value();
-		if (!texture_node.contains("path") || !texture_node.at("path").is_string())
-		{
-			ELYSIA_LOG_WARN("io","Load texture manifest failed: path is missing or not a string: "
-				<< texture.key());
-			return false;
-		}
-
-		TextureManifestEntry entry;
-		entry.key = texture.key();
-		entry.file_path = texture_node.at("path").get<std::string>();
-		for (auto field = texture_node.begin(); field != texture_node.end(); ++field)
-			if (field.key() != "path") return false;
-		entry.origin = elysia::resources::make_resource_origin(
-			manifest_path, "/textures/" + texture.key(), {}, "textures", {}, texture.key());
-		parsed_manifest.textures.push_back(std::move(entry));
-	}
-
-	manifest = std::move(parsed_manifest);
-	return true;
+        TextureManifestEntry entry;
+        entry.key = texture.key();
+        entry.file_path = node.at("path").get<std::string>();
+        entry.origin = elysia::resources::make_resource_origin(
+            manifest_path,"/textures/" + texture.key(),{},"textures",{},texture.key());
+        manifest.textures.push_back(std::move(entry));
+    }
+    return manifest;
 }
-
 }

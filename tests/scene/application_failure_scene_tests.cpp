@@ -7,15 +7,20 @@
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/tools/termination_manager.h"
-#include "engine/ui/composites/ui_confirmation_dialog.h"
+#include "engine/ui/containers/ui_scroll_container.h"
+#include "engine/ui/containers/ui_panel.h"
+#include "engine/ui/widgets/ui_button.h"
+#include "engine/builtin/scenes/application_failure_presentation.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iterator>
 #include <stdexcept>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,10 +30,10 @@ namespace elysia::builtin
 class ApplicationFailureSceneTestAccess
 {
 public:
-    static elysia::ui::UiConfirmationDialogConfig dialog_config(
-        ApplicationFailurePresentation presentation)
+    static ApplicationFailureDialogConfig dialog_config(
+        const ApplicationFailureScene& scene)
     {
-        return ApplicationFailureScene::make_dialog_config(presentation);
+        return scene.make_dialog_config();
     }
 
     static void apply_payload(
@@ -52,7 +57,40 @@ public:
     static std::string_view diagnostic_message(
         const ApplicationFailureScene& scene)
     {
-        return scene._diagnostic_message;
+        return scene._diagnostic.message;
+    }
+
+    static elysia::core::Vector2 dialog_size(float width,float height)
+    {
+        return ApplicationFailureScene::dialog_size(width,height);
+    }
+};
+
+class ApplicationFailureDialogTestAccess
+{
+public:
+    static void layout(ApplicationFailureDialog& dialog)
+    {
+        dialog.update_layout_if_dirty();
+    }
+
+    static bool has_expected_structure(const ApplicationFailureDialog& dialog)
+    {
+        return dialog._chrome && dialog._scroll && dialog._body
+            && dialog._copy && dialog._exit;
+    }
+
+    static bool copy_is_first_focus(ApplicationFailureDialog& dialog)
+    {
+        return dialog.focus_first_available()
+            && dialog.focused_target() == dialog._copy;
+    }
+
+    static bool actions_fit(const ApplicationFailureDialog& dialog)
+    {
+        return dialog._copy && dialog._exit && dialog._body_panel
+            && dialog._copy->size().x + dialog._exit->size().x + 20.0f
+                <= dialog._body_panel->size().x + 0.01f;
     }
 };
 }
@@ -170,7 +208,7 @@ void test_scene_identity_and_route_contract()
             && payload->presentation
                 == ApplicationFailurePresentation::RuntimeFatal
             && payload->category == "resource"
-            && payload->diagnostic_message == "missing atlas",
+            && payload->diagnostic.message == "missing atlas",
         "application failure route helper must preserve the complete diagnostic");
 
     ApplicationFailureScene scene;
@@ -183,33 +221,123 @@ void test_scene_identity_and_route_contract()
 
 void test_dialog_uses_engine_presentation_contract()
 {
-    const auto startup = ApplicationFailureSceneTestAccess::dialog_config(
-        ApplicationFailurePresentation::StartupLoading);
+    ApplicationFailureScene startup_scene;
+    ApplicationFailureSceneTestAccess::apply_payload(startup_scene,{
+        .presentation = ApplicationFailurePresentation::StartupLoading,
+        .reason = elysia::builtin::ApplicationFailureReason::Manifest,
+        .error_code = "CONTENT-MANIFEST",
+        .category = "startup",
+        .diagnostic = elysia::core::make_failure_diagnostic("invalid manifest")
+    });
+    const auto startup = ApplicationFailureSceneTestAccess::dialog_config(startup_scene);
     require(
         startup.title.value
             == "engine.application_failure.startup.title"
-            && startup.message.value
-                == "engine.application_failure.startup.message"
-            && startup.confirm.value
+            && startup.body.kind == elysia::ui::UiTextContentKind::RawText
+            && startup.exit.value
                 == "engine.application_failure.startup.exit",
         "startup failures must retain the startup Engine presentation");
 
-    const auto runtime = ApplicationFailureSceneTestAccess::dialog_config(
-        ApplicationFailurePresentation::RuntimeFatal);
+    ApplicationFailureScene runtime_scene;
+    ApplicationFailureSceneTestAccess::apply_payload(runtime_scene,{
+        .presentation = ApplicationFailurePresentation::RuntimeFatal,
+        .reason = elysia::builtin::ApplicationFailureReason::RuntimeFatal,
+        .error_code = "APPLICATION-FATAL",
+        .category = "runtime",
+        .diagnostic = elysia::core::make_failure_diagnostic("fatal")
+    });
+    const auto runtime = ApplicationFailureSceneTestAccess::dialog_config(runtime_scene);
     require(
         runtime.title.value
             == "engine.application_failure.runtime.title"
-            && runtime.message.value
-                == "engine.application_failure.runtime.message"
-            && runtime.confirm.value
+            && runtime.exit.value
                 == "engine.application_failure.runtime.exit",
         "runtime failures must use the generic Engine presentation");
     require(
-        runtime.cancel.value == "engine.common.cancel"
+        runtime.copy.value == "engine.application_failure.copy"
             && runtime.close.value == "engine.common.close_x"
-            && runtime.confirm_visual_role
-                == elysia::ui::UiButtonVisualRole::Danger,
+            && runtime.copy_report.find("APPLICATION-FATAL") != std::string::npos,
         "application failure dismissal and exit controls must use Engine keys");
+}
+
+void test_structured_failure_codes_and_presentation_policy()
+{
+    using elysia::loading::ContentLoadError;
+    constexpr std::array cases{
+        std::pair{ ContentLoadError::Config,"CONTENT-CONFIG" },
+        std::pair{ ContentLoadError::Manifest,"CONTENT-MANIFEST" },
+        std::pair{ ContentLoadError::Plan,"CONTENT-PLAN" },
+        std::pair{ ContentLoadError::Texture,"CONTENT-TEXTURE" },
+        std::pair{ ContentLoadError::Atlas,"CONTENT-ATLAS" },
+        std::pair{ ContentLoadError::Font,"CONTENT-FONT" },
+        std::pair{ ContentLoadError::Audio,"CONTENT-AUDIO" },
+        std::pair{ ContentLoadError::Animation,"CONTENT-ANIMATION" },
+        std::pair{ ContentLoadError::Effect,"CONTENT-EFFECT" }
+    };
+    for (const auto& [error,code] : cases)
+    {
+        const auto failure = elysia::loading::make_content_load_failure(
+            error,"failure", "asset.key","assets/content/item.dat");
+        require(failure.error_code() == code,
+            "content failure stages must map to stable public error codes");
+    }
+
+    const std::source_location origin = std::source_location::current();
+    const auto failure = elysia::loading::make_content_load_failure(
+        ContentLoadError::Texture,"decoder detail","ui.bad",
+        "assets/textures/bad.png",origin);
+    const auto route = elysia::builtin::make_application_failure_route(failure,"resource");
+    const auto* payload = elysia::scene::try_scene_payload<ApplicationFailureScenePayload>(
+        route.payload);
+    require(payload && payload->diagnostic.origin.line() == origin.line()
+            && payload->diagnostic.origin.file_name() == origin.file_name(),
+        "wrapping a failure for the scene must preserve its original source location");
+
+    const auto release_model = elysia::builtin::build_application_failure_presentation(
+        *payload,"Elysia-2026.log",false);
+    const auto debug_model = elysia::builtin::build_application_failure_presentation(
+        *payload,"Elysia-2026.log",true);
+    require(release_model.copy_report.find("CONTENT-TEXTURE") != std::string::npos
+            && release_model.copy_report.find("resource") != std::string::npos
+            && release_model.copy_report.find("Elysia-2026.log") != std::string::npos
+            && release_model.copy_report.find("decoder detail") == std::string::npos
+            && release_model.diagnostic_details.empty(),
+        "Release failure reports must include stable metadata without raw diagnostics");
+    require(debug_model.copy_report.find("decoder detail") != std::string::npos
+            && debug_model.diagnostic_details.find("assets/textures/bad.png") != std::string::npos
+            && debug_model.diagnostic_details.find("Source:") != std::string::npos,
+        "Debug failure reports must append resource and source diagnostics");
+}
+
+void test_failure_dialog_responsive_size()
+{
+    const auto standard = ApplicationFailureSceneTestAccess::dialog_size(1280,720);
+    require(standard.x == 880.0f && standard.y == 489.6f,
+        "1280x720 failure dialog must use the clamped responsive dimensions");
+    const auto small = ApplicationFailureSceneTestAccess::dialog_size(480,320);
+    require(small.x == 448.0f && small.y == 288.0f,
+        "small viewports must retain a sixteen-pixel margin around the failure dialog");
+}
+
+void test_failure_dialog_structure_and_focus_order()
+{
+    elysia::builtin::ApplicationFailureDialog dialog({ 0,0,448,288 });
+    dialog.set_config({
+        .title = elysia::ui::ui_raw_text("Failure"),
+        .body = elysia::ui::ui_raw_text(std::string(3000,'x')),
+        .copy = elysia::ui::ui_raw_text("Copy"),
+        .copied = elysia::ui::ui_raw_text("Copied"),
+        .copy_failed = elysia::ui::ui_raw_text("Failed"),
+        .exit = elysia::ui::ui_raw_text("Exit"),
+        .close = elysia::ui::ui_raw_text("X"),
+        .copy_report = "CONTENT-TEXTURE"
+    });
+    elysia::builtin::ApplicationFailureDialogTestAccess::layout(dialog);
+    require(elysia::builtin::ApplicationFailureDialogTestAccess::has_expected_structure(dialog)
+            && elysia::builtin::ApplicationFailureDialogTestAccess::actions_fit(dialog),
+        "failure dialog must retain a scrollable body and responsive two-action footer");
+    require(elysia::builtin::ApplicationFailureDialogTestAccess::copy_is_first_focus(dialog),
+        "failure dialog focus order must start on Copy information before Exit");
 }
 
 void test_payload_normalization_and_termination()
@@ -234,7 +362,7 @@ void test_payload_normalization_and_termination()
         ApplicationFailureScenePayload{
             .presentation = ApplicationFailurePresentation::RuntimeFatal,
             .category = "physics",
-            .diagnostic_message = "world state is invalid"
+            .diagnostic = elysia::core::make_failure_diagnostic("world state is invalid")
         });
     ApplicationFailureSceneTestAccess::confirm_exit(scene);
 
@@ -361,6 +489,9 @@ int main()
 {
     test_scene_identity_and_route_contract();
     test_dialog_uses_engine_presentation_contract();
+    test_structured_failure_codes_and_presentation_policy();
+    test_failure_dialog_responsive_size();
+    test_failure_dialog_structure_and_focus_order();
     test_payload_normalization_and_termination();
     test_cancel_key_reopens_the_dialog();
     test_persistent_button_reopens_the_dialog();

@@ -273,27 +273,29 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
     for (const BuiltinAssetDescriptor& descriptor : catalog.textures())
     {
         const std::filesystem::path path = catalog.resolve(descriptor.relative_path);
-        const elysia::resources::SurfaceLoadResult surface = surface_loader.load_surface({
+        auto surface = surface_loader.load_surface({
             ._asset_key = std::string(descriptor.key),
             ._frame_path = path,
             ._frame_index = 0
         });
 
-        if (!surface._success)
-            return std::unexpected(make_prepare_error("Built-in texture surface load failed", path));
+        if (!surface)
+            return std::unexpected(surface.error().diagnostic.message);
 
-        elysia::resources::TextureLoadResult texture = texture_loader.load_texture(renderer, surface);
-        if (!texture._success || !texture._texture)
-            return std::unexpected(make_prepare_error("Built-in texture creation failed", path));
+        auto texture = texture_loader.load_texture(renderer,*surface);
+        if (!texture || !texture->_texture)
+            return std::unexpected(texture
+                ? make_prepare_error("Built-in texture creation failed",path)
+                : texture.error().diagnostic.message);
 
         elysia::resources::TextureResource texture_resource{
-            .texture = std::move(texture._texture)
+            .texture = std::move(texture->_texture)
         };
 
         if (animation_texture_keys.contains(std::string(descriptor.key)))
         {
-            elysia::resources::SurfacePtr coverage_mask_surface =
-                elysia::resources::create_coverage_mask_surface(*surface._surface);
+            auto coverage_mask_surface =
+                elysia::resources::create_coverage_mask_surface(*surface->_surface);
             if (!coverage_mask_surface)
                 return std::unexpected(make_prepare_error(
                     "Built-in animation coverage mask surface creation failed",
@@ -301,7 +303,7 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
 
             texture_resource.coverage_mask = texture_loader.create_texture(
                 renderer,
-                *coverage_mask_surface);
+                **coverage_mask_surface);
             if (!texture_resource.coverage_mask
                 || SDL_SetTextureBlendMode(
                     texture_resource.coverage_mask.get(),

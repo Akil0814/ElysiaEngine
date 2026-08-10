@@ -42,18 +42,20 @@ void test_minimal_repository_resource_plan()
     require(elysia::io::ContentRegistryLoader{}.load(paths->content_registry(), registry),
         "the minimal content registry must parse");
 
-    elysia::loading::ContentManifestResult content;
     elysia::loading::ContentManifestPipeline pipeline;
-    require(pipeline.load(registry, content),
+    auto content_result = pipeline.load(registry);
+    require(content_result,
         "all required manifests in the minimal resource closure must load");
+    const auto& content = *content_result;
     require(content.additional_modules.size() == 1
             && content.additional_modules.contains("ryougi_sample"),
         "the standalone example must load only the Ryougi animation sample module");
 
-    elysia::loading::ResourceLoadPlan plan;
     elysia::loading::ResourceRequestAssembler assembler;
-    require(assembler.assemble(content, std::array{10, 20}, plan),
+    auto plan_result = assembler.assemble(content, std::array{10, 20});
+    require(plan_result,
         "the minimal manifests must assemble into a valid resource plan");
+    const auto& plan = *plan_result;
 
     require(plan.texture_requests().size() == 1
             && plan.sound_requests().size() == 2
@@ -191,10 +193,10 @@ void test_minimal_repository_resource_plan()
             "each Ryougi attack segment must remain a non-looping ten-FPS animation");
     }
 
-    elysia::loading::ResourceLoadPlan no_fonts;
-    require(assembler.assemble(content, std::span<const int>{}, no_fonts)
-            && no_fonts.font_requests().empty()
-            && no_fonts.total_request_count() == 22,
+    auto no_fonts = assembler.assemble(content, std::span<const int>{});
+    require(no_fonts
+            && no_fonts->font_requests().empty()
+            && no_fonts->total_request_count() == 22,
         "an empty project font-size set must omit only project font requests");
 }
 }

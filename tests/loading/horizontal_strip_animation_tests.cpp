@@ -96,8 +96,9 @@ void test_coverage_mask_surface_conversion()
 		read_surface_pixel(*source,2,0)
 	};
 
-	resources::SurfacePtr mask =
-		resources::create_coverage_mask_surface(*source);
+	auto mask_result = resources::create_coverage_mask_surface(*source);
+	require(mask_result,"coverage mask creation must return a successful result");
+	resources::SurfacePtr mask = std::move(*mask_result);
 	require(mask != nullptr && mask->w == source->w && mask->h == source->h,
 		"coverage mask must preserve source dimensions");
 	for (int index = 0; index < 3; ++index)
@@ -133,43 +134,44 @@ void test_horizontal_strip_manifest_schema()
 	const std::filesystem::path animation_manifest_path = test_root / "animations.json";
 	std::ofstream(animation_manifest_path)
 		<< R"({"animations":[{"key":"bad","path":"bad.png","frame_count":1,"fps":10,"loop":true,"horizontal_strip":"yes"}]})";
-	elysia::io::AnimationManifest animation_manifest;
-	require(!elysia::io::AnimationManifestLoader{}.load(animation_manifest_path, animation_manifest),
+	require(!elysia::io::AnimationManifestLoader{}.load(animation_manifest_path),
 		"animation manifest horizontal_strip must reject non-boolean values");
 
 	const std::filesystem::path directory_without_prefix_path = test_root / "directory_without_prefix.json";
 	std::ofstream(directory_without_prefix_path)
 		<< R"({"animations":[{"key":"core.idle","path":"idle","frame_count":2,"fps":10,"loop":true}]})";
-	require(!elysia::io::AnimationManifestLoader{}.load(directory_without_prefix_path, animation_manifest),
+	require(!elysia::io::AnimationManifestLoader{}.load(directory_without_prefix_path),
 		"core frame-directory animations must require frame_prefix");
 
 	const std::filesystem::path strip_with_prefix_path = test_root / "strip_with_prefix.json";
 	std::ofstream(strip_with_prefix_path)
 		<< R"({"animations":[{"key":"core.strip","path":"strip.png","frame_count":2,"fps":10,"loop":true,"horizontal_strip":true,"frame_prefix":"strip"}]})";
-	require(!elysia::io::AnimationManifestLoader{}.load(strip_with_prefix_path, animation_manifest),
+	require(!elysia::io::AnimationManifestLoader{}.load(strip_with_prefix_path),
 		"core horizontal-strip animations must reject frame_prefix");
 	const std::filesystem::path strip_with_empty_prefix_path = test_root / "strip_with_empty_prefix.json";
 	std::ofstream(strip_with_empty_prefix_path)
 		<< R"({"animations":[{"key":"core.strip","path":"strip.png","frame_count":2,"fps":10,"loop":true,"horizontal_strip":true,"frame_prefix":""}]})";
-	require(!elysia::io::AnimationManifestLoader{}.load(strip_with_empty_prefix_path, animation_manifest),
+	require(!elysia::io::AnimationManifestLoader{}.load(strip_with_empty_prefix_path),
 		"core horizontal-strip animations must reject even an explicitly empty frame_prefix field");
 
 	const std::filesystem::path valid_directory_path = test_root / "valid_directory.json";
 	std::ofstream(valid_directory_path)
 		<< R"({"animations":[{"key":"core.idle","path":"idle","frame_count":2,"fps":10,"loop":true,"frame_prefix":"core_idle"}]})";
-	require(elysia::io::AnimationManifestLoader{}.load(valid_directory_path, animation_manifest)
-		&& animation_manifest.animations.size() == 1
-		&& animation_manifest.animations.front().frame_prefix == "core_idle"
-		&& !animation_manifest.animations.front().horizontal_strip,
+	auto animation_manifest = elysia::io::AnimationManifestLoader{}.load(valid_directory_path);
+	require(animation_manifest
+		&& animation_manifest->animations.size() == 1
+		&& animation_manifest->animations.front().frame_prefix == "core_idle"
+		&& !animation_manifest->animations.front().horizontal_strip,
 		"core frame-directory animations must accept an explicit frame_prefix");
 
 	const std::filesystem::path valid_strip_path = test_root / "valid_strip.json";
 	std::ofstream(valid_strip_path)
 		<< R"({"animations":[{"key":"core.strip","path":"strip.png","frame_count":2,"fps":10,"loop":true,"horizontal_strip":true}]})";
-	require(elysia::io::AnimationManifestLoader{}.load(valid_strip_path, animation_manifest)
-		&& animation_manifest.animations.size() == 1
-		&& animation_manifest.animations.front().frame_prefix.empty()
-		&& animation_manifest.animations.front().horizontal_strip,
+	animation_manifest = elysia::io::AnimationManifestLoader{}.load(valid_strip_path);
+	require(animation_manifest
+		&& animation_manifest->animations.size() == 1
+		&& animation_manifest->animations.front().frame_prefix.empty()
+		&& animation_manifest->animations.front().horizontal_strip,
 		"core horizontal-strip animations must load without a frame_prefix");
 
 	const std::filesystem::path entity_manifest_path = test_root / "legacy_asset_key_entity.json";
@@ -217,33 +219,31 @@ void test_horizontal_strip_manifest_schema()
 	const std::filesystem::path duplicate_animation_property_path = test_root / "duplicate_animation_property.json";
 	std::ofstream(duplicate_animation_property_path)
 		<< R"({"animations":[{"key":"core.strip","key":"core.other","path":"strip.png","frame_count":2,"fps":10,"loop":true,"horizontal_strip":true}]})";
-	require(!elysia::io::AnimationManifestLoader{}.load(duplicate_animation_property_path, animation_manifest),
+	require(!elysia::io::AnimationManifestLoader{}.load(duplicate_animation_property_path),
 		"core animation manifests must reject duplicate JSON object properties before parsing");
 
 	const std::filesystem::path duplicate_effect_property_path = test_root / "duplicate_effect_property.json";
 	std::ofstream(duplicate_effect_property_path)
 		<< R"({"effects":[{"key":"effect.test","animation_key":"core.strip","animation_key":"core.other"}]})";
-	elysia::io::AnimationEffectManifest effect_manifest;
-	require(!elysia::io::AnimationEffectManifestLoader{}.load(duplicate_effect_property_path, effect_manifest),
+	require(!elysia::io::AnimationEffectManifestLoader{}.load(duplicate_effect_property_path),
 		"core effect manifests must reject duplicate JSON object properties before parsing");
 
 	const std::filesystem::path duplicate_font_property_path = test_root / "duplicate_font_property.json";
 	std::ofstream(duplicate_font_property_path)
 		<< R"({"fonts":[{"key":"ui.test","file":"first.ttf","file":"second.ttf"}]})";
-	elysia::io::FontManifest font_manifest;
-	require(!elysia::io::FontsManifestLoader{}.load(duplicate_font_property_path, font_manifest),
+	require(!elysia::io::FontsManifestLoader{}.load(duplicate_font_property_path),
 		"font manifests must reject duplicate JSON object properties before parsing");
 
 	const std::filesystem::path valid_font_manifest_path = test_root / "valid_fonts.json";
 	std::ofstream(valid_font_manifest_path)
 		<< R"({"fonts":[{"key":"ui.test","file":"test.ttf"}]})";
-	require(elysia::io::FontsManifestLoader{}.load(valid_font_manifest_path, font_manifest),
+	require(elysia::io::FontsManifestLoader{}.load(valid_font_manifest_path),
 		"font manifests must accept font families without a sizes field");
 
 	const std::filesystem::path legacy_font_sizes_path = test_root / "legacy_font_sizes.json";
 	std::ofstream(legacy_font_sizes_path)
 		<< R"({"sizes":[10,20,30,40,50,60,70],"fonts":[{"key":"ui.test","file":"test.ttf"}]})";
-	require(!elysia::io::FontsManifestLoader{}.load(legacy_font_sizes_path, font_manifest),
+	require(!elysia::io::FontsManifestLoader{}.load(legacy_font_sizes_path),
 		"font manifests must reject the removed sizes field");
 
 	const std::filesystem::path duplicate_i18n_property_path = test_root / "duplicate_i18n_property.json";
@@ -283,16 +283,16 @@ void test_horizontal_strip_build_and_render_commands()
 	request.source_type = resources::AtlasSourceType::HorizontalStrip;
 
 	resources::AtlasBuildPreparer preparer;
-	std::vector<resources::AtlasFramePrepareTask> tasks;
-	require(preparer.expand_build_request(request, tasks) && tasks.size() == 1,
+	auto tasks = preparer.expand_build_request(request);
+	require(tasks && tasks->size() == 1,
 		"horizontal strip must expand into exactly one preparation task");
-	resources::AtlasFramePreparedResult prepared = preparer.prepare_frame(tasks.front());
-	require(prepared.surface_result._success && prepared.surface_result._surface
-			&& prepared.coverage_mask_surface,
+	auto prepared = preparer.prepare_frame(tasks->front());
+	require(prepared && prepared->surface_result._surface
+			&& prepared->coverage_mask_surface,
 		"horizontal strip source image and coverage mask must prepare successfully");
 	require(resource_manager->begin_atlas_build(request),
 		"horizontal strip atlas build must initialize");
-	require(resource_manager->commit_prepared_atlas_frame(renderer, prepared),
+	require(resource_manager->commit_prepared_atlas_frame(renderer, *prepared),
 		"horizontal strip atlas must commit from one prepared image");
 
 	const resources::Atlas* atlas = ELYSIA_RESOURCES->find_atlas(request.atlas_key);
@@ -472,7 +472,6 @@ void test_horizontal_strip_rejects_non_divisible_width()
 	prepared.task.frame_path = request.source_path;
 	prepared.task.expected_frame_count = request.frame_count;
 	prepared.task.source_type = request.source_type;
-	prepared.surface_result._success = true;
 	prepared.surface_result._asset_key = request.atlas_key;
 	prepared.surface_result._frame_path = request.source_path;
 	prepared.surface_result._surface.reset(SDL_CreateRGBSurfaceWithFormat(
@@ -504,7 +503,6 @@ elysia::resources::AtlasFramePreparedResult make_directory_frame(
 	prepared.task.frame_index = frame_index;
 	prepared.task.expected_frame_count = frame_count;
 	prepared.task.source_type = resources::AtlasSourceType::FrameDirectory;
-	prepared.surface_result._success = true;
 	prepared.surface_result._asset_key = atlas_key;
 	prepared.surface_result._frame_path = prepared.task.frame_path;
 	prepared.surface_result._frame_index = frame_index;
@@ -512,9 +510,10 @@ elysia::resources::AtlasFramePreparedResult make_directory_frame(
 		0,4,4,32,SDL_PIXELFORMAT_RGBA32));
 	if (include_mask && prepared.surface_result._surface)
 	{
-		prepared.coverage_mask_surface =
-			resources::create_coverage_mask_surface(
-				*prepared.surface_result._surface);
+		auto mask = resources::create_coverage_mask_surface(
+			*prepared.surface_result._surface);
+		if (mask)
+			prepared.coverage_mask_surface = std::move(*mask);
 	}
 	return prepared;
 }

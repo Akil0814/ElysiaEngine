@@ -1,10 +1,12 @@
 #pragma once
 #include "../resource_sub_manager.h"
+#include "../resource_failure.h"
 #include "../resource_types.h"
 
 #include <SDL_mixer.h>
 
 #include <filesystem>
+#include <expected>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -20,21 +22,26 @@ class AudioManager : public ResourceSubManager
 public:
 	~AudioManager() override;
 
-	bool load_sound(
+	[[nodiscard]] std::expected<void,ResourceFailure> load_sound(
 		const std::string& key,
 		const std::filesystem::path& file_path
 	);
-	bool load_sounds(const std::vector<SoundLoadRequest>& requests);
-	bool store_sound(const std::string& key, Mix_Chunk* sound);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_sounds(
+		const std::vector<SoundLoadRequest>& requests);
+	[[nodiscard]] std::expected<void,ResourceFailure> store_sound(
+		const std::string& key,Mix_Chunk* sound);
 	Mix_Chunk* find_sound(const std::string_view& key) const;
 
-	bool load_music(
+	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
 		const std::string& key,
 		const std::filesystem::path& file_path
 	);
-	bool load_music(const MusicLoadRequest& request);
-	bool load_music(const std::vector<MusicLoadRequest>& requests);
-	bool store_music(const std::string& key, Mix_Music* music);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
+		const MusicLoadRequest& request);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
+		const std::vector<MusicLoadRequest>& requests);
+	[[nodiscard]] std::expected<void,ResourceFailure> store_music(
+		const std::string& key,Mix_Music* music);
 	Mix_Music* find_music(const std::string_view& key) const;
 
 	void clear() override;

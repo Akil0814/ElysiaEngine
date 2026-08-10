@@ -2,6 +2,9 @@
 
 #include <span>
 #include <string>
+#include <expected>
+#include "content_load_failure.h"
+#include "resource_load_plan.h"
 
 namespace elysia::loading
 {
@@ -11,14 +14,9 @@ class ResourceLoadPlan;
 class ResourceRequestAssembler
 {
 public:
-	bool assemble(
+	[[nodiscard]] std::expected<ResourceLoadPlan,ContentLoadFailure> assemble(
 		const ContentManifestResult& config_result,
-		std::span<const int> project_font_point_sizes,
-		ResourceLoadPlan& out_plan) const;
-	[[nodiscard]] const std::string& error_message() const { return _error_message; }
-
-private:
-	mutable std::string _error_message;
+		std::span<const int> project_font_point_sizes) const;
 };
 
 }

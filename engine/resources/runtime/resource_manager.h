@@ -3,6 +3,7 @@
 #include "../audio/audio_manager.h"
 #include "../font/font_manager.h"
 #include "../texture/texture_manager.h"
+#include "../resource_failure.h"
 
 #include "../../tools/singleton.h"
 
@@ -11,6 +12,7 @@
 #include <SDL_ttf.h>
 
 #include <filesystem>
+#include <expected>
 #include <string_view>
 #include <vector>
 
@@ -24,17 +26,24 @@ class ResourceManager : public elysia::tools::Singleton<ResourceManager>
 	friend class ResourceService;
 
 public:
-	bool begin_atlas_build(const AtlasBuildRequest& request);
-	bool begin_atlas_builds(const std::vector<AtlasBuildRequest>& requests);
-	bool commit_prepared_atlas_frame(SDL_Renderer* renderer,
+	[[nodiscard]] std::expected<void,ResourceFailure> begin_atlas_build(
+		const AtlasBuildRequest& request);
+	[[nodiscard]] std::expected<void,ResourceFailure> begin_atlas_builds(
+		const std::vector<AtlasBuildRequest>& requests);
+	[[nodiscard]] std::expected<void,ResourceFailure> commit_prepared_atlas_frame(SDL_Renderer* renderer,
 		const AtlasFramePreparedResult& result);
-	bool store_texture(const std::string& key,TexturePtr texture);
-	bool load_font(const std::string& key,
+	[[nodiscard]] std::expected<void,ResourceFailure> store_texture(
+		const std::string& key,TexturePtr texture);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_font(const std::string& key,
 		const std::filesystem::path& file_path,int point_size);
-	bool load_sound(const SoundLoadRequest& request);
-	bool load_sounds(const std::vector<SoundLoadRequest>& requests);
-	bool load_music(const MusicLoadRequest& request);
-	bool load_music(const std::vector<MusicLoadRequest>& requests);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_sound(
+		const SoundLoadRequest& request);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_sounds(
+		const std::vector<SoundLoadRequest>& requests);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
+		const MusicLoadRequest& request);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
+		const std::vector<MusicLoadRequest>& requests);
 
 	void clear();
 	[[nodiscard]] bool has_in_progress_atlas_builds() const;

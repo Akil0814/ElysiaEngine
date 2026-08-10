@@ -5,33 +5,37 @@
 #include "../../resources/resource_service.h"
 namespace elysia::animation
 {
-bool AnimationManager::register_animation(
+std::expected<void,AnimationRegistrationFailure> AnimationManager::register_animation(
 	const elysia::resources::AnimationBuildRequest& request,
 	const elysia::resources::Atlas* atlas
 )
 {
 	if (request.animation_key.empty())
 	{
-		ELYSIA_LOG_WARN("animation","Register animation failed: animation key is empty.");
-		return false;
+		return std::unexpected(AnimationRegistrationFailure{
+			AnimationRegistrationError::InvalidKey,
+			elysia::core::make_failure_diagnostic("Register animation failed: animation key is empty.")});
 	}
 
 	if (request.atlas_key.empty())
 	{
-		ELYSIA_LOG_WARN("animation","Register animation failed: atlas key is empty: "<< request.animation_key);
-		return false;
+		return std::unexpected(AnimationRegistrationFailure{
+			AnimationRegistrationError::InvalidKey,
+			elysia::core::make_failure_diagnostic("Register animation failed: atlas key is empty.",request.animation_key)});
 	}
 
 	if (!atlas)
 	{
-		ELYSIA_LOG_WARN("animation","Register animation failed: atlas is null: "<< request.animation_key);
-		return false;
+		return std::unexpected(AnimationRegistrationFailure{
+			AnimationRegistrationError::MissingAtlas,
+			elysia::core::make_failure_diagnostic("Register animation failed: atlas is null.",request.animation_key,request.origin.config_path)});
 	}
 
 	if (request.fps <= 0.0)
 	{
-		ELYSIA_LOG_WARN("animation","Register animation failed: fps is invalid: "<< request.animation_key);
-		return false;
+		return std::unexpected(AnimationRegistrationFailure{
+			AnimationRegistrationError::InvalidFps,
+			elysia::core::make_failure_diagnostic("Register animation failed: fps is invalid.",request.animation_key)});
 	}
 
 	AnimationDefinition definition;
@@ -43,20 +47,20 @@ bool AnimationManager::register_animation(
 	definition.atlas = atlas;
 
 	_definitions[request.animation_key] = definition;
-	return true;
+	return {};
 }
 
-bool AnimationManager::register_animations(const std::vector<elysia::resources::AnimationBuildRequest>& requests,
+std::expected<void,AnimationRegistrationFailure> AnimationManager::register_animations(const std::vector<elysia::resources::AnimationBuildRequest>& requests,
 	const elysia::resources::ResourceService& resource_service)
 {
 	for (const elysia::resources::AnimationBuildRequest& request : requests)
 	{
 		const elysia::resources::Atlas* atlas = resource_service.find_atlas(request.atlas_key);
-		if (!register_animation(request, atlas))
-			return false;
+		if (auto result = register_animation(request, atlas); !result)
+			return result;
 	}
 
-	return true;
+	return {};
 }
 
 const AnimationDefinition* AnimationManager::find_definition(std::string_view key) const

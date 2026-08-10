@@ -1,14 +1,17 @@
 #include "application_failure_scene.h"
+#include "application_failure_presentation.h"
 
 #include "../../tools/termination_manager.h"
 #include "../../typography/font_resolver.h"
-#include "../../ui/composites/ui_confirmation_dialog.h"
+#include "../../localization/localization_service.h"
+#include "../../tools/logger.h"
 #include "../../ui/widgets/ui_button.h"
 #include "../../ui/window/ui_window.h"
 #include "../../scene/runtime/scene_runtime_context.h"
 
 #include <algorithm>
 #include <stdexcept>
+#include <sstream>
 
 namespace elysia::builtin
 {
@@ -59,7 +62,7 @@ void ApplicationFailureScene::on_enter(const ScenePayload& payload)
     if (!_window || _window->is_destroyed())
         build_ui();
 
-    _dialog->set_config(make_dialog_config(_presentation));
+    _dialog->set_config(make_dialog_config());
     _window->set_visible(true);
     _window->set_active(true);
     open_dialog();
@@ -82,8 +85,10 @@ void ApplicationFailureScene::reset()
     _paused = false;
     destroy_ui();
     _presentation = ApplicationFailurePresentation::RuntimeFatal;
+    _reason = ApplicationFailureReason::RuntimeFatal;
+    _error_code.clear();
     _category.clear();
-    _diagnostic_message.clear();
+    _diagnostic = {};
 }
 
 void ApplicationFailureScene::on_update(double delta)
@@ -96,12 +101,15 @@ void ApplicationFailureScene::apply_payload(
     const ApplicationFailureScenePayload& payload)
 {
     _presentation = payload.presentation;
+    _reason = payload.reason;
+    _error_code = payload.error_code.empty()
+        ? "APPLICATION-UNKNOWN" : payload.error_code;
     _category = payload.category.empty()
         ? fallback_category
         : payload.category;
-    _diagnostic_message = payload.diagnostic_message.empty()
-        ? fallback_diagnostic_message(_presentation)
-        : payload.diagnostic_message;
+    _diagnostic = payload.diagnostic;
+    if (_diagnostic.message.empty())
+        _diagnostic.message = fallback_diagnostic_message(_presentation);
 }
 
 void ApplicationFailureScene::build_ui()
@@ -150,12 +158,10 @@ void ApplicationFailureScene::build_ui()
         elysia::typography::UiTypographyRole::ButtonCompact);
     _reopen_button->set_on_click([this]() { open_dialog(); });
 
-    const float dialog_width =
-        std::min(520.0f,std::max(1.0f,logical_width - 32.0f));
-    const float dialog_height =
-        std::min(280.0f,std::max(1.0f,logical_height - 32.0f));
-    _dialog = _window->create_child<elysia::ui::UiConfirmationDialog>(
-        elysia::core::Rect{ 0,0,dialog_width,dialog_height },
+    const elysia::core::Vector2 failure_dialog_size =
+        dialog_size(logical_width,logical_height);
+    _dialog = _window->create_child<ApplicationFailureDialog>(
+        elysia::core::Rect{ 0,0,failure_dialog_size.x,failure_dialog_size.y },
         10);
     if (!_dialog)
     {
@@ -163,8 +169,8 @@ void ApplicationFailureScene::build_ui()
             "ApplicationFailureScene could not create its confirmation dialog.");
     }
 
-    _dialog->set_config(make_dialog_config(_presentation));
-    _dialog->set_on_confirm([this]() { confirm_exit(); });
+    _dialog->set_config(make_dialog_config());
+    _dialog->set_on_exit([this]() { confirm_exit(); });
     if (!_dialog->register_with_window(*_window))
     {
         throw std::runtime_error(
@@ -196,9 +202,9 @@ void ApplicationFailureScene::confirm_exit()
     elysia::tools::TerminationManager::instance()->request_termination(
         elysia::tools::TerminationReason::FatalRuntimeFailure,
         _category.empty() ? fallback_category : _category,
-        _diagnostic_message.empty()
+        _diagnostic.message.empty()
             ? fallback_diagnostic_message(_presentation)
-            : _diagnostic_message);
+            : _diagnostic.message);
 }
 
 void ApplicationFailureScene::destroy_ui() noexcept
@@ -212,24 +218,73 @@ void ApplicationFailureScene::destroy_ui() noexcept
     _window = nullptr;
 }
 
-elysia::ui::UiConfirmationDialogConfig ApplicationFailureScene::make_dialog_config(
-    ApplicationFailurePresentation presentation)
+ApplicationFailureDialogConfig ApplicationFailureScene::make_dialog_config() const
 {
-    const bool startup = presentation == ApplicationFailurePresentation::StartupLoading;
+    const bool startup = _presentation == ApplicationFailurePresentation::StartupLoading;
+#ifndef NDEBUG
+    constexpr bool include_diagnostics = true;
+#else
+    constexpr bool include_diagnostics = false;
+#endif
+    std::string log_file_name;
+    if (const auto active_path = elysia::tools::Logger::instance()->active_file_path())
+        log_file_name = active_path->filename().string();
+    const ApplicationFailureScenePayload payload{
+        .presentation = _presentation,
+        .reason = _reason,
+        .error_code = _error_code,
+        .category = _category,
+        .diagnostic = _diagnostic
+    };
+    const auto model = build_application_failure_presentation(
+        payload,std::move(log_file_name),include_diagnostics);
+    const auto tr = [](std::string_view key)
+    {
+        return std::string(ELYSIA_LOCALIZATION->tr(key));
+    };
+    std::ostringstream body;
+    body << tr(model.summary_key) << "\n\n"
+        << tr("engine.application_failure.labels.error_code") << ": "
+        << model.error_code << '\n'
+        << tr("engine.application_failure.labels.log") << ": "
+        << (model.log_available
+            ? model.log_file_name
+            : tr("engine.application_failure.log_unavailable"));
+    if (include_diagnostics)
+    {
+        body << "\n\n" << tr("engine.application_failure.labels.details")
+            << ":\n" << model.diagnostic_details;
+    }
+    else
+    {
+        body << "\n\n" << tr("engine.application_failure.details_in_log");
+    }
 
-    return elysia::ui::UiConfirmationDialogConfig{
+    return ApplicationFailureDialogConfig{
         .title = elysia::ui::ui_text_key(startup
             ? "engine.application_failure.startup.title"
             : "engine.application_failure.runtime.title"),
-        .message = elysia::ui::ui_text_key(startup
-            ? "engine.application_failure.startup.message"
-            : "engine.application_failure.runtime.message"),
-        .confirm = elysia::ui::ui_text_key(startup
+        .body = elysia::ui::ui_raw_text(body.str()),
+        .copy = elysia::ui::ui_text_key("engine.application_failure.copy"),
+        .copied = elysia::ui::ui_text_key("engine.application_failure.copied"),
+        .copy_failed = elysia::ui::ui_text_key("engine.application_failure.copy_failed"),
+        .exit = elysia::ui::ui_text_key(startup
             ? "engine.application_failure.startup.exit"
             : "engine.application_failure.runtime.exit"),
-        .cancel = elysia::ui::ui_text_key("engine.common.cancel"),
         .close = elysia::ui::ui_text_key("engine.common.close_x"),
-        .confirm_visual_role = elysia::ui::UiButtonVisualRole::Danger
+        .copy_report = model.copy_report
     };
+}
+
+elysia::core::Vector2 ApplicationFailureScene::dialog_size(
+    float logical_width,float logical_height) noexcept
+{
+    const float available_width = std::max(1.0f,logical_width - 32.0f);
+    const float available_height = std::max(1.0f,logical_height - 32.0f);
+    const float width = std::min(available_width,
+        std::clamp(logical_width * 0.72f,560.0f,880.0f));
+    const float height = std::min(available_height,
+        std::clamp(logical_height * 0.68f,400.0f,600.0f));
+    return { width,height };
 }
 }

@@ -56,12 +56,13 @@ void test_current_repository_loads_minimal_sample()
 	require(path_manager->initialize(), "path manager must initialize from the project root");
 
 	elysia::loading::ContentManifestPipeline pipeline;
-	elysia::loading::ContentManifestResult result;
 	elysia::io::ContentRegistry registry;
 	require(elysia::io::ContentRegistryLoader{}.load(path_manager->content_registry(), registry),
 		"current content registry must parse before it is supplied to the content pipeline");
-    require(pipeline.load(registry, result),
+	auto load_result = pipeline.load(registry);
+    require(load_result,
 		"current content registry must load through the generic content pipeline");
+	auto& result = *load_result;
 	require(result.config_snapshot != nullptr,
 		"content manifest loading must build the deferred generic config snapshot");
 	const auto module = result.additional_modules.find("ryougi_sample");
@@ -128,16 +129,16 @@ void test_arbitrary_and_empty_additional_module()
 		"an additional module literally named core must remain distinguishable from core origin scope");
 
 	elysia::loading::ContentManifestPipeline pipeline;
-	elysia::loading::ContentManifestResult result;
 	const auto registry = write_registry(root, "registry.json",
 		"{\"npcs\":\"" + json_path(module) + "\"}");
 	elysia::io::ContentRegistry content_registry;
 	require(elysia::io::ContentRegistryLoader{}.load(registry, content_registry),
 		"arbitrary-module registry must parse before it is supplied to the content pipeline");
-	require(pipeline.load(content_registry, result)
-		&& result.additional_modules.size() == 1
-		&& result.additional_modules.contains("npcs")
-		&& result.additional_modules.at("npcs").entities.size() == 1,
+	auto load_result = pipeline.load(content_registry);
+	require(load_result
+		&& load_result->additional_modules.size() == 1
+		&& load_result->additional_modules.contains("npcs")
+		&& load_result->additional_modules.at("npcs").entities.size() == 1,
 		"ContentManifestPipeline must dispatch arbitrary additional names through the same loader");
 
 	std::filesystem::remove_all(root);
@@ -281,14 +282,14 @@ void test_content_registry_still_allows_core_only()
 	std::filesystem::remove_all(root);
 	std::filesystem::create_directories(root);
 	elysia::loading::ContentManifestPipeline pipeline;
-	elysia::loading::ContentManifestResult result;
 	const auto registry_path = write_registry(root, "core_only.json");
 	elysia::io::ContentRegistry registry;
 	require(elysia::io::ContentRegistryLoader{}.load(registry_path, registry),
 		"core-only registry must parse before it is supplied to the content pipeline");
 	std::filesystem::remove(registry_path);
-	require(pipeline.load(registry, result)
-		&& result.additional_modules.empty(),
+	auto load_result = pipeline.load(registry);
+	require(load_result
+		&& load_result->additional_modules.empty(),
 		"content pipeline must use the supplied registry snapshot without rereading its source file");
 	std::filesystem::remove_all(root);
 }

@@ -5,9 +5,10 @@
 
 namespace elysia::tests
 {
-inline void require(bool condition, const char* message)
+template<typename Condition>
+inline void require(Condition&& condition, const char* message)
 {
-    if (condition)
+    if (static_cast<bool>(condition))
     {
         return;
     }

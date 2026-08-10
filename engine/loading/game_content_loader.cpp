@@ -26,6 +26,12 @@ constexpr std::size_t kTextureCommitBudgetPerUpdate = 4;
 constexpr std::size_t kAtlasFrameCommitBudgetPerUpdate = 8;
 constexpr std::size_t kAudioLoadBudgetPerUpdate = 8;
 
+ContentLoadFailure from_resource_failure(
+	ContentLoadError code,elysia::resources::ResourceFailure failure)
+{
+	return make_content_load_failure(code,std::move(failure.diagnostic));
+}
+
 std::size_t resolve_worker_count(std::size_t total_prepare_jobs)
 {
 	if (total_prepare_jobs == 0)
@@ -55,14 +61,14 @@ void GameContentLoader::reset()
 	_renderer = nullptr;
 	_load_plan.clear();
 	_config_snapshot.reset();
-	_error_message.clear();
+	_failure.reset();
 	_state = GameContentLoaderState::Idle;
 	_progress = 0.0f;
 	_total_work_units = 0;
 	_completed_work_units = 0;
 }
 
-bool GameContentLoader::start(
+std::expected<void,ContentLoadFailure> GameContentLoader::start(
 	SDL_Renderer* renderer,
 	const elysia::io::ContentRegistry& content_registry,
 	std::span<const int> project_font_point_sizes)
@@ -72,8 +78,10 @@ bool GameContentLoader::start(
 
 	if (!renderer)
 	{
-		fail("GameContentLoader start failed: renderer is null.");
-		return false;
+		ContentLoadFailure failure = make_content_load_failure(ContentLoadError::Plan,
+			"GameContentLoader start failed: renderer is null.");
+		fail(failure);
+		return std::unexpected(std::move(failure));
 	}
 
 	_renderer = renderer;
@@ -82,38 +90,41 @@ bool GameContentLoader::start(
 	elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
 	if (!path_manager->is_initialized())
 	{
-		fail("GameContentLoader start failed: path manager is not initialized.");
-		return false;
+		ContentLoadFailure failure = make_content_load_failure(ContentLoadError::Config,
+			"GameContentLoader start failed: path manager is not initialized.");
+		fail(failure);
+		return std::unexpected(std::move(failure));
 	}
 
 	ContentManifestPipeline content_manifest_pipeline;
-	ContentManifestResult config_result;
-	if (!content_manifest_pipeline.load(content_registry, config_result))
+	auto config_result = content_manifest_pipeline.load(content_registry);
+	if (!config_result)
 	{
-		fail(content_manifest_pipeline.error_message());
-		return false;
+		ContentLoadFailure failure = std::move(config_result.error());
+		fail(failure);
+		return std::unexpected(std::move(failure));
 	}
-	_config_snapshot = config_result.config_snapshot;
+	_config_snapshot = config_result->config_snapshot;
 
 	ResourceRequestAssembler assembler;
-	if (!assembler.assemble(
-		config_result,
-		project_font_point_sizes,
-		_load_plan))
+	auto load_plan = assembler.assemble(*config_result,project_font_point_sizes);
+	if (!load_plan)
 	{
-		fail("GameContentLoader start failed: " + assembler.error_message());
-		return false;
+		ContentLoadFailure failure = std::move(load_plan.error());
+		fail(failure);
+		return std::unexpected(std::move(failure));
 	}
+	_load_plan = std::move(*load_plan);
 
 	if (!initialize_streaming_work())
-		return false;
+		return std::unexpected(*_failure);
 
 	_state = GameContentLoaderState::StreamingTextureAndAtlasWork;
 	_progress = 0.0f;
 
 	ELYSIA_LOG("resource","Total requests built: " << _load_plan.total_request_count()
 		<< ", total work units: " << _total_work_units);
-	return true;
+	return {};
 }
 
 void GameContentLoader::update()
@@ -129,7 +140,8 @@ void GameContentLoader::update()
 	{
 		if (!_renderer)
 		{
-			fail("GameContentLoader update failed: renderer is null.");
+			fail(make_content_load_failure(ContentLoadError::Texture,
+				"GameContentLoader update failed: renderer is null."));
 			return;
 		}
 
@@ -184,7 +196,8 @@ void GameContentLoader::update()
 			return;
 		if (!_config_snapshot)
 		{
-			fail("GameContentLoader config publish failed: snapshot is missing.");
+			fail(make_content_load_failure(ContentLoadError::Config,
+				"GameContentLoader config publish failed: snapshot is missing."));
 			return;
 		}
 		elysia::config::ConfigService::instance()->publish(_config_snapshot);
@@ -219,9 +232,9 @@ float GameContentLoader::progress() const
 	return _progress;
 }
 
-const std::string& GameContentLoader::error_message() const
+const ContentLoadFailure* GameContentLoader::failure() const noexcept
 {
-	return _error_message;
+	return _failure ? &*_failure : nullptr;
 }
 
 GameContentLoaderState GameContentLoader::state() const
@@ -235,24 +248,27 @@ bool GameContentLoader::initialize_streaming_work()
 	std::vector<elysia::resources::AtlasFramePrepareTask> atlas_frame_tasks;
 	for (const elysia::resources::AtlasBuildRequest& request : _load_plan.atlas_build_requests())
 	{
-		std::vector<elysia::resources::AtlasFramePrepareTask> expanded_tasks;
-		if (!atlas_build_preparer.expand_build_request(request, expanded_tasks))
+		auto expanded_tasks = atlas_build_preparer.expand_build_request(request);
+		if (!expanded_tasks)
 		{
-			fail("GameContentLoader start failed: atlas build request expansion failed.");
+			fail(from_resource_failure(ContentLoadError::Atlas,
+				std::move(expanded_tasks.error())));
 			return false;
 		}
 
 		atlas_frame_tasks.insert(
 			atlas_frame_tasks.end(),
-			std::make_move_iterator(expanded_tasks.begin()),
-			std::make_move_iterator(expanded_tasks.end())
+			std::make_move_iterator(expanded_tasks->begin()),
+			std::make_move_iterator(expanded_tasks->end())
 		);
 	}
 
 	elysia::resources::ResourceManager* resource_manager = elysia::resources::ResourceManager::instance();
-	if (!resource_manager->begin_atlas_builds(_load_plan.atlas_build_requests()))
+	auto begin_result = resource_manager->begin_atlas_builds(_load_plan.atlas_build_requests());
+	if (!begin_result)
 	{
-		fail("GameContentLoader start failed: atlas build initialization failed.");
+		fail(from_resource_failure(ContentLoadError::Atlas,
+			std::move(begin_result.error())));
 		return false;
 	}
 
@@ -348,22 +364,22 @@ void GameContentLoader::worker_loop()
 			surface_request._frame_path = texture_request.file_path;
 			surface_request._frame_index = 0;
 
-			elysia::resources::SurfaceLoadResult surface_result =
+			auto surface_result =
 				surface_loader.load_surface(surface_request);
 			{
 				std::lock_guard<std::mutex> lock(_completed_results_mutex);
-				_completed_texture_results.push_back(std::move(surface_result));
+				_completed_texture_results.push_back({ std::move(surface_result) });
 			}
 		}
 		else
 		{
-			elysia::resources::AtlasFramePreparedResult prepared_result =
+			auto prepared_result =
 				atlas_build_preparer.prepare_frame(
 					std::get<elysia::resources::AtlasFramePrepareTask>(job.payload)
 				);
 			{
 				std::lock_guard<std::mutex> lock(_completed_results_mutex);
-				_completed_atlas_frame_results.push_back(std::move(prepared_result));
+				_completed_atlas_frame_results.push_back({ std::move(prepared_result) });
 			}
 		}
 
@@ -449,9 +465,15 @@ bool GameContentLoader::commit_ready_streaming_results()
 	while (committed_texture_count < kTextureCommitBudgetPerUpdate
 		&& !_ready_texture_results.empty())
 	{
-		elysia::resources::SurfaceLoadResult surface_result = std::move(_ready_texture_results.front());
+		auto surface_result = std::move(_ready_texture_results.front().result);
 		_ready_texture_results.pop_front();
-		if (!commit_texture_result(surface_result))
+		if (!surface_result)
+		{
+			fail(from_resource_failure(ContentLoadError::Texture,
+				std::move(surface_result.error())));
+			return false;
+		}
+		if (!commit_texture_result(*surface_result))
 			return false;
 
 		++committed_texture_count;
@@ -461,10 +483,16 @@ bool GameContentLoader::commit_ready_streaming_results()
 	while (committed_atlas_count < kAtlasFrameCommitBudgetPerUpdate
 		&& !_ready_atlas_frame_results.empty())
 	{
-		elysia::resources::AtlasFramePreparedResult prepared_result =
-			std::move(_ready_atlas_frame_results.front());
+		auto prepared_result =
+			std::move(_ready_atlas_frame_results.front().result);
 		_ready_atlas_frame_results.pop_front();
-		if (!commit_atlas_frame_result(prepared_result))
+		if (!prepared_result)
+		{
+			fail(from_resource_failure(ContentLoadError::Atlas,
+				std::move(prepared_result.error())));
+			return false;
+		}
+		if (!commit_atlas_frame_result(*prepared_result))
 			return false;
 
 		++committed_atlas_count;
@@ -475,27 +503,32 @@ bool GameContentLoader::commit_ready_streaming_results()
 
 bool GameContentLoader::commit_texture_result(const elysia::resources::SurfaceLoadResult& surface_result)
 {
-	if (!surface_result._success || !surface_result._surface)
+	if (!surface_result._surface)
 	{
-		fail("GameContentLoader texture commit failed: prepared surface is invalid.");
+		fail(make_content_load_failure(ContentLoadError::Texture,
+			"GameContentLoader texture commit failed: prepared surface is invalid.",
+			surface_result._asset_key,surface_result._frame_path));
 		return false;
 	}
 
 	elysia::resources::TextureLoader texture_loader;
-	elysia::resources::TextureLoadResult texture_result =
+	auto texture_result =
 		texture_loader.load_texture(_renderer, surface_result);
-	if (!texture_result._success || !texture_result._texture)
+	if (!texture_result)
 	{
-		fail("GameContentLoader texture commit failed: texture creation failed.");
+		fail(from_resource_failure(ContentLoadError::Texture,
+			std::move(texture_result.error())));
 		return false;
 	}
 
 	elysia::resources::ResourceManager* resource_manager = elysia::resources::ResourceManager::instance();
-	if (!resource_manager->store_texture(
+	auto store_result = resource_manager->store_texture(
 		surface_result._asset_key,
-		std::move(texture_result._texture)))
+		std::move(texture_result->_texture));
+	if (!store_result)
 	{
-		fail("GameContentLoader texture commit failed: texture store failed.");
+		fail(from_resource_failure(ContentLoadError::Texture,
+			std::move(store_result.error())));
 		return false;
 	}
 
@@ -508,17 +541,21 @@ bool GameContentLoader::commit_atlas_frame_result(
 	const elysia::resources::AtlasFramePreparedResult& prepared_result
 )
 {
-	if (!prepared_result.surface_result._success || !prepared_result.surface_result._surface)
+	if (!prepared_result.surface_result._surface)
 	{
-		fail("GameContentLoader atlas frame commit failed: prepared surface is invalid.");
+		fail(make_content_load_failure(ContentLoadError::Atlas,
+			"GameContentLoader atlas frame commit failed: prepared surface is invalid.",
+			prepared_result.task.atlas_key,prepared_result.task.frame_path));
 		return false;
 	}
 
-	if (!elysia::resources::ResourceManager::instance()->commit_prepared_atlas_frame(
+	auto commit_result = elysia::resources::ResourceManager::instance()->commit_prepared_atlas_frame(
 		_renderer,
-		prepared_result))
+		prepared_result);
+	if (!commit_result)
 	{
-		fail("GameContentLoader atlas frame commit failed: atlas manager commit failed.");
+		fail(from_resource_failure(ContentLoadError::Atlas,
+			std::move(commit_result.error())));
 		return false;
 	}
 
@@ -564,9 +601,10 @@ bool GameContentLoader::load_fonts()
 	elysia::resources::ResourceManager* resource_manager = elysia::resources::ResourceManager::instance();
 	for (const elysia::resources::FontLoadRequest& request : _load_plan.font_requests())
 	{
-		if (!resource_manager->load_font(request.key, request.file_path, request.point_size))
+		auto result = resource_manager->load_font(request.key, request.file_path, request.point_size);
+		if (!result)
 		{
-			fail("GameContentLoader font load failed.");
+			fail(from_resource_failure(ContentLoadError::Font,std::move(result.error())));
 			return false;
 		}
 
@@ -586,9 +624,10 @@ bool GameContentLoader::load_audio()
 	{
 		const elysia::resources::SoundLoadRequest& request =
 			_load_plan.sound_requests()[_next_sound_request_index];
-		if (!resource_manager->load_sound(request))
+		auto result = resource_manager->load_sound(request);
+		if (!result)
 		{
-			fail("GameContentLoader sound load failed.");
+			fail(from_resource_failure(ContentLoadError::Audio,std::move(result.error())));
 			return false;
 		}
 
@@ -602,9 +641,10 @@ bool GameContentLoader::load_audio()
 	{
 		const elysia::resources::MusicLoadRequest& request =
 			_load_plan.music_requests()[_next_music_request_index];
-		if (!resource_manager->load_music(request))
+		auto result = resource_manager->load_music(request);
+		if (!result)
 		{
-			fail("GameContentLoader music load failed.");
+			fail(from_resource_failure(ContentLoadError::Audio,std::move(result.error())));
 			return false;
 		}
 
@@ -625,9 +665,11 @@ bool GameContentLoader::register_animations()
 	{
 		const elysia::resources::Atlas* atlas =
 			elysia::resources::ResourceService::instance()->find_atlas(request.atlas_key);
-		if (!animation_manager->register_animation(request, atlas))
+		auto result = animation_manager->register_animation(request, atlas);
+		if (!result)
 		{
-			fail("GameContentLoader animation registration failed.");
+			fail(make_content_load_failure(ContentLoadError::Animation,
+				std::move(result.error().diagnostic)));
 			return false;
 		}
 
@@ -642,9 +684,11 @@ bool GameContentLoader::register_animation_effects()
 	elysia::effects::EffectManager* effect_manager = elysia::effects::EffectManager::instance();
 	for (const elysia::resources::AnimationEffectBuildRequest& request : _load_plan.animation_effect_build_requests())
 	{
-		if (!effect_manager->register_animation_effect(request))
+		auto result = effect_manager->register_animation_effect(request);
+		if (!result)
 		{
-			fail("GameContentLoader effect registration failed.");
+			fail(make_content_load_failure(ContentLoadError::Effect,
+				std::move(result.error().diagnostic)));
 			return false;
 		}
 
@@ -673,15 +717,14 @@ void GameContentLoader::update_progress_value()
 	_progress = std::clamp(ratio, 0.0f, 1.0f);
 }
 
-void GameContentLoader::fail(std::string message)
+void GameContentLoader::fail(ContentLoadFailure failure)
 {
 	shutdown_worker_threads();
 	clear_loaded_content();
 	_config_snapshot.reset();
-	_error_message = std::move(message);
+	_failure = std::move(failure);
 	_state = GameContentLoaderState::Failed;
 	update_progress_value();
-	ELYSIA_LOG_ERROR("resource",_error_message);
 }
 
 

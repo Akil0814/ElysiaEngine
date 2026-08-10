@@ -22,7 +22,24 @@
         "message": "The application encountered a fatal problem and must close. See the log for details.",
         "exit": "Exit",
         "reopen": "Show error"
-      }
+      },
+      "stage": {
+        "config": "The game configuration could not be loaded.",
+        "manifest": "A content manifest could not be loaded.",
+        "plan": "The content loading plan could not be prepared.",
+        "texture": "A required texture could not be loaded.",
+        "atlas": "A required texture atlas could not be built.",
+        "font": "A required font could not be loaded.",
+        "audio": "A required audio resource could not be loaded.",
+        "animation": "A required animation could not be registered.",
+        "effect": "A required visual effect could not be registered."
+      },
+      "labels": { "error_code": "Error code", "log": "Log file", "details": "Diagnostic details" },
+      "log_unavailable": "Unavailable",
+      "details_in_log": "See the log for diagnostic details.",
+      "copy": "Copy information",
+      "copied": "Copied",
+      "copy_failed": "Copy failed"
     },
     "settings": {
       "title": "Settings",

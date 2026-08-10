@@ -3,7 +3,6 @@
 #include "filesystem_segment_formatter.h"
 #include "resource_key_builder.h"
 #include "../../io/path/path_manager.h"
-#include "../../tools/logger.h"
 
 #include <algorithm>
 #include <iomanip>
@@ -16,7 +15,8 @@ namespace
 {
 bool log_key_error(const char* operation, const std::string& error)
 {
-	ELYSIA_LOG_WARN("resource", operation << ": " << error);
+	(void)operation;
+	(void)error;
 	return false;
 }
 
@@ -28,7 +28,6 @@ bool append_texture_request(
 {
 	if (!std::filesystem::is_regular_file(file_path))
 	{
-		ELYSIA_LOG_WARN("resource", "Build texture request failed: file does not exist: " << file_path);
 		return false;
 	}
 	requests.push_back({std::move(key), std::move(file_path), std::move(origin)});
@@ -128,7 +127,6 @@ bool ResourceRequestBuilder::append_texture_manifest_requests(
 {
 	if (root.empty())
 	{
-		ELYSIA_LOG_WARN("resource", "Build texture requests failed: texture root is empty.");
 		return false;
 	}
 	for (const auto& entry : manifest.textures)
@@ -154,13 +152,10 @@ bool ResourceRequestBuilder::append_animation_manifest_requests(
 		const bool exists = entry.horizontal_strip ? std::filesystem::is_regular_file(source) : std::filesystem::is_directory(source);
 		if (!exists)
 		{
-			ELYSIA_LOG_WARN("resource", "Build animation requests failed: source is missing or has the wrong type: key="
-				<< entry.key << ", path=" << source);
 			return false;
 		}
 		if (entry.frame_count == 0 || entry.fps <= 0.0)
 		{
-			ELYSIA_LOG_WARN("resource", "Build animation requests failed: invalid frame count or FPS: " << entry.key);
 			return false;
 		}
 		AtlasBuildRequest atlas;
@@ -221,8 +216,6 @@ bool ResourceRequestBuilder::append_entity_animation_requests(
 			atlas.source_path = (resolved / (clip.animation_name + ".png")).lexically_normal();
 			if (!std::filesystem::is_regular_file(atlas.source_path))
 			{
-				ELYSIA_LOG_WARN("resource", "Build entity animation requests failed: horizontal strip does not exist: key="
-					<< key << ", path=" << atlas.source_path);
 				return false;
 			}
 		}
@@ -232,14 +225,10 @@ bool ResourceRequestBuilder::append_entity_animation_requests(
 			atlas.source_path = resolved;
 			if (!std::filesystem::is_directory(atlas.source_path))
 			{
-				ELYSIA_LOG_WARN("resource", "Build entity animation requests failed: frame directory does not exist: key="
-					<< key << ", path=" << atlas.source_path);
 				return false;
 			}
 			if (!make_frame_prefix(entry.frame_prefix_template, entry, clip, atlas.frame_filename_prefix))
 			{
-				ELYSIA_LOG_WARN("resource", "Build entity animation requests failed: frame prefix template expansion failed: key="
-					<< key << ", template=" << entry.frame_prefix_template);
 				return false;
 			}
 		}
@@ -274,7 +263,6 @@ bool ResourceRequestBuilder::append_entity_effect_requests(
 			[&animation_key](const auto& request) { return request.animation_key == animation_key; });
 		if (!exists)
 		{
-			ELYSIA_LOG_WARN("resource", "Build entity effect requests failed: animation request does not exist: " << animation_key);
 			return false;
 		}
 		effects.push_back({std::move(effect_key), std::move(animation_key),
@@ -302,8 +290,6 @@ bool ResourceRequestBuilder::append_entity_texture_requests(
 		}
 		if (!std::filesystem::is_directory(resolved))
 		{
-			ELYSIA_LOG_WARN("resource", "Build entity texture requests failed: target is neither a file nor directory: key="
-				<< base_key << ", path=" << resolved);
 			return false;
 		}
 		std::vector<std::filesystem::path> files;
@@ -312,8 +298,6 @@ bool ResourceRequestBuilder::append_entity_texture_requests(
 		std::sort(files.begin(), files.end());
 		if (files.empty())
 		{
-			ELYSIA_LOG_WARN("resource", "Build entity texture requests failed: directory contains no regular files: key="
-				<< base_key << ", path=" << resolved);
 			return false;
 		}
 		for (const auto& file : files)
@@ -344,8 +328,6 @@ bool ResourceRequestBuilder::append_entity_audio_requests(
 		const auto path = (content.audio_root / entry.path).lexically_normal();
 		if (!std::filesystem::is_regular_file(path))
 		{
-			ELYSIA_LOG_WARN("resource", "Build entity audio requests failed: sound file does not exist: key="
-				<< key << ", path=" << path);
 			return false;
 		}
 		requests.push_back({std::move(key), path, entry.origin});
