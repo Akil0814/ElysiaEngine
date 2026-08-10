@@ -27,6 +27,7 @@
         "config": "The game configuration could not be loaded.",
         "manifest": "A content manifest could not be loaded.",
         "plan": "The content loading plan could not be prepared.",
+        "missing_resource": "One or more required content files are missing.",
         "texture": "A required texture could not be loaded.",
         "atlas": "A required texture atlas could not be built.",
         "font": "A required font could not be loaded.",

@@ -27,6 +27,22 @@ bool fail(std::string& error, std::string message)
 	return false;
 }
 
+std::string diagnostic_path(const std::filesystem::path& path)
+{
+	auto normalized = path.lexically_normal();
+	if (const auto* paths = elysia::io::PathManager::instance();
+		paths && paths->is_initialized() && normalized.is_absolute())
+	{
+		std::error_code error;
+		const auto relative = std::filesystem::relative(normalized,paths->root(),error);
+		if (!error && !relative.empty() && *relative.begin() != "..")
+			normalized = relative.lexically_normal();
+	}
+	return normalized.is_absolute()
+		? normalized.filename().generic_string()
+		: normalized.generic_string();
+}
+
 bool has_only_fields(
 	const elysia::io::json& node,
 	std::initializer_list<std::string_view> fields,
@@ -103,7 +119,7 @@ bool resolve_entity_root(
 		replace_all(value, "{id}", id);
 	result = elysia::io::PathManager::instance()->to_asset_path(value);
 	if (!std::filesystem::is_directory(result))
-		return fail(error, "entity resource root does not exist: " + result.generic_string());
+		return fail(error, "entity resource root does not exist: " + diagnostic_path(result));
 	return true;
 }
 
@@ -120,7 +136,7 @@ bool resolve_config_template(
 	replace_all(value, "{id}", id);
 	result = elysia::io::PathManager::instance()->to_config_path(value);
 	if (!std::filesystem::is_regular_file(result))
-		return fail(error, "configured file does not exist: " + result.generic_string());
+		return fail(error, "configured file does not exist: " + diagnostic_path(result));
 	return true;
 }
 
@@ -140,7 +156,7 @@ bool load_animation_layouts(
 		const auto path = elysia::io::PathManager::instance()->to_asset_path(item.value().get<std::string>());
 		elysia::io::AnimationLayout layout;
 		if (!std::filesystem::is_regular_file(path) || !loader.load(path, layout))
-			return fail(error, "animation layout load failed: " + path.generic_string());
+			return fail(error, "animation layout load failed: " + diagnostic_path(path));
 		layouts.emplace(item.key(), std::move(layout));
 	}
 	return true;
@@ -204,11 +220,53 @@ void enrich_effect_origins(
 }
 }
 
-bool AnimatedEntityContentLoader::load(
+namespace
+{
+bool load_module_into(
 	const std::string& module_name,
 	const std::filesystem::path& manifest_path,
 	elysia::io::EntityContentModule& content,
-	std::string& error) const
+	std::string& error);
+}
+
+std::expected<elysia::io::EntityContentModule,ContentLoadFailure>
+AnimatedEntityContentLoader::load(
+	const std::string& module_name,
+	const std::filesystem::path& manifest_path) const
+{
+	elysia::io::EntityContentModule content;
+	std::string error;
+	if (!load_module_into(module_name,manifest_path,content,error))
+	{
+		std::filesystem::path expected_path = diagnostic_path(manifest_path);
+		const auto separator = error.rfind(": ");
+		if (separator != std::string::npos)
+		{
+			const std::string candidate = error.substr(separator + 2);
+			const std::filesystem::path candidate_path(candidate);
+			if (candidate.find('/') != std::string::npos
+				|| candidate.find('\\') != std::string::npos
+				|| candidate_path.has_extension())
+				expected_path = candidate_path;
+		}
+		return std::unexpected(make_content_load_failure(
+			ContentLoadError::Manifest,
+			elysia::core::make_failure_diagnostic(
+				"Additional module load failed: " + error,
+				{elysia::core::make_failure_diagnostic_entry(
+					"additional-module",module_name,std::move(expected_path),
+					diagnostic_path(manifest_path),{},error)})));
+	}
+	return content;
+}
+
+namespace
+{
+bool load_module_into(
+	const std::string& module_name,
+	const std::filesystem::path& manifest_path,
+	elysia::io::EntityContentModule& content,
+	std::string& error)
 {
 	content = {};
 	content.name = module_name;
@@ -216,7 +274,7 @@ bool AnimatedEntityContentLoader::load(
 		return fail(error, "module manifest contains duplicate object keys");
 	elysia::io::JsonLoader loader;
 	if (!loader.open_file(manifest_path) || !loader.root().is_object())
-		return fail(error, "module manifest is invalid: " + manifest_path.generic_string());
+		return fail(error, "module manifest is invalid: " + diagnostic_path(manifest_path));
 	const elysia::io::json& root = loader.root();
 	if (!has_only_fields(root, {"entities", "key_namespace", "capabilities"}, "root", error)
 		|| root.size() != 3) return fail(error, "entities, key_namespace and capabilities are required");
@@ -245,7 +303,7 @@ bool AnimatedEntityContentLoader::load(
 	elysia::io::EntityManifest entity_manifest;
 	elysia::io::EntityManifestLoader entity_loader;
 	if (!std::filesystem::is_regular_file(entities_path) || !entity_loader.load(entities_path, entity_manifest))
-		return fail(error, "entity manifest load failed: " + entities_path.generic_string());
+		return fail(error, "entity manifest load failed: " + diagnostic_path(entities_path));
 	for (const auto& entity : entity_manifest.entities)
 		content.entities.push_back(make_identity(entity, module_name));
 
@@ -278,7 +336,7 @@ bool AnimatedEntityContentLoader::load(
 				|| !resolve_config_template(config_template, entity.id, config_path, error)) return false;
 			elysia::io::AnimationConfig config;
 			if (!config_loader.load(config_path, layout->second, config))
-				return fail(error, "animation config load failed: " + config_path.generic_string());
+				return fail(error, "animation config load failed: " + diagnostic_path(config_path));
 			const bool has_segments = std::any_of(config.clips.begin(), config.clips.end(),
 				[](const auto& clip) { return clip.is_segment; });
 			if (config.source_type == elysia::io::AnimationSourceType::FrameDirectory)
@@ -305,7 +363,7 @@ bool AnimatedEntityContentLoader::load(
 			if (!resolve_config_template(config_template, animation_entry.entity.id, config_path, error)) return false;
 			elysia::io::EffectDefinitionConfig config;
 			if (!effect_loader.load(config_path, animation_entry.animation_config, config))
-				return fail(error, "effect config load failed: " + config_path.generic_string());
+				return fail(error, "effect config load failed: " + diagnostic_path(config_path));
 			enrich_effect_origins(config, module_name, animation_entry.entity.id);
 			content.effect_entries.push_back({animation_entry.entity, std::move(config)});
 		}
@@ -322,7 +380,7 @@ bool AnimatedEntityContentLoader::load(
 		elysia::io::EntityTextureLayout layout;
 		elysia::io::EntityTextureLayoutLoader layout_loader;
 		if (!std::filesystem::is_regular_file(layout_path) || !layout_loader.load(layout_path, layout))
-			return fail(error, "texture layout load failed");
+			return fail(error, "texture layout load failed: " + diagnostic_path(layout_path));
 		for (const auto& entity : entity_manifest.entities)
 		{
 			std::filesystem::path root_path;
@@ -349,7 +407,7 @@ bool AnimatedEntityContentLoader::load(
 		elysia::io::EntityAudioLayout layout;
 		elysia::io::EntityAudioLayoutLoader layout_loader;
 		if (!std::filesystem::is_regular_file(layout_path) || !layout_loader.load(layout_path, layout))
-			return fail(error, "audio layout load failed");
+			return fail(error, "audio layout load failed: " + diagnostic_path(layout_path));
 		for (const auto& entity : entity_manifest.entities)
 		{
 			std::filesystem::path root_path;
@@ -365,5 +423,6 @@ bool AnimatedEntityContentLoader::load(
 		}
 	}
 	return true;
+}
 }
 }

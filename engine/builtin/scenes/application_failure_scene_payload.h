@@ -22,6 +22,7 @@ enum class ApplicationFailureReason
     Config,
     Manifest,
     Plan,
+    MissingResource,
     Texture,
     Atlas,
     Font,
@@ -50,6 +51,7 @@ struct ApplicationFailureScenePayload
     case Config: return ApplicationFailureReason::Config;
     case Manifest: return ApplicationFailureReason::Manifest;
     case Plan: return ApplicationFailureReason::Plan;
+    case MissingResource: return ApplicationFailureReason::MissingResource;
     case Texture: return ApplicationFailureReason::Texture;
     case Atlas: return ApplicationFailureReason::Atlas;
     case Font: return ApplicationFailureReason::Font;

@@ -77,6 +77,7 @@ private:
         std::string_view category,
         const std::string& err_msg,
         std::source_location location = std::source_location::current());
+    bool startup_fail(const elysia::bootstrap::BootstrapFailure& failure);
 
 private:
     double _target_fps = 60.0;

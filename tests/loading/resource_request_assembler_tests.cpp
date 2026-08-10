@@ -38,12 +38,12 @@ void test_minimal_repository_resource_plan()
     auto* paths = elysia::io::PathManager::instance();
     require(paths->initialize(), "path manager must initialize from the project root");
 
-    elysia::io::ContentRegistry registry;
-    require(elysia::io::ContentRegistryLoader{}.load(paths->content_registry(), registry),
+    auto registry = elysia::io::ContentRegistryLoader{}.load(paths->content_registry());
+    require(registry,
         "the minimal content registry must parse");
 
     elysia::loading::ContentManifestPipeline pipeline;
-    auto content_result = pipeline.load(registry);
+    auto content_result = pipeline.load(*registry);
     require(content_result,
         "all required manifests in the minimal resource closure must load");
     const auto& content = *content_result;

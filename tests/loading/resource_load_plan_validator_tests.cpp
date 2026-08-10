@@ -184,9 +184,10 @@ void test_duplicate_key_diagnostics_for_every_registry()
 			append_request(plan, test_case.registry, "shared.duplicate_key", *pair.first);
 			append_request(plan, test_case.registry, "shared.duplicate_key", *pair.second);
 
-			ResourceLoadPlanValidationError error;
-			require(!ResourceLoadPlanValidator{}.validate(plan, error),
+			auto validation = ResourceLoadPlanValidator{}.validate(plan);
+			require(!validation,
 				"core-core, module-module, and core-module duplicates must fail in every registry");
+			const auto& error = validation.error();
 			require(error.duplicate, "duplicate failure must be marked as a duplicate");
 			require(error.registry == test_case.name, "duplicate failure must identify its registry");
 			require(error.key == "shared.duplicate_key", "duplicate failure must preserve the exact key");
@@ -227,11 +228,9 @@ void test_same_key_is_legal_across_different_registries()
 	plan.animation_build_requests().front().atlas_key = "same.key";
 	plan.animation_effect_build_requests().front().animation_key = "same.key";
 
-	ResourceLoadPlanValidationError error;
-	require(ResourceLoadPlanValidator{}.validate(plan, error),
+	auto validation = ResourceLoadPlanValidator{}.validate(plan);
+	require(validation,
 		"the same string must be legal when used once in each distinct registry");
-	require(!error.duplicate && error.message.empty(),
-		"successful cross-registry validation must leave no diagnostic");
 }
 
 void test_reference_integrity()
@@ -246,9 +245,10 @@ void test_reference_integrity()
 		animation.origin = origin;
 		plan.animation_build_requests().push_back(std::move(animation));
 
-		ResourceLoadPlanValidationError error;
-		require(!ResourceLoadPlanValidator{}.validate(plan, error),
+		auto validation = ResourceLoadPlanValidator{}.validate(plan);
+		require(!validation,
 			"an Animation request must reference an existing Atlas request");
+		const auto& error = validation.error();
 		require(!error.duplicate, "a missing reference must not be reported as a duplicate");
 		require_contains(error.describe(), "Animation references missing Atlas key: hero.missing_atlas",
 			"missing Atlas diagnostic must name the absent key");
@@ -264,9 +264,10 @@ void test_reference_integrity()
 		effect.origin = origin;
 		plan.animation_effect_build_requests().push_back(std::move(effect));
 
-		ResourceLoadPlanValidationError error;
-		require(!ResourceLoadPlanValidator{}.validate(plan, error),
+		auto validation = ResourceLoadPlanValidator{}.validate(plan);
+		require(!validation,
 			"an Effect request must reference an existing Animation request");
+		const auto& error = validation.error();
 		require(!error.duplicate, "a missing Animation reference must not be a duplicate");
 		require_contains(error.describe(), "Effect references missing Animation key: hero.missing_animation",
 			"missing Animation diagnostic must name the absent key");
@@ -293,8 +294,7 @@ void test_reference_integrity()
 		effect.origin = origin;
 		plan.animation_effect_build_requests().push_back(std::move(effect));
 
-		ResourceLoadPlanValidationError error;
-		require(ResourceLoadPlanValidator{}.validate(plan, error),
+		require(ResourceLoadPlanValidator{}.validate(plan),
 			"complete Atlas -> Animation -> Effect references must pass validation");
 	}
 }

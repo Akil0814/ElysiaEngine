@@ -1,6 +1,6 @@
 # 启动注册与预加载
 
-默认入口为 `assets/content_registry.json`。Bootstrap 在程序启动时仅解析一次，并将解析后的只读 `ContentRegistry` 快照交给 engine Application 持有；Scene 通过 `SceneRuntimeContext` 借用该快照，内容加载阶段不会再次读取此文件。根对象必须且只能包含 `bootstrap` 与 `manifests`；解析前会拒绝重复 JSON 属性，未知字段或目标文件不存在都会失败。
+项目根必须包含普通文件 `assets/.elysia_root`，`content_registry.json` 不能替代该标记。默认内容入口为 `assets/content_registry.json`。Bootstrap 在程序启动时仅解析一次，并将解析后的只读 `ContentRegistry` 快照交给 engine Application 持有；Scene 通过 `SceneRuntimeContext` 借用该快照，内容加载阶段不会再次读取此文件。根对象必须且只能包含 `bootstrap` 与 `manifests`；解析前会拒绝重复 JSON 属性，未知字段或目标文件不存在都会返回结构化启动失败。
 
 ```json
 {

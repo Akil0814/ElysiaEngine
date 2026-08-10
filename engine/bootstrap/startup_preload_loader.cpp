@@ -184,14 +184,16 @@ std::expected<void,BootstrapFailure> StartupPreloadLoader::load_texture(
         surface_loader.load_surface(surface_request);
     if (!surface_result)
         return std::unexpected(BootstrapFailure{
-            surface_result.error().diagnostic.message
+            BootstrapFailure::Code::Preload,
+            std::move(surface_result.error().diagnostic)
         });
 
     elysia::resources::TextureLoader texture_loader;
     auto texture_result = texture_loader.load_texture(renderer,*surface_result);
     if (!texture_result)
         return std::unexpected(BootstrapFailure{
-            texture_result.error().diagnostic.message
+            BootstrapFailure::Code::Preload,
+            std::move(texture_result.error().diagnostic)
         });
 
     if (!destination.store(std::string(key),std::move(texture_result->_texture)))

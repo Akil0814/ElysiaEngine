@@ -1,8 +1,8 @@
-#include "../../tools/logger.h"
 #include "content_registry_loader.h"
 
-#include "../path/path_manager.h"
 #include "../json/json_duplicate_key_checker.h"
+#include "../json/json_loader.h"
+#include "../path/path_manager.h"
 
 #include <array>
 #include <string>
@@ -12,213 +12,149 @@ namespace elysia::io
 {
 namespace
 {
-constexpr std::string_view manifests_key = "manifests";
-constexpr std::string_view bootstrap_key = "bootstrap";
-constexpr std::string_view required_key = "required";
-constexpr std::string_view additional_key = "additional";
-constexpr std::array<std::string_view, 2> bootstrap_path_keys{
-	"app_config", "preload_manifest"
-};
-constexpr std::array<std::string_view, 7> required_manifest_keys{
-	"configs", "fonts", "audio", "i18n", "textures", "animations", "effects"
-};
+constexpr std::array<std::string_view,2> bootstrap_keys{"app_config","preload_manifest"};
+constexpr std::array<std::string_view,7> required_keys{
+    "configs","fonts","audio","i18n","textures","animations","effects"};
 
-bool read_required_manifest_path(
-	const json& required,
-	std::string_view key,
-	PathManager& path_manager,
-	std::filesystem::path& out_path
-)
+ContentRegistryFailure failure(
+    ContentRegistryError code,std::string message,
+    const std::filesystem::path& registry,std::string pointer = {},
+    std::filesystem::path expected = {},
+    std::source_location origin = std::source_location::current())
 {
-	const std::string key_string(key);
-	if (!required.contains(key_string) || !required.at(key_string).is_string())
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: required manifest path is missing or invalid: " << key);
-		return false;
-	}
-
-	out_path = path_manager.to_asset_path(required.at(key_string).get<std::string>());
-	if (!std::filesystem::is_regular_file(out_path))
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: required manifest file does not exist: " << out_path);
-		return false;
-	}
-
-	return true;
+    const std::string reason = message;
+    return ContentRegistryFailure{
+        code,
+        elysia::core::make_failure_diagnostic(
+            std::move(message),
+            {elysia::core::make_failure_diagnostic_entry(
+                "content-registry",{},std::move(expected),registry,
+                std::move(pointer),reason,origin)},origin)
+    };
 }
 
-bool contains_required_key(std::string_view key)
+template<std::size_t Size>
+bool contains(const std::array<std::string_view,Size>& keys,std::string_view key)
 {
-	for (const std::string_view known_key : required_manifest_keys)
-	{
-		if (known_key == key)
-			return true;
-	}
-	return false;
+    for (const auto known : keys) if (known == key) return true;
+    return false;
 }
 
-bool read_bootstrap_path(
-	const json& bootstrap,
-	std::string_view key,
-	PathManager& path_manager,
-	std::filesystem::path& out_path
-)
+std::expected<std::filesystem::path,ContentRegistryFailure> read_required_path(
+    const json& object,std::string section,std::string key,
+    PathManager& paths,const std::filesystem::path& registry)
 {
-	const std::string key_string(key);
-	if (!bootstrap.contains(key_string) || !bootstrap.at(key_string).is_string())
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: bootstrap path is missing or invalid: " << key);
-		return false;
-	}
-
-	out_path = path_manager.to_asset_path(bootstrap.at(key_string).get<std::string>());
-	if (!std::filesystem::is_regular_file(out_path))
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: bootstrap file does not exist: " << out_path);
-		return false;
-	}
-
-	return true;
-}
-
-bool contains_bootstrap_key(std::string_view key)
-{
-	for (const std::string_view known_key : bootstrap_path_keys)
-	{
-		if (known_key == key)
-			return true;
-	}
-	return false;
+    const std::string pointer = "/" + section + "/" + key;
+    if (!object.contains(key) || !object.at(key).is_string())
+        return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+            "Content registry path is missing or invalid: " + key,
+            registry,pointer));
+    const auto path = paths.to_asset_path(object.at(key).get<std::string>());
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(path,error))
+        return std::unexpected(failure(ContentRegistryError::MissingReferencedFile,
+            "Content registry references a required file that does not exist.",
+            registry,pointer,path));
+    return path;
 }
 }
 
-bool ContentRegistryLoader::load(
-	const std::filesystem::path& content_registry_path,
-	ContentRegistry& content_registry
-) const
+std::expected<ContentRegistry,ContentRegistryFailure> ContentRegistryLoader::load(
+    const std::filesystem::path& registry_path) const
 {
-	content_registry = ContentRegistry{};
-	if (has_duplicate_json_object_key(content_registry_path)) return false;
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(registry_path,error))
+        return std::unexpected(failure(ContentRegistryError::OpenFailed,
+            "Content registry file does not exist or is not a regular file.",
+            registry_path,{},registry_path));
+    if (has_duplicate_json_object_key(registry_path))
+        return std::unexpected(failure(ContentRegistryError::InvalidDocument,
+            "Content registry contains a duplicate JSON object key.",registry_path));
 
-	JsonLoader loader;
-	const JsonReadResult result = loader.open_file(content_registry_path);
-	if (!result || !loader.root().is_object())
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: invalid JSON root: " << content_registry_path);
-		return false;
-	}
+    JsonLoader loader;
+    const JsonReadResult read = loader.open_file(registry_path);
+    if (!read || !loader.root().is_object())
+        return std::unexpected(failure(ContentRegistryError::InvalidDocument,
+            read ? "Content registry root is not an object." : read.error,registry_path));
+    const json& root = loader.root();
+    if (root.size() != 2 || !root.contains("bootstrap") || !root.contains("manifests"))
+        return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+            "Content registry root must contain bootstrap and manifests.",registry_path,"/"));
+    for (auto item = root.begin(); item != root.end(); ++item)
+        if (item.key() != "bootstrap" && item.key() != "manifests")
+            return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+                "Content registry contains an unknown root key: " + item.key(),
+                registry_path,"/" + item.key()));
 
-	if (loader.root().size() != 2
-		|| !loader.root().contains(std::string(bootstrap_key))
-		|| !loader.root().contains(std::string(manifests_key)))
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: root must contain bootstrap and manifests.");
-		return false;
-	}
-	for (json::const_iterator item = loader.root().begin(); item != loader.root().end(); ++item)
-	{
-		if (item.key() != bootstrap_key && item.key() != manifests_key)
-		{
-			ELYSIA_LOG_WARN("io", "Load content registry failed: unknown root key: " << item.key());
-			return false;
-		}
-	}
+    const json& bootstrap = root.at("bootstrap");
+    if (!bootstrap.is_object())
+        return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+            "Content registry bootstrap is not an object.",registry_path,"/bootstrap"));
+    for (auto item = bootstrap.begin(); item != bootstrap.end(); ++item)
+        if (!contains(bootstrap_keys,item.key()))
+            return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+                "Content registry contains an unknown bootstrap key: " + item.key(),
+                registry_path,"/bootstrap/" + item.key()));
 
-	const json& bootstrap = loader.root().at(std::string(bootstrap_key));
-	if (!bootstrap.is_object())
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: bootstrap is not an object.");
-		return false;
-	}
-	for (json::const_iterator item = bootstrap.begin(); item != bootstrap.end(); ++item)
-	{
-		if (!contains_bootstrap_key(item.key()))
-		{
-			ELYSIA_LOG_WARN("io", "Load content registry failed: unknown bootstrap key: " << item.key());
-			return false;
-		}
-	}
+    const json& manifests = root.at("manifests");
+    if (!manifests.is_object() || !manifests.contains("required"))
+        return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+            "Content registry manifests.required is missing.",registry_path,"/manifests/required"));
+    for (auto item = manifests.begin(); item != manifests.end(); ++item)
+        if (item.key() != "required" && item.key() != "additional")
+            return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+                "Content registry contains an unknown manifests key: " + item.key(),
+                registry_path,"/manifests/" + item.key()));
+    const json& required = manifests.at("required");
+    if (!required.is_object())
+        return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+            "Content registry manifests.required is not an object.",registry_path,"/manifests/required"));
+    for (auto item = required.begin(); item != required.end(); ++item)
+        if (!contains(required_keys,item.key()))
+            return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+                "Content registry contains an unknown required key: " + item.key(),
+                registry_path,"/manifests/required/" + item.key()));
 
-	const json& manifests = loader.root().at(std::string(manifests_key));
-	if (!manifests.is_object() || !manifests.contains(std::string(required_key)))
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: manifests.required is missing.");
-		return false;
-	}
+    auto* paths = PathManager::instance();
+    ContentRegistry output;
+    auto app = read_required_path(bootstrap,"bootstrap","app_config",*paths,registry_path);
+    if (!app) return std::unexpected(std::move(app.error()));
+    output.bootstrap.app_config = std::move(*app);
+    auto preload = read_required_path(bootstrap,"bootstrap","preload_manifest",*paths,registry_path);
+    if (!preload) return std::unexpected(std::move(preload.error()));
+    output.bootstrap.preload_manifest = std::move(*preload);
 
-	for (json::const_iterator item = manifests.begin(); item != manifests.end(); ++item)
-	{
-		if (item.key() != required_key && item.key() != additional_key)
-		{
-			ELYSIA_LOG_WARN("io", "Load content registry failed: unknown manifests key: " << item.key());
-			return false;
-		}
-	}
+    struct Target { const char* key; std::filesystem::path CoreManifestPaths::* member; };
+    constexpr Target targets[]{
+        {"configs",&CoreManifestPaths::configs},{"fonts",&CoreManifestPaths::fonts},
+        {"audio",&CoreManifestPaths::audio},{"i18n",&CoreManifestPaths::i18n},
+        {"textures",&CoreManifestPaths::textures},{"animations",&CoreManifestPaths::animations},
+        {"effects",&CoreManifestPaths::effects}
+    };
+    for (const auto& target : targets)
+    {
+        auto path = read_required_path(required,"manifests/required",target.key,*paths,registry_path);
+        if (!path) return std::unexpected(std::move(path.error()));
+        output.required.*(target.member) = std::move(*path);
+    }
 
-	const json& required = manifests.at(std::string(required_key));
-	if (!required.is_object())
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: manifests.required is not an object.");
-		return false;
-	}
-	for (json::const_iterator item = required.begin(); item != required.end(); ++item)
-	{
-		if (!contains_required_key(item.key()))
-		{
-			ELYSIA_LOG_WARN("io", "Load content registry failed: unknown required manifest key: " << item.key());
-			return false;
-		}
-	}
-
-	PathManager* path_manager = PathManager::instance();
-	if (!path_manager)
-		return false;
-	if (!read_bootstrap_path(bootstrap, "app_config", *path_manager, content_registry.bootstrap.app_config)
-		|| !read_bootstrap_path(bootstrap, "preload_manifest", *path_manager, content_registry.bootstrap.preload_manifest))
-	{
-		return false;
-	}
-
-	CoreManifestPaths& paths = content_registry.required;
-	if (!read_required_manifest_path(required, "configs", *path_manager, paths.configs)
-		|| !read_required_manifest_path(required, "fonts", *path_manager, paths.fonts)
-		|| !read_required_manifest_path(required, "audio", *path_manager, paths.audio)
-		|| !read_required_manifest_path(required, "i18n", *path_manager, paths.i18n)
-		|| !read_required_manifest_path(required, "textures", *path_manager, paths.textures)
-		|| !read_required_manifest_path(required, "animations", *path_manager, paths.animations)
-		|| !read_required_manifest_path(required, "effects", *path_manager, paths.effects))
-	{
-		return false;
-	}
-
-	if (!manifests.contains(std::string(additional_key)))
-		return true;
-
-	const json& additional = manifests.at(std::string(additional_key));
-	if (!additional.is_object())
-	{
-		ELYSIA_LOG_WARN("io", "Load content registry failed: manifests.additional is not an object.");
-		return false;
-	}
-
-	for (json::const_iterator item = additional.begin(); item != additional.end(); ++item)
-	{
-		if (!item.value().is_string())
-		{
-			ELYSIA_LOG_WARN("io", "Load content registry failed: additional module manifest is not a path string: " << item.key());
-			return false;
-		}
-
-		const std::filesystem::path manifest_path =
-			path_manager->to_asset_path(item.value().get<std::string>());
-		if (!std::filesystem::is_regular_file(manifest_path))
-		{
-			ELYSIA_LOG_WARN("io", "Load content registry failed: additional module manifest does not exist: " << manifest_path);
-			return false;
-		}
-		content_registry.additional_module_manifests.emplace(item.key(), manifest_path);
-	}
-
-	return true;
+    if (!manifests.contains("additional")) return output;
+    const json& additional = manifests.at("additional");
+    if (!additional.is_object())
+        return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+            "Content registry manifests.additional is not an object.",registry_path,"/manifests/additional"));
+    for (auto item = additional.begin(); item != additional.end(); ++item)
+    {
+        const std::string pointer = "/manifests/additional/" + item.key();
+        if (!item.value().is_string())
+            return std::unexpected(failure(ContentRegistryError::InvalidSchema,
+                "Additional module manifest is not a path string: " + item.key(),registry_path,pointer));
+        const auto path = paths->to_asset_path(item.value().get<std::string>());
+        if (!std::filesystem::is_regular_file(path))
+            return std::unexpected(failure(ContentRegistryError::MissingReferencedFile,
+                "Additional module manifest does not exist: " + item.key(),registry_path,pointer,path));
+        output.additional_module_manifests.emplace(item.key(),path);
+    }
+    return output;
 }
 }

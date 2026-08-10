@@ -139,6 +139,7 @@ const std::set<std::string> expected_keys = {
     "engine.application_failure.stage.effect",
     "engine.application_failure.stage.font",
     "engine.application_failure.stage.manifest",
+    "engine.application_failure.stage.missing_resource",
     "engine.application_failure.stage.plan",
     "engine.application_failure.stage.texture",
     "engine.common.back",

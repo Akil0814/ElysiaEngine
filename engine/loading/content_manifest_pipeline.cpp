@@ -78,14 +78,10 @@ std::expected<ContentManifestResult,ContentLoadFailure> ContentManifestPipeline:
 	AnimatedEntityContentLoader module_loader;
 	for (const auto& [module_name, module_manifest_path] : content_registry.additional_module_manifests)
 	{
-		elysia::io::EntityContentModule module;
-		std::string module_error;
-		if (!module_loader.load(module_name, module_manifest_path, module, module_error))
-		{
-			return std::unexpected(make_content_load_failure(ContentLoadError::Manifest,
-				"Content manifest pipeline failed: " + module_error,module_name,module_manifest_path));
-		}
-		result.additional_modules.emplace(module_name, std::move(module));
+		auto module = module_loader.load(module_name,module_manifest_path);
+		if (!module)
+			return std::unexpected(std::move(module.error()));
+		result.additional_modules.emplace(module_name,std::move(*module));
 	}
 
 	return result;

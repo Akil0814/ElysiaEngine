@@ -20,16 +20,36 @@ Bootstrapper::parse_runtime_settings(const std::filesystem::path& executable_pat
     elysia::config::UserConfigService::instance()->shutdown();
 
     elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
-    if (!path_manager->initialize(executable_path))
-        return std::unexpected(BootstrapFailure{ "Bootstrapper phase1 failed: path manager initialization failed."});
+    if (auto path_result = path_manager->initialize(executable_path); !path_result)
+    {
+        BootstrapFailure::Code code = BootstrapFailure::Code::PathAccess;
+        switch (path_result.error().code)
+        {
+        case elysia::io::PathError::ProjectRoot:
+            code = BootstrapFailure::Code::ProjectRoot; break;
+        case elysia::io::PathError::RequiredAssetDirectory:
+            code = BootstrapFailure::Code::AssetDirectory; break;
+        case elysia::io::PathError::RuntimeDirectory:
+            code = BootstrapFailure::Code::RuntimeDirectory; break;
+        case elysia::io::PathError::FilesystemAccess:
+            code = BootstrapFailure::Code::PathAccess; break;
+        }
+        return std::unexpected(BootstrapFailure{
+            code,std::move(path_result.error().diagnostic)});
+    }
 
-    if (!path_manager->ensure_runtime_dirs())
-        return std::unexpected(BootstrapFailure{"Bootstrapper phase1 failed: ensure runtime dirs failed."});
+    if (auto directory_result = path_manager->ensure_runtime_dirs(); !directory_result)
+        return std::unexpected(BootstrapFailure{
+            BootstrapFailure::Code::RuntimeDirectory,
+            std::move(directory_result.error().diagnostic)});
 
-    elysia::io::ContentRegistry content_registry;
     elysia::io::ContentRegistryLoader content_registry_loader;
-    if (!content_registry_loader.load(path_manager->content_registry(), content_registry))
-        return std::unexpected(BootstrapFailure{"Bootstrapper phase1 failed: content registry load failed."});
+    auto registry_result = content_registry_loader.load(path_manager->content_registry());
+    if (!registry_result)
+        return std::unexpected(BootstrapFailure{
+            BootstrapFailure::Code::ContentRegistry,
+            std::move(registry_result.error().diagnostic)});
+    elysia::io::ContentRegistry content_registry = std::move(*registry_result);
 
     const auto app_config_result =
         _app_config_loader.load(content_registry.bootstrap.app_config);
@@ -44,7 +64,9 @@ Bootstrapper::parse_runtime_settings(const std::filesystem::path& executable_pat
             user_config_path
         );
     if (!config_result)
-        return std::unexpected(BootstrapFailure{config_result.error().message});
+        return std::unexpected(BootstrapFailure{
+            BootstrapFailure::Code::UserConfig,
+            elysia::core::make_failure_diagnostic(config_result.error().message)});
 
     BootstrapOutput output;
     output.runtime_settings.window_title = app_config_result->window_title;

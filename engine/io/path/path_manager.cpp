@@ -1,234 +1,234 @@
-#include "../../tools/logger.h"
 #include "path_manager.h"
+
 #include <string>
+#include <vector>
 
 namespace elysia::io
 {
-bool PathManager::initialize()
+namespace
+{
+constexpr int kMaxSearchDepth = 8;
+
+PathFailure make_path_failure(
+    PathError code,
+    std::string message,
+    std::vector<elysia::core::FailureDiagnosticEntry> entries = {},
+    std::source_location origin = std::source_location::current())
+{
+    return PathFailure{
+        code,
+        elysia::core::make_failure_diagnostic(
+            std::move(message),std::move(entries),origin)
+    };
+}
+}
+
+std::expected<void,PathFailure> PathManager::initialize()
 {
     return initialize({});
 }
 
-bool PathManager::initialize(const std::filesystem::path& start_path)
+std::expected<void,PathFailure> PathManager::initialize(
+    const std::filesystem::path& start_path)
 {
-    std::optional<std::filesystem::path> root_path;
-    try
+    std::filesystem::path resolved_start = start_path;
+    if (resolved_start.empty())
     {
-        root_path = find_project_root(
-            start_path.empty()
-                ? std::filesystem::current_path()
-                : start_path);
-    }
-    catch (const std::filesystem::filesystem_error& error)
-    {
-        ELYSIA_LOG_ERROR("path","Path manager initialization failed while reading the current working directory: "
-            << error.what());
-        return false;
-    }
-
-    if (!root_path.has_value())
-    {
-        ELYSIA_LOG_ERROR("path","Path manager initialization failed: project root was not found from the current working directory.");
-        return false;
+        std::error_code error;
+        resolved_start = std::filesystem::current_path(error);
+        if (error)
+        {
+            return std::unexpected(make_path_failure(
+                PathError::FilesystemAccess,
+                "Path manager initialization failed while reading the current working directory.",
+                {elysia::core::make_failure_diagnostic_entry(
+                    "working-directory",{},resolved_start,{},{},error.message())}));
+        }
     }
 
-    _root = root_path.value();
-    if (!validate_core_asset_dirs())
-        return false;
+    auto root_result = find_project_root(resolved_start);
+    if (!root_result)
+        return std::unexpected(std::move(root_result.error()));
 
+    auto directories_result = validate_core_asset_dirs(*root_result);
+    if (!directories_result)
+        return directories_result;
+
+    _root = std::move(*root_result);
     _initialized = true;
-
-    return true;
+    return {};
 }
 
-bool PathManager::ensure_runtime_dirs() const
+std::expected<void,PathFailure> PathManager::ensure_runtime_dirs() const
 {
-    try
+    if (!_initialized)
+        return std::unexpected(make_path_failure(
+            PathError::RuntimeDirectory,
+            "Path manager runtime directory setup failed: path manager is not initialized."));
+
+    for (const auto& directory : {player_data(),saves(),logs()})
     {
-        std::filesystem::create_directories(player_data());
-        std::filesystem::create_directories(saves());
-        std::filesystem::create_directories(logs());
-        return true;
+        std::error_code error;
+        std::filesystem::create_directories(directory,error);
+        if (error || !std::filesystem::is_directory(directory))
+        {
+            return std::unexpected(make_path_failure(
+                PathError::RuntimeDirectory,
+                "Path manager runtime directory setup failed.",
+                {elysia::core::make_failure_diagnostic_entry(
+                    "runtime-directory",{},directory,{},{},
+                    error ? error.message() : "path is not a directory")}));
+        }
     }
-    catch (const std::filesystem::filesystem_error& error)
-    {
-        ELYSIA_LOG_ERROR("path","Path manager runtime directory setup failed: " << error.what());
-        return false;
-    }
+    return {};
 }
 
-bool PathManager::validate_core_asset_dirs() const
+std::expected<void,PathFailure> PathManager::validate_core_asset_dirs(
+    const std::filesystem::path& root) const
 {
-    const auto validate_dir = [](const std::filesystem::path& dir_path, const char* dir_name)
-    {
-        if (std::filesystem::is_directory(dir_path))
-            return true;
-
-        ELYSIA_LOG_ERROR("path","Path manager initialization failed: required asset directory does not exist: "
-            << dir_name << " -> " << dir_path);
-        return false;
+    const std::filesystem::path assets_root = root / "assets";
+    const std::pair<const char*,std::filesystem::path> directories[]{
+        {"audio",assets_root / "audio"},
+        {"textures",assets_root / "textures"},
+        {"fonts",assets_root / "fonts"},
+        {"configs",assets_root / "configs"}
     };
-
-    try
+    for (const auto& [name,path] : directories)
     {
-        return validate_dir(audio(), "audio")
-            && validate_dir(textures(), "textures")
-            && validate_dir(fonts(), "fonts")
-            && validate_dir(configs(), "configs");
+        std::error_code error;
+        const bool is_directory = std::filesystem::is_directory(path,error);
+        const bool missing = error == std::errc::no_such_file_or_directory;
+        if (missing) error.clear();
+        if (error || !is_directory)
+        {
+            return std::unexpected(make_path_failure(
+                error ? PathError::FilesystemAccess : PathError::RequiredAssetDirectory,
+                "Path manager initialization failed: a required asset directory is unavailable.",
+                {elysia::core::make_failure_diagnostic_entry(
+                    "asset-directory",name,path,{},{},
+                    error ? error.message() : "directory does not exist")}));
+        }
     }
-    catch (const std::filesystem::filesystem_error&)
-    {
-        ELYSIA_LOG_ERROR("path","Path manager initialization failed: filesystem error while validating asset directories.");
-        return false;
-    }
+    return {};
 }
 
-
-const std::filesystem::path& PathManager::root() const
-{
-    return _root;
-}
-
-std::filesystem::path PathManager::assets() const
-{
-    return _root / "assets";
-}
-
-std::filesystem::path PathManager::configs() const
-{
-    return assets() / "configs";
-}
-
-std::filesystem::path PathManager::fonts() const
-{
-    return assets() / "fonts";
-}
-
-std::filesystem::path PathManager::preload() const
-{
-    return assets() / "preload";
-}
-
-std::filesystem::path PathManager::audio() const
-{
-    return assets() / "audio";
-}
-
-std::filesystem::path PathManager::textures() const
-{
-    return assets() / "textures";
-}
-
-std::filesystem::path PathManager::player_data() const
-{
-    return _root / "player_data";
-}
-
-std::filesystem::path PathManager::saves() const
-{
-    return player_data() / "saves";
-}
-
-std::filesystem::path PathManager::logs() const
-{
-    return _root / "logs";
-}
-
-std::filesystem::path PathManager::content_registry() const
-{
-    return assets() / "content_registry.json";
-}
+const std::filesystem::path& PathManager::root() const { return _root; }
+std::filesystem::path PathManager::assets() const { return _root / "assets"; }
+std::filesystem::path PathManager::configs() const { return assets() / "configs"; }
+std::filesystem::path PathManager::fonts() const { return assets() / "fonts"; }
+std::filesystem::path PathManager::preload() const { return assets() / "preload"; }
+std::filesystem::path PathManager::audio() const { return assets() / "audio"; }
+std::filesystem::path PathManager::textures() const { return assets() / "textures"; }
+std::filesystem::path PathManager::player_data() const { return _root / "player_data"; }
+std::filesystem::path PathManager::saves() const { return player_data() / "saves"; }
+std::filesystem::path PathManager::logs() const { return _root / "logs"; }
+std::filesystem::path PathManager::content_registry() const { return assets() / "content_registry.json"; }
 
 std::filesystem::path PathManager::to_project_path(const std::filesystem::path& path) const
 {
-    if (path.is_absolute())
-        return path.lexically_normal();
-
+    if (path.is_absolute()) return path.lexically_normal();
     return (_root / path).lexically_normal();
 }
 
 std::filesystem::path PathManager::to_asset_path(const std::filesystem::path& path) const
 {
-    if (path.is_absolute())
-        return path.lexically_normal();
-
-    if (path_starts_with(path, "assets"))
-        return to_project_path(path);
-
+    if (path.is_absolute()) return path.lexically_normal();
+    if (path_starts_with(path,"assets")) return to_project_path(path);
     return (assets() / path).lexically_normal();
 }
 
 std::filesystem::path PathManager::to_config_path(const std::filesystem::path& path) const
 {
-    if (path.is_absolute())
-        return path.lexically_normal();
-
-    if (path_starts_with(path, "assets"))
-        return to_project_path(path);
-
-    if (path_starts_with(path, "configs"))
-        return to_asset_path(path);
-
+    if (path.is_absolute()) return path.lexically_normal();
+    if (path_starts_with(path,"assets")) return to_project_path(path);
+    if (path_starts_with(path,"configs")) return to_asset_path(path);
     return (configs() / path).lexically_normal();
 }
 
 bool PathManager::path_starts_with(
-    const std::filesystem::path& path,
-    const std::string& first_part
-) const
+    const std::filesystem::path& path,const std::string& first_part) const
 {
-    std::filesystem::path::iterator iterator = path.begin();
-    if (iterator == path.end())
-        return false;
-
-    return iterator->string() == first_part;
+    const auto iterator = path.begin();
+    return iterator != path.end() && iterator->string() == first_part;
 }
 
-std::optional<std::filesystem::path> PathManager::find_project_root(const std::filesystem::path& start_path) const
+std::expected<std::filesystem::path,PathFailure>
+PathManager::find_project_root(const std::filesystem::path& start_path) const
 {
-    constexpr int MAX_SEARCH_DEPTH = 8;
-
-    try
+    std::error_code error;
+    std::filesystem::path current = std::filesystem::absolute(start_path,error);
+    if (error)
     {
-        std::filesystem::path current = std::filesystem::absolute(start_path);
-        if (!std::filesystem::is_directory(current))
-            current = current.parent_path();
+        return std::unexpected(make_path_failure(
+            PathError::FilesystemAccess,
+            "Project root search failed while resolving the start path.",
+            {elysia::core::make_failure_diagnostic_entry(
+                "start-path",{},start_path,{},{},error.message())}));
+    }
+    if (!std::filesystem::is_directory(current,error))
+        current = current.parent_path();
+    if (error)
+    {
+        return std::unexpected(make_path_failure(
+            PathError::FilesystemAccess,
+            "Project root search failed while inspecting the start path.",
+            {elysia::core::make_failure_diagnostic_entry(
+                "start-path",{},current,{},{},error.message())}));
+    }
 
-        std::optional<std::filesystem::path> magic_root;
-        for (int depth = 0; depth < MAX_SEARCH_DEPTH; ++depth)
+    std::optional<std::filesystem::path> marker_root;
+    std::vector<elysia::core::FailureDiagnosticEntry> searched;
+    for (int depth = 0; depth < kMaxSearchDepth; ++depth)
+    {
+        const auto marker = current / "assets" / ".elysia_root";
+        const auto registry = current / "assets" / "content_registry.json";
+        searched.push_back(elysia::core::make_failure_diagnostic_entry(
+            "project-marker",{},marker,{},{},"marker is not a regular file"));
+
+        error.clear();
+        const auto marker_status = std::filesystem::status(marker,error);
+        const bool marker_missing = error == std::errc::no_such_file_or_directory;
+        if (marker_missing) error.clear();
+        const bool has_marker = !error && std::filesystem::is_regular_file(marker_status);
+        if (error)
         {
-            const std::filesystem::path assets_dir_path = current / "assets";
-            const std::filesystem::path assets_magic_file_path = assets_dir_path / ".elysia_root";
-            const std::filesystem::path content_registry_path = assets_dir_path / "content_registry.json";
-
-            const bool assets_is_dir = std::filesystem::is_directory(assets_dir_path);
-            const bool has_assets_magic_file = std::filesystem::exists(assets_magic_file_path);
-            const bool has_content_registry = std::filesystem::exists(content_registry_path);
-
-            // Prefer a directory that contains a real content registry (source project root).
-            if (assets_is_dir && has_content_registry)
+            searched.back().reason = error.message();
+            return std::unexpected(make_path_failure(
+                PathError::FilesystemAccess,
+                "Project root search failed while checking the project marker.",
+                std::move(searched)));
+        }
+        if (has_marker)
+        {
+            error.clear();
+            const auto registry_status = std::filesystem::status(registry,error);
+            const bool registry_missing = error == std::errc::no_such_file_or_directory;
+            if (registry_missing) error.clear();
+            const bool has_registry = !error && std::filesystem::is_regular_file(registry_status);
+            if (error)
+            {
+                searched.back().reason = error.message();
+                return std::unexpected(make_path_failure(
+                    PathError::FilesystemAccess,
+                    "Project root search failed while checking the content registry.",
+                    std::move(searched)));
+            }
+            if (has_registry)
                 return current;
-
-            // Remember a candidate root identified by the magic file, but keep looking upward
-            // in case we started from a build/output folder that also copied the magic file.
-            if (assets_is_dir && has_assets_magic_file && !magic_root.has_value())
-                magic_root = current;
-
-            if (current == current.root_path())
-                break;
-
-            current = current.parent_path();
+            if (!marker_root)
+                marker_root = current;
         }
 
-        if (magic_root.has_value())
-            return magic_root;
+        if (current == current.root_path())
+            break;
+        current = current.parent_path();
     }
-    catch (const std::filesystem::filesystem_error&)
-    {
-        return std::nullopt;
-    }
+    if (marker_root)
+        return *marker_root;
 
-    return std::nullopt;
+    return std::unexpected(make_path_failure(
+        PathError::ProjectRoot,
+        "Required Elysia project marker was not found.",
+        std::move(searched)));
 }
-
 }

@@ -29,6 +29,32 @@ int main()
         test_root / "assets/configs",
         std::filesystem::copy_options::recursive);
 
+    const auto missing_marker =
+        elysia::bootstrap::Bootstrapper::instance()
+            ->parse_runtime_settings(test_root);
+    elysia::tests::require(
+        !missing_marker
+            && missing_marker.error().error_code() == "BOOTSTRAP-PROJECT-ROOT"
+            && !missing_marker.error().diagnostic.entries.empty(),
+        "content_registry.json must not substitute for the required .elysia_root marker");
+    std::filesystem::copy_file(
+        source_root / "assets/.elysia_root",
+        test_root / "assets/.elysia_root");
+    std::filesystem::remove(test_root / "assets/content_registry.json");
+    const auto missing_registry =
+        elysia::bootstrap::Bootstrapper::instance()
+            ->parse_runtime_settings(test_root);
+    elysia::tests::require(
+        !missing_registry
+            && missing_registry.error().error_code()
+                == "BOOTSTRAP-CONTENT-REGISTRY"
+            && missing_registry.error().diagnostic.entries.front().expected_path
+                == test_root / "assets/content_registry.json",
+        "a valid marker with no content registry must return the precise registry failure");
+    std::filesystem::copy_file(
+        source_root / "assets/content_registry.json",
+        test_root / "assets/content_registry.json");
+
     const auto result =
         elysia::bootstrap::Bootstrapper::instance()
             ->parse_runtime_settings(test_root);

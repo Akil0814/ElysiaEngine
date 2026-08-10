@@ -267,6 +267,7 @@ void test_structured_failure_codes_and_presentation_policy()
         std::pair{ ContentLoadError::Config,"CONTENT-CONFIG" },
         std::pair{ ContentLoadError::Manifest,"CONTENT-MANIFEST" },
         std::pair{ ContentLoadError::Plan,"CONTENT-PLAN" },
+        std::pair{ ContentLoadError::MissingResource,"CONTENT-MISSING" },
         std::pair{ ContentLoadError::Texture,"CONTENT-TEXTURE" },
         std::pair{ ContentLoadError::Atlas,"CONTENT-ATLAS" },
         std::pair{ ContentLoadError::Font,"CONTENT-FONT" },

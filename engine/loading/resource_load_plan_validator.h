@@ -3,6 +3,7 @@
 #include "../resources/resource_origin.h"
 
 #include <string>
+#include <expected>
 
 namespace elysia::loading
 {
@@ -23,9 +24,7 @@ struct ResourceLoadPlanValidationError
 class ResourceLoadPlanValidator
 {
 public:
-	[[nodiscard]] bool validate(
-		const ResourceLoadPlan& plan,
-		ResourceLoadPlanValidationError& error
-	) const;
+	[[nodiscard]] std::expected<void,ResourceLoadPlanValidationError> validate(
+		const ResourceLoadPlan& plan) const;
 };
 }

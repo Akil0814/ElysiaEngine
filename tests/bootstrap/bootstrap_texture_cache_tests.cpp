@@ -202,6 +202,9 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
         std::filesystem::copy_file(
             source_root / "assets/content_registry.json",
             lifecycle_root / "assets/content_registry.json");
+        std::filesystem::copy_file(
+            source_root / "assets/.elysia_root",
+            lifecycle_root / "assets/.elysia_root");
         std::filesystem::copy(
             source_root / "assets/configs",
             lifecycle_root / "assets/configs",

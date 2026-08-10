@@ -45,11 +45,10 @@ std::string ResourceLoadPlanValidationError::describe() const
 	return stream.str();
 }
 
-bool ResourceLoadPlanValidator::validate(
-	const ResourceLoadPlan& plan,
-	ResourceLoadPlanValidationError& error) const
+std::expected<void,ResourceLoadPlanValidationError> ResourceLoadPlanValidator::validate(
+	const ResourceLoadPlan& plan) const
 {
-	error = {};
+	ResourceLoadPlanValidationError error;
 	if (!validate_registry("Atlas", plan.atlas_build_requests(),
 		[](const auto& request) -> const std::string& { return request.atlas_key; }, error)
 		|| !validate_registry("Animation", plan.animation_build_requests(),
@@ -64,7 +63,7 @@ bool ResourceLoadPlanValidator::validate(
 			[](const auto& request) -> const std::string& { return request.key; }, error)
 		|| !validate_registry("Music", plan.music_requests(),
 			[](const auto& request) -> const std::string& { return request.key; }, error))
-		return false;
+		return std::unexpected(std::move(error));
 
 	std::unordered_map<std::string, bool> atlas_keys;
 	for (const auto& request : plan.atlas_build_requests()) atlas_keys.emplace(request.atlas_key, true);
@@ -74,7 +73,7 @@ bool ResourceLoadPlanValidator::validate(
 		{
 			error.message = "Animation references missing Atlas key: " + request.atlas_key
 				+ "\n  source: " + request.origin.describe();
-			return false;
+			return std::unexpected(std::move(error));
 		}
 	}
 	std::unordered_map<std::string, bool> animation_keys;
@@ -85,9 +84,9 @@ bool ResourceLoadPlanValidator::validate(
 		{
 			error.message = "Effect references missing Animation key: " + request.animation_key
 				+ "\n  source: " + request.origin.describe();
-			return false;
+			return std::unexpected(std::move(error));
 		}
 	}
-	return true;
+	return {};
 }
 }

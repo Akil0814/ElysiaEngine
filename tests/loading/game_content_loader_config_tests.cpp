@@ -97,13 +97,13 @@ int main()
 	elysia::resources::ResourceService* resource_service = ELYSIA_RESOURCES;
 	elysia::animation::AnimationService* animations = ELYSIA_ANIMATIONS;
 	elysia::effects::EffectManager* effects = elysia::effects::EffectManager::instance();
-	elysia::io::ContentRegistry content_registry;
-	require(elysia::io::ContentRegistryLoader{}.load(paths->content_registry(), content_registry),
+	auto content_registry = elysia::io::ContentRegistryLoader{}.load(paths->content_registry());
+	require(content_registry,
 		"game content loader config test must parse the content registry once before loading");
 
     elysia::loading::GameContentLoader loader;
     constexpr std::array project_font_point_sizes{10,20,30,40,50,60,70};
-	require(loader.start(renderer, content_registry, project_font_point_sizes), "game content loader must start with a valid deferred config snapshot");
+	require(loader.start(renderer, *content_registry, project_font_point_sizes), "game content loader must start with a valid deferred config snapshot");
     require(!configs->is_initialized(),
         "ConfigService must remain unavailable while resources are still loading");
 	run_to_completion(loader);
@@ -130,7 +130,7 @@ int main()
 		&& effects->find_animation_effect_definition("effect.test") != nullptr,
 		"resetting a finished loader must preserve published content for the next scene");
 
-	require(loader.start(renderer, content_registry, project_font_point_sizes),
+	require(loader.start(renderer, *content_registry, project_font_point_sizes),
 		"starting a new loading cycle must clear the previous published content first");
 	require(!configs->is_initialized()
 		&& resources->resource_count() == 0
@@ -140,7 +140,7 @@ int main()
 		"a new loading cycle must not expose the old content while it is preparing");
 	run_to_completion(loader);
 
-	require(!loader.start(nullptr, content_registry, project_font_point_sizes),
+	require(!loader.start(nullptr, *content_registry, project_font_point_sizes),
 		"an invalid renderer must fail the new content loading cycle");
 	require(loader.has_failed()
 		&& loader.failure()

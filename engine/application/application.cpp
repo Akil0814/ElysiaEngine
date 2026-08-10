@@ -70,6 +70,31 @@ bool Application::startup_fail(
     return false;
 }
 
+bool Application::startup_fail(
+    const elysia::bootstrap::BootstrapFailure& failure)
+{
+    const std::string formatted = elysia::core::format_failure_diagnostic(
+        failure.diagnostic,failure.error_code(),"bootstrap");
+    auto* logger = elysia::tools::Logger::instance();
+    logger->error("bootstrap",formatted,failure.diagnostic.origin);
+    logger->terminating(
+        "application",
+        "Application terminating during startup after a fatal failure",
+        failure.diagnostic.origin);
+
+    std::string dialog = "The game could not start.\nError code: ";
+    dialog += failure.error_code();
+    if (failure.code == elysia::bootstrap::BootstrapFailure::Code::ProjectRoot)
+        dialog += "\nRequired marker: assets/.elysia_root";
+#if !defined(NDEBUG)
+    dialog += "\n\n" + formatted;
+#endif
+    SDL_ShowSimpleMessageBox(
+        SDL_MESSAGEBOX_ERROR,"Game Start Error",dialog.c_str(),_window);
+    shutdown();
+    return false;
+}
+
 bool Application::initialize(
     int argc,
     char** argv,
@@ -127,7 +152,7 @@ bool Application::initialize(
             executable_path);
 
     if (!parse_result)
-        return startup_fail("bootstrap",parse_result.error().message);
+        return startup_fail(parse_result.error());
 
     elysia::bootstrap::BootstrapOutput bootstrap_output =
         std::move(*parse_result);
@@ -223,7 +248,7 @@ bool Application::initialize(
             elysia::bootstrap::Bootstrapper::instance()
                 ->preload_startup_resources(_renderer);
         !preload_result)
-        return startup_fail("loading",preload_result.error().message);
+        return startup_fail(preload_result.error());
 
     _scene_runtime_context.emplace(
         _renderer,

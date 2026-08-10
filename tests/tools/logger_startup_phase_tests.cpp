@@ -4,6 +4,7 @@
 #include "engine/tools/logger.h"
 #include "tests/support/test_assertions.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -100,13 +101,24 @@ void test_console_precedes_paths_and_file_follows()
         std::filesystem::temp_directory_path() / "elysia-logger-missing-project-root";
     remove_path(missing_root);
     std::filesystem::create_directories(missing_root);
-    require(!paths->initialize(missing_root),
+    const auto root_result = paths->initialize(missing_root);
+    require(!root_result,
         "a directory without an Elysia root must fail PathManager initialization");
+    logger->error(
+        "bootstrap",
+        core::format_failure_diagnostic(
+            root_result.error().diagnostic,
+            root_result.error().error_code(),"bootstrap"),
+        root_result.error().diagnostic.origin);
     logger->terminating("startup-test","early terminating marker");
-    require(captured.lines.size() == 2
-            && captured.lines[0].find("\x1b[31m[ERROR]\x1b[0m") != std::string::npos
-            && captured.lines[0].find("[path]") != std::string::npos
-            && captured.lines[1].find("\x1b[38;5;88m[TERMINATING]\x1b[0m") != std::string::npos,
+    const auto error_lines = std::count_if(
+        captured.lines.begin(),captured.lines.end(),[](const std::string& line)
+        { return line.find("\x1b[31m[ERROR]\x1b[0m") != std::string::npos; });
+    require(captured.lines.size() >= 2
+            && error_lines == 1
+            && captured.lines.front().find("[bootstrap]") != std::string::npos
+            && captured.lines.front().find("BOOTSTRAP-PROJECT-ROOT") != std::string::npos
+            && captured.lines.back().find("\x1b[38;5;88m[TERMINATING]\x1b[0m") != std::string::npos,
         "PathManager and terminating failures before Bootstrap must use colored level tags");
 
     logger->initialize_file();

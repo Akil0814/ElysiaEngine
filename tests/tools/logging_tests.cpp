@@ -203,17 +203,17 @@ void test_logger_console_sink()
         "missing animation creation must preserve its Find and Create warnings");
 
     captured.messages.clear();
-    io::ContentRegistry content_registry;
-    require(!io::ContentRegistryLoader{}.load(path_manager->assets() / "missing-assets-structure.json",content_registry),
+    auto content_registry = io::ContentRegistryLoader{}.load(
+        path_manager->assets() / "missing-assets-structure.json");
+    require(!content_registry,
         "missing top-level registry input must fail the registry loader");
-    bool saw_loader_warning = false;
-    for (const std::string& message : captured.messages)
-        saw_loader_warning = saw_loader_warning || message.find("[WARN]") != std::string::npos;
-    require(saw_loader_warning, "registry loader failure must retain its warning diagnostic");
+    require(captured.messages.empty()
+            && !content_registry.error().diagnostic.message.empty(),
+        "registry loader failures must return diagnostics without leaf logging");
 
     captured.messages.clear();
     loading::ContentManifestPipeline content_manifest_pipeline;
-    const auto manifest_result = content_manifest_pipeline.load(content_registry);
+    const auto manifest_result = content_manifest_pipeline.load({});
     require(!manifest_result,
         "invalid supplied registry must fail the content manifest pipeline");
     require(captured.messages.empty()
@@ -537,6 +537,8 @@ void test_path_manager_failure_logging()
         / ("elysia-path-manager-log-test-" + std::to_string(SDL_GetTicks64()));
     remove_test_path(temporary_root);
     std::filesystem::create_directories(temporary_root);
+    std::filesystem::create_directories(temporary_root / "assets");
+    std::ofstream(temporary_root / "assets/content_registry.json") << "{}";
 
     logger->shutdown();
     tools::LoggerConfig logger_config;
@@ -549,12 +551,19 @@ void test_path_manager_failure_logging()
     std::streambuf* previous_console_buffer = std::clog.rdbuf(&captured);
 
     std::filesystem::current_path(temporary_root);
-    require(!path_manager->initialize(),"a directory without an Elysia project root must fail initialization");
-    require(captured.messages.size() == 1
-            && captured.messages.front().find("[ERROR]") != std::string::npos
-            && captured.messages.front().find("[path]") != std::string::npos
-            && captured.messages.front().find("project root was not found") != std::string::npos,
-        "missing project roots must emit a path-specific error");
+    const auto missing_root = path_manager->initialize();
+    require(!missing_root
+            && missing_root.error().error_code() == "BOOTSTRAP-PROJECT-ROOT"
+            && !missing_root.error().diagnostic.entries.empty()
+            && captured.messages.empty(),
+        "missing project roots must return a typed diagnostic without leaf logging");
+
+    std::filesystem::create_directories(temporary_root / "assets/.elysia_root");
+    const auto marker_directory = path_manager->initialize();
+    require(!marker_directory
+            && marker_directory.error().code == io::PathError::ProjectRoot,
+        "the project marker must be a regular file rather than a directory");
+    std::filesystem::remove_all(temporary_root / "assets/.elysia_root");
 
     captured.messages.clear();
     const std::filesystem::path assets = temporary_root / "assets";
@@ -562,15 +571,26 @@ void test_path_manager_failure_logging()
     std::filesystem::create_directories(assets / "textures");
     std::filesystem::create_directories(assets / "fonts");
     std::filesystem::create_directories(assets / "configs");
+    std::ofstream(assets / ".elysia_root") << "{}";
     std::ofstream(assets / "content_registry.json") << "{}";
+    std::filesystem::path too_deep = temporary_root;
+    for (int index = 0; index < 9; ++index)
+        too_deep /= "nested" + std::to_string(index);
+    std::filesystem::create_directories(too_deep);
+    require(!path_manager->initialize(too_deep),
+        "project root discovery must retain its eight-level search limit");
     require(path_manager->initialize(),"the controlled temporary project root must initialize");
+    const auto established_root = path_manager->root();
+    require(!path_manager->initialize(too_deep)
+            && path_manager->is_initialized()
+            && path_manager->root() == established_root,
+        "failed reinitialization must preserve the last valid path state transactionally");
     std::ofstream(temporary_root / "player_data") << "blocking file";
-    require(!path_manager->ensure_runtime_dirs(),"a file at the runtime data path must fail directory setup");
-    require(captured.messages.size() == 1
-            && captured.messages.front().find("[ERROR]") != std::string::npos
-            && captured.messages.front().find("[path]") != std::string::npos
-            && captured.messages.front().find("runtime directory setup failed") != std::string::npos,
-        "runtime directory setup failures must emit a path-specific error");
+    const auto runtime_failure = path_manager->ensure_runtime_dirs();
+    require(!runtime_failure
+            && runtime_failure.error().code == io::PathError::RuntimeDirectory
+            && captured.messages.empty(),
+        "runtime directory setup failures must return diagnostics without leaf logging");
 
     std::filesystem::current_path(original_working_directory);
     require(path_manager->initialize() && path_manager->ensure_runtime_dirs(),

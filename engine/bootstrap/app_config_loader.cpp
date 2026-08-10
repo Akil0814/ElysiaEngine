@@ -30,14 +30,14 @@ std::expected<AppConfig,BootstrapFailure> AppConfigLoader::load(
     const std::filesystem::path& path) const
 {
     const auto parsed = elysia::io::load_strict_json(path);
-    if (!parsed) return std::unexpected(BootstrapFailure{parsed.error()});
+    if (!parsed) return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,parsed.error()});
     const Json& root = *parsed;
     std::string error;
     if (!exact_fields(root,{"schema_version","window","render","audio","localization"},"root",error))
-        return std::unexpected(BootstrapFailure{error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,error});
     if (!root.at("schema_version").is_number_integer()
         || root.at("schema_version").get<int>() != 2)
-        return std::unexpected(BootstrapFailure{"AppConfig schema_version must be 2."});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig schema_version must be 2."});
     if (!exact_fields(
             root.at("window"),
             {"title","mode","windowed_size"},
@@ -51,7 +51,7 @@ std::expected<AppConfig,BootstrapFailure> AppConfigLoader::load(
         || !exact_fields(root.at("render"),{"fps","vsync"},"render",error)
         || !exact_fields(root.at("audio"),{"master_volume","music_volume","sound_volume"},"audio",error)
         || !exact_fields(root.at("localization"),{"language"},"localization",error))
-        return std::unexpected(BootstrapFailure{error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,error});
 
     AppConfig result;
     const Json& window = root.at("window");
@@ -60,12 +60,12 @@ std::expected<AppConfig,BootstrapFailure> AppConfigLoader::load(
             "title",
             result.window_title,
             error))
-        return std::unexpected(BootstrapFailure{"AppConfig " + error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig " + error});
     if (!elysia::config::detail::parse_window_mode(
             window.at("mode"),
             result.user_defaults.window.mode,
             error))
-        return std::unexpected(BootstrapFailure{"AppConfig " + error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig " + error});
     const Json& windowed_size = window.at("windowed_size");
     if (!elysia::config::detail::parse_positive_int(
             windowed_size,
@@ -77,7 +77,7 @@ std::expected<AppConfig,BootstrapFailure> AppConfigLoader::load(
             "height",
             result.user_defaults.window.windowed_size.height,
             error))
-        return std::unexpected(BootstrapFailure{"AppConfig " + error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig " + error});
 
     const Json& render = root.at("render");
     if (!elysia::config::detail::parse_positive_number(
@@ -90,7 +90,7 @@ std::expected<AppConfig,BootstrapFailure> AppConfigLoader::load(
             "vsync",
             result.user_defaults.vsync,
             error))
-        return std::unexpected(BootstrapFailure{"AppConfig render." + error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig render." + error});
 
     const Json& audio = root.at("audio");
     if (!elysia::config::detail::parse_volume(
@@ -99,14 +99,14 @@ std::expected<AppConfig,BootstrapFailure> AppConfigLoader::load(
             audio,"music_volume",result.user_defaults.audio.music_volume,error)
         || !elysia::config::detail::parse_volume(
             audio,"sound_volume",result.user_defaults.audio.sound_volume,error))
-        return std::unexpected(BootstrapFailure{"AppConfig audio." + error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig audio." + error});
     const Json& localization = root.at("localization");
     if (!elysia::config::detail::parse_non_empty_string(
             localization,
             "language",
             result.user_defaults.language,
             error))
-        return std::unexpected(BootstrapFailure{"AppConfig localization." + error});
+        return std::unexpected(BootstrapFailure{BootstrapFailure::Code::AppConfig,"AppConfig localization." + error});
     return result;
 }
 }

@@ -2,92 +2,99 @@
 
 #include "content_manifest_pipeline.h"
 #include "resource_load_plan.h"
+#include "resource_load_plan_preflight.h"
 #include "resource_load_plan_validator.h"
 #include "../io/path/path_manager.h"
 #include "../resources/pipeline/resource_request_builder.h"
+
+#include <optional>
 
 namespace elysia::loading
 {
 namespace
 {
-bool append_module_animations(
-	const elysia::io::EntityContentModule& module,
-	elysia::resources::ResourceRequestBuilder& builder,
-	ResourceLoadPlan& plan)
-{
-	for (const auto& entry : module.animation_entries)
-		if (!builder.append_entity_animation_requests(module.key_namespace, entry,
-			plan.atlas_build_requests(), plan.animation_build_requests())) return false;
-	return true;
-}
+using BuildResult = std::expected<void,elysia::resources::ResourceRequestBuildFailure>;
 
-bool append_module_effects(
-	const elysia::io::EntityContentModule& module,
-	elysia::resources::ResourceRequestBuilder& builder,
-	ResourceLoadPlan& plan)
+std::optional<ContentLoadFailure> consume_build_result(
+    BuildResult result,
+    std::vector<elysia::core::FailureDiagnosticEntry>& missing)
 {
-	for (const auto& entry : module.effect_entries)
-		if (!builder.append_entity_effect_requests(module.key_namespace, entry,
-			plan.animation_build_requests(), plan.animation_effect_build_requests())) return false;
-	return true;
+    if (result) return std::nullopt;
+    auto failure = std::move(result.error());
+    if (failure.code == elysia::resources::ResourceRequestBuildError::MissingSource)
+    {
+        missing.insert(missing.end(),
+            std::make_move_iterator(failure.diagnostic.entries.begin()),
+            std::make_move_iterator(failure.diagnostic.entries.end()));
+        return std::nullopt;
+    }
+    return make_content_load_failure(ContentLoadError::Plan,std::move(failure.diagnostic));
 }
 }
 
 std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::assemble(
-	const ContentManifestResult& config,
-	std::span<const int> project_font_point_sizes) const
+    const ContentManifestResult& config,
+    std::span<const int> project_font_point_sizes) const
 {
-	ResourceLoadPlan plan;
-	elysia::resources::ResourceRequestBuilder builder;
-	const auto textures_root = elysia::io::PathManager::instance()->textures();
-	const auto fail = [&plan](std::string message, std::string key = {})
-	{
-		plan.clear();
-		return std::expected<ResourceLoadPlan,ContentLoadFailure>{std::unexpected(
-			make_content_load_failure(ContentLoadError::Plan,std::move(message),std::move(key)))};
-	};
+    ResourceLoadPlan plan;
+    elysia::resources::ResourceRequestBuilder builder;
+    std::vector<elysia::core::FailureDiagnosticEntry> missing;
+    const auto textures_root = elysia::io::PathManager::instance()->textures();
+    const auto consume = [&missing](BuildResult result)
+    {
+        return consume_build_result(std::move(result),missing);
+    };
 
-	// Phase 1: core animations.
-	if (!builder.append_animation_manifest_requests(config.animation_manifest, textures_root,
-		plan.atlas_build_requests(), plan.animation_build_requests()))
-		return fail("Resource request assembly failed while building core animations.");
+    if (auto failure = consume(builder.append_animation_manifest_requests(
+            config.animation_manifest,textures_root,
+            plan.atlas_build_requests(),plan.animation_build_requests())))
+        return std::unexpected(std::move(*failure));
+    for (const auto& [name,module] : config.additional_modules)
+        for (const auto& entry : module.animation_entries)
+            if (auto failure = consume(builder.append_entity_animation_requests(
+                    module.key_namespace,entry,plan.atlas_build_requests(),
+                    plan.animation_build_requests())))
+                return std::unexpected(std::move(*failure));
 
-	// Phase 2: every additional module's animation resources.
-	for (const auto& [name, module] : config.additional_modules)
-		if (!append_module_animations(module, builder, plan))
-			return fail("Resource request assembly failed while building module animations: " + name);
+    if (auto failure = consume(builder.append_animation_effect_manifest_requests(
+            config.animation_effect_manifest,plan.animation_effect_build_requests())))
+        return std::unexpected(std::move(*failure));
+    for (const auto& [name,module] : config.additional_modules)
+        for (const auto& entry : module.effect_entries)
+            if (auto failure = consume(builder.append_entity_effect_requests(
+                    module.key_namespace,entry,plan.animation_build_requests(),
+                    plan.animation_effect_build_requests())))
+                return std::unexpected(std::move(*failure));
 
-	// Phase 3: effects only bind animations already declared above.
-	if (!builder.append_animation_effect_manifest_requests(
-		config.animation_effect_manifest, plan.animation_effect_build_requests()))
-		return fail("Resource request assembly failed while building core effects.");
-	for (const auto& [name, module] : config.additional_modules)
-		if (!append_module_effects(module, builder, plan))
-			return fail("Resource request assembly failed while building module effects: " + name);
+    if (auto failure = consume(builder.append_texture_manifest_requests(
+            config.texture_manifest,textures_root,plan.texture_requests())))
+        return std::unexpected(std::move(*failure));
+    for (const auto& [name,module] : config.additional_modules)
+        for (const auto& entry : module.texture_entries)
+            if (auto failure = consume(builder.append_entity_texture_requests(
+                    module.key_namespace,entry,plan.texture_requests())))
+                return std::unexpected(std::move(*failure));
 
-	// Phase 4: textures.
-	if (!builder.append_texture_manifest_requests(config.texture_manifest, textures_root, plan.texture_requests()))
-		return fail("Resource request assembly failed while building core textures.");
-	for (const auto& [name, module] : config.additional_modules)
-		for (const auto& entry : module.texture_entries)
-			if (!builder.append_entity_texture_requests(module.key_namespace, entry, plan.texture_requests()))
-			return fail("Resource request assembly failed while building module textures: " + name,name);
+    if (auto failure = consume(builder.append_font_requests(
+            config.font_manifest,project_font_point_sizes,plan.font_requests())))
+        return std::unexpected(std::move(*failure));
+    if (auto failure = consume(builder.append_audio_requests(
+            config.audio_manifest,plan.sound_requests(),plan.music_requests())))
+        return std::unexpected(std::move(*failure));
+    for (const auto& [name,module] : config.additional_modules)
+        for (const auto& entry : module.audio_entries)
+            if (auto failure = consume(builder.append_entity_audio_requests(
+                    module.key_namespace,entry,plan.sound_requests())))
+                return std::unexpected(std::move(*failure));
 
-	// Phase 5: fonts and audio.
-	if (!builder.append_font_requests(
-			config.font_manifest,
-			project_font_point_sizes,
-			plan.font_requests())
-		|| !builder.append_audio_requests(config.audio_manifest, plan.sound_requests(), plan.music_requests()))
-		return fail("Resource request assembly failed while building core font/audio resources.");
-	for (const auto& [name, module] : config.additional_modules)
-		for (const auto& entry : module.audio_entries)
-			if (!builder.append_entity_audio_requests(module.key_namespace, entry, plan.sound_requests()))
-				return fail("Resource request assembly failed while building module audio: " + name);
+    auto validation = ResourceLoadPlanValidator{}.validate(plan);
+    if (!validation)
+        return std::unexpected(make_content_load_failure(
+            ContentLoadError::Plan,validation.error().describe()));
 
-	ResourceLoadPlanValidationError validation_error;
-	if (!ResourceLoadPlanValidator{}.validate(plan, validation_error))
-		return fail(validation_error.describe());
-	return plan;
+    auto preflight = ResourceLoadPlanPreflight{}.validate(plan,std::move(missing));
+    if (!preflight)
+        return std::unexpected(std::move(preflight.error()));
+    return plan;
 }
 }

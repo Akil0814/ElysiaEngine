@@ -3,6 +3,7 @@
 
 #include "../resources/builtin_asset_keys.h"
 #include "../../bootstrap/bootstrapper.h"
+#include "../../io/path/path_manager.h"
 #include "../resources/builtin_asset_cache.h"
 #include "../../tools/logger.h"
 #include "../../typography/font_resolver.h"
@@ -12,6 +13,7 @@
 #include "../../scene/runtime/scene_runtime_context.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 
@@ -449,8 +451,14 @@ void StartupLoadingScene::handle_failure(
         != StartupLoadingAction::TransitionToFailure)
         return;
 
+    std::filesystem::path project_root;
+    if (const auto* paths = elysia::io::PathManager::instance();
+        paths && paths->is_initialized())
+        project_root = paths->root();
+    const std::string formatted = elysia::core::format_failure_diagnostic(
+        failure.diagnostic,failure.error_code(),"startup",project_root);
     elysia::tools::Logger::instance()->error(
-        "startup",failure.diagnostic.message,failure.diagnostic.origin);
+        "startup",formatted,failure.diagnostic.origin);
 
     if (_startup_payload.failure_route)
     {
