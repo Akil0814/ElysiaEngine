@@ -1,0 +1,22 @@
+{
+  "bootstrap": {
+    "app_config": "configs/global/app_config.json",
+    "preload_manifest": "configs/manifests/preload_manifest.json"
+  },
+  "manifests": {
+    "required": {
+	  "configs": "configs/manifests/config_manifest.json",
+      "fonts": "configs/manifests/fonts_manifest.json",
+      "audio": "configs/manifests/audio_manifest.json",
+      "i18n": "configs/manifests/i18n_manifest.json",
+      "textures": "configs/manifests/textures_manifest.json",
+      "animations": "configs/manifests/animations_manifest.json",
+      "effects": "configs/manifests/effects_manifest.json"
+    },
+    "additional": {
+      "characters": "configs/character/character_content_manifest.json",
+      "character_effects": "configs/character/character_effect_content_manifest.json",
+      "enemies": "configs/enemy/enemy_content_manifest.json"
+    }
+  }
+}

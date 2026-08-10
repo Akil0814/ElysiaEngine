@@ -1,0 +1,113 @@
+{
+  "engine": {
+    "common": {
+      "save": "Save",
+      "back": "Back",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "close": "Close",
+      "close_x": "X"
+    },
+    "startup_loading": {
+      "press_any_button": "PRESS ANY BUTTON TO START"
+    },
+    "application_failure": {
+      "startup": {
+        "title": "Startup failed",
+        "message": "Required game resources could not be loaded. See the log for details.",
+        "exit": "Exit"
+      },
+      "runtime": {
+        "title": "Application error",
+        "message": "The application encountered a fatal problem and must close. See the log for details.",
+        "exit": "Exit",
+        "reopen": "Show error"
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "sections": {
+        "display": "Display",
+        "audio": "Audio",
+        "general": "General"
+      },
+      "fields": {
+        "window_mode": "Display mode",
+        "window_size": "Window size",
+        "master_volume": "Master volume",
+        "music_volume": "Music volume",
+        "sound_volume": "Sound volume",
+        "language": "Language"
+      },
+      "actions": {
+        "save": "Save",
+        "back": "Back"
+      },
+      "window_modes": {
+        "borderless_fullscreen": "Borderless fullscreen"
+      },
+      "languages": {
+        "en": "English",
+        "zh_hans": "简体中文",
+        "zh_hant": "繁體中文",
+        "ja": "日本語",
+        "ko": "한국어"
+      },
+      "status": {
+        "saved": "Settings saved."
+      }
+    },
+    "ui_test": {
+      "typography": {
+        "tab": "Typography",
+        "title": "Typography Scale",
+        "description": "Engine font samples at every preloaded point size.",
+        "sample_10": "10 px — Caption sample",
+        "sample_20": "20 px — Compact text sample",
+        "sample_30": "30 px — Standard text sample",
+        "sample_40": "40 px — Heading sample",
+        "sample_50": "50 px — Subtitle sample",
+        "sample_60": "60 px — Dialog title sample",
+        "sample_70": "70 px — Title sample"
+      },
+      "status": {
+        "ready": "UI workbench ready",
+        "interaction": "Interaction received"
+      },
+      "pages": {
+        "overview": "Overview",
+        "controls": "Controls",
+        "media": "Content & Media",
+        "containers": "Containers",
+        "overlays": "Overlays & Focus",
+        "appearance": "Appearance & I18N"
+      },
+      "sections": {
+        "overview": "Theme-aware dashboard and representative visual roles.",
+        "controls": "Interactive controls update the status line.",
+        "media": "Text, numbers, bars, Engine images and animation.",
+        "containers": "Composition, slots, scrolling and nested tabs.",
+        "overlays": "Window-managed overlays, dialogs and focus recovery.",
+        "appearance": "Built-in themes update the registered UI tree immediately."
+      },
+      "actions": { "replay": "Replay", "reset": "Rebuild Workbench" },
+      "controls": {
+        "labeled_check": "Filled labeled checkbox",
+        "labeled_radio": "Labeled radio option",
+        "placeholder": "Type up to sixteen characters"
+      },
+      "media": { "long_text": "This localized text block verifies wrapping, typography and themed content rendering." },
+      "containers": { "chrome": "Chrome slots", "nested_tab": "Nested tab" },
+      "overlays": {
+        "open_overlay": "Open non-modal overlay",
+        "open_dialog": "Open reading dialog",
+        "open_confirm": "Open confirmation dialog",
+        "tooltip": "Hover for tooltip",
+        "tooltip_text": "Tooltip content follows focus and pointer state."
+      },
+      "dialog": { "title": "Workbench reading dialog", "body": "This dialog verifies modal placement, focus restoration and localized long-form copy." },
+      "confirm": { "title": "Confirm workbench action", "message": "This confirmation dialog is part of the overlay coverage." },
+      "appearance": { "note": "Theme names are stable engine identifiers." }
+    }
+  }
+}

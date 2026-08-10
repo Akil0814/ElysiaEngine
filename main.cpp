@@ -1,12 +1,12 @@
 #define SDL_MAIN_HANDLED
 #include "engine/application/application.h"
-#include "game/application/moonline_game_module.h"
+#include "game/application/example_game_module.h"
 
 #include <cstdlib>
 
 int main(int argc, char** argv)
 {
-	moonline::application::MoonlineGameModule game_module;
+	example::application::GameModule game_module;
 	
 	if (!ELYSIA_INIT_APP(argc, argv, game_module))
 		return EXIT_FAILURE;
