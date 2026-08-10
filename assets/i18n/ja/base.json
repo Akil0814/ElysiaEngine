@@ -1,0 +1,28 @@
+{
+  "common": {
+    "save": "保存",
+    "back": "戻る",
+    "confirm": "確認",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "coming_soon": "近日公開"
+  },
+  "menu_scene": {
+    "project_name": "Elysia Engine",
+    "start": "開始",
+    "settings": "設定",
+    "exit": "終了",
+    "about": "情報",
+    "exit_confirm": {
+      "title": "終了の確認",
+      "message": "Elysia Engineを終了しますか？",
+      "cancel": "キャンセル",
+      "close": "X"
+    }
+  },
+  "sandbox_scene": {
+    "title": "サンドボックス",
+    "description": "Elysia Engineを試すための最小シーンです。",
+    "back": "戻る"
+  }
+}

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(ElysiaEngine LANGUAGES C CXX)
 
 include(CTest)
-option(ELSIA_ENABLE_ASAN "Enable AddressSanitizer for project targets" OFF)
+option(ELYSIA_ENABLE_ASAN "Enable AddressSanitizer for project targets" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -131,7 +131,11 @@ endif()
 add_subdirectory(engine)
 add_subdirectory(game)
 
-if(ELSIA_ENABLE_ASAN AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
+
+if(ELYSIA_ENABLE_ASAN AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     include(CheckCXXSourceCompiles)
     set(CMAKE_REQUIRED_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_REQUIRED_LINK_OPTIONS "-fsanitize=address")

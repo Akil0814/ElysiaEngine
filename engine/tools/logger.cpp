@@ -86,7 +86,7 @@ namespace
 #if defined(_WIN32)
     if (mode == ConsoleColorMode::Always)
     {
-        enable_virtual_terminal_processing();
+        (void)enable_virtual_terminal_processing();
         return true;
     }
 #else
@@ -151,7 +151,7 @@ bool Logger::configure(const LoggerConfig& config) noexcept
                 return false;
         }
         std::lock_guard lock(_mutex);
-        if (_initialized)
+        if (_lifecycle_started)
             return false;
         _config = config;
         return true;
@@ -164,17 +164,43 @@ bool Logger::configure(const LoggerConfig& config) noexcept
 
 void Logger::initialize() noexcept
 {
+    initialize_console();
+    initialize_file();
+}
+
+void Logger::initialize_console() noexcept
+{
     try
     {
         std::lock_guard lock(_mutex);
-        if (_initialized)
+        if (_console_initialized)
             return;
-        _initialized = true;
-        _active_file_path.reset();
+        _lifecycle_started = true;
         _console_colors_enabled = _config.console_enabled
             && resolve_console_colors(_config.console_color_mode);
-        if (_config.file_mode == LogFileMode::Disabled)
+        _console_initialized = true;
+    }
+    catch (...)
+    {
+        _console_colors_enabled = false;
+    }
+}
+
+void Logger::initialize_file() noexcept
+{
+    try
+    {
+        std::lock_guard lock(_mutex);
+        _lifecycle_started = true;
+        if (_file_initialized)
             return;
+        if (_config.file_mode == LogFileMode::Disabled)
+        {
+            _file_initialized = true;
+            return;
+        }
+
+        _active_file_path.reset();
 
         const auto* path_manager = elysia::io::PathManager::instance();
         if (!path_manager || !path_manager->is_initialized())
@@ -186,10 +212,15 @@ void Logger::initialize() noexcept
         const std::ios::openmode mode = _config.file_mode == LogFileMode::Append
             ? std::ios::out | std::ios::app
             : std::ios::out;
+        _file.clear();
         _file.open(path,mode);
         if (!_file.is_open())
+        {
+            _file.clear();
             return;
+        }
         _active_file_path = path;
+        _file_initialized = true;
     }
     catch (...)
     {
@@ -208,13 +239,17 @@ void Logger::shutdown() noexcept
             _file.close();
         }
         _active_file_path.reset();
-        _initialized = false;
+        _lifecycle_started = false;
+        _console_initialized = false;
+        _file_initialized = false;
         _console_colors_enabled = false;
     }
     catch (...)
     {
         disable_file_sink();
-        _initialized = false;
+        _lifecycle_started = false;
+        _console_initialized = false;
+        _file_initialized = false;
         _console_colors_enabled = false;
     }
 }
@@ -224,7 +259,7 @@ bool Logger::is_initialized() const noexcept
     try
     {
         std::lock_guard lock(_mutex);
-        return _initialized;
+        return _lifecycle_started;
     }
     catch (...)
     {
@@ -351,6 +386,7 @@ void Logger::disable_file_sink() noexcept
             _file.close();
         _file.clear();
         _active_file_path.reset();
+        _file_initialized = false;
     }
     catch (...)
     {

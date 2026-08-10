@@ -1,0 +1,28 @@
+{
+  "common": {
+    "save": "Save",
+    "back": "Back",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "coming_soon": "Coming soon"
+  },
+  "menu_scene": {
+    "project_name": "Elysia Engine",
+    "start": "Start",
+    "settings": "Settings",
+    "exit": "Exit",
+    "about": "About",
+    "exit_confirm": {
+      "title": "Confirm Exit",
+      "message": "Exit Elysia Engine?",
+      "cancel": "Cancel",
+      "close": "X"
+    }
+  },
+  "sandbox_scene": {
+    "title": "Sandbox",
+    "description": "A minimal scene for experimenting with Elysia Engine.",
+    "back": "Back"
+  }
+}

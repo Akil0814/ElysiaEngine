@@ -1,0 +1,28 @@
+{
+  "common": {
+    "save": "저장",
+    "back": "뒤로",
+    "confirm": "확인",
+    "cancel": "취소",
+    "close": "닫기",
+    "coming_soon": "출시 예정"
+  },
+  "menu_scene": {
+    "project_name": "Elysia Engine",
+    "start": "시작",
+    "settings": "설정",
+    "exit": "종료",
+    "about": "정보",
+    "exit_confirm": {
+      "title": "종료 확인",
+      "message": "Elysia Engine을 종료하시겠습니까?",
+      "cancel": "취소",
+      "close": "X"
+    }
+  },
+  "sandbox_scene": {
+    "title": "샌드박스",
+    "description": "Elysia Engine을 실험하기 위한 최소 장면입니다.",
+    "back": "뒤로"
+  }
+}

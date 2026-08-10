@@ -10,7 +10,7 @@ namespace elysia::bootstrap
 {
 struct AppConfig
 {
-    std::string window_title = "Moonline";
+    std::string window_title = "Elysia Engine";
     elysia::config::UserConfigData user_defaults;
 };
 

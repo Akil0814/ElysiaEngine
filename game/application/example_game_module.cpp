@@ -1,6 +1,7 @@
 #include "example_game_module.h"
 
 #include "../scene/main_menu_scene.h"
+#include "../scene/sandbox_scene.h"
 #include "../scene/example_scene_keys.h"
 
 #include "../../engine/builtin/builtin_scene_keys.h"
@@ -14,7 +15,6 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
     using elysia::scene::SceneReloadMode;
     using elysia::scene::SceneRoute;
     using elysia::builtin::StartupLoadingScenePayload;
-    using elysia::builtin::StartupLogoSlot;
 
     elysia::application::ApplicationDescriptor descriptor;
     descriptor.logical_width = 1280;
@@ -40,12 +40,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
                 .reload_mode = SceneReloadMode::Reuse
             },
             .failure_route = std::nullopt,
-            .project_logo = StartupLogoSlot{
-                .texture_key = "moonline.brand.logo",
-                .fade_in_seconds = 1.0,
-                .hold_seconds = 1.0,
-                .fade_out_seconds = 1.0
-            },
+            .project_logo = std::nullopt,
             .wait_for_confirmation = true
         },
         .reload_mode = SceneReloadMode::Reuse
@@ -57,5 +52,7 @@ void GameModule::register_scenes(elysia::scene::SceneManager& scene_manager) con
 {
     scene_manager.register_game_scene<example::scene::MainMenuScene>(
         ExampleSceneKeys::MainMenu);
+    scene_manager.register_game_scene<example::scene::SandboxScene>(
+        ExampleSceneKeys::Sandbox);
 }
 }

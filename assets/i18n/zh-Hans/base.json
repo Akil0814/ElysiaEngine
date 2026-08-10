@@ -1,0 +1,28 @@
+{
+  "common": {
+    "save": "保存",
+    "back": "返回",
+    "confirm": "确认",
+    "cancel": "取消",
+    "close": "关闭",
+    "coming_soon": "即将推出"
+  },
+  "menu_scene": {
+    "project_name": "Elysia Engine",
+    "start": "开始",
+    "settings": "设置",
+    "exit": "退出",
+    "about": "关于",
+    "exit_confirm": {
+      "title": "确认退出",
+      "message": "要退出 Elysia Engine 吗？",
+      "cancel": "取消",
+      "close": "X"
+    }
+  },
+  "sandbox_scene": {
+    "title": "沙盒",
+    "description": "用于试验 Elysia Engine 的最小场景。",
+    "back": "返回"
+  }
+}

@@ -15,7 +15,7 @@ struct BootstrapFailure
 
 struct RuntimeSettings
 {
-    std::string window_title = "Moonline";
+    std::string window_title = "Elysia Engine";
     elysia::config::UserConfigData user;
 };
 

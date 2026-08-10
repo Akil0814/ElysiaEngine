@@ -5,5 +5,5 @@
 namespace ExampleSceneKeys
 {
 inline constexpr elysia::scene::SceneKey MainMenu = 2;
-inline constexpr elysia::scene::SceneKey CharacterSelect = 4;
+inline constexpr elysia::scene::SceneKey Sandbox = 4;
 }

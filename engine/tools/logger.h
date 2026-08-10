@@ -53,6 +53,8 @@ class Logger : public Singleton<Logger>
 
 public:
     [[nodiscard]] bool configure(const LoggerConfig& config) noexcept;
+    void initialize_console() noexcept;
+    void initialize_file() noexcept;
     void initialize() noexcept;
     void shutdown() noexcept;
     [[nodiscard]] bool is_initialized() const noexcept;
@@ -104,7 +106,9 @@ private:
     LoggerConfig _config;
     std::ofstream _file;
     std::optional<std::filesystem::path> _active_file_path;
-    bool _initialized = false;
+    bool _lifecycle_started = false;
+    bool _console_initialized = false;
+    bool _file_initialized = false;
     bool _console_colors_enabled = false;
 };
 }

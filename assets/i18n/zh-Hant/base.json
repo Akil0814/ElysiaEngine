@@ -1,0 +1,28 @@
+{
+  "common": {
+    "save": "儲存",
+    "back": "返回",
+    "confirm": "確認",
+    "cancel": "取消",
+    "close": "關閉",
+    "coming_soon": "即將推出"
+  },
+  "menu_scene": {
+    "project_name": "Elysia Engine",
+    "start": "開始",
+    "settings": "設定",
+    "exit": "結束",
+    "about": "關於",
+    "exit_confirm": {
+      "title": "確認結束",
+      "message": "要結束 Elysia Engine 嗎？",
+      "cancel": "取消",
+      "close": "X"
+    }
+  },
+  "sandbox_scene": {
+    "title": "沙盒",
+    "description": "用於試驗 Elysia Engine 的最小場景。",
+    "back": "返回"
+  }
+}

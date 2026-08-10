@@ -75,6 +75,8 @@ bool Application::init(
     char** argv,
     const IGameModule& game_module)
 {
+    elysia::tools::Logger::instance()->initialize_console();
+
     _active = true;
     _normal_exit_requested = false;
     _has_shutdown = false;
@@ -130,7 +132,7 @@ bool Application::init(
     elysia::bootstrap::BootstrapOutput bootstrap_output =
         std::move(*parse_result);
     _content_registry = std::move(bootstrap_output.content_registry);
-    elysia::tools::Logger::instance()->initialize();
+    elysia::tools::Logger::instance()->initialize_file();
 
     if (const auto save_result = ELYSIA_SAVE->initialize(
             elysia::io::PathManager::instance()->saves());

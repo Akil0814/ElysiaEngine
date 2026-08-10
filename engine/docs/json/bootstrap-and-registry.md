@@ -54,20 +54,15 @@
 
 ## `preload_manifest.json`
 
-启动预加载读取显式的 `textures` 条目，每项都包含稳定资源 key 和相对文件名：
+启动预加载读取显式的 `textures` 条目；独立示例不需要项目 Logo，因此使用空数组：
 
 ```json
 {
-  "textures": [
-    {
-      "key": "moonline.brand.logo",
-      "file": "Akil_icon_1024.png"
-    }
-  ]
+  "textures": []
 }
 ```
 
-项目纹理路径基于 `assets/preload/`，运行时使用条目的 `key`。manifest 中列出的每个纹理都是必需资源；文件缺失、无法解码或无法创建 SDL texture 都会使 phase2 失败，且不会发布部分缓存。
+需要项目启动纹理时，每项都必须包含稳定资源 key 和相对文件名；路径基于 `assets/preload/`。manifest 中列出的每个纹理都是必需资源；文件缺失、无法解码或无法创建 SDL texture 都会使 phase2 失败，且不会发布部分缓存。
 
 `assets/engine` 由 Application 持有的 `BuiltinAssetCache` 在 renderer 建立后事务式加载：五张 Engine 纹理、五套七档字号字体及五语 `engine.json` 都常驻到 Application shutdown，且不注册到项目 `ResourceManager`。其中 `.elysia_engine_required` 是必需根标记；`OFL.txt` 仅为许可证文件。Elysia Logo 由 `StartupLoadingScene` 直接从 Builtin Asset Cache 取得，因此 `GameContentLoader` 清理或重新加载项目内容不会影响内建启动场景。
 
