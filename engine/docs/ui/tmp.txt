@@ -1,0 +1,42 @@
+---------------------------------------------------------------------------
+flowchart TB
+    SceneObject -->UiElement
+    UiElement -->UiControl
+
+    UiInputReceiver["UiInputEventReceiver"] -->|implement by| UiFocusable
+    UiFocusable -->|implement by| UiControl
+
+    UiElement --> UiImage
+    UiElement --> UiLabel
+    UiElement -->Others["Other UI widgets"]
+
+
+    UiFocusScope-->UiControlFocusScopeHost 
+    UiFocusScope-->UiScrollContainer
+
+---------------------------------------------------------------------------
+
+flowchart TB
+    SceneObject -->UiElement
+    UiInputEventReceiver -->|implement by| UiChildHost
+    UiInputFrameReceiver -->|implement by| UiChildHost
+    Updatable-->UiChildHost
+    UiElement -->UiChildHost
+
+---------------------------------------------------------------------------
+
+
+
+
+---------------------------------------------------------------------------
+
+
+
+
+---------------------------------------------------------------------------
+
+
+
+    
+
+

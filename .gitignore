@@ -1,0 +1,10 @@
+player_data/
+logs/
+
+build/
+*build/
+build-web/
+.vs/
+out/
+site/
+build-vs-x64/

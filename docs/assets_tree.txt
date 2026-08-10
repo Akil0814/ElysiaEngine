@@ -1,0 +1,27 @@
+assets/
+│
+├─ audio/
+│  └─ character/
+│     └─ RyougiShiki/
+│
+├─ config/
+│  ├─ character/
+│  ├─ enemy/
+│  ├─ global/
+│  └─ scene/
+│
+├─ fonts/
+│  └─ IPix.ttf
+│
+├─ preload/
+│  └─ icon/
+│
+├─ textures/
+│  ├─ character/
+│  │  └─ RyougiShiki/
+│  ├─ enemy/
+│  ├─ global_effect/
+│  ├─ stage/
+│  └─ ui/
+│
+└─ i18n

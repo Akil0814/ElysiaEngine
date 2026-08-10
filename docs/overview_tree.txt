@@ -1,0 +1,38 @@
+Moonline/
+|
+|-- CMakeLists.txt
+|-- main.cpp                         -> assemble MoonlineGameModule and engine Application
+|
+|-- engine/                          -> reusable engine layer
+|   |-- CMakeLists.txt
+|   |-- application/                 -> startup, main loop, event boundary and IGameModule
+|   |-- bootstrap/                   -> runtime config and engine/project startup preload
+|   |-- config/
+|   |-- docs/                        -> engine developer documentation
+|   |-- input/
+|   |-- resources/
+|   |-- scene/
+|   |   `-- builtin/                 -> StartupLoadingScene and SettingsScene
+|   `-- ui/
+|
+|-- game/                            -> Moonline-specific assembly and logic
+|   |-- CMakeLists.txt
+|   |-- application/                 -> MoonlineGameModule
+|   `-- scene/                       -> project Scene types and MoonlineSceneKeys
+|
+|-- assets/
+|   |-- engine/preload/              -> engine-owned Elysia branding
+|   `-- preload/                     -> optional project branding
+|
+|-- tests/
+|-- thirdparty/                      -> external dependencies
+`-- docs/                            -> project-level documentation
+
+Dependency direction:
+
+MoonLine -> game_lib -> engine_lib -> SDL
+
+Notes:
+1. Application is part of the reusable engine and must not include gameplay types.
+2. Projects extend the runtime through IGameModule and game Scene keys 1..999.
+3. Engine built-in Scenes use the high key range above 0xFFFF0000.
