@@ -33,9 +33,12 @@ public:
 	[[nodiscard]] std::expected<void,ResourceFailure> commit_prepared_atlas_frame(SDL_Renderer* renderer,
 		const AtlasFramePreparedResult& result);
 	[[nodiscard]] std::expected<void,ResourceFailure> store_texture(
-		const std::string& key,TexturePtr texture);
+		const std::string& key,TexturePtr texture,
+		const ResourceOrigin& origin = {},const std::filesystem::path& path = {});
 	[[nodiscard]] std::expected<void,ResourceFailure> load_font(const std::string& key,
 		const std::filesystem::path& file_path,int point_size);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_font(
+		const FontLoadRequest& request);
 	[[nodiscard]] std::expected<void,ResourceFailure> load_sound(
 		const SoundLoadRequest& request);
 	[[nodiscard]] std::expected<void,ResourceFailure> load_sounds(

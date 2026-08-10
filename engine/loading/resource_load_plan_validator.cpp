@@ -28,6 +28,7 @@ bool validate_registry(
 			error.first = position->second;
 			error.second = request.origin;
 			error.duplicate = true;
+			error.origin = std::source_location::current();
 			return false;
 		}
 	}
@@ -43,6 +44,26 @@ std::string ResourceLoadPlanValidationError::describe() const
 		<< "\n  first:  " << first.describe()
 		<< "\n  second: " << second.describe();
 	return stream.str();
+}
+
+elysia::core::FailureDiagnostic ResourceLoadPlanValidationError::diagnostic() const
+{
+	std::vector<elysia::core::FailureDiagnosticEntry> entries;
+	if (duplicate)
+	{
+		entries.push_back(elysia::core::make_failure_diagnostic_entry(
+			registry,key,{},first.config_path,first.json_pointer,
+			"first declaration",origin));
+		entries.push_back(elysia::core::make_failure_diagnostic_entry(
+			registry,key,{},second.config_path,second.json_pointer,
+			"duplicate declaration",origin));
+	}
+	else if (!first.config_path.empty() || !first.json_pointer.empty())
+	{
+		entries.push_back(elysia::core::make_failure_diagnostic_entry(
+			registry,key,{},first.config_path,first.json_pointer,message,origin));
+	}
+	return elysia::core::make_failure_diagnostic(describe(),std::move(entries),origin);
 }
 
 std::expected<void,ResourceLoadPlanValidationError> ResourceLoadPlanValidator::validate(
@@ -71,8 +92,12 @@ std::expected<void,ResourceLoadPlanValidationError> ResourceLoadPlanValidator::v
 	{
 		if (!atlas_keys.contains(request.atlas_key))
 		{
+			error.registry = "Animation";
+			error.key = request.animation_key;
+			error.first = request.origin;
 			error.message = "Animation references missing Atlas key: " + request.atlas_key
 				+ "\n  source: " + request.origin.describe();
+			error.origin = std::source_location::current();
 			return std::unexpected(std::move(error));
 		}
 	}
@@ -82,8 +107,12 @@ std::expected<void,ResourceLoadPlanValidationError> ResourceLoadPlanValidator::v
 	{
 		if (!animation_keys.contains(request.animation_key))
 		{
+			error.registry = "Effect";
+			error.key = request.effect_key;
+			error.first = request.origin;
 			error.message = "Effect references missing Animation key: " + request.animation_key
 				+ "\n  source: " + request.origin.describe();
+			error.origin = std::source_location::current();
 			return std::unexpected(std::move(error));
 		}
 	}

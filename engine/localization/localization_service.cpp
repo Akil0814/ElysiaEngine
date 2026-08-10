@@ -47,7 +47,7 @@ std::uint64_t LocalizationService::font_generation() const noexcept
 	return LocalizationManager::instance()->font_generation();
 }
 
-bool LocalizationService::set_language(std::string language)
+std::expected<void,LocalizationFailure> LocalizationService::set_language(std::string language)
 {
 	return LocalizationManager::instance()->set_language(std::move(language));
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "../resource_sub_manager.h"
 #include "../resource_failure.h"
+#include "../resource_types.h"
 
 #include <SDL_ttf.h>
 
@@ -24,6 +25,8 @@ public:
 		const std::filesystem::path& file_path,
 		int point_size
 	);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_font(
+		const FontLoadRequest& request);
 	[[nodiscard]] std::expected<void,ResourceFailure> store_font(
 		const std::string& key,TTF_Font* font);
 	bool has_font(std::string_view key) const noexcept;

@@ -11,10 +11,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <source_location>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include <SDL.h>
@@ -62,8 +64,13 @@ int main()
         "Release presentation must omit raw diagnostics");
     require(debug.diagnostic_details.find("ui.bad") != std::string::npos
             && debug.diagnostic_details.find("assets/textures/bad.png") != std::string::npos
-            && debug.copy_report.find("decoder rejected") != std::string::npos,
-        "Debug presentation must include resource, path and underlying cause");
+            && debug.copy_report.find("decoder rejected") != std::string::npos
+			&& debug.diagnostic_details.find(
+				std::filesystem::path(origin.file_name()).filename().string())
+				!= std::string::npos
+			&& (std::filesystem::path(origin.file_name()).filename() == origin.file_name()
+				|| debug.diagnostic_details.find(origin.file_name()) == std::string::npos),
+        "Debug presentation must include diagnostics while hiding absolute source paths");
 
     const auto unavailable = elysia::builtin::build_application_failure_presentation(
         *payload,{},false);
@@ -193,6 +200,38 @@ int main()
     require(saw_additional_module_frame,
         "full-load preflight must include missing files from additional modules");
     content_loader.reset();
+
+	std::filesystem::remove_all(temporary_root / "assets");
+	std::filesystem::copy(
+		source_root / "assets",temporary_root / "assets",
+		std::filesystem::copy_options::recursive);
+	auto runtime_registry = elysia::io::ContentRegistryLoader{}.load(
+		paths->content_registry());
+	require(runtime_registry,
+		"post-preflight deletion test must parse the restored content registry");
+	elysia::loading::GameContentLoader runtime_loader;
+	const auto runtime_start = runtime_loader.start(renderer,*runtime_registry,point_sizes);
+	require(runtime_start,
+		"post-preflight deletion test must begin with every declared file present");
+	std::filesystem::remove(temporary_root / "assets/textures/ui/moon.png");
+	for (int attempt = 0; attempt < 1000 && runtime_loader.is_running(); ++attempt)
+	{
+		runtime_loader.update();
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+	require(runtime_loader.has_failed() && runtime_loader.failure()
+		&& runtime_loader.failure()->error_code() == "CONTENT-TEXTURE"
+		&& !runtime_loader.failure()->diagnostic.entries.empty(),
+		"a texture deleted after preflight must remain a single asynchronous texture failure");
+	const auto& runtime_entry = runtime_loader.failure()->diagnostic.entries.front();
+	require(runtime_entry.subject_type == "texture"
+		&& runtime_entry.subject_key == "ui.moon"
+		&& runtime_entry.expected_path == "assets/textures/ui/moon.png"
+		&& runtime_entry.declaration_path
+			== "assets/configs/manifests/textures_manifest.json"
+		&& runtime_entry.declaration_pointer == "/textures/ui.moon",
+		"asynchronous failures must preserve concrete type, key, safe path and manifest origin");
+	runtime_loader.reset();
     SDL_DestroyRenderer(renderer);
     SDL_FreeSurface(surface);
     SDL_Quit();

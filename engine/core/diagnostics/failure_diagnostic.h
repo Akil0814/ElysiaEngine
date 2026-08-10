@@ -83,4 +83,7 @@ struct FailureDiagnostic
     std::string_view error_code,
     std::string_view category,
     const std::filesystem::path& project_root = {});
+
+[[nodiscard]] std::string_view source_file_basename(
+    const std::source_location& origin) noexcept;
 }

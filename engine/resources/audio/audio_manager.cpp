@@ -29,12 +29,22 @@ std::expected<void,ResourceFailure> AudioManager::load_sound(
 	return store_sound(key, sound);
 }
 
+std::expected<void,ResourceFailure> AudioManager::load_sound(
+	const SoundLoadRequest& request)
+{
+	auto result = load_sound(request.key,request.file_path);
+	if (result) return result;
+	return std::unexpected(make_resource_failure(
+		result.error().code,result.error().diagnostic.message,"sound",request.key,
+		request.file_path,request.origin,result.error().diagnostic.origin));
+}
+
 std::expected<void,ResourceFailure> AudioManager::load_sounds(
 	const std::vector<SoundLoadRequest>& requests)
 {
 	for (const SoundLoadRequest& request : requests)
 	{
-		if (auto result = load_sound(request.key,request.file_path); !result)
+		if (auto result = load_sound(request); !result)
 			return result;
 	}
 
@@ -114,7 +124,11 @@ std::expected<void,ResourceFailure> AudioManager::load_music(
 std::expected<void,ResourceFailure> AudioManager::load_music(
 	const MusicLoadRequest& request)
 {
-	return load_music(request.key, request.file_path);
+	auto result = load_music(request.key,request.file_path);
+	if (result) return result;
+	return std::unexpected(make_resource_failure(
+		result.error().code,result.error().diagnostic.message,"music",request.key,
+		request.file_path,request.origin,result.error().diagnostic.origin));
 }
 
 std::expected<void,ResourceFailure> AudioManager::load_music(

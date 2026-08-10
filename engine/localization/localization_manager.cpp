@@ -19,36 +19,51 @@ namespace
 {
 using TranslationTable = std::unordered_map<std::string, std::string>;
 
-bool flatten_locale_json(
+std::expected<void,std::string> flatten_locale_json(
 	const elysia::io::json& node,
 	const std::string& prefix,
+	const std::string& pointer,
 	TranslationTable& out_table
 )
 {
 	if (node.is_string())
 	{
 		out_table[prefix] = node.get<std::string>();
-		return true;
+		return {};
 	}
 
 	if (!node.is_object())
-		return false;
+		return std::unexpected(pointer.empty() ? "/" : pointer);
 
 	for (auto iterator = node.begin(); iterator != node.end(); ++iterator)
 	{
 		const std::string key = prefix.empty()
 			? iterator.key()
 			: prefix + "." + iterator.key();
-		if (!flatten_locale_json(iterator.value(), key, out_table))
-			return false;
+		std::string escaped = iterator.key();
+		size_t position = 0;
+		while ((position = escaped.find('~',position)) != std::string::npos)
+		{
+			escaped.replace(position,1,"~0");
+			position += 2;
+		}
+		position = 0;
+		while ((position = escaped.find('/',position)) != std::string::npos)
+		{
+			escaped.replace(position,1,"~1");
+			position += 2;
+		}
+		auto nested = flatten_locale_json(
+			iterator.value(),key,pointer + "/" + escaped,out_table);
+		if (!nested) return nested;
 	}
 
-	return true;
+	return {};
 }
 
 }
 
-bool LocalizationManager::initialize(
+std::expected<void,LocalizationFailure> LocalizationManager::initialize(
 	SDL_Renderer* renderer,
 	const std::filesystem::path& manifest_path,
 	std::string initial_language,
@@ -59,46 +74,42 @@ bool LocalizationManager::initialize(
 	shutdown();
 
 	if (!renderer)
-	{
-		ELYSIA_LOG_WARN("localization","Localization initialization failed: renderer is null.");
-		return false;
-	}
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Dependency,
+			"Localization initialization failed: renderer is null.","renderer"));
 	if (!font_resolver)
-	{
-		ELYSIA_LOG_WARN("localization",
-			"Localization initialization failed: FontResolver is null.");
-		return false;
-	}
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Dependency,
+			"Localization initialization failed: FontResolver is null.","font-resolver"));
+
+	elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
+	if (!path_manager || !path_manager->is_initialized())
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Dependency,
+			"Localization initialization failed: path manager is not initialized.",
+			"path-manager"));
 
 	elysia::io::I18nManifestLoader manifest_loader;
-	if (!manifest_loader.load(manifest_path, _manifest))
-	{
-		ELYSIA_LOG_WARN("localization","Localization initialization failed: i18n manifest load failed: "
-			<< manifest_path);
-		return false;
-	}
+	auto manifest_result = manifest_loader.load(manifest_path);
+	if (!manifest_result)
+		return std::unexpected(LocalizationFailure{
+			LocalizationError::Manifest,std::move(manifest_result.error().diagnostic)});
+	_manifest = std::move(*manifest_result);
 
 	if (_manifest.default_language.empty())
-	{
-		ELYSIA_LOG_WARN("localization","Localization initialization failed: default language is empty.");
-		return false;
-	}
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Manifest,
+			"Localization initialization failed: default language is empty.",
+			"i18n-manifest",{},manifest_path,manifest_path,"/default_language"));
 
 	if (_manifest.languages.empty())
-	{
-		ELYSIA_LOG_WARN("localization","Localization initialization failed: supported language list is empty.");
-		return false;
-	}
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Manifest,
+			"Localization initialization failed: supported language list is empty.",
+			"i18n-manifest",{},manifest_path,manifest_path,"/languages"));
 
 	if (!is_supported_language(_manifest.default_language))
 		_manifest.languages.push_back(_manifest.default_language);
-
-	elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
-	if (!path_manager->is_initialized())
-	{
-		ELYSIA_LOG_WARN("localization","Localization initialization failed: path manager is not initialized.");
-		return false;
-	}
 
 	_renderer = renderer;
 	_font_resolver = font_resolver;
@@ -106,22 +117,31 @@ bool LocalizationManager::initialize(
 	_manifest_path = manifest_path;
 	_i18n_root = path_manager->assets() / "i18n";
 
-	if (!ensure_language_loaded(_manifest.default_language))
+	if (auto default_result = ensure_language_loaded(_manifest.default_language);
+		!default_result)
 	{
+		auto failure = std::move(default_result.error());
 		shutdown();
-		return false;
+		return std::unexpected(std::move(failure));
 	}
 
 	if (initial_language.empty() || !is_supported_language(initial_language))
 		initial_language = _manifest.default_language;
 
-	if (!ensure_language_loaded(initial_language))
+	if (auto initial_result = ensure_language_loaded(initial_language); !initial_result)
+	{
+		const std::string formatted = elysia::core::format_failure_diagnostic(
+			initial_result.error().diagnostic,initial_result.error().error_code(),
+			"localization",path_manager->root());
+		elysia::tools::Logger::instance()->warn(
+			"localization",formatted,initial_result.error().diagnostic.origin);
 		initial_language = _manifest.default_language;
+	}
 
 	_current_language = initial_language;
 	_initialized = true;
 	_text_texture_cache.clear();
-	return true;
+	return {};
 }
 
 void LocalizationManager::shutdown()
@@ -283,27 +303,27 @@ std::uint64_t LocalizationManager::font_generation() const noexcept
 	return _font_resolver ? _font_resolver->generation() : 0;
 }
 
-bool LocalizationManager::set_language(std::string language)
+std::expected<void,LocalizationFailure> LocalizationManager::set_language(
+	std::string language)
 {
 	if (!_initialized)
-	{
-		ELYSIA_LOG_WARN("localization","Set language failed: localization manager is not initialized.");
-		return false;
-	}
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Dependency,
+			"Set language failed: localization manager is not initialized.",
+			"localization-manager"));
 
 	if (!is_supported_language(language))
-	{
-		ELYSIA_LOG_WARN("localization","Set language failed: unsupported language: "
-			<< language);
-		return false;
-	}
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Language,
+			"Set language failed: unsupported language: " + language,
+			"language",language));
 
-	if (!ensure_language_loaded(language))
-		return false;
+	if (auto loaded = ensure_language_loaded(language); !loaded)
+		return loaded;
 
 	_current_language = std::move(language);
 	_text_texture_cache.clear();
-	return true;
+	return {};
 }
 
 const std::string& LocalizationManager::current_language() const
@@ -329,64 +349,70 @@ bool LocalizationManager::is_supported_language(const std::string& language) con
 		language) != _manifest.languages.end();
 }
 
-bool LocalizationManager::ensure_language_loaded(const std::string& language)
+std::expected<void,LocalizationFailure> LocalizationManager::ensure_language_loaded(
+	const std::string& language)
 {
 	if (_translation_tables.contains(language))
-		return true;
+		return {};
 
-	TranslationTable table;
-	if (!load_language_table(language, table))
-		return false;
+	auto table = load_language_table(language);
+	if (!table) return std::unexpected(std::move(table.error()));
 
-	_translation_tables.emplace(language, std::move(table));
-	return true;
+	_translation_tables.emplace(language,std::move(*table));
+	return {};
 }
 
-bool LocalizationManager::load_language_table(
-	const std::string& language,
-	TranslationTable& out_table
-) const
+std::expected<LocalizationManager::TranslationTable,LocalizationFailure>
+LocalizationManager::load_language_table(const std::string& language) const
 {
-	const std::filesystem::path locale_directory = resolve_locale_directory(language);
-	if (locale_directory.empty())
-	{
-		ELYSIA_LOG_WARN("localization","Load language table failed: locale directory not found for "
-			<< language);
-		return false;
-	}
+	auto locale_directory = resolve_locale_directory(language);
+	if (!locale_directory) return std::unexpected(std::move(locale_directory.error()));
 
 	TranslationTable merged_table;
-	for (const std::filesystem::path& relative_file_path : _manifest.files)
+	for (const elysia::io::I18nManifestFile& manifest_file : _manifest.files)
 	{
-		const std::filesystem::path full_file_path = locale_directory / relative_file_path;
+		const std::filesystem::path full_file_path =
+			*locale_directory / manifest_file.path;
 		elysia::io::JsonLoader loader;
 		const elysia::io::JsonReadResult open_result = loader.open_file(full_file_path);
-		if (!open_result.success)
-		{
-			ELYSIA_LOG_WARN("localization","Load language table failed: " << open_result.error);
-			return false;
-		}
+		if (!open_result)
+			return std::unexpected(make_localization_failure(
+				LocalizationError::Language,
+				"Load language table failed: " + open_result.error,
+				"language-file",language,full_file_path,
+				manifest_file.origin.config_path,manifest_file.origin.json_pointer));
 
-		if (!flatten_locale_json(loader.root(), "", merged_table))
-		{
-			ELYSIA_LOG_WARN("localization","Load language table failed: unsupported locale JSON shape: "
-				<< full_file_path);
-			return false;
-		}
+		auto flattened = flatten_locale_json(loader.root(),"","",merged_table);
+		if (!flattened)
+			return std::unexpected(make_localization_failure(
+				LocalizationError::Language,
+				"Load language table failed: unsupported locale JSON shape at "
+					+ flattened.error() + ".",
+				"language-file",language,full_file_path,full_file_path,
+				flattened.error()));
 	}
 
-	out_table = std::move(merged_table);
-	return true;
+	return merged_table;
 }
 
-std::filesystem::path LocalizationManager::resolve_locale_directory(
+std::expected<std::filesystem::path,LocalizationFailure>
+LocalizationManager::resolve_locale_directory(
 	const std::string& language
 ) const
 {
 	const std::filesystem::path direct_path = _i18n_root / language;
-	if (std::filesystem::exists(direct_path))
+	std::error_code error;
+	if (std::filesystem::is_directory(direct_path,error))
 		return direct_path;
-	return {};
+	if (error && error != std::errc::no_such_file_or_directory)
+		return std::unexpected(make_localization_failure(
+			LocalizationError::Locale,
+			"Resolve locale directory failed: " + error.message(),
+			"locale-directory",language,direct_path,_manifest_path));
+	return std::unexpected(make_localization_failure(
+		LocalizationError::Locale,
+		"Load language table failed: locale directory not found for " + language,
+		"locale-directory",language,direct_path,_manifest_path));
 }
 
 std::string_view LocalizationManager::lookup_translation(

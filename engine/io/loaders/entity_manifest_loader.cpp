@@ -1,4 +1,3 @@
-#include "../../tools/logger.h"
 #include "entity_manifest_loader.h"
 
 #include "../json/json_loader.h"
@@ -9,17 +8,32 @@
 
 namespace elysia::io
 {
-bool EntityManifestLoader::load(const std::filesystem::path& manifest_path, EntityManifest& manifest) const
+std::expected<EntityManifest,ManifestLoadFailure> EntityManifestLoader::load(
+	const std::filesystem::path& manifest_path) const
 {
-	manifest = EntityManifest{};
-	if (has_duplicate_json_object_key(manifest_path)) return false;
-	JsonLoader loader;
-	if (!loader.open_file(manifest_path) || !loader.root().is_object() || loader.root().size() != 1
-		|| !loader.root().contains("entities") || !loader.root().at("entities").is_array())
+	const auto fail = [&manifest_path](ManifestLoadError code,std::string message,
+		std::string key = {},std::string pointer = {},
+		std::source_location origin = std::source_location::current())
+		-> std::expected<EntityManifest,ManifestLoadFailure>
 	{
-		ELYSIA_LOG_WARN("io", "Load entity manifest failed: entities is missing or invalid: " << manifest_path);
-		return false;
-	}
+		return std::unexpected(make_manifest_load_failure(
+			code,std::move(message),"entity-manifest",std::move(key),manifest_path,
+			manifest_path,std::move(pointer),origin));
+	};
+	if (auto source = validate_manifest_source(manifest_path,"entity-manifest");
+		!source)
+		return std::unexpected(std::move(source.error()));
+	if (has_duplicate_json_object_key(manifest_path))
+		return fail(ManifestLoadError::DuplicateKey,
+			"Load entity manifest failed: duplicate JSON object key.");
+	JsonLoader loader;
+	const auto read = loader.open_file(manifest_path);
+	if (!read) return fail(ManifestLoadError::OpenFailed,
+		"Load entity manifest failed: " + read.error);
+	if (!loader.root().is_object() || loader.root().size() != 1
+		|| !loader.root().contains("entities") || !loader.root().at("entities").is_array())
+		return fail(ManifestLoadError::InvalidSchema,
+			"Load entity manifest failed: entities is missing or invalid.",{},"/entities");
 
 	EntityManifest parsed;
 	std::unordered_map<std::string, elysia::resources::ResourceOrigin> entity_origins;
@@ -28,57 +42,59 @@ bool EntityManifestLoader::load(const std::filesystem::path& manifest_path, Enti
 	{
 		const std::string pointer = "/entities/" + std::to_string(entity_index++);
 		if (!node.is_object() || !node.contains("id") || !node.at("id").is_string())
-		{
-			ELYSIA_LOG_WARN("io", "Load entity manifest failed: entity id is missing or invalid.");
-			return false;
-		}
+			return fail(ManifestLoadError::MissingField,
+				"Load entity manifest failed: entity id is missing or invalid.",{},pointer + "/id");
 		if (node.contains("enabled") && !node.at("enabled").is_boolean())
-		{
-			ELYSIA_LOG_WARN("io", "Load entity manifest failed: enabled is invalid: " << node.at("id"));
-			return false;
-		}
+			return fail(ManifestLoadError::InvalidField,
+				"Load entity manifest failed: enabled is invalid.",
+				node.at("id").get<std::string>(),pointer + "/enabled");
 		for (auto field = node.begin(); field != node.end(); ++field)
 			if (field.key() != "id" && field.key() != "enabled"
 				&& field.key() != "animation_layout")
-			{
-				ELYSIA_LOG_WARN("io", "Load entity manifest failed: unknown field: " << field.key());
-				return false;
-			}
+				return fail(ManifestLoadError::UnknownField,
+					"Load entity manifest failed: unknown field: " + field.key(),{},pointer + "/" + field.key());
 		EntityManifestEntry entry;
 		entry.id = node.at("id").get<std::string>();
 		if (node.contains("animation_layout"))
 		{
 			if (!node.at("animation_layout").is_string())
-			{
-				ELYSIA_LOG_WARN("io", "Load entity manifest failed: animation_layout is invalid: " << entry.id);
-				return false;
-			}
+				return fail(ManifestLoadError::InvalidField,
+					"Load entity manifest failed: animation_layout is invalid.",entry.id,
+					pointer + "/animation_layout");
 			entry.animation_layout = node.at("animation_layout").get<std::string>();
 		}
-		std::string key_error;
-		if (!elysia::resources::ResourceKeyBuilder::validate_component(entry.id, key_error)
-			|| (!entry.animation_layout.empty()
-				&& !elysia::resources::ResourceKeyBuilder::validate_component(entry.animation_layout, key_error)))
-		{
-			ELYSIA_LOG_WARN("io", "Load entity manifest failed: " << key_error);
-			return false;
-		}
+		if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_component(entry.id);
+			!key_result)
+			return fail(ManifestLoadError::InvalidResourceKey,
+				"Load entity manifest failed: " + key_result.error().message,
+				entry.id,pointer + "/id",key_result.error().origin);
+		if (!entry.animation_layout.empty())
+			if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_component(entry.animation_layout);
+				!key_result)
+				return fail(ManifestLoadError::InvalidResourceKey,
+					"Load entity manifest failed: " + key_result.error().message,
+					entry.id,pointer + "/animation_layout",key_result.error().origin);
 		entry.origin = elysia::resources::make_resource_origin(
 			manifest_path, pointer, {}, "entities", entry.id, entry.id);
 		const auto [first, inserted] = entity_origins.emplace(entry.id, entry.origin);
 		if (!inserted)
 		{
-			ELYSIA_LOG_WARN("io", "Load entity manifest failed: duplicate entity id: " << entry.id
-				<< "\n  first:  " << first->second.describe()
-				<< "\n  second: " << entry.origin.describe());
-			return false;
+			const std::string message = "Load entity manifest failed: duplicate entity id: " + entry.id;
+			return std::unexpected(ManifestLoadFailure{
+				ManifestLoadError::DuplicateKey,
+				elysia::core::make_failure_diagnostic(message,{
+					elysia::core::make_failure_diagnostic_entry(
+						"entity",entry.id,manifest_path,first->second.config_path,
+						first->second.json_pointer,"first declaration"),
+					elysia::core::make_failure_diagnostic_entry(
+						"entity",entry.id,manifest_path,entry.origin.config_path,
+						entry.origin.json_pointer,"duplicate declaration")})});
 		}
 		if (node.value("enabled", true) == false)
 			continue;
 		parsed.entities.push_back(std::move(entry));
 	}
 
-	manifest = std::move(parsed);
-	return true;
+	return parsed;
 }
 }

@@ -1,29 +1,50 @@
 #include "../../resources/pipeline/resource_key_builder.h"
-#include "../../tools/logger.h"
 #include "entity_audio_layout_loader.h"
 #include "../json/json_loader.h"
 #include "../json/json_duplicate_key_checker.h"
 
 namespace elysia::io
 {
-bool EntityAudioLayoutLoader::load(const std::filesystem::path& path, EntityAudioLayout& layout) const
+std::expected<EntityAudioLayout,ManifestLoadFailure>
+EntityAudioLayoutLoader::load(const std::filesystem::path& path) const
 {
-	layout = {};
-	if (has_duplicate_json_object_key(path)) return false;
-	JsonLoader loader;
-	if (!loader.open_file(path) || !loader.root().is_object())
+	const auto fail = [&path](ManifestLoadError code,std::string message,
+		std::string key = {},std::string pointer = {},
+		std::source_location origin = std::source_location::current())
+		-> std::expected<EntityAudioLayout,ManifestLoadFailure>
 	{
-		ELYSIA_LOG_WARN("io", "Load entity audio layout failed: " << path);
-		return false;
-	}
-	std::string error;
+		return std::unexpected(make_manifest_load_failure(
+			code,std::move(message),"entity-audio-layout",std::move(key),
+			path,path,std::move(pointer),origin));
+	};
+	if (auto source = validate_manifest_source(path,"entity-audio-layout");
+		!source)
+		return std::unexpected(std::move(source.error()));
+	if (has_duplicate_json_object_key(path))
+		return fail(ManifestLoadError::DuplicateKey,
+			"Load entity audio layout failed: duplicate JSON object key.");
+	JsonLoader loader;
+	const auto read = loader.open_file(path);
+	if (!read) return fail(ManifestLoadError::OpenFailed,
+		"Load entity audio layout failed: " + read.error);
+	if (!loader.root().is_object()) return fail(ManifestLoadError::InvalidDocument,
+		"Load entity audio layout failed: root is not an object.");
+	EntityAudioLayout layout;
 	for (auto item = loader.root().begin(); item != loader.root().end(); ++item)
 	{
-		if (!elysia::resources::ResourceKeyBuilder::validate_component(item.key(), error)
-			|| !item.value().is_string() || item.value().get<std::string>().empty()) return false;
+		const std::string pointer = "/" + item.key();
+		if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_component(item.key());
+			!key_result)
+			return fail(ManifestLoadError::InvalidResourceKey,
+				"Load entity audio layout failed: " + key_result.error().message,
+				item.key(),pointer,key_result.error().origin);
+		if (!item.value().is_string() || item.value().get<std::string>().empty())
+			return fail(ManifestLoadError::InvalidValue,
+				"Load entity audio layout failed: path must be a non-empty string.",
+				item.key(),pointer);
 		layout.sounds.push_back({item.key(), item.value().get<std::string>(),
-			elysia::resources::make_resource_origin(path, "/" + item.key(), {}, "audio", {}, item.key())});
+			elysia::resources::make_resource_origin(path,pointer,{},"audio",{},item.key())});
 	}
-	return true;
+	return layout;
 }
 }

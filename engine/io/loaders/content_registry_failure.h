@@ -4,7 +4,16 @@
 
 namespace elysia::io
 {
-enum class ContentRegistryError { OpenFailed,InvalidDocument,InvalidSchema,MissingReferencedFile };
+enum class ContentRegistryError
+{
+    OpenFailed,
+    FileMissing,
+    InvalidDocument,
+    InvalidSchema,
+    MissingReferencedFile,
+    FilesystemAccess,
+    UnavailableDependency
+};
 struct ContentRegistryFailure
 {
     ContentRegistryError code = ContentRegistryError::InvalidDocument;

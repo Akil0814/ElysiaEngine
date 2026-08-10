@@ -9,6 +9,7 @@
 #include "../config/user_config_service.h"
 #include "../input/input_system.h"
 #include "../io/loaders/asset_config_types.h"
+#include "../localization/localization_failure.h"
 #include "../scene/scene_manager.h"
 #include "../scene/scene_manager_observer.h"
 #include "../scene/runtime/scene_runtime_context.h"
@@ -78,6 +79,7 @@ private:
         const std::string& err_msg,
         std::source_location location = std::source_location::current());
     bool startup_fail(const elysia::bootstrap::BootstrapFailure& failure);
+    bool startup_fail(const elysia::localization::LocalizationFailure& failure);
 
 private:
     double _target_fps = 60.0;

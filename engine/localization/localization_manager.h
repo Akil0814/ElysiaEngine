@@ -2,6 +2,7 @@
 
 #include "localized_text_style.h"
 #include "text_texture_cache.h"
+#include "localization_failure.h"
 #include "../io/loaders/asset_config_types.h"
 #include "../tools/singleton.h"
 
@@ -9,6 +10,7 @@
 #include <SDL_ttf.h>
 
 #include <filesystem>
+#include <expected>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -35,7 +37,7 @@ class LocalizationManager : public elysia::tools::Singleton<LocalizationManager>
 	friend class LocalizationService;
 
 public:
-	bool initialize(
+	[[nodiscard]] std::expected<void,LocalizationFailure> initialize(
 		SDL_Renderer* renderer,
 		const std::filesystem::path& manifest_path,
 		std::string initial_language,
@@ -58,16 +60,19 @@ private:
 	bool measure_raw_text(std::string_view text,const LocalizedTextStyle& style,int& out_width,int& out_height) const;
 	[[nodiscard]] std::uint64_t font_generation() const noexcept;
 
-	bool set_language(std::string language);
+	[[nodiscard]] std::expected<void,LocalizationFailure> set_language(std::string language);
 	const std::string& current_language() const;
 	const std::vector<std::string>& supported_languages() const;
 
 	using TranslationTable = std::unordered_map<std::string, std::string>;
 
 	bool is_supported_language(const std::string& language) const;
-	bool ensure_language_loaded(const std::string& language);
-	bool load_language_table(const std::string& language, TranslationTable& out_table) const;
-	std::filesystem::path resolve_locale_directory(const std::string& language) const;
+	[[nodiscard]] std::expected<void,LocalizationFailure> ensure_language_loaded(
+		const std::string& language);
+	[[nodiscard]] std::expected<TranslationTable,LocalizationFailure> load_language_table(
+		const std::string& language) const;
+	[[nodiscard]] std::expected<std::filesystem::path,LocalizationFailure>
+		resolve_locale_directory(const std::string& language) const;
 	std::string_view lookup_translation(
 		const TranslationTable& table,
 		std::string_view key

@@ -177,43 +177,36 @@ void test_horizontal_strip_manifest_schema()
 	const std::filesystem::path entity_manifest_path = test_root / "legacy_asset_key_entity.json";
 	std::ofstream(entity_manifest_path)
 		<< R"({"entities":[{"id":"Bad","asset_key":"Bad"}]})";
-	elysia::io::EntityManifest entity_manifest;
-	require(!elysia::io::EntityManifestLoader{}.load(entity_manifest_path, entity_manifest),
+	require(!elysia::io::EntityManifestLoader{}.load(entity_manifest_path),
 		"entity manifests must reject the removed asset_key field");
 	const std::filesystem::path removed_horizontal_strip_entity_path = test_root / "horizontal_strip_entity.json";
 	std::ofstream(removed_horizontal_strip_entity_path)
 		<< R"({"entities":[{"id":"Bad","horizontal_strip":true}]})";
-	require(!elysia::io::EntityManifestLoader{}.load(removed_horizontal_strip_entity_path, entity_manifest),
+	require(!elysia::io::EntityManifestLoader{}.load(removed_horizontal_strip_entity_path),
 		"entity manifests must reject the removed horizontal_strip field");
 	const std::filesystem::path missing_id_entity_path = test_root / "missing_id_entity.json";
 	std::ofstream(missing_id_entity_path)
 		<< R"({"entities":[{"enabled":true}]})";
-	require(!elysia::io::EntityManifestLoader{}.load(missing_id_entity_path, entity_manifest),
+	require(!elysia::io::EntityManifestLoader{}.load(missing_id_entity_path),
 		"entity manifests must reject entries without id");
 	const std::filesystem::path unknown_entity_field_path = test_root / "unknown_entity_field.json";
 	std::ofstream(unknown_entity_field_path)
 		<< R"({"entities":[{"id":"Bad","unknown":true}]})";
-	require(!elysia::io::EntityManifestLoader{}.load(unknown_entity_field_path, entity_manifest),
+	require(!elysia::io::EntityManifestLoader{}.load(unknown_entity_field_path),
 		"entity manifests must reject unknown fields");
 	const std::filesystem::path disabled_invalid_entity_path = test_root / "disabled_invalid_entity.json";
 	std::ofstream(disabled_invalid_entity_path)
 		<< R"({"entities":[{"id":"bad-id","animation_layout":1,"enabled":false}]})";
-	require(!elysia::io::EntityManifestLoader{}.load(disabled_invalid_entity_path, entity_manifest),
+	require(!elysia::io::EntityManifestLoader{}.load(disabled_invalid_entity_path),
 		"disabled entities must still validate all configured fields and key components");
 	const std::filesystem::path duplicate_entity_path = test_root / "duplicate_entity.json";
 	std::ofstream(duplicate_entity_path)
 		<< R"({"entities":[{"id":"duplicate"},{"id":"duplicate"}]})";
-	std::ostringstream duplicate_entity_log;
-	std::streambuf* previous_log_buffer = std::clog.rdbuf(duplicate_entity_log.rdbuf());
-	const bool duplicate_entity_loaded =
-		elysia::io::EntityManifestLoader{}.load(duplicate_entity_path, entity_manifest);
-	std::clog.rdbuf(previous_log_buffer);
-	require(!duplicate_entity_loaded
-		&& duplicate_entity_log.str().find("duplicate entity id: duplicate") != std::string::npos
-		&& duplicate_entity_log.str().find("first:") != std::string::npos
-		&& duplicate_entity_log.str().find("#/entities/0") != std::string::npos
-		&& duplicate_entity_log.str().find("second:") != std::string::npos
-		&& duplicate_entity_log.str().find("#/entities/1") != std::string::npos,
+	auto duplicate_entity = elysia::io::EntityManifestLoader{}.load(duplicate_entity_path);
+	require(!duplicate_entity
+		&& duplicate_entity.error().diagnostic.entries.size() == 2
+		&& duplicate_entity.error().diagnostic.entries[0].declaration_pointer == "/entities/0"
+		&& duplicate_entity.error().diagnostic.entries[1].declaration_pointer == "/entities/1",
 		"duplicate entity ids must be rejected with both manifest indices in the diagnostic");
 
 	const std::filesystem::path duplicate_animation_property_path = test_root / "duplicate_animation_property.json";
@@ -249,8 +242,7 @@ void test_horizontal_strip_manifest_schema()
 	const std::filesystem::path duplicate_i18n_property_path = test_root / "duplicate_i18n_property.json";
 	std::ofstream(duplicate_i18n_property_path)
 		<< R"({"default_language":"en","default_language":"zh-Hans","languages":["en"],"file":["base.json"]})";
-	elysia::io::I18nManifest i18n_manifest;
-	require(!elysia::io::I18nManifestLoader{}.load(duplicate_i18n_property_path, i18n_manifest),
+	require(!elysia::io::I18nManifestLoader{}.load(duplicate_i18n_property_path),
 		"i18n manifests must reject duplicate JSON object properties before parsing");
 
 	std::filesystem::remove_all(test_root);

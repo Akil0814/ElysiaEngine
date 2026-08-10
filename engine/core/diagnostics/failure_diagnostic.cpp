@@ -26,12 +26,13 @@ std::string display_path(
     return path.generic_string();
 }
 
-std::string_view source_file_name(const std::source_location& origin)
+}
+
+std::string_view source_file_basename(const std::source_location& origin) noexcept
 {
     std::string_view file = origin.file_name() ? origin.file_name() : "";
     const auto slash = file.find_last_of("/\\");
     return slash == std::string_view::npos ? file : file.substr(slash + 1);
-}
 }
 
 std::string format_failure_diagnostic(
@@ -59,7 +60,7 @@ std::string format_failure_diagnostic(
         if (!declaration.empty()) output << " declared_at=" << declaration;
         if (!entry.declaration_pointer.empty()) output << '#' << entry.declaration_pointer;
         if (!entry.reason.empty()) output << " reason=" << entry.reason;
-        output << " source=" << source_file_name(entry.origin) << ':' << entry.origin.line();
+        output << " source=" << source_file_basename(entry.origin) << ':' << entry.origin.line();
     }
     return output.str();
 }

@@ -74,10 +74,10 @@ std::expected<AnimationManifest,ManifestLoadFailure> AnimationManifestLoader::lo
         if (entry.key.empty() || entry.source_path.empty() || entry.fps <= 0.0)
             return fail(ManifestLoadError::InvalidValue,
                 "Load animation manifest failed: invalid animation values.",entry.key);
-        std::string key_error;
-        if (!elysia::resources::ResourceKeyBuilder::validate_key(entry.key,key_error))
+        if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_key(entry.key);
+            !key_result)
             return fail(ManifestLoadError::InvalidResourceKey,
-                "Load animation manifest failed: " + key_error,entry.key);
+                "Load animation manifest failed: " + key_result.error().message,entry.key);
         if ((entry.horizontal_strip && has_prefix)
             || (!entry.horizontal_strip && (!has_prefix || entry.frame_prefix.empty())))
             return fail(ManifestLoadError::InvalidField,

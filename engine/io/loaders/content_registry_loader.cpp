@@ -52,9 +52,15 @@ std::expected<std::filesystem::path,ContentRegistryFailure> read_required_path(
     const auto path = paths.to_asset_path(object.at(key).get<std::string>());
     std::error_code error;
     if (!std::filesystem::is_regular_file(path,error))
+    {
+        if (error && error != std::errc::no_such_file_or_directory)
+            return std::unexpected(failure(ContentRegistryError::FilesystemAccess,
+                "Content registry referenced file access failed: " + error.message(),
+                registry,pointer,path));
         return std::unexpected(failure(ContentRegistryError::MissingReferencedFile,
             "Content registry references a required file that does not exist.",
             registry,pointer,path));
+    }
     return path;
 }
 }
@@ -62,11 +68,22 @@ std::expected<std::filesystem::path,ContentRegistryFailure> read_required_path(
 std::expected<ContentRegistry,ContentRegistryFailure> ContentRegistryLoader::load(
     const std::filesystem::path& registry_path) const
 {
+    auto* paths = PathManager::instance();
+    if (!paths || !paths->is_initialized())
+        return std::unexpected(failure(ContentRegistryError::UnavailableDependency,
+            "Content registry loading requires an initialized path manager.",
+            registry_path));
     std::error_code error;
     if (!std::filesystem::is_regular_file(registry_path,error))
-        return std::unexpected(failure(ContentRegistryError::OpenFailed,
+    {
+        if (error && error != std::errc::no_such_file_or_directory)
+            return std::unexpected(failure(ContentRegistryError::FilesystemAccess,
+                "Content registry file access failed: " + error.message(),
+                registry_path,{},registry_path));
+        return std::unexpected(failure(ContentRegistryError::FileMissing,
             "Content registry file does not exist or is not a regular file.",
             registry_path,{},registry_path));
+    }
     if (has_duplicate_json_object_key(registry_path))
         return std::unexpected(failure(ContentRegistryError::InvalidDocument,
             "Content registry contains a duplicate JSON object key.",registry_path));
@@ -115,7 +132,6 @@ std::expected<ContentRegistry,ContentRegistryFailure> ContentRegistryLoader::loa
                 "Content registry contains an unknown required key: " + item.key(),
                 registry_path,"/manifests/required/" + item.key()));
 
-    auto* paths = PathManager::instance();
     ContentRegistry output;
     auto app = read_required_path(bootstrap,"bootstrap","app_config",*paths,registry_path);
     if (!app) return std::unexpected(std::move(app.error()));
@@ -150,9 +166,16 @@ std::expected<ContentRegistry,ContentRegistryFailure> ContentRegistryLoader::loa
             return std::unexpected(failure(ContentRegistryError::InvalidSchema,
                 "Additional module manifest is not a path string: " + item.key(),registry_path,pointer));
         const auto path = paths->to_asset_path(item.value().get<std::string>());
-        if (!std::filesystem::is_regular_file(path))
+        error.clear();
+        if (!std::filesystem::is_regular_file(path,error))
+        {
+            if (error && error != std::errc::no_such_file_or_directory)
+                return std::unexpected(failure(ContentRegistryError::FilesystemAccess,
+                    "Additional module manifest access failed: " + error.message(),
+                    registry_path,pointer,path));
             return std::unexpected(failure(ContentRegistryError::MissingReferencedFile,
                 "Additional module manifest does not exist: " + item.key(),registry_path,pointer,path));
+        }
         output.additional_module_manifests.emplace(item.key(),path);
     }
     return output;

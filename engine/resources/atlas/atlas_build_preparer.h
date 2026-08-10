@@ -16,6 +16,7 @@ struct AtlasFramePrepareTask
 	size_t frame_index = 0;
 	size_t expected_frame_count = 0;
 	AtlasSourceType source_type = AtlasSourceType::FrameDirectory;
+	ResourceOrigin origin;
 };
 
 struct AtlasFramePreparedResult

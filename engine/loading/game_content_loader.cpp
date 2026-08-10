@@ -29,6 +29,24 @@ constexpr std::size_t kAudioLoadBudgetPerUpdate = 8;
 ContentLoadFailure from_resource_failure(
 	ContentLoadError code,elysia::resources::ResourceFailure failure)
 {
+	if (const auto* paths = elysia::io::PathManager::instance();
+		paths && paths->is_initialized())
+	{
+		for (auto& entry : failure.diagnostic.entries)
+		{
+			for (auto* path : {&entry.expected_path,&entry.declaration_path})
+			{
+				if (!path->is_absolute()) continue;
+				std::error_code error;
+				auto relative = std::filesystem::relative(*path,paths->root(),error);
+				if (!error && !relative.empty() && relative != ".."
+					&& !relative.generic_string().starts_with("../"))
+					*path = relative.lexically_normal();
+				else
+					*path = path->filename();
+			}
+		}
+	}
 	return make_content_load_failure(code,std::move(failure.diagnostic));
 }
 
@@ -361,8 +379,10 @@ void GameContentLoader::worker_loop()
 
 			elysia::resources::SurfaceLoadRequest surface_request;
 			surface_request._asset_key = texture_request.key;
+			surface_request._subject_type = "texture";
 			surface_request._frame_path = texture_request.file_path;
 			surface_request._frame_index = 0;
+			surface_request._origin = texture_request.origin;
 
 			auto surface_result =
 				surface_loader.load_surface(surface_request);
@@ -505,9 +525,12 @@ bool GameContentLoader::commit_texture_result(const elysia::resources::SurfaceLo
 {
 	if (!surface_result._surface)
 	{
-		fail(make_content_load_failure(ContentLoadError::Texture,
-			"GameContentLoader texture commit failed: prepared surface is invalid.",
-			surface_result._asset_key,surface_result._frame_path));
+		fail(from_resource_failure(ContentLoadError::Texture,
+			elysia::resources::make_resource_failure(
+				elysia::resources::ResourceError::InvalidRequest,
+				"GameContentLoader texture commit failed: prepared surface is invalid.",
+				"texture",surface_result._asset_key,surface_result._frame_path,
+				surface_result._origin)));
 		return false;
 	}
 
@@ -524,7 +547,8 @@ bool GameContentLoader::commit_texture_result(const elysia::resources::SurfaceLo
 	elysia::resources::ResourceManager* resource_manager = elysia::resources::ResourceManager::instance();
 	auto store_result = resource_manager->store_texture(
 		surface_result._asset_key,
-		std::move(texture_result->_texture));
+		std::move(texture_result->_texture),surface_result._origin,
+		surface_result._frame_path);
 	if (!store_result)
 	{
 		fail(from_resource_failure(ContentLoadError::Texture,
@@ -543,9 +567,12 @@ bool GameContentLoader::commit_atlas_frame_result(
 {
 	if (!prepared_result.surface_result._surface)
 	{
-		fail(make_content_load_failure(ContentLoadError::Atlas,
-			"GameContentLoader atlas frame commit failed: prepared surface is invalid.",
-			prepared_result.task.atlas_key,prepared_result.task.frame_path));
+		fail(from_resource_failure(ContentLoadError::Atlas,
+			elysia::resources::make_resource_failure(
+				elysia::resources::ResourceError::InvalidRequest,
+				"GameContentLoader atlas frame commit failed: prepared surface is invalid.",
+				"atlas-frame",prepared_result.task.atlas_key,
+				prepared_result.task.frame_path,prepared_result.task.origin)));
 		return false;
 	}
 
@@ -601,7 +628,7 @@ bool GameContentLoader::load_fonts()
 	elysia::resources::ResourceManager* resource_manager = elysia::resources::ResourceManager::instance();
 	for (const elysia::resources::FontLoadRequest& request : _load_plan.font_requests())
 	{
-		auto result = resource_manager->load_font(request.key, request.file_path, request.point_size);
+		auto result = resource_manager->load_font(request);
 		if (!result)
 		{
 			fail(from_resource_failure(ContentLoadError::Font,std::move(result.error())));

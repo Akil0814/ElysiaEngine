@@ -2,11 +2,13 @@
 
 #include "localized_text_style.h"
 #include "text_texture_cache.h"
+#include "localization_failure.h"
 #include "../tools/singleton.h"
 
 #include <SDL.h>
 
 #include <cstdint>
+#include <expected>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -37,7 +39,7 @@ public:
 		int& out_height) const;
 
 	[[nodiscard]] std::uint64_t font_generation() const noexcept;
-	[[nodiscard]] bool set_language(std::string language);
+	[[nodiscard]] std::expected<void,LocalizationFailure> set_language(std::string language);
 	[[nodiscard]] const std::string& current_language() const;
 	[[nodiscard]] const std::vector<std::string>& supported_languages() const;
 

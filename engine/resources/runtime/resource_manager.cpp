@@ -16,7 +16,7 @@ elysia::resources::ResourceManager::begin_atlas_build(const AtlasBuildRequest& r
 		return {};
 	return std::unexpected(make_resource_failure(
 		ResourceError::InvalidBuildState,"Begin atlas build failed.",
-		request.atlas_key,request.source_path));
+		"atlas",request.atlas_key,request.source_path,request.origin));
 }
 
 std::expected<void,elysia::resources::ResourceFailure>
@@ -41,15 +41,22 @@ elysia::resources::ResourceManager::commit_prepared_atlas_frame(
 		return {};
 	return std::unexpected(make_resource_failure(
 		ResourceError::InvalidBuildState,"Commit prepared atlas frame failed.",
-		result.task.atlas_key,result.task.frame_path));
+		"atlas-frame",result.task.atlas_key,result.task.frame_path,result.task.origin));
 }
 
 std::expected<void,elysia::resources::ResourceFailure>
 elysia::resources::ResourceManager::store_texture(
 	const std::string& key,
-	TexturePtr texture)
+	TexturePtr texture,
+	const ResourceOrigin& origin,
+	const std::filesystem::path& path)
 {
-	return _texture_manager.store_texture(key,std::move(texture));
+	auto result = _texture_manager.store_texture(key,std::move(texture));
+	if (result || (origin.config_path.empty() && origin.json_pointer.empty()))
+		return result;
+	return std::unexpected(make_resource_failure(
+		result.error().code,result.error().diagnostic.message,"texture",key,path,
+		origin,result.error().diagnostic.origin));
 }
 
 std::expected<void,elysia::resources::ResourceFailure>
@@ -63,6 +70,12 @@ elysia::resources::ResourceManager::load_font(
 }
 
 std::expected<void,elysia::resources::ResourceFailure>
+elysia::resources::ResourceManager::load_font(const FontLoadRequest& request)
+{
+	return _font_manager.load_font(request);
+}
+
+std::expected<void,elysia::resources::ResourceFailure>
 elysia::resources::ResourceManager::load_sounds(
 	const std::vector<SoundLoadRequest>& requests)
 {
@@ -72,7 +85,7 @@ elysia::resources::ResourceManager::load_sounds(
 std::expected<void,elysia::resources::ResourceFailure>
 elysia::resources::ResourceManager::load_sound(const SoundLoadRequest& request)
 {
-	return _audio_manager.load_sound(request.key,request.file_path);
+	return _audio_manager.load_sound(request);
 }
 
 std::expected<void,elysia::resources::ResourceFailure>

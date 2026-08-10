@@ -40,12 +40,6 @@ struct BootstrapFailure
         std::source_location origin = std::source_location::current())
         : code(failure_code),diagnostic(elysia::core::make_failure_diagnostic(
             std::move(message),{},{},origin)) {}
-    BootstrapFailure(
-        std::string message,
-        std::source_location origin = std::source_location::current())
-        : code(Code::Preload),diagnostic(elysia::core::make_failure_diagnostic(
-            std::move(message),{},{},origin)) {}
-
     [[nodiscard]] std::string_view error_code() const noexcept
     {
         switch (code)

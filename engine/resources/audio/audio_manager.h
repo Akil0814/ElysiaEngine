@@ -26,6 +26,8 @@ public:
 		const std::string& key,
 		const std::filesystem::path& file_path
 	);
+	[[nodiscard]] std::expected<void,ResourceFailure> load_sound(
+		const SoundLoadRequest& request);
 	[[nodiscard]] std::expected<void,ResourceFailure> load_sounds(
 		const std::vector<SoundLoadRequest>& requests);
 	[[nodiscard]] std::expected<void,ResourceFailure> store_sound(

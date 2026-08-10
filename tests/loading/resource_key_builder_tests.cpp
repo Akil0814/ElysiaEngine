@@ -3,6 +3,7 @@
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -29,10 +30,8 @@ void test_component_validation()
 	};
 	for (const std::string& component : valid_components)
 	{
-		std::string error;
-		require(ResourceKeyBuilder::validate_component(component, error),
+		require(ResourceKeyBuilder::validate_component(component),
 			"ASCII letters, digits, and underscores must be valid key components");
-		require(error.empty(), "valid component validation must not produce an error");
 	}
 
 	const std::vector<std::string> invalid_components{
@@ -40,10 +39,10 @@ void test_component_validation()
 	};
 	for (const std::string& component : invalid_components)
 	{
-		std::string error;
-		require(!ResourceKeyBuilder::validate_component(component, error),
+		auto result = ResourceKeyBuilder::validate_component(component);
+		require(!result,
 			"invalid key component must be rejected");
-		require(!error.empty(), "invalid component validation must explain the failure");
+		require(!result.error().message.empty(), "invalid component validation must explain the failure");
 	}
 }
 
@@ -55,10 +54,8 @@ void test_full_key_validation()
 	};
 	for (const std::string& key : valid_keys)
 	{
-		std::string error;
-		require(ResourceKeyBuilder::validate_key(key, error),
+		require(ResourceKeyBuilder::validate_key(key),
 			"a dot-separated sequence of valid components must be a valid key");
-		require(error.empty(), "valid full-key validation must not produce an error");
 	}
 
 	const std::vector<std::string> invalid_keys{
@@ -67,55 +64,49 @@ void test_full_key_validation()
 	};
 	for (const std::string& key : invalid_keys)
 	{
-		std::string error;
-		require(!ResourceKeyBuilder::validate_key(key, error),
+		auto result = ResourceKeyBuilder::validate_key(key);
+		require(!result,
 			"empty, malformed, or non-ASCII full keys must be rejected");
-		require(!error.empty(), "invalid full-key validation must explain the failure");
+		require(!result.error().message.empty(), "invalid full-key validation must explain the failure");
 	}
 }
 
 void test_namespace_and_component_building()
 {
-	std::string key;
-	std::string error;
-	require(ResourceKeyBuilder::build("ExampleEntity", "", {"idle"}, std::nullopt, key, error),
+	auto key = ResourceKeyBuilder::build("ExampleEntity","",{"idle"},std::nullopt);
+	require(key,
 		"an empty namespace must be accepted");
-	require_equal(key, "ExampleEntity.idle", "empty namespace must not create an empty component");
+	require_equal(*key,"ExampleEntity.idle","empty namespace must not create an empty component");
 
-	key.clear();
-	error.clear();
-	require(ResourceKeyBuilder::build(
-		"ExampleEntity", "effect", {"attack", "normal"}, std::nullopt, key, error),
+	key = ResourceKeyBuilder::build(
+		"ExampleEntity","effect",{"attack","normal"},std::nullopt);
+	require(key,
 		"a non-empty valid namespace must be accepted");
-	require_equal(key, "ExampleEntity.effect.attack.normal",
+	require_equal(*key,"ExampleEntity.effect.attack.normal",
 		"namespace and logical components must be joined in the documented order");
 
-	std::string appended;
-	error.clear();
-	require(ResourceKeyBuilder::append_component("ExampleEntity.effect", "slash_01", appended, error),
+	auto appended = ResourceKeyBuilder::append_component("ExampleEntity.effect","slash_01");
+	require(appended,
 		"a valid component must append to a valid base key");
-	require_equal(appended, "ExampleEntity.effect.slash_01",
+	require_equal(*appended,"ExampleEntity.effect.slash_01",
 		"append_component must insert exactly one separator");
 
 	for (const auto& invalid_build : std::vector<std::pair<std::string, std::string>>{
 		{"bad-id", ""}, {"hero", "bad namespace"}, {"hero", "\xE6\x95\x88\xE6\x9E\x9C"}})
 	{
-		key.clear();
-		error.clear();
-		require(!ResourceKeyBuilder::build(
-			invalid_build.first, invalid_build.second, {"idle"}, std::nullopt, key, error),
+		auto result = ResourceKeyBuilder::build(
+			invalid_build.first,invalid_build.second,{"idle"},std::nullopt);
+		require(!result,
 			"invalid entity and namespace components must be rejected by build");
-		require(!error.empty(), "invalid build input must produce an error");
+		require(!result.error().message.empty(), "invalid build input must produce an error");
 	}
 
-	key.clear();
-	error.clear();
-	require(!ResourceKeyBuilder::build("hero", "", {"bad-name"}, std::nullopt, key, error),
+	require(!ResourceKeyBuilder::build("hero","",{"bad-name"},std::nullopt),
 		"invalid logical components must be rejected by build");
 
-	key.clear();
-	error.clear();
-	require(!ResourceKeyBuilder::build("hero", "", {}, std::nullopt, key, error),
+	auto missing_component = ResourceKeyBuilder::build("hero","",{},std::nullopt);
+	require(!missing_component
+		&& missing_component.error().code == elysia::core::KeyValidationError::MissingLogicalComponent,
 		"build must require at least one logical component");
 }
 
@@ -136,12 +127,11 @@ void test_segment_key_and_filesystem_formatting()
 
 	for (const SegmentCase& test_case : cases)
 	{
-		std::string key;
-		std::string error;
-		require(ResourceKeyBuilder::build(
-			"entity", "", {"attack"}, test_case.index, key, error),
+		auto key = ResourceKeyBuilder::build(
+			"entity","",{"attack"},test_case.index);
+		require(key,
 			"segments in the inclusive 0-99 range must build successfully");
-		require_equal(key, test_case.resource_key,
+		require_equal(*key,test_case.resource_key,
 			"runtime resource-key segments must use unpadded decimal notation");
 
 		std::string formatted;
@@ -151,11 +141,12 @@ void test_segment_key_and_filesystem_formatting()
 			"filesystem segments must use exactly two decimal digits");
 	}
 
-	std::string key;
-	std::string error;
-	require(!ResourceKeyBuilder::build("entity", "", {"attack"}, 100, key, error),
-		"runtime segment index 100 must be rejected");
-	require(!error.empty(), "out-of-range runtime segment must produce an error");
+	auto invalid_segment = ResourceKeyBuilder::build("entity","",{"attack"},100);
+	require(!invalid_segment
+		&& invalid_segment.error().code == elysia::core::KeyValidationError::SegmentOutOfRange
+		&& std::filesystem::path(invalid_segment.error().origin.file_name()).filename()
+			== "resource_key_builder.cpp",
+		"runtime segment failures must retain the concrete error-production location");
 
 	std::string formatted;
 	require(!elysia::resources::format_filesystem_segment(100, formatted),

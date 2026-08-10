@@ -41,10 +41,11 @@ std::expected<ConfigManifest,ConfigLoadFailure> ConfigManifestLoader::load(
     {
         const std::string pointer = "/configs/" + config_pointer_component(key_namespace);
         ConfigOrigin origin{source,pointer,key_namespace,key_namespace};
-        std::string key_error;
-        if (!elysia::core::DottedKeyValidator::validate_key(key_namespace,key_error))
+        if (auto key_result = elysia::core::DottedKeyValidator::validate_key(key_namespace);
+            !key_result)
             return std::unexpected(make_config_load_failure(ConfigLoadError::InvalidKey,
-                "Invalid config namespace '" + key_namespace + "': " + key_error,origin));
+                "Invalid config namespace '" + key_namespace + "': "
+                    + key_result.error().message,origin));
         if (!path_value.is_string() || path_value.get<std::string>().empty())
             return std::unexpected(make_config_load_failure(ConfigLoadError::InvalidSchema,
                 "Config document path must be a non-empty string: " + key_namespace,origin));

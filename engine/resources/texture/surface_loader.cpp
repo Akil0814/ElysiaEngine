@@ -17,24 +17,27 @@ SurfaceLoader::load_surface(const SurfaceLoadRequest& request) const
 {
 	SurfaceLoadResult result;
 	result._asset_key = request._asset_key;
+	result._subject_type = request._subject_type;
 	result._frame_path = request._frame_path;
 	result._frame_index = request._frame_index;
+	result._origin = request._origin;
 
 	if (request._asset_key.empty())
 		return std::unexpected(make_resource_failure(
-			ResourceError::InvalidRequest,"Load surface failed: asset key is empty."));
+			ResourceError::InvalidRequest,"Load surface failed: asset key is empty.",
+			request._subject_type,{},request._frame_path,request._origin));
 
 	if (request._frame_path.empty())
 		return std::unexpected(make_resource_failure(
 			ResourceError::InvalidRequest,"Load surface failed: frame path is empty.",
-			request._asset_key));
+			request._subject_type,request._asset_key,{},request._origin));
 
 	SDL_Surface* surface = IMG_Load(request._frame_path.string().c_str());
 	if (!surface)
 		return std::unexpected(make_resource_failure(
 			ResourceError::DecodeFailed,
 			std::string("Load surface failed: ") + IMG_GetError(),
-			request._asset_key,request._frame_path));
+			request._subject_type,request._asset_key,request._frame_path,request._origin));
 
 	result._surface.reset(surface);
 	return result;

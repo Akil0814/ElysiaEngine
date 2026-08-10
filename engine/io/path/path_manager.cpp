@@ -70,14 +70,17 @@ std::expected<void,PathFailure> PathManager::ensure_runtime_dirs() const
     {
         std::error_code error;
         std::filesystem::create_directories(directory,error);
-        if (error || !std::filesystem::is_directory(directory))
+        std::error_code status_error;
+        const bool directory_exists = std::filesystem::is_directory(directory,status_error);
+        if (error || status_error || !directory_exists)
         {
             return std::unexpected(make_path_failure(
                 PathError::RuntimeDirectory,
                 "Path manager runtime directory setup failed.",
                 {elysia::core::make_failure_diagnostic_entry(
                     "runtime-directory",{},directory,{},{},
-                    error ? error.message() : "path is not a directory")}));
+                    error ? error.message()
+                        : status_error ? status_error.message() : "path is not a directory")}));
         }
     }
     return {};

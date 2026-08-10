@@ -39,7 +39,12 @@ std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::ass
     ResourceLoadPlan plan;
     elysia::resources::ResourceRequestBuilder builder;
     std::vector<elysia::core::FailureDiagnosticEntry> missing;
-    const auto textures_root = elysia::io::PathManager::instance()->textures();
+    const auto* paths = elysia::io::PathManager::instance();
+    if (!paths || !paths->is_initialized())
+        return std::unexpected(make_content_load_failure(
+            ContentLoadError::Plan,
+            "Resource request assembly failed: path manager is not initialized."));
+    const auto textures_root = paths->textures();
     const auto consume = [&missing](BuildResult result)
     {
         return consume_build_result(std::move(result),missing);
@@ -76,10 +81,10 @@ std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::ass
                 return std::unexpected(std::move(*failure));
 
     if (auto failure = consume(builder.append_font_requests(
-            config.font_manifest,project_font_point_sizes,plan.font_requests())))
+            config.font_manifest,paths->fonts(),project_font_point_sizes,plan.font_requests())))
         return std::unexpected(std::move(*failure));
     if (auto failure = consume(builder.append_audio_requests(
-            config.audio_manifest,plan.sound_requests(),plan.music_requests())))
+            config.audio_manifest,paths->audio(),plan.sound_requests(),plan.music_requests())))
         return std::unexpected(std::move(*failure));
     for (const auto& [name,module] : config.additional_modules)
         for (const auto& entry : module.audio_entries)
@@ -90,7 +95,7 @@ std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::ass
     auto validation = ResourceLoadPlanValidator{}.validate(plan);
     if (!validation)
         return std::unexpected(make_content_load_failure(
-            ContentLoadError::Plan,validation.error().describe()));
+            ContentLoadError::Plan,validation.error().diagnostic()));
 
     auto preflight = ResourceLoadPlanPreflight{}.validate(plan,std::move(missing));
     if (!preflight)

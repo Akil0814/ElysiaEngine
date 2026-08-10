@@ -1,29 +1,50 @@
 #include "../../resources/pipeline/resource_key_builder.h"
-#include "../../tools/logger.h"
 #include "entity_texture_layout_loader.h"
 #include "../json/json_loader.h"
 #include "../json/json_duplicate_key_checker.h"
 
 namespace elysia::io
 {
-bool EntityTextureLayoutLoader::load(const std::filesystem::path& path, EntityTextureLayout& layout) const
+std::expected<EntityTextureLayout,ManifestLoadFailure>
+EntityTextureLayoutLoader::load(const std::filesystem::path& path) const
 {
-	layout = {};
-	if (has_duplicate_json_object_key(path)) return false;
-	JsonLoader loader;
-	if (!loader.open_file(path) || !loader.root().is_object())
+	const auto fail = [&path](ManifestLoadError code,std::string message,
+		std::string key = {},std::string pointer = {},
+		std::source_location origin = std::source_location::current())
+		-> std::expected<EntityTextureLayout,ManifestLoadFailure>
 	{
-		ELYSIA_LOG_WARN("io", "Load entity texture layout failed: " << path);
-		return false;
-	}
-	std::string error;
+		return std::unexpected(make_manifest_load_failure(
+			code,std::move(message),"entity-texture-layout",std::move(key),
+			path,path,std::move(pointer),origin));
+	};
+	if (auto source = validate_manifest_source(path,"entity-texture-layout");
+		!source)
+		return std::unexpected(std::move(source.error()));
+	if (has_duplicate_json_object_key(path))
+		return fail(ManifestLoadError::DuplicateKey,
+			"Load entity texture layout failed: duplicate JSON object key.");
+	JsonLoader loader;
+	const auto read = loader.open_file(path);
+	if (!read) return fail(ManifestLoadError::OpenFailed,
+		"Load entity texture layout failed: " + read.error);
+	if (!loader.root().is_object()) return fail(ManifestLoadError::InvalidDocument,
+		"Load entity texture layout failed: root is not an object.");
+	EntityTextureLayout layout;
 	for (auto item = loader.root().begin(); item != loader.root().end(); ++item)
 	{
-		if (!elysia::resources::ResourceKeyBuilder::validate_component(item.key(), error)
-			|| !item.value().is_string() || item.value().get<std::string>().empty()) return false;
+		const std::string pointer = "/" + item.key();
+		if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_component(item.key());
+			!key_result)
+			return fail(ManifestLoadError::InvalidResourceKey,
+				"Load entity texture layout failed: " + key_result.error().message,
+				item.key(),pointer,key_result.error().origin);
+		if (!item.value().is_string() || item.value().get<std::string>().empty())
+			return fail(ManifestLoadError::InvalidValue,
+				"Load entity texture layout failed: path must be a non-empty string.",
+				item.key(),pointer);
 		layout.textures.push_back({item.key(), item.value().get<std::string>(),
-			elysia::resources::make_resource_origin(path, "/" + item.key(), {}, "textures", {}, item.key())});
+			elysia::resources::make_resource_origin(path,pointer,{},"textures",{},item.key())});
 	}
-	return true;
+	return layout;
 }
 }

@@ -3,6 +3,7 @@
 #include "bootstrap_types.h"
 #include "bootstrap_texture_cache.h"
 #include "../io/json/json_loader.h"
+#include "../resources/resource_origin.h"
 
 #include <SDL.h>
 
@@ -29,12 +30,14 @@ private:
     {
         std::string key;
         std::filesystem::path file;
+        elysia::resources::ResourceOrigin origin;
     };
 
     [[nodiscard]] std::expected<void,BootstrapFailure> load_manifest();
     [[nodiscard]] std::expected<void,BootstrapFailure> load_textures(SDL_Renderer* renderer,BootstrapTextureCache& destination);
     [[nodiscard]] std::expected<void,BootstrapFailure> load_texture(SDL_Renderer* renderer,std::string_view key,
-        const std::filesystem::path& file,BootstrapTextureCache& destination);
+        const std::filesystem::path& file,const elysia::resources::ResourceOrigin& origin,
+        BootstrapTextureCache& destination);
 
 private:
     elysia::io::JsonLoader _manifest_loader;

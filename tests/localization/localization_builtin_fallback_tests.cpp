@@ -18,6 +18,8 @@
 
 #include <filesystem>
 #include <array>
+#include <iostream>
+#include <sstream>
 
 namespace
 {
@@ -81,6 +83,44 @@ int main()
     elysia::typography::FontResolver font_resolver;
     require(!localization_manager->is_initialized(),
         "LocalizationManager must begin uninitialized");
+	const auto missing_manifest = localization_manager->initialize(
+		fixture.renderer(),source_root / "assets/configs/manifests/missing_i18n.json",
+		"en",&font_resolver,&cache);
+	require(!missing_manifest
+		&& missing_manifest.error().error_code() == "LOCALIZATION-MANIFEST"
+		&& !missing_manifest.error().diagnostic.entries.empty()
+		&& missing_manifest.error().diagnostic.entries.front().expected_path.filename()
+			== "missing_i18n.json"
+		&& !localization_manager->is_initialized(),
+		"unhandled manifest failures must stay typed and must not publish initialized state");
+
+	const auto fallback_root = std::filesystem::temp_directory_path()
+		/ "elysia_localization_fallback_warning_tests";
+	std::filesystem::remove_all(fallback_root);
+	std::filesystem::create_directories(fallback_root);
+	std::filesystem::copy(source_root / "assets",fallback_root / "assets",
+		std::filesystem::copy_options::recursive);
+	std::filesystem::remove_all(fallback_root / "assets/i18n/zh-Hans");
+	require(path_manager->initialize(fallback_root),
+		"localization fallback warning test must initialize isolated project paths");
+	std::ostringstream captured_warning;
+	std::streambuf* previous_log_buffer = std::clog.rdbuf(captured_warning.rdbuf());
+	const auto fallback_result = localization_manager->initialize(
+		fixture.renderer(),fallback_root / "assets/configs/manifests/i18n_manifest.json",
+		"zh-Hans",&font_resolver,&cache);
+	std::clog.rdbuf(previous_log_buffer);
+	require(fallback_result && localization->current_language() == "en",
+		"a requested locale failure must recover to the loaded default language");
+	const std::string warning_text = captured_warning.str();
+	const auto first_warning = warning_text.find("LOCALIZATION-LOCALE");
+	require(first_warning != std::string::npos
+		&& warning_text.find("LOCALIZATION-LOCALE",first_warning + 1) == std::string::npos,
+		"a recovered requested-language failure must emit exactly one structured warning");
+	localization_manager->shutdown();
+	require(path_manager->initialize(source_root),
+		"localization fallback warning test must restore source project paths");
+	std::filesystem::remove_all(fallback_root);
+
     require(localization_manager->initialize(
         fixture.renderer(),
         source_root / "assets" / "configs" / "manifests" / "i18n_manifest.json",
@@ -119,8 +159,11 @@ int main()
     };
     for (const std::string& legacy_locale : legacy_locales)
     {
-        require(!localization->set_language(legacy_locale),
-            "LocalizationService must reject every legacy locale spelling");
+		auto language_result = localization->set_language(legacy_locale);
+        require(!language_result
+			&& language_result.error().error_code() == "LOCALIZATION-LANGUAGE"
+			&& localization->current_language() == "en",
+            "LocalizationService must return typed errors and retain the current language");
     }
 
     const elysia::localization::LocalizedTextStyle style{

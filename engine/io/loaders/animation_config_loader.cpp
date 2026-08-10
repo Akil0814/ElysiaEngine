@@ -1,29 +1,36 @@
 #include "../../resources/pipeline/filesystem_segment_formatter.h"
 #include "../../resources/pipeline/resource_key_builder.h"
-#include "../../tools/logger.h"
 #include "animation_config_loader.h"
 #include "../json/json_duplicate_key_checker.h"
 
 #include <string>
+#include <optional>
 #include <utility>
 
 namespace elysia::io
 {
 namespace
 {
-bool has_only_fields(const json& node, std::initializer_list<const char*> fields, const std::string& label)
+std::optional<std::string> unknown_field(
+	const json& node,std::initializer_list<const char*> fields)
 {
 	for (auto item = node.begin(); item != node.end(); ++item)
 	{
 		bool known = false;
 		for (const char* field : fields) known = known || item.key() == field;
-		if (!known)
-		{
-			ELYSIA_LOG_WARN("io", "Load animation config failed: unknown " << label << " field: " << item.key());
-			return false;
-		}
+		if (!known) return item.key();
 	}
-	return true;
+	return std::nullopt;
+}
+
+ManifestLoadFailure animation_failure(
+	const std::filesystem::path& path,ManifestLoadError code,std::string message,
+	std::string key = {},std::string pointer = {},
+	std::source_location origin = std::source_location::current())
+{
+	return make_manifest_load_failure(
+		code,std::move(message),"animation-config",std::move(key),path,path,
+		std::move(pointer),origin);
 }
 
 std::string escape_json_pointer(std::string value)
@@ -36,79 +43,114 @@ std::string escape_json_pointer(std::string value)
 }
 }
 
-bool AnimationConfigLoader::load(
+std::expected<AnimationConfig,ManifestLoadFailure> AnimationConfigLoader::load(
 	const std::filesystem::path& animation_config_path,
-	const AnimationLayout& layout,
-	AnimationConfig& config) const
+	const AnimationLayout& layout) const
 {
-	config = {};
-	if (has_duplicate_json_object_key(animation_config_path)) return false;
+	if (auto source = validate_manifest_source(
+		animation_config_path,"animation-config"); !source)
+		return std::unexpected(std::move(source.error()));
+	if (has_duplicate_json_object_key(animation_config_path))
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::DuplicateKey,
+			"Load animation config failed: duplicate JSON object key."));
 	JsonLoader loader;
 	const JsonReadResult result = loader.open_file(animation_config_path);
-	if (!result || !loader.root().is_object())
-	{
-		ELYSIA_LOG_WARN("io", "Load animation config failed: " << (result ? "root is not an object" : result.error));
-		return false;
-	}
+	if (!result)
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::OpenFailed,
+			"Load animation config failed: " + result.error));
+	if (!loader.root().is_object())
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::InvalidDocument,
+			"Load animation config failed: root is not an object."));
 	const json& root = loader.root();
-	if (!has_only_fields(root, {"defaults", "animations"}, "root")
-		|| root.size() != 2
+	if (const auto field = unknown_field(root,{"defaults","animations"}))
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::UnknownField,
+			"Load animation config failed: unknown root field: " + *field,
+			{},"/" + *field));
+	if (root.size() != 2
 		|| !root.contains("defaults") || !root.at("defaults").is_object()
 		|| !root.contains("animations") || !root.at("animations").is_object())
-	{
-		ELYSIA_LOG_WARN("io", "Load animation config failed: defaults and animations are required: " << animation_config_path);
-		return false;
-	}
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::InvalidSchema,
+			"Load animation config failed: defaults and animations are required."));
 	const json& defaults = root.at("defaults");
-	if (!has_only_fields(defaults, {"source_type"}, "defaults")
-		|| defaults.size() != 1 || !defaults.contains("source_type") || !defaults.at("source_type").is_string())
-	{
-		ELYSIA_LOG_WARN("io", "Load animation config failed: defaults.source_type is required.");
-		return false;
-	}
+	if (const auto field = unknown_field(defaults,{"source_type"}))
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::UnknownField,
+			"Load animation config failed: unknown defaults field: " + *field,
+			{},"/defaults/" + *field));
+	if (defaults.size() != 1 || !defaults.contains("source_type")
+		|| !defaults.at("source_type").is_string())
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::MissingField,
+			"Load animation config failed: defaults.source_type is required.",
+			{},"/defaults/source_type"));
+	AnimationConfig config;
 	const std::string source_type = defaults.at("source_type").get<std::string>();
 	if (source_type == "frame_directory") config.source_type = AnimationSourceType::FrameDirectory;
 	else if (source_type == "horizontal_strip") config.source_type = AnimationSourceType::HorizontalStrip;
 	else
-	{
-		ELYSIA_LOG_WARN("io", "Load animation config failed: unsupported source_type: " << source_type);
-		return false;
-	}
+		return std::unexpected(animation_failure(
+			animation_config_path,ManifestLoadError::InvalidValue,
+			"Load animation config failed: unsupported source_type: " + source_type,
+			{},"/defaults/source_type"));
 
-	std::string key_error;
 	for (auto animation = root.at("animations").begin(); animation != root.at("animations").end(); ++animation)
 	{
-		if (!elysia::resources::ResourceKeyBuilder::validate_component(animation.key(), key_error)
-			|| !animation.value().is_object())
-		{
-			ELYSIA_LOG_WARN("io", "Load animation config failed: invalid animation name or entry: " << animation.key());
-			return false;
-		}
 		const std::string pointer = "/animations/" + escape_json_pointer(animation.key());
+		if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_component(animation.key());
+			!key_result)
+			return std::unexpected(animation_failure(
+				animation_config_path,ManifestLoadError::InvalidResourceKey,
+				"Load animation config failed: " + key_result.error().message,
+				animation.key(),pointer,key_result.error().origin));
+		if (!animation.value().is_object())
+			return std::unexpected(animation_failure(
+				animation_config_path,ManifestLoadError::InvalidField,
+				"Load animation config failed: animation entry is not an object.",
+				animation.key(),pointer));
 		const json& node = animation.value();
 		if (node.contains("segments"))
 		{
-			if (!has_only_fields(node, {"segments"}, "segmented animation")
-				|| !node.at("segments").is_array() || node.at("segments").empty() || node.at("segments").size() > 100)
-			{
-				ELYSIA_LOG_WARN("io", "Load animation config failed: segments must contain 1-100 entries: " << animation.key());
-				return false;
-			}
+			if (const auto field = unknown_field(node,{"segments"}))
+				return std::unexpected(animation_failure(
+					animation_config_path,ManifestLoadError::UnknownField,
+					"Load animation config failed: unknown segmented animation field: " + *field,
+					animation.key(),pointer + "/" + *field));
+			if (!node.at("segments").is_array() || node.at("segments").empty()
+				|| node.at("segments").size() > 100)
+				return std::unexpected(animation_failure(
+					animation_config_path,ManifestLoadError::InvalidValue,
+					"Load animation config failed: segments must contain 1-100 entries.",
+					animation.key(),pointer + "/segments"));
 			for (size_t index = 0; index < node.at("segments").size(); ++index)
 			{
 				const json& segment = node.at("segments").at(index);
-				if (!segment.is_object() || !append_clip(animation_config_path,
-					pointer + "/segments/" + std::to_string(index), animation.key(), true, index,
-					segment, layout, config)) return false;
+				const std::string segment_pointer = pointer + "/segments/" + std::to_string(index);
+				if (!segment.is_object())
+					return std::unexpected(animation_failure(
+						animation_config_path,ManifestLoadError::InvalidField,
+						"Load animation config failed: segment is not an object.",
+						animation.key(),segment_pointer));
+				if (auto appended = append_clip(animation_config_path,segment_pointer,
+					animation.key(),true,index,segment,layout,config); !appended)
+					return std::unexpected(std::move(appended.error()));
 			}
 		}
-		else if (!append_clip(animation_config_path, pointer, animation.key(), false, 0, node, layout, config))
-			return false;
+		else if (auto appended = append_clip(animation_config_path,pointer,
+			animation.key(),false,0,node,layout,config); !appended)
+			return std::unexpected(std::move(appended.error()));
 	}
-	return true;
+	return config;
 }
 
-std::filesystem::path AnimationConfigLoader::resolve_clip_path(
+std::expected<std::filesystem::path,ManifestLoadFailure>
+AnimationConfigLoader::resolve_clip_path(
+	const std::filesystem::path& config_path,
+	const std::string& json_pointer,
 	const std::string& animation_name,
 	bool is_segment,
 	size_t segment_index,
@@ -116,19 +158,31 @@ std::filesystem::path AnimationConfigLoader::resolve_clip_path(
 {
 	const auto iterator = layout.animations.find(animation_name);
 	if (iterator == layout.animations.end())
-	{
-		ELYSIA_LOG_WARN("io", "Load animation clip failed: layout entry does not exist: " << animation_name);
-		return {};
-	}
+		return std::unexpected(animation_failure(
+			config_path,ManifestLoadError::MissingContent,
+			"Load animation clip failed: layout entry does not exist: " + animation_name,
+			animation_name,json_pointer));
 	const AnimationLayoutEntry& entry = iterator->second;
 	if (!is_segment)
 	{
-		if (!entry.has_path) return {};
+		if (!entry.has_path)
+			return std::unexpected(animation_failure(
+				config_path,ManifestLoadError::MissingContent,
+				"Load animation clip failed: layout path is unavailable.",
+				animation_name,json_pointer));
 		return entry.path;
 	}
-	if (!entry.has_segment_path) return {};
+	if (!entry.has_segment_path)
+		return std::unexpected(animation_failure(
+			config_path,ManifestLoadError::MissingContent,
+			"Load animation clip failed: segmented layout path is unavailable.",
+			animation_name,json_pointer));
 	std::string segment;
-	if (!elysia::resources::format_filesystem_segment(segment_index, segment)) return {};
+	if (!elysia::resources::format_filesystem_segment(segment_index, segment))
+		return std::unexpected(animation_failure(
+			config_path,ManifestLoadError::InvalidValue,
+			"Load animation clip failed: segment index is invalid.",
+			animation_name,json_pointer));
 	std::string path = entry.segment_path.generic_string();
 	const size_t marker = path.find("{segment}");
 	if (marker == std::string::npos) return (entry.segment_path / segment).lexically_normal();
@@ -136,7 +190,7 @@ std::filesystem::path AnimationConfigLoader::resolve_clip_path(
 	return std::filesystem::path(path).lexically_normal();
 }
 
-bool AnimationConfigLoader::append_clip(
+std::expected<void,ManifestLoadFailure> AnimationConfigLoader::append_clip(
 	const std::filesystem::path& config_path,
 	const std::string& json_pointer,
 	const std::string& animation_name,
@@ -146,23 +200,32 @@ bool AnimationConfigLoader::append_clip(
 	const AnimationLayout& layout,
 	AnimationConfig& config) const
 {
-	if (!has_only_fields(clip_node, {"frame_count", "fps", "loop"}, "clip")
-		|| clip_node.size() != 3
+	if (const auto field = unknown_field(clip_node,{"frame_count","fps","loop"}))
+		return std::unexpected(animation_failure(
+			config_path,ManifestLoadError::UnknownField,
+			"Load animation clip failed: unknown field: " + *field,
+			animation_name,json_pointer + "/" + *field));
+	if (clip_node.size() != 3
 		|| !clip_node.contains("frame_count") || !clip_node.at("frame_count").is_number_integer()
 		|| !clip_node.contains("fps") || !clip_node.at("fps").is_number()
 		|| !clip_node.contains("loop") || !clip_node.at("loop").is_boolean())
-	{
-		ELYSIA_LOG_WARN("io", "Load animation clip failed: frame_count, fps and loop are required: " << animation_name);
-		return false;
-	}
+		return std::unexpected(animation_failure(
+			config_path,ManifestLoadError::InvalidSchema,
+			"Load animation clip failed: frame_count, fps and loop are required.",
+			animation_name,json_pointer));
 	const int frame_count = clip_node.at("frame_count").get<int>();
 	const double fps = clip_node.at("fps").get<double>();
-	if (frame_count <= 0 || fps <= 0.0) return false;
-	const auto path = resolve_clip_path(animation_name, is_segment, segment_index, layout);
-	if (path.empty()) return false;
+	if (frame_count <= 0 || fps <= 0.0)
+		return std::unexpected(animation_failure(
+			config_path,ManifestLoadError::InvalidValue,
+			"Load animation clip failed: frame_count and fps must be positive.",
+			animation_name,json_pointer));
+	auto path = resolve_clip_path(
+		config_path,json_pointer,animation_name,is_segment,segment_index,layout);
+	if (!path) return std::unexpected(std::move(path.error()));
 	AnimationClipConfig clip;
 	clip.animation_name = animation_name;
-	clip.path = path;
+	clip.path = std::move(*path);
 	clip.frame_count = static_cast<size_t>(frame_count);
 	clip.fps = fps;
 	clip.loop = clip_node.at("loop").get<bool>();
@@ -172,6 +235,6 @@ bool AnimationConfigLoader::append_clip(
 		config_path, json_pointer, {}, "animations", {}, animation_name,
 		is_segment ? std::optional<size_t>(segment_index) : std::nullopt);
 	config.clips.push_back(std::move(clip));
-	return true;
+	return {};
 }
 }

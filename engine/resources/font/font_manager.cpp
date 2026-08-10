@@ -35,6 +35,16 @@ std::expected<void,ResourceFailure> FontManager::load_font(
 	return store_font(key, font);
 }
 
+std::expected<void,ResourceFailure> FontManager::load_font(
+	const FontLoadRequest& request)
+{
+	auto result = load_font(request.key,request.file_path,request.point_size);
+	if (result) return result;
+	return std::unexpected(make_resource_failure(
+		result.error().code,result.error().diagnostic.message,"font",request.key,
+		request.file_path,request.origin,result.error().diagnostic.origin));
+}
+
 std::expected<void,ResourceFailure> FontManager::store_font(
 	const std::string& key,TTF_Font* font)
 {

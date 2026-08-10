@@ -214,6 +214,13 @@ void test_duplicate_key_diagnostics_for_every_registry()
 			require_contains(description, "entity=ExampleEntity", "description must include second entity");
 			require_contains(description, "logical=slash_trail", "description must include second logical name");
 			require_contains(description, "segment=99", "description must include second segment index");
+			const auto diagnostic = error.diagnostic();
+			require(diagnostic.entries.size() == 2
+				&& diagnostic.entries[0].declaration_path == pair.first->config_path
+				&& diagnostic.entries[0].declaration_pointer == pair.first->json_pointer
+				&& diagnostic.entries[1].declaration_path == pair.second->config_path
+				&& diagnostic.entries[1].declaration_pointer == pair.second->json_pointer,
+				"duplicate plan diagnostics must retain both structured declaration origins");
 		}
 	}
 }
@@ -254,6 +261,13 @@ void test_reference_integrity()
 			"missing Atlas diagnostic must name the absent key");
 		require_contains(error.describe(), "assets/configs/modules/second.json#/animations/idle/segments/99",
 			"missing Atlas diagnostic must preserve the complete request origin");
+		const auto diagnostic = error.diagnostic();
+		require(diagnostic.entries.size() == 1
+			&& diagnostic.entries.front().subject_type == "Animation"
+			&& diagnostic.entries.front().subject_key == "hero.idle"
+			&& diagnostic.entries.front().declaration_path == origin.config_path
+			&& diagnostic.entries.front().declaration_pointer == origin.json_pointer,
+			"missing dependency diagnostics must retain the request declaration origin");
 	}
 
 	{

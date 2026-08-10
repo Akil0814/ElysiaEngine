@@ -8,6 +8,7 @@
 #include <string>
 
 #include "../resource_failure.h"
+#include "../resource_origin.h"
 
 namespace elysia::resources
 {
@@ -21,15 +22,19 @@ using SurfacePtr = std::unique_ptr<SDL_Surface, SurfaceDeleter>;
 struct SurfaceLoadRequest
 {
 	std::string _asset_key;
+	std::string _subject_type = "texture";
 	std::filesystem::path _frame_path;
 	size_t _frame_index = 0;
+	ResourceOrigin _origin;
 };
 
 struct SurfaceLoadResult
 {
 	std::string _asset_key;
+	std::string _subject_type = "texture";
 	std::filesystem::path _frame_path;
 	size_t _frame_index = 0;
+	ResourceOrigin _origin;
 	SurfacePtr _surface;
 };
 

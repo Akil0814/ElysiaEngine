@@ -127,9 +127,17 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
         }
         bootstrap::StartupPreloadLoader missing_loader;
         missing_loader.set_manifest_path(missing_manifest);
-        require(
-            !missing_loader.load(renderer),
-            "a missing required project texture must fail startup preload");
+		auto missing_result = missing_loader.load(renderer);
+        require(!missing_result
+			&& missing_result.error().error_code() == "BOOTSTRAP-PRELOAD"
+			&& !missing_result.error().diagnostic.entries.empty()
+			&& missing_result.error().diagnostic.entries.front().subject_type
+				== "preload-texture"
+			&& missing_result.error().diagnostic.entries.front().subject_key
+				== "project.missing"
+			&& missing_result.error().diagnostic.entries.front().declaration_pointer
+				== "/textures/0",
+			"a missing preload texture must retain its explicit code, key and declaration origin");
         require(missing_loader.find_texture("project.missing") == nullptr,
             "a failed required preload must not publish a texture");
         require(missing_loader.find_texture(

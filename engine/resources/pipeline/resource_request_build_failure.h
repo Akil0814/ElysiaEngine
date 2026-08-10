@@ -5,7 +5,13 @@
 
 namespace elysia::resources
 {
-enum class ResourceRequestBuildError { InvalidDeclaration,MissingSource };
+enum class ResourceRequestBuildError
+{
+    InvalidDeclaration,
+    MissingSource,
+    FilesystemAccess,
+    UnavailableDependency
+};
 struct ResourceRequestBuildFailure
 {
     ResourceRequestBuildError code = ResourceRequestBuildError::InvalidDeclaration;

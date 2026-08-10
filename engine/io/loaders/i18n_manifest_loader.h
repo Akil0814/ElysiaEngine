@@ -1,7 +1,9 @@
 #pragma once
 
 #include "asset_config_types.h"
+#include "manifest_load_failure.h"
 
+#include <expected>
 #include <filesystem>
 
 namespace elysia::io
@@ -9,10 +11,8 @@ namespace elysia::io
 class I18nManifestLoader
 {
 public:
-	bool load(
-		const std::filesystem::path& manifest_path,
-		I18nManifest& manifest
-	) const;
+	[[nodiscard]] std::expected<I18nManifest,ManifestLoadFailure> load(
+		const std::filesystem::path& manifest_path) const;
 };
 
 }

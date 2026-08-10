@@ -75,11 +75,12 @@ AnimationEffectManifestLoader::load(const std::filesystem::path& manifest_path) 
         if (entry.key.empty() || entry.animation_key.empty())
             return fail(ManifestLoadError::InvalidValue,
                 "Load effect manifest failed: effect values must not be empty.",entry.key);
-        std::string key_error;
-        if (!elysia::resources::ResourceKeyBuilder::validate_key(entry.key,key_error)
-            || !elysia::resources::ResourceKeyBuilder::validate_key(entry.animation_key,key_error))
+        auto effect_key_result = elysia::resources::ResourceKeyBuilder::validate_key(entry.key);
+        auto animation_key_result = elysia::resources::ResourceKeyBuilder::validate_key(entry.animation_key);
+        if (!effect_key_result || !animation_key_result)
             return fail(ManifestLoadError::InvalidResourceKey,
-                "Load effect manifest failed: " + key_error,entry.key);
+                "Load effect manifest failed: " + (!effect_key_result
+                    ? effect_key_result.error().message : animation_key_result.error().message),entry.key);
         entry.origin = elysia::resources::make_resource_origin(
             manifest_path,"/effects/" + std::to_string(index++),{},"effects",{},entry.key);
         manifest.effects.push_back(std::move(entry));

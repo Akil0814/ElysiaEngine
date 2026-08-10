@@ -48,13 +48,13 @@ void test_mapping_and_segment_expansion()
 	std::filesystem::remove_all(root);
 	std::filesystem::create_directories(root);
 
-	elysia::io::EffectDefinitionConfig config;
 	elysia::io::EffectDefinitionConfigLoader loader;
 	const auto path = write_json(root, "valid.json",
 		R"({"effects":{"slash_trail":{"animation":"attack_normal"},"aura":{"animation":"idle","default_width":64,"default_height":32,"default_angle_degrees":15}}})");
-	require(loader.load(path, make_animation_config(), config)
-		&& config.effects.size() == 3,
+	auto config_result = loader.load(path,make_animation_config());
+	require(config_result && config_result->effects.size() == 3,
 		"effect mappings must expand every configured segment and preserve ordinary animations");
+	const auto& config = *config_result;
 
 	const auto aura = std::find_if(config.effects.begin(), config.effects.end(),
 		[](const auto& effect) { return effect.effect_name == "aura"; });
@@ -92,25 +92,24 @@ void test_invalid_effect_definitions_fail()
 	std::filesystem::create_directories(root);
 
 	const auto animations = make_animation_config();
-	elysia::io::EffectDefinitionConfig config;
 	elysia::io::EffectDefinitionConfigLoader loader;
 	require(!loader.load(write_json(root, "missing_animation.json",
-		R"({"effects":{"missing":{"animation":"does_not_exist"}}})"), animations, config),
+		R"({"effects":{"missing":{"animation":"does_not_exist"}}})"),animations),
 		"effect definitions must reject mappings to animations absent from the same module config");
 	require(!loader.load(write_json(root, "one_sided_size.json",
-		R"({"effects":{"bad_size":{"animation":"idle","default_width":32}}})"), animations, config),
+		R"({"effects":{"bad_size":{"animation":"idle","default_width":32}}})"),animations),
 		"effect definitions must require default width and height together");
 	require(!loader.load(write_json(root, "negative_size.json",
-		R"({"effects":{"bad_size":{"animation":"idle","default_width":-1,"default_height":-1}}})"), animations, config),
+		R"({"effects":{"bad_size":{"animation":"idle","default_width":-1,"default_height":-1}}})"),animations),
 		"effect definitions must reject negative default dimensions");
 	require(!loader.load(write_json(root, "duplicate_effect.json",
-		R"({"effects":{"same":{"animation":"idle"},"same":{"animation":"idle"}}})"), animations, config),
+		R"({"effects":{"same":{"animation":"idle"},"same":{"animation":"idle"}}})"),animations),
 		"effect definitions must reject duplicate logical effect members before JSON values are overwritten");
 	require(!loader.load(write_json(root, "invalid_component.json",
-		R"({"effects":{"bad-name":{"animation":"idle"}}})"), animations, config),
+		R"({"effects":{"bad-name":{"animation":"idle"}}})"),animations),
 		"effect logical names must use the shared key-component syntax");
 	require(!loader.load(write_json(root, "unknown_field.json",
-		R"({"effects":{"bad":{"animation":"idle","atlas":"legacy"}}})"), animations, config),
+		R"({"effects":{"bad":{"animation":"idle","atlas":"legacy"}}})"),animations),
 		"effect definitions must reject fields outside the mapping and presentation schema");
 
 	std::filesystem::remove_all(root);

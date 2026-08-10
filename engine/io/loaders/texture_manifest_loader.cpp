@@ -38,10 +38,10 @@ std::expected<TextureManifest,ManifestLoadFailure> TextureManifestLoader::load(
     for (auto texture = loader.root().at("textures").begin();
         texture != loader.root().at("textures").end();++texture)
     {
-        std::string key_error;
-        if (!elysia::resources::ResourceKeyBuilder::validate_key(texture.key(),key_error))
+        if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_key(texture.key());
+            !key_result)
             return fail(ManifestLoadError::InvalidValue,
-                "Load texture manifest failed: " + key_error,texture.key());
+                "Load texture manifest failed: " + key_result.error().message,texture.key());
         if (!texture.value().is_object())
             return fail(ManifestLoadError::InvalidSchema,
                 "Load texture manifest failed: texture entry is not an object.",texture.key());

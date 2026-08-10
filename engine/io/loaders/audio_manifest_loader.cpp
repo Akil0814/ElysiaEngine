@@ -26,10 +26,10 @@ std::expected<std::vector<AudioManifestEntry>,ManifestLoadFailure> load_group(
     std::vector<AudioManifestEntry> entries;
     for (auto item = node.begin();item != node.end();++item)
     {
-        std::string key_error;
-        if (!elysia::resources::ResourceKeyBuilder::validate_key(item.key(),key_error))
+        if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_key(item.key());
+            !key_result)
             return fail(ManifestLoadError::InvalidResourceKey,
-                "Load audio manifest failed: " + key_error,item.key());
+                "Load audio manifest failed: " + key_result.error().message,item.key());
         if (!item.value().is_object())
             return fail(ManifestLoadError::InvalidSchema,
                 "Load audio manifest failed: entry is not an object.",item.key());

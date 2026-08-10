@@ -25,9 +25,10 @@ std::expected<void,ConfigLoadFailure> index_value(const elysia::io::json& value,
         for (const auto& [component,child] : value.items())
         {
             const std::string child_pointer = pointer + "/" + config_pointer_component(component);
-            std::string key_error;
-            if (!elysia::core::DottedKeyValidator::validate_component(component,key_error))
-                return std::unexpected(make_config_load_failure(ConfigLoadError::InvalidKey,key_error,
+            if (auto key_result = elysia::core::DottedKeyValidator::validate_component(component);
+                !key_result)
+                return std::unexpected(make_config_load_failure(ConfigLoadError::InvalidKey,
+                    key_result.error().message,
                     ConfigOrigin{document.origin.config_path,child_pointer,document.key_namespace,key+"."+component}));
             auto indexed = index_value(child,key+"."+component,child_pointer,document,snapshot);
             if (!indexed) return indexed;

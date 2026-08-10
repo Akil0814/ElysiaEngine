@@ -16,9 +16,12 @@ class ResourceRequestBuilder
 public:
 	[[nodiscard]] std::expected<void,ResourceRequestBuildFailure> append_font_requests(
 		const elysia::io::FontManifest&,
+		const std::filesystem::path& root,
 		std::span<const int> point_sizes,
 		std::vector<FontLoadRequest>&) const;
-	[[nodiscard]] std::expected<void,ResourceRequestBuildFailure> append_audio_requests(const elysia::io::AudioManifest&, std::vector<SoundLoadRequest>&, std::vector<MusicLoadRequest>&) const;
+	[[nodiscard]] std::expected<void,ResourceRequestBuildFailure> append_audio_requests(
+		const elysia::io::AudioManifest&,const std::filesystem::path& root,
+		std::vector<SoundLoadRequest>&,std::vector<MusicLoadRequest>&) const;
 	[[nodiscard]] std::expected<void,ResourceRequestBuildFailure> append_texture_manifest_requests(const elysia::io::TextureManifest&, const std::filesystem::path&, std::vector<TextureLoadRequest>&) const;
 	[[nodiscard]] std::expected<void,ResourceRequestBuildFailure> append_animation_manifest_requests(const elysia::io::AnimationManifest&, const std::filesystem::path&,
 		std::vector<AtlasBuildRequest>&, std::vector<AnimationBuildRequest>&) const;

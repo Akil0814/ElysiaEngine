@@ -95,6 +95,32 @@ bool Application::startup_fail(
     return false;
 }
 
+bool Application::startup_fail(
+    const elysia::localization::LocalizationFailure& failure)
+{
+    std::filesystem::path project_root;
+    if (const auto* paths = elysia::io::PathManager::instance();
+        paths && paths->is_initialized())
+        project_root = paths->root();
+    const std::string formatted = elysia::core::format_failure_diagnostic(
+        failure.diagnostic,failure.error_code(),"localization",project_root);
+    auto* logger = elysia::tools::Logger::instance();
+    logger->error("localization",formatted,failure.diagnostic.origin);
+    logger->terminating(
+        "application",
+        "Application terminating during startup after a fatal failure",
+        failure.diagnostic.origin);
+    std::string dialog = "The game could not start.\nError code: ";
+    dialog += failure.error_code();
+#if !defined(NDEBUG)
+    dialog += "\n\n" + formatted;
+#endif
+    SDL_ShowSimpleMessageBox(
+        SDL_MESSAGEBOX_ERROR,"Game Start Error",dialog.c_str(),_window);
+    shutdown();
+    return false;
+}
+
 bool Application::initialize(
     int argc,
     char** argv,
@@ -192,14 +218,16 @@ bool Application::initialize(
         _builtin_asset_cache,
         runtime_settings.user.audio);
 
-    if (!elysia::localization::LocalizationManager::instance()->initialize(
+    if (auto localization_result =
+        elysia::localization::LocalizationManager::instance()->initialize(
         _renderer,
         bootstrap_output.i18n_manifest_path,
         runtime_settings.user.language,
         &_font_resolver,
-        &_builtin_asset_cache))
+        &_builtin_asset_cache);
+        !localization_result)
     {
-        return startup_fail("localization","Localization initialization failed.");
+        return startup_fail(localization_result.error());
     }
 
     if (const auto font_result = _font_resolver.configure(
@@ -611,9 +639,10 @@ Application::apply_sound_volume(int value)
 std::expected<void,elysia::config::UserConfigFailure>
 Application::apply_language(std::string_view language)
 {
-    if (!ELYSIA_LOCALIZATION->set_language(std::string(language)))
+    if (auto result = ELYSIA_LOCALIZATION->set_language(std::string(language));
+        !result)
     {
-        return runtime_apply_failure("language","Runtime language change failed.");
+        return runtime_apply_failure("language",result.error().diagnostic.message);
     }
 
     return {};

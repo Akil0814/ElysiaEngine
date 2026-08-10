@@ -203,6 +203,17 @@ void test_texture_only_and_audio_only_modules()
 		&& content->texture_entries.size() == 1 && content->audio_entries.empty(),
 		"a texture-only module must load without Animation, Effect, or Audio capabilities");
 
+	std::filesystem::remove_all(root / "textures" / "Example");
+	const auto missing_root = loader.load("portraits",texture_module);
+	require(!missing_root
+		&& missing_root.error().code == elysia::loading::ContentLoadError::Manifest
+		&& !missing_root.error().diagnostic.entries.empty()
+		&& missing_root.error().diagnostic.entries.front().subject_type == "textures"
+		&& missing_root.error().diagnostic.entries.front().subject_key == "Example"
+		&& missing_root.error().diagnostic.message.find("portraits") != std::string::npos
+		&& missing_root.error().diagnostic.message.find("textures") != std::string::npos,
+		"missing additional resource roots must fail as CONTENT-MANIFEST with module and capability context");
+
 	const auto audio_module = write_file(root, "audio.json",
 		"{\"entities\":\"" + json_path(entities)
 		+ "\",\"key_namespace\":\"voice\",\"capabilities\":{\"audio\":{\"audio_root\":\""

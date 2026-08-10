@@ -76,11 +76,12 @@ ApplicationFailurePresentationModel build_application_failure_presentation(
             if (!declaration_path.empty()) details << "\nDeclared at: " << declaration_path;
             if (!entry.declaration_pointer.empty()) details << '#' << entry.declaration_pointer;
             if (!entry.reason.empty()) details << "\nReason: " << entry.reason;
-            details << "\nSource: " << entry.origin.file_name() << ':' << entry.origin.line() << "\n\n";
+            details << "\nSource: " << elysia::core::source_file_basename(entry.origin)
+                << ':' << entry.origin.line() << "\n\n";
         }
         if (!payload.diagnostic.message.empty())
             details << "Cause: " << payload.diagnostic.message << '\n';
-        details << "Source: " << payload.diagnostic.origin.file_name()
+        details << "Source: " << elysia::core::source_file_basename(payload.diagnostic.origin)
             << ':' << payload.diagnostic.origin.line();
         model.diagnostic_details = details.str();
     }

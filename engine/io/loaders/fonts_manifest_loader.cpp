@@ -58,10 +58,10 @@ std::expected<FontManifest,ManifestLoadFailure> FontsManifestLoader::load(
             if (field.key() != "key" && field.key() != "file")
                 return fail(ManifestLoadError::UnknownField,
                     "Load fonts manifest failed: unknown field: " + field.key(),entry.key);
-        std::string key_error;
-        if (!elysia::resources::ResourceKeyBuilder::validate_key(entry.key,key_error))
+        if (auto key_result = elysia::resources::ResourceKeyBuilder::validate_key(entry.key);
+            !key_result)
             return fail(ManifestLoadError::InvalidResourceKey,
-                "Load fonts manifest failed: " + key_error,entry.key);
+                "Load fonts manifest failed: " + key_result.error().message,entry.key);
         entry.origin = elysia::resources::make_resource_origin(
             manifest_path,"/fonts/" + std::to_string(index++),{},"fonts",{},entry.key);
         manifest.fonts.push_back(std::move(entry));
