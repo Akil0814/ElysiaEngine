@@ -19,7 +19,7 @@ auto* start = window->create_child<elysia::ui::UiButton>(
     elysia::core::Rect{0, 0, 180, 44},
     elysia::ui::UiButtonConfig{.content = elysia::ui::ui_text_key("menu_scene.start")});
 start->set_on_click([this] {
-    request_scene_switch(MoonlineSceneKeys::CharacterSelect);
+    request_scene_switch(ExampleSceneKeys::Sandbox);
 });
 
 settings->set_on_click([this] {
@@ -27,8 +27,8 @@ settings->set_on_click([this] {
         elysia::builtin::SceneKeys::Settings,
         elysia::builtin::SettingsScenePayload{
             .return_route = elysia::scene::SceneRoute{
-                .target = MoonlineSceneKeys::MainMenu,
-                .payload = MainMenuEnterPayload{
+                .target = ExampleSceneKeys::MainMenu,
+                .payload = example::scene::MainMenuEnterPayload{
                     .replay_theme_music = false
                 },
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse

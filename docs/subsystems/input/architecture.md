@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | 平台翻译 | `InputSystem`、各类 `InputTranslator` | 将 SDL 事件归一化为键盘、鼠标、手柄 Control/Axis | Jump、Attack 等游戏语义 |
 | Raw Input | `RawInputState`、`RawInputFrame`、`RawInputEvent` | 保存物理输入当前状态、设备和离散事件 | 可改键的逻辑 Action |
-| Action Input | `InputActionMap`、`ActionInputFrame`、`ActionInputEvent` | 将物理 Control/Axis 映射为稳定 Action ID 和统一值 | MoonLine 特有玩法规则 |
+| Action Input | `InputActionMap`、`ActionInputFrame`、`ActionInputEvent` | 将物理 Control/Axis 映射为稳定 Action ID 和统一值 | 项目特有玩法规则 |
 | Engine Gameplay | 标准 `actions`、`GameplayInputFrame` | 提供 Move、Jump、Primary 等可复用语义 | 角色具体如何响应动作 |
 | 场景分发 | `GameplayScene`、两个 receiver contract | 选择何时翻译，并按 SceneObject 顺序分发 | 输入配置持久化 |
 

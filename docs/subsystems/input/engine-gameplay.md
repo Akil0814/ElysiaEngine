@@ -1,6 +1,6 @@
 # Engine Gameplay 参考
 
-Engine Gameplay 位于 `engine/gameplay`，建立在通用 Action Input 之上。它提供一套适合动作游戏的标准 Action、默认 binding、`GameplayInputFrame` 语义门面和 receiver contract，但不包含 MoonLine 的角色或战斗规则。
+Engine Gameplay 位于 `engine/gameplay`，建立在通用 Action Input 之上。它提供一套适合动作游戏的标准 Action、默认 binding、`GameplayInputFrame` 语义门面和 receiver contract，但不包含具体项目的角色或战斗规则。
 
 ## 标准 Actions
 
@@ -53,7 +53,7 @@ void PlayerController::on_gameplay_input_frame(
 底层 frame 允许查询扩展 Action：
 
 ```cpp
-if (input.actions().is_just_pressed(MoonlineActions::Transform))
+if (input.actions().is_just_pressed(ExampleActions::Transform))
 {
     transform_character();
 }
@@ -64,9 +64,9 @@ if (input.actions().is_just_pressed(MoonlineActions::Transform))
 标准 Action ID 不是 enum，项目可以向每个 GameplayScene 的 map 注册额外 Action。由于 `gameplay_input_map()` 是 protected，通常在项目场景的构造或进入逻辑中完成：
 
 ```cpp
-namespace MoonlineActions
+namespace ExampleActions
 {
-inline const elysia::input::InputActionId Transform{"moonline.transform"};
+inline const elysia::input::InputActionId Transform{"example.transform"};
 }
 
 BattleScene::BattleScene()
@@ -74,11 +74,11 @@ BattleScene::BattleScene()
     using namespace elysia::input;
 
     const bool registered = gameplay_input_map().register_action(
-        { MoonlineActions::Transform, InputActionValueType::Button },
+        { ExampleActions::Transform, InputActionValueType::Button },
         {
-            { MoonlineActions::Transform,
+            { ExampleActions::Transform,
               ButtonInputBinding{ RawInputControl::KeyT } },
-            { MoonlineActions::Transform,
+            { ExampleActions::Transform,
               ButtonInputBinding{ RawInputControl::GamepadEast } }
         }
     );
@@ -90,7 +90,7 @@ BattleScene::BattleScene()
 }
 ```
 
-若多个场景需要同一组项目扩展，应由 `game/` 提供一个统一注册函数，避免每个场景复制默认表。引擎的标准工厂不会自动知道 MoonLine 特有 Action。
+若多个场景需要同一组项目扩展，应由项目层提供一个统一注册函数，避免每个场景复制默认表。引擎的标准工厂不会自动知道项目特有 Action。
 
 ## Receiver Contracts
 

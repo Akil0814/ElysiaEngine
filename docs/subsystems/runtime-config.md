@@ -1,6 +1,6 @@
 # 运行时配置模块
 
-Moonline 将配置划分为三个职责明确的模块：
+Elysia Engine 将配置划分为三个职责明确的模块：
 
 | 模块 | 职责 | 加载时机 |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ Bootstrap 不解析或发布 gameplay 配置。内容加载、资源组装或资
 {
   "schema_version": 2,
   "window": {
-    "title": "Moonline",
+    "title": "Elysia Engine",
     "mode": "windowed",
     "windowed_size": { "width": 1280, "height": 720 }
   },

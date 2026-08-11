@@ -1,6 +1,6 @@
 # Action Mapping 详解
 
-对应公开头文件：[`input_action_types.h`](../../input/action/input_action_types.h)、[`action_input_frame.h`](../../input/action/action_input_frame.h)、[`input_action_map.h`](../../input/action/input_action_map.h)。
+对应公开头文件：[`input_action_types.h`](../../../engine/input/action/input_action_types.h)、[`action_input_frame.h`](../../../engine/input/action/action_input_frame.h)、[`input_action_map.h`](../../../engine/input/action/input_action_map.h)。
 
 ## InputActionId
 
@@ -8,7 +8,7 @@
 
 ```cpp
 const elysia::input::InputActionId valid{"gameplay.jump"};
-const elysia::input::InputActionId custom{"moonline.transform"};
+const elysia::input::InputActionId custom{"example.transform"};
 ```
 
 默认构造的 ID 为空且 `valid() == false`，适合作为数据结构的空值；`register_action` 会拒绝空 ID。不要使用数组下标或 enum 序号作为跨模块 Action 身份。
@@ -83,7 +83,7 @@ Action event 只依赖连续 `resolve()` 的结果，不读取 `RawInputEvent[]`
 ```cpp
 using namespace elysia::input;
 
-const InputActionId Transform{"moonline.transform"};
+const InputActionId Transform{"example.transform"};
 InputActionMap map;
 
 const bool registered = map.register_action(

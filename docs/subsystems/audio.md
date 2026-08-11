@@ -1,6 +1,6 @@
 # AudioService 模块说明
 
-`elysia::audio::AudioService` 是 Moonline 的运行时音频播放服务。它负责把已经加载好的音频资源播放为音效或音乐，并管理音效的并发、冷却、延迟、停止和运行时音量。
+`elysia::audio::AudioService` 是 Elysia Engine 的运行时音频播放服务。它负责把已经加载好的音频资源播放为音效或音乐，并管理音效的并发、冷却、延迟、停止和运行时音量。
 
 本文面向两类读者：
 
@@ -54,7 +54,7 @@ audio->initialize(runtime_settings.audio);
 audio->update(delta_seconds);
 ```
 
-该调用推进延迟请求的时间；到期请求会在此时尝试正式播放。Moonline 当前在场景更新和场景切换处理完成后调用它，因此音频服务不需要知道场景生命周期。
+该调用推进延迟请求的时间；到期请求会在此时尝试正式播放。`Application` 当前在场景更新和场景切换处理完成后调用它，因此音频服务不需要知道场景生命周期。
 
 关闭时调用：
 

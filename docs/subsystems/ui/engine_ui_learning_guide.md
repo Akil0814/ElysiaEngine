@@ -1,10 +1,10 @@
-# MoonLine Engine/UI 学习型架构详解
+# Elysia Engine UI 学习型架构详解
 
 > 面向具备基础 C++ 语法、但尚未读过本项目 UI 代码的读者。本文解释的是当前实现的运行方式，而不是一套抽象的 UI 框架设计提案。若只需要查询某个类的公开接口，请使用 [UI API 参考入口](README.md)；本文的目标是回答“这套系统为什么这样分层、一次交互到底经过了哪里、容器究竟替我做了什么”。
 
 ## 1. 先建立整体模型
 
-MoonLine 的 UI 属于 **保留模式（retained-mode）UI**：代码创建 `UiElement` 对象并长期保留为一棵树；每帧更新树的状态，布局在需要时重建，最后由树收集渲染命令。控件本身不直接调用 SDL 绘制 API。
+Elysia Engine 的 UI 属于 **保留模式（retained-mode）UI**：代码创建 `UiElement` 对象并长期保留为一棵树；每帧更新树的状态，布局在需要时重建，最后由树收集渲染命令。控件本身不直接调用 SDL 绘制 API。
 
 ```mermaid
 flowchart TB
@@ -32,7 +32,7 @@ flowchart TB
 2. `UiChildHost` 是容器能力的共同地基，具体容器主要是在它的基础上替换“如何布局”和“如何形成焦点图”。
 3. `UiWindow` 不是 OS 窗口包装器，而是一个 UI 根容器：它承担跨 scope 焦点、overlay、popup、tooltip 和滚动路由等窗口级语义。
 
-`Scene` 是 UI 与游戏循环的接缝。它保存 UI 根节点，按 UI `order` 处理根节点，并在 [scene.cpp](../../scene/scene.cpp) 中把 `UiRenderCommand` 批量交给渲染基础设施执行。
+`Scene` 是 UI 与游戏循环的接缝。它保存 UI 根节点，按 UI `order` 处理根节点，并在 [scene.cpp](../../../engine/scene/scene.cpp) 中把 `UiRenderCommand` 批量交给渲染基础设施执行。
 
 ## 2. 一帧中发生了什么
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 ### 3.1 `UiElement`：树中的基本节点
 
-[`UiElement`](../../ui/core/ui_element.h) 是所有 UI 节点的共同父类，持有以下核心状态：
+[`UiElement`](../../../engine/ui/core/ui_element.h) 是所有 UI 节点的共同父类，持有以下核心状态：
 
 | 概念 | 当前实现中的含义 |
 | --- | --- |
@@ -88,7 +88,7 @@ sequenceDiagram
 
 ### 3.2 `UiChildHost`：所有权、生命周期和命令合成器
 
-[`UiChildHost`](../../ui/core/ui_child_host.h) 同时继承 `UiElement`、`Updatable`、`UiInputFrameReceiver` 和 `UiInputEventReceiver`。这使一个 host 既是树节点，也是子树的更新、输入和渲染调度者。
+[`UiChildHost`](../../../engine/ui/core/ui_child_host.h) 同时继承 `UiElement`、`Updatable`、`UiInputFrameReceiver` 和 `UiInputEventReceiver`。这使一个 host 既是树节点，也是子树的更新、输入和渲染调度者。
 
 **所有权规则**：`add_child(std::unique_ptr<UiElement>)` 与 `create_child<T>()` 把所有权移交给 host；返回的 `UiElement*` / `T*` 只是借用指针，方便后续配置，不能在 host 清除、提取或销毁后继续保存和使用。`extract_child` 是少数会把所有权安全交还调用方的操作；`clear_children` 则销毁整棵直接子树。
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ### 3.3 通用布局数据
 
-[`UiLayoutChildOptions`](../../ui/layout/ui_layout_types.h) 是“这个子节点如何由父节点摆放”的数据。常用字段包括：
+[`UiLayoutChildOptions`](../../../engine/ui/layout/ui_layout_types.h) 是“这个子节点如何由父节点摆放”的数据。常用字段包括：
 
 - `_anchor`：九宫格锚点；用于 `UiPanel` 和基础锚点布局。
 - `_margin`：围绕子项的额外偏移/留白。
@@ -239,7 +239,7 @@ flowchart LR
 
 ## 8. 跟随真实代码阅读：容器测试场景
 
-[`engine/testbed/scene/ui_test_scene.cpp`](../../testbed/scene/ui_test_scene.cpp) 是本教程最好的综合入口。它建立如下真实结构：
+[`engine/testbed/scene/ui_test_scene.cpp`](../../../engine/testbed/scene/ui_test_scene.cpp) 是本教程最好的综合入口。它建立如下真实结构：
 
 ```text
 UiWindow

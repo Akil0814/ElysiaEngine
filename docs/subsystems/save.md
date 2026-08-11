@@ -70,4 +70,4 @@ player_data/saves/slot_01.json.bak
 
 提交时先写入并验证临时文件，再轮换备份并替换主文件。打开损坏主文件时会将其归档为 `.corrupt`，随后依次尝试 `.tmp` 和 `.bak`。没有有效副本时返回错误，不创建空存档。未来 format version 会原样保留并直接返回 `UnsupportedFormatVersion`，不会降级到旧备份。
 
-第一版只提供同步 IO。自动存档触发、异步队列和 Moonline 的固定槽位枚举属于后续 Gameplay/引擎编排工作。
+第一版只提供同步 IO。自动存档触发、异步队列和项目固定槽位枚举属于后续 Gameplay/引擎编排工作。

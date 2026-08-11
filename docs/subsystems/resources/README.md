@@ -1,6 +1,6 @@
 # 资源加载 JSON 文档
 
-本目录记录 Moonline 当前资源加载管线实际接受的 JSON。它面向新增公共资源、实体资源包、动画和特效的维护者；未实现或已删除的兼容格式不在文档中保留。
+本目录记录 Elysia Engine 当前资源加载管线实际接受的 JSON。它面向新增公共资源、实体资源包、动画和特效的维护者；未实现或已删除的兼容格式不在文档中保留。
 
 ## 文档索引
 
@@ -72,7 +72,7 @@ module 资源统一构造为：
 <entity id>[.<key_namespace>].<logical component>[.<segment index>]
 ```
 
-segment 的资源 key 使用无补位十进制，例如 `.0`、`.1`、`.99`。两位补位只属于文件系统路径和文件名前缀，详见[动画与特效](animation-and-effects.md#分段编号与文件名)。
+segment 的资源 key 使用无补位十进制，例如 `.0`、`.1`、`.99`。两位补位只属于文件系统路径和文件名前缀，详见[动画与特效](animation-and-effects.md#帧来源与-segment)。
 
 ## 来源与重复 key
 

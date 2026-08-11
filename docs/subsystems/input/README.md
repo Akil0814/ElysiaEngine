@@ -1,4 +1,4 @@
-# MoonLine Input 开发者文档
+# Elysia Engine Input 开发者文档
 
 本目录描述当前已经实现的输入链，以 `engine/input` 与 `engine/gameplay` 的代码为事实来源。文档面向维护输入引擎、扩展标准 gameplay action，以及编写实际游玩场景的开发者。
 
@@ -22,7 +22,6 @@ UI 与 gameplay 并不共用同一种语义事件。基础 `Scene` 将 Raw Input
 - [Engine Gameplay 参考](engine-gameplay.md)：标准 actions、默认键位、语义访问器和项目扩展方式。
 - [GameplayScene 集成指南](gameplay-scene.md)：场景继承、receiver、排序、暂停、禁用和事件消费。
 - [测试与调试](testing-and-debugging.md)：现有测试覆盖和常见问题排查。
-- [公开头文件覆盖表](coverage.md)：公开类型到文档章节的映射。
 
 ## 建议阅读顺序
 
