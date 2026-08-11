@@ -139,6 +139,32 @@ void ccd_queries_and_tiles()
     require(tile_hit && tile_hit->target
             == CollisionTarget::from_tile({1, 1}),
         "Tile DDA must honor negative origins and non-square cell sizes");
+
+    PhysicsWorld corner_world(config);
+    Object diagonal;
+    Object vertical_wall;
+    Object floor;
+    diagonal.collider.shape = AabbShape{{0, 0, 2, 2}};
+    diagonal.collider.detection_mode = CollisionDetectionMode::Continuous;
+    diagonal.body.velocity = {1000, 1000};
+    vertical_wall.collider.shape = AabbShape{{0, 0, 2, 30}};
+    vertical_wall.body.type = BodyType::Static;
+    vertical_wall.set_position({10, 0});
+    floor.collider.shape = AabbShape{{0, 0, 30, 2}};
+    floor.body.type = BodyType::Static;
+    floor.set_position({0, 15});
+    require(corner_world.register_object(diagonal, &diagonal, &diagonal).is_valid()
+            && corner_world.register_object(
+                vertical_wall, &vertical_wall, &vertical_wall).is_valid()
+            && corner_world.register_object(floor, &floor, &floor).is_valid(),
+        "Multiple-impact CCD probes must register");
+    (void)corner_world.advance(0.02);
+    require(diagonal.position().x <= 8.01f && diagonal.position().y <= 13.01f
+            && diagonal.body.velocity.is_zero(0.01f)
+            && corner_world.last_step_stats().ccd_iterations >= 2
+            && corner_world.last_step_stats().ccd_iterations
+                <= config.max_ccd_iterations,
+        "CCD must continue through remaining time and stop at a second perpendicular impact");
 }
 
 void one_way_and_drop_through()

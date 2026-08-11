@@ -362,6 +362,15 @@ void CollisionSystem::evaluate(
     };
 
     std::vector<PhysicsObjectHandle> ccd_resolved_objects;
+    struct CcdProgress
+    {
+        PhysicsObjectState* state = nullptr;
+        elysia::core::Vector2 sweep_start{};
+        float remaining_seconds = 0.0f;
+        std::uint32_t iterations = 0;
+        std::vector<CollisionPair> hit_pairs;
+    };
+    std::vector<CcdProgress> ccd_progress;
     std::vector<CollisionContact*> ccd_contacts;
     for (CollisionContact& contact : out_frame.contacts)
         if (contact.response == CollisionResponse::Block
@@ -396,15 +405,19 @@ void CollisionSystem::evaluate(
             || (second_inverse_mass > 0.0f && second_already_resolved))
             continue;
         const float toi = std::clamp(contact.time_of_impact, 0.0f, 1.0f);
+        elysia::core::Vector2 first_impact{};
+        elysia::core::Vector2 second_impact{};
         if (first_inverse_mass > 0.0f)
         {
             const auto movement = first_state->current_owner_origin - first_state->previous_owner_origin;
             first_state->current_owner_origin = first_state->previous_owner_origin + movement * toi;
+            first_impact = first_state->current_owner_origin;
         }
         if (second_inverse_mass > 0.0f)
         {
             const auto movement = second_state->current_owner_origin - second_state->previous_owner_origin;
             second_state->current_owner_origin = second_state->previous_owner_origin + movement * toi;
+            second_impact = second_state->current_owner_origin;
         }
         apply_velocity_impulse(first_state, second_state, contact.manifold.normal);
         const float remaining = static_cast<float>(fixed_delta_seconds) * (1.0f - toi);
@@ -413,11 +426,136 @@ void CollisionSystem::evaluate(
         if (second_inverse_mass > 0.0f && second_state->body)
             second_state->current_owner_origin += second_state->body->velocity * remaining;
         if (first_inverse_mass > 0.0f)
+        {
             ccd_resolved_objects.push_back(first_state->object);
+            ccd_progress.push_back({first_state, first_impact, remaining, 1, {contact.pair}});
+        }
         if (second_inverse_mass > 0.0f)
+        {
             ccd_resolved_objects.push_back(second_state->object);
+            ccd_progress.push_back({second_state, second_impact, remaining, 1, {contact.pair}});
+        }
         ++stats.ccd_iterations;
     }
+
+    for (CcdProgress& progress : ccd_progress)
+    {
+        while (progress.state && progress.state->body
+            && progress.iterations < config.max_ccd_iterations
+            && progress.remaining_seconds > config.collision_epsilon)
+        {
+            struct IterationHit
+            {
+                CollisionShapeView moving;
+                CollisionShapeView target;
+                CollisionHit hit;
+                CollisionResponse response = CollisionResponse::Ignore;
+                CollisionPair pair{};
+            };
+            std::optional<IterationHit> best;
+            const auto desired_origin = progress.state->current_owner_origin;
+            for (const CollisionShapeView& source : collider_views)
+            {
+                if (source.object != progress.state->object
+                    || !std::holds_alternative<WorldAabb>(source.previous_shape))
+                    continue;
+                CollisionShapeView moving = source;
+                moving.previous_shape = translated_shape(
+                    source.previous_shape,
+                    progress.sweep_start - source.previous_owner_origin);
+                moving.current_shape = translated_shape(
+                    source.previous_shape,
+                    desired_origin - source.previous_owner_origin);
+                moving.previous_owner_origin = progress.sweep_start;
+                moving.current_owner_origin = desired_origin;
+                moving.current_bounds = shape_bounds(moving.current_shape);
+                moving.swept_bounds = swept_shape_bounds(
+                    moving.previous_shape, moving.current_shape);
+
+                for (const CollisionShapeView& target_source : all_views)
+                {
+                    if (target_source.object == progress.state->object
+                        || !std::holds_alternative<WorldAabb>(target_source.current_shape)
+                        || !collision_filters_allow(moving.filter, target_source.filter))
+                        continue;
+                    PhysicsObjectState* target_state = find_state(
+                        object_states, target_source.object);
+                    if (inverse_mass(target_state) > 0.0f)
+                        continue;
+                    CollisionShapeView target = adjusted_view(
+                        target_source, object_states);
+                    target.previous_shape = target.current_shape;
+                    target.previous_owner_origin = target.current_owner_origin;
+                    const CollisionPair pair = normalized_collision_pair(
+                        moving.target, target.target);
+                    if (std::ranges::find(progress.hit_pairs, pair)
+                        != progress.hit_pairs.end())
+                        continue;
+                    const auto hit = _strategies.continuous_detection->detect(
+                        moving, target, progress.remaining_seconds);
+                    if (!hit || hit->time_of_impact >= 1.0f - config.collision_epsilon)
+                        continue;
+                    CollisionResponseContext context;
+                    context.first_displacement = desired_origin - progress.sweep_start;
+                    context.second_displacement = {};
+                    context.epsilon = config.collision_epsilon;
+                    context.transiently_ignored = ignored_pair(
+                        pair, transient_ignored_pairs);
+                    const CollisionResponse response = _strategies.response->classify(
+                        moving, target, *hit, context);
+                    if (response != CollisionResponse::Block)
+                        continue;
+                    if (!best
+                        || hit->time_of_impact + config.collision_epsilon
+                            < best->hit.time_of_impact
+                        || (std::fabs(hit->time_of_impact - best->hit.time_of_impact)
+                                <= config.collision_epsilon
+                            && pair < best->pair))
+                    {
+                        best = IterationHit{
+                            moving, target, *hit, response, pair};
+                    }
+                }
+            }
+            if (!best)
+                break;
+
+            const float toi = std::clamp(best->hit.time_of_impact, 0.0f, 1.0f);
+            const float full_step_seconds = static_cast<float>(fixed_delta_seconds);
+            const float remaining_fraction = full_step_seconds > 0.0f
+                ? progress.remaining_seconds / full_step_seconds : 0.0f;
+            const float global_toi = std::clamp(
+                1.0f - remaining_fraction + remaining_fraction * toi,
+                0.0f,
+                1.0f);
+            const auto movement = desired_origin - progress.sweep_start;
+            const auto impact_origin = progress.sweep_start + movement * toi;
+            progress.state->current_owner_origin = impact_origin;
+            PhysicsObjectState* target_state = find_state(
+                object_states, best->target.object);
+            apply_velocity_impulse(
+                progress.state, target_state, best->hit.manifold.normal);
+            progress.remaining_seconds *= 1.0f - toi;
+            progress.sweep_start = impact_origin;
+            progress.state->current_owner_origin = impact_origin
+                + progress.state->body->velocity * progress.remaining_seconds;
+            ++progress.iterations;
+            ++stats.ccd_iterations;
+            ++stats.ccd_hits;
+            progress.hit_pairs.push_back(best->pair);
+
+            CollisionContact contact;
+            contact.pair = best->pair;
+            contact.manifold = best->hit.manifold;
+            contact.response = best->response;
+            contact.time_of_impact = global_toi;
+            if (contact.pair.first != best->moving.target)
+                contact.manifold.normal = -contact.manifold.normal;
+            out_frame.contacts.push_back(contact);
+        }
+    }
+
+    sort_and_deduplicate_contacts(out_frame.contacts, config.collision_epsilon);
 
     for (std::uint32_t iteration = 0; iteration < config.solver_iterations; ++iteration)
     {
