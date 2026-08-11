@@ -1,6 +1,6 @@
 #pragma once
 
-#include "collider.h"
+#include "collision_target.h"
 
 #include "../../core/geometry/vector2.h"
 
@@ -11,8 +11,8 @@ namespace elysia::physics
 {
 struct CollisionPair
 {
-    ColliderId first = InvalidColliderId;
-    ColliderId second = InvalidColliderId;
+    CollisionTarget first{};
+    CollisionTarget second{};
 };
 
 struct CollisionManifold

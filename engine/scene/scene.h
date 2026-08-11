@@ -18,10 +18,9 @@
 #include "../core/game_object.h"
 #include "../core/event/subject.h"
 #include "../core/interface/updatable.h"
-#include "../physics/body/physics_system.h"
-#include "../physics/collision/collision_system.h"
 #include "../physics/contracts/collider_provider.h"
 #include "../physics/contracts/physics_body_provider.h"
+#include "../physics/physics_world.h"
 #include "../input/contracts/raw_input_event_receiver.h"
 #include "../input/contracts/raw_input_frame_receiver.h"
 #include "../input/raw_input_frame.h"
@@ -116,6 +115,8 @@ protected:
     void request_quit();
     [[nodiscard]] const SceneRuntimeContext& runtime_context() const;
     void set_render_camera_slot(elysia::camera::CameraSlot slot) noexcept;
+    [[nodiscard]] elysia::physics::PhysicsWorld& physics_world() noexcept;
+    [[nodiscard]] const elysia::physics::PhysicsWorld& physics_world() const noexcept;
     virtual void on_scene_object_registered(elysia::core::SceneObject& object);
     [[nodiscard]] virtual std::optional<elysia::core::Rect> resolve_camera_focus_rect() const;
 
@@ -167,18 +168,10 @@ private:
         elysia::ui::UiInputEventReceiver* receiver = nullptr;
     };
 
-    struct PhysicsBodyEntry
+    struct PhysicsRegistrationEntry
     {
         elysia::core::SceneObject* object = nullptr;
-        elysia::core::GameObject* game_object = nullptr;
-        elysia::physics::PhysicsBodyProvider* body_provider = nullptr;
-    };
-
-    struct ColliderEntry
-    {
-        elysia::core::SceneObject* object = nullptr;
-        elysia::core::GameObject* game_object = nullptr;
-        elysia::physics::ColliderProvider* collider_provider = nullptr;
+        elysia::physics::PhysicsObjectHandle handle{};
     };
 
 private:
@@ -191,13 +184,11 @@ private:
     std::vector<RawInputEventReceiverEntry> _event_receivers;
     std::vector<UiInputFrameReceiverEntry> _ui_frame_receivers;
     std::vector<UiInputEventReceiverEntry> _ui_event_receivers;
-    std::vector<PhysicsBodyEntry> _physics_body_entries;
-    std::vector<ColliderEntry> _collider_entries;
+    std::vector<PhysicsRegistrationEntry> _physics_registrations;
 
     elysia::ui::UiInputRouter _ui_input_router;
     elysia::camera::CameraSlot _render_camera_slot = elysia::camera::CameraSlot::Main;
-    elysia::physics::PhysicsSystem _physics_system;
-    elysia::physics::CollisionSystem _collision_system;
+    elysia::physics::PhysicsWorld _physics_world;
     const SceneRuntimeContext* _runtime_context = nullptr;
 };
 }

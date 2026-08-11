@@ -1,6 +1,6 @@
 #pragma once
 
-#include "collider.h"
+#include "collision_target.h"
 
 namespace elysia::physics
 {
@@ -21,7 +21,7 @@ struct SegmentCastQuery
 
 struct CollisionQueryHit
 {
-    ColliderId collider = InvalidColliderId;
+    CollisionTarget target{};
     elysia::core::Vector2 point{};
     elysia::core::Vector2 normal{};
     float distance = 0.0f;

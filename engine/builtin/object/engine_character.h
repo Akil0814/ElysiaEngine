@@ -33,8 +33,8 @@ public:
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
 
-    [[nodiscard]] std::span<const elysia::physics::Collider>
-        colliders() const noexcept override;
+    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override;
+    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override;
 
     [[nodiscard]] bool set_animations(
         const BuiltinAssetCache& asset_cache,

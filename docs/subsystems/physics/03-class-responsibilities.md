@@ -1,5 +1,7 @@
 # 03｜逐类职责
 
+> **命名更新**：`BodyType`、`PhysicsWorldConfig`、`PhysicsWorld`、`PhysicsObjectHandle`、`CollisionTarget`、`CollisionEvent`、`CollisionFrame`、`ITileCollisionWorld` 和 `Gameplay` listener 契约现已存在。宽相扩展点最终采用可维护状态的 `IBroadPhaseIndex`，不再采用一次性 `IBroadPhaseStrategy`；生产实现（包括 Brute Force 与四叉树）仍待新增。
+
 返回：[物理文档入口](README.md)　上一篇：[目标架构](02-target-architecture.md)　下一篇：[逐函数实现契约](04-function-responsibilities.md)
 
 ## 1. 阅读说明
@@ -12,15 +14,15 @@
 
 ## 2. Body 与运动
 
-### `PhysicsBody`（当前存在，建议调整）
+### `PhysicsBody`（当前契约已整理）
 
 **目的**：保存一个对象参与物理积分所需的运动状态，不保存世界位置。位置事实仍由 owner `GameObject` 持有。
 
-**当前字段**：velocity、accumulated_force、max_speed、gravity_scale、linear_damping、mass、enabled、is_static、is_kinematic。
+**当前字段**：velocity、accumulated_force、max_speed、gravity_scale、linear_damping、mass、enabled、type。
 
-**目标调整**：
+**当前已落地与后续约束**：
 
-- 用 `BodyType type` 替代 `is_static` 和 `is_kinematic`；
+- `BodyType type` 已替代旧的两个状态 bool；
 - `mass` 只对 Dynamic 生效且必须有限并大于零；
 - `max_speed.x/y <= 0` 表示该轴不限制，正值表示绝对速度上限；
 - `linear_damping` 必须有限且非负；
@@ -31,7 +33,7 @@
 
 **完成标准**：三种 BodyType 不会产生矛盾；相同输入在固定 dt 下积分结果稳定；无效参数不会产生 NaN。
 
-### `BodyType`（目标新增）
+### `BodyType`（当前存在）
 
 | 值 | 是否积分力/重力 | 是否按 velocity 移动 | Block 求解逆质量 |
 | --- | --- | --- | --- |
@@ -100,7 +102,7 @@ Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kin
 
 该配置只提供意图；最终决定必须同时读取双方 previous/current origin、相对位移和接触法线。它不应由窄检直接消费，而应由 response 策略处理。
 
-### `Collider`（当前存在，注册方式建议调整）
+### `Collider`（当前存在，注册生命周期已落地）
 
 **目的**：持久保存形状、过滤、响应和检测意图。
 
@@ -116,17 +118,17 @@ Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kin
 
 **不负责**：owner Transform、Body 状态、接触缓存、事件监听。
 
-### `ColliderProvider`（当前存在，建议增加可变 overload）
+### `ColliderProvider`（当前存在）
 
 把一个 GameObject 的零个或多个持久 Collider 暴露给 Scene/PhysicsWorld。Provider 仍然拥有底层容器；返回 span 的内存必须在注册期稳定。
 
-目标接口同时提供 mutable 与 const span。Provider 不分配全局 ID，也不注册自己。
+接口同时提供 mutable 与 const span。Provider 不分配全局 ID，也不注册自己。
 
 ## 4. 接触、命中与目标身份
 
-### `CollisionPair`（当前存在，目标调整）
+### `CollisionPair`（当前结构化契约）
 
-当前只保存两个 ColliderId。普通 Collider pair 应保持较小 ID 在 first。为了支持 Tile，目标设计让接触键使用两个 `CollisionTarget`，而不是给每个 Tile 伪造 ColliderId。
+当前保存两个 `CollisionTarget`。普通 Collider 宽相候选另用 `BroadPhasePair { ColliderId first, second }`；接触与事件 pair 不给 Tile 伪造 ColliderId。
 
 ### `CollisionManifold`（当前存在）
 
@@ -142,11 +144,11 @@ Manifold 不保存 response、Body 或事件阶段。
 
 当前分别表达 overlap 和带 response 的 contact。目标设计保留 `CollisionContact` 作为本步规范化事实，并由 response 区分 Block/Overlap；Gameplay 兼容事件可以继续使用 `CollisionOverlap` 视图。
 
-### `TileCoordinate`（目标新增）
+### `TileCoordinate`（当前存在）
 
 有符号 `(x, y)` 网格坐标。必须支持负数以表达越界查询和非零世界原点附近候选。排序规则为 y 优先、x 次之。
 
-### `CollisionTargetKind` / `CollisionTarget`（目标新增）
+### `CollisionTargetKind` / `CollisionTarget`（当前存在）
 
 统一标识普通 Collider 或当前 Tile World 的一个 Tile：
 
@@ -155,13 +157,13 @@ Manifold 不保存 response、Body 或事件阶段。
 
 提供构造工厂、有效性检查、相等和稳定排序。不得同时把两个分支都标为有效。
 
-### `CollisionEventPhase` / `CollisionEvent`（目标新增）
+### `CollisionEventPhase` / `CollisionEvent`（当前存在）
 
 phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 manifold 和 response。End 可以沿用上一缓存 manifold，调用方不得把 End 的 penetration 当成本步仍重叠。
 
-### `CollisionFrame`（目标新增）
+### `CollisionFrame`（当前存在，内容生成待实现）
 
-一个固定物理步的临时结果容器，至少保存 views、candidate pairs、contacts 和 events。由 PhysicsWorld 每步复用容量，不能跨步向外暴露内部 span。
+一个固定物理步的临时结果容器，当前保存 contacts 和 events，并由 `clear()` 复用容量。它由 PhysicsWorld 每步复用，不能跨步向外暴露内部 span；views 和 candidate pairs 保持为 CollisionSystem 内部临时数据。
 
 ### `ContactCache`（目标新增）
 
@@ -175,9 +177,9 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 固定步内对 Collider 的只读快照，包含 Collider 引用、target/owner handle、previous/current owner origin，以及便于算法读取的 Body 引用或索引。View 不拥有任何对象，仅在本固定步有效。
 
-### `IBroadPhaseStrategy`（当前存在）
+### `BroadPhaseProxy` / `BroadPhasePair` / `IBroadPhaseIndex`（当前存在）
 
-从普通 Collider views 产生候选 pair。不得做精确形状检测、Tile 查询、响应或事件分发。输出允许宽松但不能漏掉真实碰撞；必须去掉 self pair 和无效 ID。
+`IBroadPhaseIndex` 是可维护状态的普通 Collider 空间索引。`synchronize` 接收全量 proxy 快照；`collect_pairs` 输出规范化候选；`query_aabb` 为查询和局部检索提供候选；`clear` 清除索引。实现只能跨帧保存 ColliderId 与 bounds，不能保存 `Collider*` 或 `ColliderView*`。四叉树、Sweep-and-Prune 和 Brute Force 都可作为独立实现注入。
 
 ### `ICollisionDetectionStrategy`（当前存在）
 
@@ -187,7 +189,7 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 合并双方 response，处理 one-way 和 runtime 临时忽略规则，输出最终 Ignore/Overlap/Block。它选择语义但不直接移动对象。
 
-### `BruteForceBroadPhaseStrategy`（目标新增）
+### `BruteForceBroadPhaseIndex`（后续目标）
 
 首版正确性基线。遍历 `i < j` 的所有普通 Collider view，做 enabled、filter 和包围盒快速排除后输出 pair。即使未来增加 Sweep-and-Prune，它仍应保留作测试 oracle。
 
@@ -203,29 +205,29 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 实现 response 合并、one-way 和 drop-through predicate。临时忽略数据由调用方以只读上下文传入，策略不能拥有 gameplay binding。
 
-### `CollisionSystem`（当前存在，目标实现）
+### `CollisionSystem`（当前阶段边界已落地，算法待实现）
 
 **目的**：协调 view 构建、普通候选收集、Tile 候选、窄检、响应选择、Block 求解和本步 contact 输出。
 
-**拥有**：四个策略实例和可复用临时缓冲区。
+**拥有**：一个 `IBroadPhaseIndex`、两个 detection strategy 和一个 response strategy。
 
 **不拥有**：GameObject、Body、Collider、Tile World、跨步 ContactCache、Gameplay listener。
 
-当前 `dispatch_events` 命名与职责不符，目标设计拆为显式阶段函数；事件生命周期归 PhysicsWorld/ContactCache。
+当前公开入口为 `evaluate(span<ColliderView>, tile_world, fixed_dt, CollisionFrame&)`，本轮只清空 frame。事件生命周期将归 PhysicsWorld/ContactCache，不由 CollisionSystem 持有跨步状态。
 
 ## 6. PhysicsWorld 与配置
 
-### `PhysicsWorldConfig`（目标新增）
+### `PhysicsWorldConfig`（当前存在）
 
 保存固定步长、单次 advance 最大步数、求解迭代数和世界重力。构造 world 时校验一次，运行期间首版保持不变。
 
 默认 gravity 为零，具体游戏必须显式配置向下重力；这样 top-down 游戏不会被意外施加平台游戏重力。
 
-### `PhysicsObjectHandle`（目标新增）
+### `PhysicsObjectHandle`（当前存在）
 
 轻量、可比较的 world 内注册句柄，包含单调递增 generation/value。无效值为零。它标识注册 entry，不等同于 ColliderId，也不等同于 ActorId。
 
-### `PhysicsWorld`（目标新增）
+### `PhysicsWorld`（当前生命周期骨架已落地）
 
 **目的**：每 Scene 的物理运行时与唯一协调者。
 
@@ -248,23 +250,23 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 ## 7. Tile Map 类型
 
-### `TileCollisionType`（目标新增）
+### `TileCollisionType`（当前存在）
 
 - `Empty`：无碰撞；
 - `Block`：普通阻挡；
 - `Overlap`：只产生重叠；
 - `OneWay`：使用 cell 的 OneWayCollision 规则。
 
-### `TileOutOfBoundsPolicy`（目标新增）
+### `TileOutOfBoundsPolicy`（当前存在）
 
 - `Block`：地图外视为不可进入的实心区域，默认；
 - `Empty`：地图外不产生碰撞。
 
-### `TileCollisionCell`（目标新增）
+### `TileCollisionCell`（当前存在）
 
 保存 type、filter、one_way 和调试 tag。它是查询返回值，不拥有 Tile 数据。Empty cell 的其他字段不应影响结果。
 
-### `ITileCollisionWorld`（目标新增）
+### `ITileCollisionWorld`（当前存在）
 
 物理核心读取规则网格的最小接口：origin、tile_size、columns、rows、out_of_bounds_policy、cell_at。它不提供渲染纹理、图块 ID、房间、对象层或地图生成 API。
 
@@ -322,7 +324,7 @@ ActorId、TeamId、AttackInstanceId、AttackDefinitionId 属于 Gameplay 身份�
 
 原子描述一个 Actor 的 Body、PushBox、HurtBox 和 Sensor 集合。runtime 应验证所有非零 Collider 已注册且不重复，再一次性提交。
 
-### Gameplay Event（当前存在，建议增加 phase/target）
+### Gameplay Event（当前 phase/target 契约已落地）
 
 - `BodyContactEvent`：Body 与世界/普通 Collider 的接触；
 - `PushBoxOverlapEvent`：两个 PushBox；

@@ -1,5 +1,7 @@
 # 07｜Gameplay 碰撞 Runtime
 
+> Gameplay 事件现已携带 `CollisionEventPhase`，Body/drop-through 已使用结构化 `CollisionTarget`，Runtime/Service 已具备 listener add/remove 契约；具体 `GameplayCollisionRuntime`、binding map、路由、命中去重和恢复逻辑仍未实现。
+
 返回：[物理文档入口](README.md)　上一篇：[Tile Map 碰撞](06-tile-map-collision.md)　下一篇：[实施路线与测试](08-implementation-roadmap-and-tests.md)
 
 ## 1. 分层目标

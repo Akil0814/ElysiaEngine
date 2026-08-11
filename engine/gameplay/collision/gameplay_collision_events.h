@@ -2,19 +2,21 @@
 
 #include "gameplay_collision_types.h"
 
-#include "../../physics/collision/collision_contact.h"
+#include "../../physics/collision/collision_event.h"
 
 namespace elysia::gameplay::collision
 {
 struct BodyContactEvent
 {
+    elysia::physics::CollisionEventPhase phase = elysia::physics::CollisionEventPhase::Begin;
     ColliderBinding body{};
-    elysia::physics::ColliderId other = elysia::physics::InvalidColliderId;
+    elysia::physics::CollisionTarget other{};
     elysia::physics::CollisionContact contact{};
 };
 
 struct PushBoxOverlapEvent
 {
+    elysia::physics::CollisionEventPhase phase = elysia::physics::CollisionEventPhase::Begin;
     ColliderBinding first{};
     ColliderBinding second{};
     elysia::physics::CollisionOverlap overlap{};
@@ -22,6 +24,7 @@ struct PushBoxOverlapEvent
 
 struct HitOverlapEvent
 {
+    elysia::physics::CollisionEventPhase phase = elysia::physics::CollisionEventPhase::Begin;
     HitBoxBinding hit_box{};
     ColliderBinding hurt_box{};
     elysia::physics::CollisionOverlap overlap{};

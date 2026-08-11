@@ -1,5 +1,7 @@
 # 02｜目标架构与一帧数据流
 
+> **当前落地边界**：`Scene → PhysicsWorld → PhysicsSystem/CollisionSystem` 的所有权、固定步协调、注册表、结构化目标、Tile World 契约和 `IBroadPhaseIndex` 插槽已经落地。图中积分、候选生成、检测、求解、接触缓存、事件分发和 Gameplay 路由仍表示后续目标。
+
 返回：[物理文档入口](README.md)　下一篇：[逐类职责](03-class-responsibilities.md)
 
 ## 1. 核心决策
@@ -170,8 +172,8 @@ Scene 发现 Provider 后调用 `PhysicsWorld::register_object`。注册必须�
 ```mermaid
 flowchart LR
     R[Registry entries] --> V[ColliderView world snapshots]
-    V --> B[IBroadPhaseStrategy]
-    B --> P[canonical CollisionPair]
+    V --> B[IBroadPhaseIndex]
+    B --> P[canonical BroadPhasePair]
     P --> D[Discrete / Continuous detector]
     D --> H[CollisionHit]
     H --> F[Filter / One-way / Drop-through]
@@ -192,13 +194,13 @@ flowchart LR
 Physics 层事件使用 `CollisionTarget`：
 
 ```cpp
-enum class CollisionTargetKind : std::uint8_t { Collider, Tile };
+enum class CollisionTargetKind : std::uint8_t { Invalid, Collider, Tile };
 
 struct TileCoordinate { int x = 0; int y = 0; };
 
 struct CollisionTarget
 {
-    CollisionTargetKind kind = CollisionTargetKind::Collider;
+    CollisionTargetKind kind = CollisionTargetKind::Invalid;
     ColliderId collider = InvalidColliderId;
     TileCoordinate tile{};
 };

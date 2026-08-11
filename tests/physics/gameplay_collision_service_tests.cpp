@@ -57,17 +57,38 @@ public:
         return operation_result;
     }
 
+    [[nodiscard]] bool add_listener(
+        elysia::gameplay::collision::GameplayCollisionListener& listener
+    ) override
+    {
+        ++add_listener_calls;
+        last_listener = &listener;
+        return operation_result;
+    }
+
+    [[nodiscard]] bool remove_listener(
+        const elysia::gameplay::collision::GameplayCollisionListener& listener
+    ) override
+    {
+        ++remove_listener_calls;
+        last_listener = &listener;
+        return operation_result;
+    }
+
     bool operation_result = true;
     int bind_actor_calls = 0;
     int bind_collider_calls = 0;
     int bind_hit_box_calls = 0;
     int unbind_collider_calls = 0;
     int drop_through_calls = 0;
+    int add_listener_calls = 0;
+    int remove_listener_calls = 0;
     elysia::gameplay::collision::ActorCollisionRig last_actor{};
     elysia::gameplay::collision::ColliderBinding last_collider{};
     elysia::gameplay::collision::HitBoxBinding last_hit_box{};
     elysia::physics::ColliderId last_unbound_collider = elysia::physics::InvalidColliderId;
     elysia::gameplay::collision::DropThroughRequest last_drop_through{};
+    const elysia::gameplay::collision::GameplayCollisionListener* last_listener = nullptr;
 };
 
 std::string capture_logs(const std::function<void()>& action)
@@ -154,20 +175,36 @@ int main()
     require(second_runtime.bind_actor_calls == 0,
         "A rejected runtime must not receive forwarded operations");
 
-    const DropThroughRequest drop_through{101, 201};
+    const DropThroughRequest drop_through{
+        101,
+        elysia::physics::CollisionTarget::from_collider(201)
+    };
     require(service->request_drop_through(drop_through),
         "Valid drop-through requests must reach the active runtime");
     require(first_runtime.drop_through_calls == 1
             && first_runtime.last_drop_through.actor == 101
-            && first_runtime.last_drop_through.target == 201,
+            && first_runtime.last_drop_through.target
+                == elysia::physics::CollisionTarget::from_collider(201),
         "Drop-through forwarding must preserve the requested collider pair");
+
+    GameplayCollisionListener listener;
+    require(service->add_listener(listener)
+            && service->remove_listener(listener),
+        "Gameplay listeners must be forwarded to the active runtime");
+    require(first_runtime.add_listener_calls == 1
+            && first_runtime.remove_listener_calls == 1
+            && first_runtime.last_listener == &listener,
+        "Listener forwarding must preserve listener identity");
 
     const int valid_drop_through_calls = first_runtime.drop_through_calls;
     capture_logs([&]
     {
         require(!service->request_drop_through(DropThroughRequest{}),
             "Invalid collider IDs must be rejected");
-        require(!service->request_drop_through(DropThroughRequest{101, 101}),
+        require(!service->request_drop_through(DropThroughRequest{
+                101,
+                elysia::physics::CollisionTarget::from_collider(101)
+            }),
             "A collider must not request drop-through against itself");
     });
     require(first_runtime.drop_through_calls == valid_drop_through_calls,

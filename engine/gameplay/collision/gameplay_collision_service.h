@@ -23,6 +23,8 @@ public:
     [[nodiscard]] bool bind_hit_box(const HitBoxBinding& binding);
     [[nodiscard]] bool unbind_collider(elysia::physics::ColliderId collider);
     [[nodiscard]] bool request_drop_through(const DropThroughRequest& request);
+    [[nodiscard]] bool add_listener(GameplayCollisionListener& listener);
+    [[nodiscard]] bool remove_listener(const GameplayCollisionListener& listener);
 
 private:
     GameplayCollisionService() = default;

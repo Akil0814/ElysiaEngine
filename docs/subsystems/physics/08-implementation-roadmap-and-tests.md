@@ -1,5 +1,7 @@
 # 08｜实施路线与测试验收
 
+> **进度更新**：阶段 1 的公共数据契约、阶段 2 的 `PhysicsWorld`/注册表/稳定 ID，以及阶段 7 的 Scene 生命周期骨架已经完成；固定步 accumulator 已完成，但阶段 3 的实际积分尚未开始。阶段 4 以后所有物理算法仍待实现。宽相生产实现应基于 `IBroadPhaseIndex`，Brute Force 与四叉树都是该接口的可替换实现。
+
 返回：[物理文档入口](README.md)　上一篇：[Gameplay Runtime](07-gameplay-collision-runtime.md)
 
 ## 1. 实施原则
@@ -8,7 +10,7 @@
 - 先建立数据不变量和纯算法测试，再接入 Scene；
 - 不在一个提交中同时重构注册、实现算法、接 Gameplay 和改角色逻辑；
 - Brute Force 和离散算法作为正确性基线，性能结构后置；
-- 所有新增目标 API 在真正实现前都属于建议，不应让示例游戏依赖半成品；
+- 已落地 API 可以被 Scene 生命周期代码依赖，但不得把空算法阶段描述为真实物理能力；
 - 不用 Sandbox “看起来没穿墙”代替边界和退化单元测试。
 
 推荐为每阶段建立独立测试 target 或在 `tests/physics/` 中按模块拆文件，统一使用 `LABEL physics`。
@@ -35,7 +37,7 @@ flowchart LR
     P11 --> P12
 ```
 
-## 阶段 1：整理数据契约与 BodyType
+## 阶段 1：整理数据契约与 BodyType（已完成）
 
 ### 目标
 
@@ -72,7 +74,7 @@ flowchart LR
 - 让 CollisionTarget 保存项目 map 指针；
 - 默认 mass=0 导致 Dynamic 无法积分。
 
-## 阶段 2：PhysicsWorld、注册表与稳定 ID
+## 阶段 2：PhysicsWorld、注册表与稳定 ID（已完成）
 
 ### 前置
 
@@ -83,7 +85,7 @@ flowchart LR
 - 增加 `PhysicsWorldConfig`、`PhysicsObjectHandle`、`PhysicsWorld`；
 - 定义明确的 registry entry，而不是继续依赖 Scene 私有匿名模板结构；
 - 建立 owner、handle、ColliderId 三向索引；
-- 实现原子注册、幂等重复注册、延迟注销；
+- 实现原子注册、幂等重复注册和立即注销；步中重入当前拒绝，pending queue 留到事件阶段；
 - ColliderId 与 handle 从 1 单调递增，世界生命周期内不复用；
 - previous/current origin 首次都取注册时 position；
 - 增加 reset 与失效对象清理；
@@ -182,7 +184,7 @@ flowchart LR
 
 ### 修改
 
-- 实现 `BruteForceBroadPhaseStrategy`；
+- 实现 `BruteForceBroadPhaseIndex`（遵守 `IBroadPhaseIndex`）；
 - 实现 AABB/AABB；
 - 实现 Circle/Circle；
 - 实现 AABB/Circle，并支持输入交换；
@@ -271,7 +273,7 @@ flowchart LR
 
 ### 完成定义
 
-示例 Scene 能通过真实 PhysicsBody/Collider 运动和碰撞，不再依赖空 `step/dispatch_events`。
+示例 Scene 能通过真实 PhysicsBody/Collider 运动和碰撞；Scene 保持只调用 `PhysicsWorld::advance`。
 
 ## 阶段 8：Tile Collision World
 
@@ -481,7 +483,7 @@ PushBox 重叠持续路由；Hostile HitBox 对 HurtBox 首次 Begin 命中；St
 | 当前符号 | 类职责 | 函数职责/算法 |
 | --- | --- | --- |
 | `PhysicsBody` | [03 §2](03-class-responsibilities.md#physicsbody当前存在建议调整) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
-| `PhysicsSystem::step` | [03 §2](03-class-responsibilities.md#physicssystem当前存在但为空壳) | [04 §5](04-function-responsibilities.md#当前-physicssystemstepbody_entries-delta) |
+| `PhysicsSystem::integrate` / `clear_forces` | [03 §2](03-class-responsibilities.md#physicssystem当前存在但为空壳) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
 | AABB/Circle/ColliderShape | [03 §3](03-class-responsibilities.md#3-collider-与形状) | [05 §2、6—8](05-collision-algorithms.md#2-世界形状构造) |
 | Filter/Response/DetectionMode | [03 §3](03-class-responsibilities.md#collisionfilter当前存在) | [05 §4、11](05-collision-algorithms.md#4-collisionfilter) |
 | PassThrough/OneWay | [03 §3](03-class-responsibilities.md#passthroughdirection--onewaycollision当前存在) | [04 §2](04-function-responsibilities.md#2-现有小型纯函数)、[05 §12](05-collision-algorithms.md#12-单向平台判断) |

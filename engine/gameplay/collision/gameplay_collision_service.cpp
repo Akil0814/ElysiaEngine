@@ -72,18 +72,32 @@ bool GameplayCollisionService::unbind_collider(elysia::physics::ColliderId colli
 bool GameplayCollisionService::request_drop_through(const DropThroughRequest& request)
 {
     if (request.actor == elysia::physics::InvalidColliderId
-        || request.target == elysia::physics::InvalidColliderId
-        || request.actor == request.target)
+        || !request.target.is_valid()
+        || (request.target.kind == elysia::physics::CollisionTargetKind::Collider
+            && request.actor == request.target.collider))
     {
         ELYSIA_LOG_ERROR(
             "collision",
-            "Drop-through request failed: actor and target must be distinct valid collider IDs."
+            "Drop-through request failed: actor and target must be valid and cannot identify the same collider."
         );
         return false;
     }
 
     IGameplayCollisionRuntime* runtime = runtime_or_log("request drop-through");
     return runtime && runtime->request_drop_through(request);
+}
+
+bool GameplayCollisionService::add_listener(GameplayCollisionListener& listener)
+{
+    IGameplayCollisionRuntime* runtime = runtime_or_log("add listener");
+    return runtime && runtime->add_listener(listener);
+}
+
+bool GameplayCollisionService::remove_listener(
+    const GameplayCollisionListener& listener)
+{
+    IGameplayCollisionRuntime* runtime = runtime_or_log("remove listener");
+    return runtime && runtime->remove_listener(listener);
 }
 
 IGameplayCollisionRuntime* GameplayCollisionService::runtime_or_log(

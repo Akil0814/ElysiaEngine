@@ -2,8 +2,17 @@
 
 #include "../../core/geometry/vector2.h"
 
+#include <cstdint>
+
 namespace elysia::physics
 {
+enum class BodyType : std::uint8_t
+{
+    Static,
+    Kinematic,
+    Dynamic
+};
+
 struct PhysicsBody
 {
     elysia::core::Vector2 velocity{};
@@ -15,7 +24,6 @@ struct PhysicsBody
     float mass = 1.0f;
 
     bool enabled = true;
-    bool is_static = false;
-    bool is_kinematic = false;
+    BodyType type = BodyType::Dynamic;
 };
 }

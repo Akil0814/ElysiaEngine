@@ -1,5 +1,7 @@
 # 06｜Tile Map 碰撞适配
 
+> `TileCoordinate`、`CollisionTarget`、`TileCollisionCell` 与 `ITileCollisionWorld` 已作为公共契约落地；每个 `PhysicsWorld` 可绑定一个活动 Tile World。坐标换算、候选范围、Tile 检测/求解和项目适配器仍待实现。
+
 返回：[物理文档入口](README.md)　上一篇：[碰撞算法](05-collision-algorithms.md)　下一篇：[Gameplay Runtime](07-gameplay-collision-runtime.md)
 
 ## 1. 为什么使用适配器
@@ -105,18 +107,20 @@ public:
 
 ## 4. 结构化 Tile 身份
 
-目标 `CollisionTarget` 使用 tagged union 语义：
+当前 `CollisionTarget` 使用 tagged union 语义：
 
 ```cpp
 struct CollisionTarget
 {
-    CollisionTargetKind kind = CollisionTargetKind::Collider;
+    CollisionTargetKind kind = CollisionTargetKind::Invalid;
     ColliderId collider = InvalidColliderId;
     TileCoordinate tile{};
 
     static CollisionTarget from_collider(ColliderId id) noexcept;
     static CollisionTarget from_tile(TileCoordinate coordinate) noexcept;
     bool is_valid() const noexcept;
+    bool operator==(const CollisionTarget&) const noexcept;
+    std::strong_ordering operator<=>(const CollisionTarget&) const noexcept;
 };
 ```
 

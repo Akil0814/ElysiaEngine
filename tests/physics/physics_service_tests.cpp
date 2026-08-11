@@ -10,22 +10,33 @@ using elysia::tests::require;
 
 namespace
 {
-class FakeBroadPhaseStrategy final : public elysia::physics::IBroadPhaseStrategy
+class FakeBroadPhaseIndex final : public elysia::physics::IBroadPhaseIndex
 {
 public:
-    explicit FakeBroadPhaseStrategy(int identity) noexcept
+    explicit FakeBroadPhaseIndex(int identity) noexcept
         : identity(identity)
     {
     }
 
-    void collect_pairs(
-        std::span<const elysia::physics::ColliderView> colliders,
-        std::vector<elysia::physics::CollisionPair>& out_pairs
-    ) const override
+    void synchronize(std::span<const elysia::physics::BroadPhaseProxy> proxies) override
     {
-        (void)colliders;
-        (void)out_pairs;
+        (void)proxies;
     }
+
+    void collect_pairs(std::vector<elysia::physics::BroadPhasePair>& out_pairs) const override
+    {
+        out_pairs.clear();
+    }
+
+    void query_aabb(
+        const elysia::core::Rect& bounds,
+        std::vector<elysia::physics::ColliderId>& out_candidates) const override
+    {
+        (void)bounds;
+        out_candidates.clear();
+    }
+
+    void clear() noexcept override {}
 
     int identity = 0;
 };
@@ -87,7 +98,7 @@ elysia::physics::CollisionStrategyFactories complete_factories(
     return {
         [&broad_phase_count]
         {
-            return std::make_unique<FakeBroadPhaseStrategy>(++broad_phase_count);
+            return std::make_unique<FakeBroadPhaseIndex>(++broad_phase_count);
         },
         [&discrete_count]
         {
@@ -115,9 +126,9 @@ int main()
     require(!service->is_configured(),
         "PhysicsService must start unconfigured after shutdown");
     require(!service->configure(CollisionStrategyFactories{
-            .create_broad_phase = []
+            .create_broad_phase_index = []
             {
-                return std::make_unique<FakeBroadPhaseStrategy>(1);
+                return std::make_unique<FakeBroadPhaseIndex>(1);
             }
         }),
         "PhysicsService must reject incomplete strategy factories");
@@ -148,12 +159,12 @@ int main()
         "PhysicsService must apply complete strategies to a collision system");
     require(service->apply_to(second_system),
         "PhysicsService must apply strategies to multiple collision systems");
-    require(first_system.broad_phase_strategy()
+    require(first_system.broad_phase_index()
             && first_system.discrete_detection_strategy()
             && first_system.continuous_detection_strategy()
             && first_system.response_strategy(),
         "Applied collision systems must receive every strategy");
-    require(first_system.broad_phase_strategy() != second_system.broad_phase_strategy()
+    require(first_system.broad_phase_index() != second_system.broad_phase_index()
             && first_system.discrete_detection_strategy() != second_system.discrete_detection_strategy()
             && first_system.continuous_detection_strategy() != second_system.continuous_detection_strategy()
             && first_system.response_strategy() != second_system.response_strategy(),
@@ -169,7 +180,7 @@ int main()
     CollisionStrategyFactories null_factories{
         []
         {
-            return std::make_unique<FakeBroadPhaseStrategy>(1);
+            return std::make_unique<FakeBroadPhaseIndex>(1);
         },
         []
         {
@@ -188,7 +199,7 @@ int main()
         "Complete callable slots must be accepted before their products are evaluated");
 
     CollisionSystem unchanged_system;
-    auto existing_broad_phase = std::make_unique<FakeBroadPhaseStrategy>(10);
+    auto existing_broad_phase = std::make_unique<FakeBroadPhaseIndex>(10);
     auto existing_discrete = std::make_unique<FakeDetectionStrategy>(20);
     auto existing_continuous = std::make_unique<FakeDetectionStrategy>(30);
     auto existing_response = std::make_unique<FakeResponseStrategy>(40);
@@ -196,14 +207,14 @@ int main()
     const auto* existing_discrete_ptr = existing_discrete.get();
     const auto* existing_continuous_ptr = existing_continuous.get();
     const auto* existing_response_ptr = existing_response.get();
-    unchanged_system.set_broad_phase_strategy(std::move(existing_broad_phase));
+    unchanged_system.set_broad_phase_index(std::move(existing_broad_phase));
     unchanged_system.set_discrete_detection_strategy(std::move(existing_discrete));
     unchanged_system.set_continuous_detection_strategy(std::move(existing_continuous));
     unchanged_system.set_response_strategy(std::move(existing_response));
 
     require(!service->apply_to(unchanged_system),
         "PhysicsService must reject a strategy set containing a null product");
-    require(unchanged_system.broad_phase_strategy() == existing_broad_phase_ptr
+    require(unchanged_system.broad_phase_index() == existing_broad_phase_ptr
             && unchanged_system.discrete_detection_strategy() == existing_discrete_ptr
             && unchanged_system.continuous_detection_strategy() == existing_continuous_ptr
             && unchanged_system.response_strategy() == existing_response_ptr,
@@ -211,7 +222,7 @@ int main()
 
     service->shutdown();
     CollisionStrategyFactories throwing_factories{
-        []() -> std::unique_ptr<IBroadPhaseStrategy>
+        []() -> std::unique_ptr<IBroadPhaseIndex>
         {
             throw std::runtime_error("factory failure");
         },
@@ -242,7 +253,7 @@ int main()
     }
     require(exception_propagated,
         "PhysicsService must propagate strategy factory exceptions");
-    require(unchanged_system.broad_phase_strategy() == existing_broad_phase_ptr
+    require(unchanged_system.broad_phase_index() == existing_broad_phase_ptr
             && unchanged_system.discrete_detection_strategy() == existing_discrete_ptr
             && unchanged_system.continuous_detection_strategy() == existing_continuous_ptr
             && unchanged_system.response_strategy() == existing_response_ptr,

@@ -2,6 +2,7 @@
 
 #include "../collision/collider.h"
 #include "../collision/collision_contact.h"
+#include "../physics_object_handle.h"
 
 #include <optional>
 #include <span>
@@ -11,20 +12,10 @@ namespace elysia::physics
 {
 struct ColliderView
 {
+    PhysicsObjectHandle object{};
     const Collider* collider = nullptr;
     elysia::core::Vector2 previous_owner_origin{};
     elysia::core::Vector2 current_owner_origin{};
-};
-
-class IBroadPhaseStrategy
-{
-public:
-    virtual ~IBroadPhaseStrategy() = default;
-
-    virtual void collect_pairs(
-        std::span<const ColliderView> colliders,
-        std::vector<CollisionPair>& out_pairs
-    ) const = 0;
 };
 
 class ICollisionDetectionStrategy

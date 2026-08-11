@@ -8,6 +8,7 @@
 #include "../core/render/sdl_render_command_executor.h"
 #include "../input/contracts/raw_input_event_receiver.h"
 #include "../tools/debug_draw.h"
+#include "../tools/logger.h"
 #include "../input/contracts/raw_input_frame_receiver.h"
 #include "../ui/core/ui_render_command_range_utils.h"
 
@@ -97,10 +98,7 @@ void Scene::on_update(double delta)
     }
 
     if (!_paused)
-    {
-        _physics_system.step(_physics_body_entries, delta);
-        _collision_system.dispatch_events(_collider_entries, delta);
-    }
+        (void)_physics_world.advance(delta);
 
     auto* camera_manager = elysia::camera::CameraManager::instance();
     camera_manager->set_focus_rect(
@@ -213,24 +211,29 @@ void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
     elysia::core::GameObject* game_object = dynamic_cast<elysia::core::GameObject*>(object);
     if (game_object)
     {
-        if (elysia::physics::PhysicsBodyProvider* body_provider =
-            dynamic_cast<elysia::physics::PhysicsBodyProvider*>(object))
+        auto* body_provider =
+            dynamic_cast<elysia::physics::PhysicsBodyProvider*>(object);
+        auto* collider_provider =
+            dynamic_cast<elysia::physics::ColliderProvider*>(object);
+        if (body_provider || collider_provider)
         {
-            _physics_body_entries.push_back(PhysicsBodyEntry{
-                object,
-                game_object,
-                body_provider
-            });
-        }
-
-        if (elysia::physics::ColliderProvider* collider_provider =
-            dynamic_cast<elysia::physics::ColliderProvider*>(object))
-        {
-            _collider_entries.push_back(ColliderEntry{
-                object,
-                game_object,
-                collider_provider
-            });
+            const elysia::physics::PhysicsObjectHandle handle =
+                _physics_world.register_object(
+                    *game_object,
+                    body_provider,
+                    collider_provider);
+            if (handle.is_valid())
+            {
+                _physics_registrations.push_back(
+                    PhysicsRegistrationEntry{object, handle});
+            }
+            else
+            {
+                ELYSIA_LOG_ERROR(
+                    "collision",
+                    "Scene physics registration failed for a GameObject."
+                );
+            }
         }
     }
 
@@ -288,13 +291,18 @@ void Scene::dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent>& even
 
 void Scene::remove_destroyed_objects()
 {
+    for (const PhysicsRegistrationEntry& entry : _physics_registrations)
+    {
+        if (entry.object && entry.object->is_destroyed())
+            (void)_physics_world.unregister_object(entry.handle);
+    }
+
     erase_destroyed_entries(_updatables);
     erase_destroyed_entries(_frame_receivers);
     erase_destroyed_entries(_event_receivers);
     erase_destroyed_entries(_ui_frame_receivers);
     erase_destroyed_entries(_ui_event_receivers);
-    erase_destroyed_entries(_physics_body_entries);
-    erase_destroyed_entries(_collider_entries);
+    erase_destroyed_entries(_physics_registrations);
 
     for (auto& layer : _object_layers)
     {
@@ -390,6 +398,16 @@ void Scene::set_render_camera_slot(elysia::camera::CameraSlot slot) noexcept
         return;
 
     _render_camera_slot = slot;
+}
+
+elysia::physics::PhysicsWorld& Scene::physics_world() noexcept
+{
+    return _physics_world;
+}
+
+const elysia::physics::PhysicsWorld& Scene::physics_world() const noexcept
+{
+    return _physics_world;
 }
 
 std::optional<elysia::core::Rect> Scene::resolve_camera_focus_rect() const

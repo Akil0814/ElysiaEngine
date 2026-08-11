@@ -1,6 +1,7 @@
 #pragma once
 
 #include "actor_collision_rig.h"
+#include "gameplay_collision_listener.h"
 #include "gameplay_collision_types.h"
 
 namespace elysia::gameplay::collision
@@ -15,5 +16,7 @@ public:
     [[nodiscard]] virtual bool bind_hit_box(const HitBoxBinding& binding) = 0;
     [[nodiscard]] virtual bool unbind_collider(elysia::physics::ColliderId collider) = 0;
     [[nodiscard]] virtual bool request_drop_through(const DropThroughRequest& request) = 0;
+    [[nodiscard]] virtual bool add_listener(GameplayCollisionListener& listener) = 0;
+    [[nodiscard]] virtual bool remove_listener(const GameplayCollisionListener& listener) = 0;
 };
 }

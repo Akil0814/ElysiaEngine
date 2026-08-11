@@ -1,5 +1,7 @@
 # 01｜当前状态与缺失审计
 
+> **API 骨架落地状态（2026-08）**：本章早期审计所指出的 `BodyType`、mutable `ColliderProvider`、`PhysicsObjectHandle`、结构化 `CollisionTarget`、`CollisionEvent`/`CollisionFrame`、`ITileCollisionWorld`、每 Scene `PhysicsWorld`、固定步累积和 Scene 注册/注销已经实现。旧 `PhysicsSystem::step`、`CollisionSystem::dispatch_events` 与 `IBroadPhaseStrategy` 已删除。生产宽相、积分、检测、求解、事件生成、Tile 算法、查询算法和 Gameplay runtime 仍缺失；以下算法缺失清单继续有效。
+
 返回：[物理文档入口](README.md)
 
 ## 1. 审计结论
@@ -8,17 +10,17 @@
 
 ```text
 数据契约       已有
-策略插槽       已有
-Scene 调用点   已有
+策略/索引插槽  已有
+Scene 调用点   已接入 PhysicsWorld
 策略具体实现   缺失
-每场景世界     缺失
+每场景世界     生命周期骨架已完成
 运动与响应     缺失
-事件与查询     缺失
-Tile Map       缺失
+事件与查询     契约已有，算法缺失
+Tile Map       适配契约已有，算法缺失
 Gameplay 路由  只有门面，没有 runtime
 ```
 
-现有测试证明默认值、接口形状、策略安装的事务性，以及 Gameplay Service 的转发行为；它们不证明角色会移动、Collider 会相交或事件会产生。
+现有测试还证明 World 注册/注销、ID 生命周期、固定步上限、Tile/listener 身份规则与 Scene 析构顺序；它们仍不证明角色会移动、Collider 会相交或事件会产生。
 
 ## 2. 状态定义
 
@@ -37,42 +39,38 @@ Gameplay 路由  只有门面，没有 runtime
 | `AabbShape` / `CircleShape` | 部分完成 | 声明局部矩形、局部圆心和半径 | 参数校验、世界形状转换、相交算法 |
 | `ColliderShape` | 完成（契约） | 使用 `std::variant` 保存两种形状 | 首版无需增加新形状 |
 | `CollisionFilter` | 部分完成 | category、mask、group 字段 | 双向 mask 和 group 的正式规则与函数 |
-| `Collider` | 部分完成 | ID、形状、过滤、响应、检测模式、单向配置、tag、enabled | ID 分配、注册、世界 Transform、生命周期 |
+| `Collider` | 部分完成 | ID、形状、过滤、响应、检测模式、单向配置、tag、enabled；World 已管理 ID 与注册生命周期 | 世界形状转换与碰撞算法 |
 | `PassThroughDirection` | 完成（契约） | 位组合与查询函数 | 方向判断算法尚未消费它 |
-| `CollisionPair` | 建议调整 | 表达两个 Collider ID | 无法表示 Tile World 与 Tile 坐标 |
+| `CollisionTarget` / `CollisionPair` | 完成（契约） | 结构化表达 Collider 或 Tile 坐标；pair 使用两个 target | 算法尚未生成实际 pair |
 | `CollisionManifold` | 部分完成 | 法线、穿透深度、最多两个接触点 | 生成规则、有效性约束、数值容差 |
 | `CollisionHit` | 部分完成 | manifold 与归一化 TOI | 离散/连续检测实现 |
-| `CollisionContact` / `CollisionOverlap` | 部分完成 | Block/Overlap 结果载体 | 统一目标、事件阶段和接触缓存 |
+| `CollisionContact` / `CollisionOverlap` | 部分完成 | 使用结构化 target 的 Block/Overlap 结果载体 | 实际生成与接触缓存 |
 | Query 数据结构 | 部分完成 | Ray、Segment、最近命中字段 | 输入校验、普通 Collider/Tile 查询、最近命中排序 |
-| `PhysicsBody` | 建议调整 | 速度、力、限速、重力比例、阻尼、质量、三个状态 bool | bool 状态可冲突；无积分、验证、接地状态和 Transform 写回 |
+| `PhysicsBody` | 部分完成 | 速度、力、限速、重力比例、阻尼、质量和单一 `BodyType` | 积分、验证、接地状态和 Transform 写回 |
 | `PhysicsBodyProvider` | 部分完成 | 暴露可变/只读 Body | 注册与生命周期协议 |
-| `ColliderProvider` | 建议调整 | 暴露只读 Collider span | runtime 无法为 invalid Collider 分配稳定 ID |
-| `ColliderView` | 部分完成 | Collider 指针和 previous/current owner origin | 目标身份、Body/owner 句柄、世界形状缓存 |
-| Strategy 接口 | 部分完成 | Broad、Discrete/Continuous、Response 插槽 | 没有任何生产实现 |
-| `CollisionSystem` | 空壳 | 可设置并查询四个策略 | `dispatch_events` 完全忽略输入；没有帧数据和缓存 |
-| `PhysicsSystem` | 空壳 | `step` 模板入口 | 完全忽略 Body 和 delta |
+| `ColliderProvider` | 完成（契约） | 暴露 mutable/const Collider span，注册期要求地址和长度稳定 | 项目 Provider 必须遵守稳定存储约束 |
+| `ColliderView` | 部分完成 | object handle、Collider 指针和 previous/current owner origin | 世界形状缓存 |
+| Strategy/Index 接口 | 部分完成 | `IBroadPhaseIndex`、Discrete/Continuous、Response 插槽 | 没有任何生产实现 |
+| `CollisionSystem` | 空壳 | 拥有 index 与三种 strategy；`evaluate` 提供类型化阶段边界 | evaluate 仅清空 frame，尚不调用任何算法 |
+| `PhysicsSystem` | 空壳 | `PhysicsBodyView`、`integrate`、`clear_forces` | 两个函数目前都不修改状态 |
 | `PhysicsService` | 完成（配置门面） | 一次配置、独立策略实例、失败不改目标系统 | 尚未自动接入 Scene；不负责世界状态是正确边界 |
-| `ICollisionQueryService` | 只有接口 | Ray/Segment 最近命中抽象 | 没有实现对象 |
+| `PhysicsWorld` / `ICollisionQueryService` | 部分完成 | 每 Scene 世界、注册、固定步、Tile/listener 绑定；实现查询接口 | 查询当前固定返回 `nullopt` |
 
 ## 4. Scene 接入盘点
 
 `Scene` 当前会：
 
 1. 在对象加入 Scene 时通过 `dynamic_cast` 查找 Provider；
-2. 把对象、`GameObject` 和 Provider 借用指针保存到 entry 数组；
-3. 非暂停帧先调用 `PhysicsSystem::step`，再调用 `CollisionSystem::dispatch_events`；
-4. 在帧尾清除已经 destroyed 的 entry。
+2. 一次调用 `PhysicsWorld::register_object`，保存对象与强类型 handle；
+3. 非暂停帧在普通对象更新后调用 `PhysicsWorld::advance(delta)`；
+4. 在删除 destroyed 对象前按 handle 注销并清除 Collider ID。
 
 仍然存在以下断点：
 
-- entry 加入时没有注册 Collider，也没有分配 ID；
-- 两个 System 没有共享 previous/current Transform、候选对或接触结果；
-- `PhysicsSystem` 无法知道哪个 Collider 属于哪个 Body；
-- Collider-only 对象与 Body-only 对象没有统一的物理对象身份；
-- 对象在本帧 update 中移动后，系统没有可靠的 previous origin；
-- destroyed 对象直到帧尾才清理，物理阶段需要显式跳过并在安全点注销；
+- 实际积分、候选、接触与响应阶段仍为空操作；
+- previous/current origin 已进入注册记录和 typed views，但尚未被算法消费；
 - `PhysicsService::apply_to` 没有调用点；
-- Scene 没有查询服务或 Tile World 的访问入口。
+- Scene 已提供 protected `physics_world()`，但具体 Scene 尚未配置策略或 Tile World。
 
 目标设计应把这些状态收进每 Scene 一个 `PhysicsWorld`，Scene 只负责生命周期和调用顺序。
 
@@ -83,8 +81,8 @@ Gameplay 路由  只有门面，没有 runtime
 | Gameplay ID 与预设 Team | 完成（契约） | 无效值与 Player/Enemy/Neutral 预设 | 项目可扩展 Team |
 | `ColliderBinding` / `HitBoxBinding` | 部分完成 | owner、team、role、instigator、attack IDs | 校验、存储、冲突规则 |
 | `ActorCollisionRig` | 部分完成 | Body、PushBox、HurtBox、Sensor ID 集合 | 注册原子性、反向索引、注销 |
-| Gameplay Event | 部分完成 | Body、PushBox、Hit 三类载体 | Begin/Stay/End 和 Tile 结构化目标 |
-| `GameplayCollisionListener` | 只有接口 | 三个默认空回调 | 无 listener 注册和调用点 |
+| Gameplay Event | 完成（契约） | Body、PushBox、Hit 三类载体、phase 与结构化目标 | 没有 runtime 生成事件 |
+| `GameplayCollisionListener` | 部分完成 | 三个默认空回调；Runtime/Service 有 add/remove 契约 | 没有具体 listener 集合与调用点 |
 | `TeamRelationResolver` | 只有接口 | relation 抽象 | 默认或项目实现 |
 | `IGameplayCollisionRuntime` | 只有接口 | binding 与 drop-through 操作 | 没有具体 runtime |
 | `GameplayCollisionService` | 完成（门面） | attach/detach、无 runtime 日志、转发、drop-through 基础校验 | Scene 生命周期没有 attach；没有事件路由 |
@@ -93,22 +91,16 @@ Gameplay 路由  只有门面，没有 runtime
 
 ### 6.1 世界与注册
 
-- 每 Scene 的 `PhysicsWorld`；
-- `PhysicsObjectHandle` 与注册表；
-- 单调递增且世界生命周期内不复用的 Collider ID；
-- Body、Collider、owner Transform 的关联；
-- 重复注册、部分注册失败和注销规则；
-- 安全的延迟注册/注销队列。
+注册表、稳定 handle/ID、重复注册、失败回滚、注销、reset 与 Scene 析构顺序已经完成。仍缺少事件分发期间使用的 pending 注册/注销队列；当前 API 在 `advance` 重入时安全拒绝修改。
 
 ### 6.2 时间与运动
 
-- 固定时间步 accumulator；
-- 帧间 previous/current origin；
+- previous/current origin 的算法消费；
 - Dynamic 的重力、力、质量、阻尼与速度积分；
 - Kinematic 的显式速度移动；
 - Static 的不可移动约束；
 - Transform 写回和本步累计力清空；
-- 大帧 delta 的追赶上限与诊断。
+- 固定步 accumulator 与追赶上限已实现；仍缺少超额时间诊断。
 
 ### 6.3 碰撞流水线
 
@@ -125,11 +117,10 @@ Gameplay 路由  只有门面，没有 runtime
 
 ### 6.4 Tile Map 与查询
 
-- `ITileCollisionWorld`；
-- Tile 单元语义和越界策略；
+`ITileCollisionWorld`、Tile 单元语义、越界策略、结构化 target 与单 World 绑定已经完成。仍缺少：
+
 - world/tile 坐标转换；
 - AABB 候选 Tile 范围；
-- Tile 接触的结构化身份；
 - 普通 Collider 与 Tile 的 Ray/Segment 最近命中。
 
 ### 6.5 Gameplay 与工具
@@ -141,11 +132,11 @@ Gameplay 路由  只有门面，没有 runtime
 - Collider、候选对、接触法线、Tile 候选范围的调试绘制；
 - 固定步丢弃、无效质量、ID 冲突等诊断。
 
-## 7. 必须先解决的接口问题
+## 7. 已解决的接口问题
 
 ### `PhysicsBody` 状态冲突
 
-当前 `is_static` 与 `is_kinematic` 可以同时为 true。目标设计使用：
+旧 bool 已删除，当前实现使用：
 
 ```cpp
 enum class BodyType : std::uint8_t
@@ -158,7 +149,7 @@ enum class BodyType : std::uint8_t
 
 ### `ColliderProvider` 只读问题
 
-运行时注册需要把有效 ID 写回 Collider，目标接口应增加可变 overload：
+当前接口已经提供可变 overload，World 可写回并清理 ID：
 
 ```cpp
 virtual std::span<Collider> colliders() noexcept = 0;
@@ -167,21 +158,22 @@ virtual std::span<const Collider> colliders() const noexcept = 0;
 
 ### Tile 不能伪装成普通 Collider
 
-为每格分配 ID 会造成大量注册对象；整张地图只用一个 Collider ID 又会丢失 Tile 坐标。目标设计使用 `CollisionTarget` 区分普通 Collider 与 `TileWorld + TileCoordinate`。
+当前使用 `CollisionTarget` 区分普通 Collider 与 Tile 坐标，不为每格分配 Collider ID。Tile World 身份由当前 `PhysicsWorld` 绑定隐含。
 
 ### 两个空系统缺少协调者
 
-响应需要同时读取 Collider、Body、Transform、Tile 与接触缓存。继续让 Scene 分别驱动两个互不共享状态的 System 会让依赖扩散。目标设计由 `PhysicsWorld` 协调，两个 System 变为内部算法组件。
+Scene 已只驱动 `PhysicsWorld`，两个 System 是 World 内部算法组件。接触缓存仍待加入 World。
 
 ## 8. 当前测试能证明什么
 
-现有三组 physics 标签测试主要覆盖：
+现有四组 physics 标签测试主要覆盖：
 
 - 数据结构默认值；
 - `PassThroughDirection` 位运算；
 - 策略槽所有权；
 - `PhysicsService` 配置、独立实例和失败原子性；
 - `GameplayCollisionService` attach/detach、转发与错误日志。
+- `PhysicsWorld` 注册/注销、ID 不复用、失败回滚、Tile/listener 身份、固定步上限与 Scene 析构顺序。
 
 它们没有覆盖任何真实移动、相交、响应、事件、Tile 或查询行为。后续每个实施阶段都必须先建立可独立运行的单元测试，不能只依靠 Sandbox 手工观察。
 

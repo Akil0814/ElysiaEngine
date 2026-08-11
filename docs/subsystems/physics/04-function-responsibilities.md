@@ -1,5 +1,7 @@
 # 04｜逐函数实现契约
 
+> **当前 API 基线**：注册、注销、固定步调度、Tile/listener 身份管理和策略装配已经实现；`PhysicsSystem::integrate` 与 `CollisionSystem::evaluate` 已取代旧空壳入口，但函数体仍刻意不执行物理。`raycast`/`segment_cast` 当前安全返回 `std::nullopt`。本章标为算法目标的处理步骤尚未落地。
+
 返回：[物理文档入口](README.md)　上一篇：[逐类职责](03-class-responsibilities.md)　下一篇：[碰撞算法](05-collision-algorithms.md)
 
 ## 1. 通用约定
@@ -52,7 +54,7 @@
 - **不变量**：span 内 ID 不重复；注册期不改变容器地址或长度。
 - **空集合**：合法，不应注册 collider 索引。
 
-### `ColliderProvider::colliders() noexcept`（目标新增 overload）
+### `ColliderProvider::colliders() noexcept`（当前接口）
 
 - **调用者**：`PhysicsWorld::register_object`。
 - **职责**：允许 world 为 invalid Collider 写入稳定 ID，并在明确 API 下调整 enabled 等 runtime 字段。
@@ -61,7 +63,7 @@
 
 ## 4. PhysicsWorld 函数
 
-### 建议公开接口
+### 当前公开接口（节选）
 
 ```cpp
 class PhysicsWorld final : public ICollisionQueryService
@@ -89,7 +91,7 @@ public:
 };
 ```
 
-### `PhysicsWorld(config)`（目标）
+### `PhysicsWorld(config)`（当前已实现）
 
 - **调用者**：Scene 构造或成员初始化。
 - **职责**：校验并保存 config，初始化空注册表、无 Tile World、零 accumulator 和从 1 开始的 handle/Collider ID 计数器。
@@ -97,7 +99,7 @@ public:
 - **失败**：无效配置抛 `std::invalid_argument`，不能静默修正，因为这属于开发期配置错误。
 - **测试**：默认构造、每个无效字段、初始空状态。
 
-### `configure_strategies(service)`（目标）
+### `configure_strategies(service)`（当前已实现）
 
 - **调用者**：Scene 初始化，仅一次。
 - **职责**：调用 service 为内部 CollisionSystem 安装完整独立策略集。
@@ -105,15 +107,15 @@ public:
 - **异常**：工厂异常原样传播，内部 CollisionSystem 保持原策略不变。
 - **重复调用**：首版允许显式重新安装，但必须仍保持全套原子替换；生产 Scene 通常只调用一次。
 
-### `register_object(owner, body_provider, collider_provider)`（目标）
+### `register_object(owner, body_provider, collider_provider)`（当前已实现）
 
 - **调用者**：`Scene::register_scene_object_interfaces`。
-- **时机**：物理步之外立即注册；步中或事件中进入 pending queue。
+- **时机**：只允许在 `advance` 之外立即注册；步中/事件重入当前返回 invalid handle，未来可在不改签名的前提下升级 pending queue。
 - **输入**：owner 必须存活；两个 provider 至少一个非空。
 - **步骤**：
   1. 查 owner 索引；已注册则返回已有 handle；
   2. 读取 Body 和 mutable Collider span；
-  3. 验证 Body 参数、Collider 形状、span 地址稳定前提和非零 ID 冲突；
+  3. 验证实际至少取得一个 Body 或 Collider，并拒绝任何预填 Collider ID；Body 参数和形状校验留给后续算法阶段；
   4. 预留 handle 与所有新 Collider ID，但验证失败时不提交；
   5. 写回新 ID；
   6. 一次性插入 entry、owner index、collider index；
@@ -121,18 +123,18 @@ public:
 - **返回**：有效 handle；失败返回 invalid handle 并记录 collision 类别诊断。
 - **异常安全**：容器分配失败时不留下半注册索引；已经写回但未提交的 ID 必须恢复 invalid。
 - **确定性**：按 provider span 顺序分配递增 ID。
-- **测试**：Body-only、Collider-only、两者都有、空 provider、重复 owner、重复 ID、部分失败回滚、事件期间注册。
+- **测试**：Body-only、Collider-only、两者都有、空 provider、相同 provider 幂等、不同 provider 冲突、预填 ID、失败不写入 ID。
 
-### `unregister_object(handle)`（目标）
+### `unregister_object(handle)`（当前已实现）
 
 - **输入**：有效且属于当前 world 的 handle。
-- **步骤**：步外立即或步中排队；移除 collider/owner 索引；清相关 contact；使 handle 无效；不删除 owner/provider。
+- **步骤**：步外立即移除 collider/owner 索引，把 Provider 中全部 Collider ID 写回 invalid；步中当前拒绝；不删除 owner/provider。
 - **返回**：找到或成功排队 true；无效/未知 handle false。
-- **ID**：已释放 Collider ID 不复用，也不强制把对象字段清零；对象若进入另一个 world，注册流程应为其重新分配并显式覆盖旧世界 ID。
-- **事件**：正常禁用/注销可对仍有效的另一方生成 End；world reset/Scene 退出不分发 End。
-- **测试**：幂等性、步中注销、旧 handle 不能控制新 entry、cache 清理。
+- **ID**：已释放 Collider ID 不复用，并强制把对象字段清零；对象只有在旧 World 注销后才能进入另一 World。
+- **事件**：当前没有 contact cache，因此注销不生成 End；world reset/Scene 退出同样静默。
+- **测试**：幂等性、旧 handle 不能控制新 entry、ID 清零与数值不复用。
 
-### `set_tile_world(world)`（目标）
+### `set_tile_world(world)`（当前已实现）
 
 - **职责**：绑定唯一活动 Tile World 非 owning 引用。
 - **校验**：tile size 有限且两轴大于 epsilon；columns/rows 非负；origin 有限。
@@ -140,41 +142,41 @@ public:
 - **状态**：绑定成功后使查询立即可见，模拟在下一固定步读取。
 - **测试**：无效尺寸、同一实例重复绑定、冲突绑定。
 
-### `clear_tile_world(world)`（目标）
+### `clear_tile_world(world)`（当前已实现）
 
 - **职责**：身份匹配后解除绑定，并清除所有 Tile target 接触缓存。
 - **返回**：匹配并清除 true；没有绑定或实例不匹配 false。
 - **事件**：正常运行期间清除可产生 Tile End；Scene reset/退出走静默 reset。
 - **生命周期**：adapter 销毁前必须成功 clear。
 
-### `advance(frame_delta_seconds)`（目标）
+### `advance(frame_delta_seconds)`（固定步骨架已实现）
 
 - **调用者**：非暂停的 `Scene::on_update`，每渲染帧一次。
 - **职责**：可变帧时间转固定物理步。
 - **规则**：非有限或非正 delta 返回 0 且不改 accumulator；执行步数不超过配置；超额完整步丢弃并计诊断；保留不足一步余数。
-- **副作用**：可能移动对象、更新速度、产生事件、应用 pending 操作。
+- **当前副作用**：只更新 accumulator 和 previous/current 快照；空系统不移动对象、不修改速度、不生成事件。
 - **返回**：实际执行固定步数量。
 - **重入**：执行期间再次调用必须拒绝并记录错误。
 - **测试**：不足一步、恰好一步、多步、超过上限、NaN、负数、暂停时未调用。
 
-### `fixed_step(dt)`（目标私有）
+### `fixed_step(dt)`（当前流程骨架）
 
 - **调用者**：只由 advance。
 - **前置**：dt 等于配置 fixed delta；不允许重入。
-- **严格顺序**：应用 pending → 清理失效 entry → snapshot previous → integrate → build views → collect/detect → solve → 写 contact cache → build/dispatch events → clear forces → 应用事件期间产生的 pending。
+- **当前顺序**：跳过失效 owner → snapshot previous/current → 构造 body views → integrate → 写回 view origin → 构造 collider views → evaluate → 遍历空事件列表 → clear forces。后续再在 evaluate 与 World 中加入候选、检测、求解和缓存。
 - **失败策略**：单个无效 entry 记录诊断并跳过；核心容器分配异常可以传播，但必须解除 stepping guard。
 - **测试**：使用 fake system/listener 验证调用顺序。
 
-### `reset()`（目标）
+### `reset()`（当前已实现）
 
 - **职责**：静默清除 entries、indices、pending、cache、frame buffers、Tile 借用和 accumulator；保留 config 与已安装策略。
 - **不得做**：向 Gameplay 分发 End、删除 owner、调用 Scene API。
 - **ID**：计数器不回绕；reset 后可以从 1 重启仅因为所有旧 handles 已随 world 生命周期失效。若同一 world 对外 handle 可能残留，则继续递增更安全，首版采用继续递增。
 
-### `raycast(query)` / `segment_cast(query)`（目标实现）
+### `raycast(query)` / `segment_cast(query)`（接口已实现，算法未实现）
 
 - **调用者**：Gameplay、AI、调试工具。
-- **职责**：查询当前已提交的 world 状态，包括 enabled 普通 Collider 与活动 Tile World，返回最近合法命中。
+- **当前行为**：安全返回 `std::nullopt`，不声称查询可用。后续职责是查询已提交的 enabled Collider 与活动 Tile World，返回最近合法命中。
 - **过滤**：使用 query filter 与目标 filter 的双向规则；Ignore response 仍由项目决定是否可查询，首版 Ignore 不命中，Overlap/Block 均可命中。
 - **平局**：fraction 相同（epsilon 内）时按 CollisionTarget 稳定顺序。
 - **副作用**：无；不能修改 contact cache、accumulator 或事件。
@@ -185,13 +187,13 @@ public:
 ### 建议接口
 
 ```cpp
-void integrate(std::span<PhysicsEntry> entries,
+void integrate(std::span<PhysicsBodyView> entries,
                const PhysicsWorldConfig& config,
                double fixed_delta_seconds) const;
-void clear_forces(std::span<PhysicsEntry> entries) const noexcept;
+void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
 ```
 
-### `integrate(entries, config, dt)`（目标，替代当前空 `step`）
+### `integrate(entries, config, dt)`（当前入口为空操作，以下为后续算法契约）
 
 - **输入**：已清理、owner/Body 借用有效的 entry span。
 - **Static**：不改 velocity、force 或 position；force 在步尾统一清除。
@@ -208,20 +210,20 @@ void clear_forces(std::span<PhysicsEntry> entries) const noexcept;
 - **确定性**：按 handle 升序遍历。
 - **测试**：三种 Body、重力、力、阻尼、限速、禁用、无效质量、固定输入复现。
 
-### `clear_forces(entries)`（目标）
+### `clear_forces(entries)`（当前入口为空操作，以下为后续算法契约）
 
 - **职责**：对仍有效的所有 Body 把 accumulated_force 设为 zero；包括本步禁用、Static 和 Kinematic Body，避免旧力在重新启用/改类型后突然生效。
 - **异常**：noexcept。
 
-### 当前 `PhysicsSystem::step(body_entries, delta)`
+### 已删除的 `PhysicsSystem::step(body_entries, delta)`
 
-当前函数只 `(void)` 输入。实现阶段不应直接在该模板里塞入世界、Tile 和事件依赖；应由上述明确 entry 类型与 `PhysicsWorld` 协调接口替换。迁移完成前可保留薄包装调用 `integrate`，之后删除模板入口。
+旧模板入口已经删除，不保留兼容包装。Scene 只能通过 `PhysicsWorld::advance` 进入固定步流程，World 内部调用类型化 `integrate`。
 
 ## 6. CollisionSystem 与策略函数
 
 ### Strategy setter（当前已实现）
 
-`set_broad_phase_strategy`、`set_discrete_detection_strategy`、`set_continuous_detection_strategy`、`set_response_strategy`：
+`set_broad_phase_index`、`set_discrete_detection_strategy`、`set_continuous_detection_strategy`、`set_response_strategy`：
 
 - 接管 `unique_ptr` 所有权；
 - 允许传 nullptr 清空槽；
@@ -238,13 +240,14 @@ void clear_forces(std::span<PhysicsEntry> entries) const noexcept;
 - noexcept；
 - 指针只在对应 setter、CollisionSystem 移动/销毁前有效。
 
-### `IBroadPhaseStrategy::collect_pairs`（当前接口）
+### `IBroadPhaseIndex`（当前接口）
 
-- **输入**：本固定步有效的普通 ColliderView span。
-- **输出**：先清空 out_pairs，再写规范化候选。
-- **最低过滤**：空/无效/disabled、自身 pair、相同 owner 按 group 规则可跳过；准确 filter 可在系统统一函数处理以避免策略不一致。
-- **不得做**：Tile、精确 manifold、response、事件。
-- **测试**：N=0/1/2、多对象、重复 ID、稳定顺序、不漏重叠包围盒。
+- `synchronize(span<const BroadPhaseProxy>)` 接收本固定步全量快照；实现可按 ColliderId 在内部增删改 proxy。
+- `collect_pairs(vector<BroadPhasePair>&)` 必须先清空输出，再写入规范化、稳定排序且去重的候选。
+- `query_aabb(bounds, vector<ColliderId>&)` 同样先清空输出，再返回稳定排序且去重的候选 ID。
+- `clear() noexcept` 清除全部索引状态。
+- 索引只能长期保存 ColliderId、bounds 和必要过滤快照，不能保存跨帧 `ColliderView*`、`Collider*` 或 GameObject 指针。
+- 本轮没有生产实现；测试通过 fake index 约束装配和所有权。
 
 ### `ICollisionDetectionStrategy::detect`（当前接口）
 
@@ -293,9 +296,9 @@ void clear_forces(std::span<PhysicsEntry> entries) const noexcept;
 - **同一步重复 contact**：合并后再进入 cache。
 - **End manifold**：来自 previous cache。
 
-### 当前 `dispatch_events(entries, delta)`
+### `CollisionSystem::evaluate(...)`（当前阶段入口）
 
-当前为空壳且名称混合了检测与事件。迁移期可以作为 `PhysicsWorld` 内部兼容包装；目标实现完成后删除，避免 Scene 绕过 fixed-step coordinator。
+签名为 `evaluate(span<const ColliderView>, const ITileCollisionWorld*, double, CollisionFrame&) noexcept`。它是非 const 成员，因为后续必须同步有状态的空间索引。本轮只调用 `out_frame.clear()`，不同步 index、不调用 detection/response，也不生成事件。旧 `dispatch_events` 已删除且不保留兼容包装；后续候选、检测与响应都应在该入口内部实现。
 
 ## 7. PhysicsService 函数
 

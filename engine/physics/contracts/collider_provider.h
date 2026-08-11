@@ -11,6 +11,7 @@ class ColliderProvider
 public:
     virtual ~ColliderProvider() = default;
 
+    [[nodiscard]] virtual std::span<Collider> colliders() noexcept = 0;
     [[nodiscard]] virtual std::span<const Collider> colliders() const noexcept = 0;
 };
 }

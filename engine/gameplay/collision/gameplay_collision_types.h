@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../physics/collision/collider.h"
+#include "../../physics/collision/collision_target.h"
 
 #include <cstdint>
 
@@ -58,6 +58,6 @@ struct HitBoxBinding
 struct DropThroughRequest
 {
     elysia::physics::ColliderId actor = elysia::physics::InvalidColliderId;
-    elysia::physics::ColliderId target = elysia::physics::InvalidColliderId;
+    elysia::physics::CollisionTarget target{};
 };
 }
