@@ -74,8 +74,6 @@ int main()
     static_assert(EngineCharacterMoveTexture == "engine.character.sprite.move");
     static_assert(EngineCharacterIdleAnimation == "engine.character.idle");
     static_assert(EngineCharacterMoveAnimation == "engine.character.move");
-    static_assert(TestSound == "engine.test.sound");
-    static_assert(TestMusic == "engine.test.music");
     static_assert(ElysianRealm == "engine.elysia.music");
 
     const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;

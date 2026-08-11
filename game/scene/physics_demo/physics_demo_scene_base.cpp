@@ -1,10 +1,13 @@
 #include "physics_demo_scene_base.h"
+#include "physics_demo_layout.h"
 
 #include "../example_scene_keys.h"
+#include "../../../engine/camera/camera_manager.h"
 #include "../../../engine/core/render/colors.h"
 #include "../../../engine/input/raw_input_types.h"
 #include "../../../engine/tools/debug_draw.h"
 #include "../../../engine/ui/style/ui_visual_styles.h"
+#include "../../../engine/ui/containers/ui_panel.h"
 #include "../../../engine/ui/text/ui_text_content.h"
 #include "../../../engine/ui/widgets/label/ui_label.h"
 #include "../../../engine/ui/widgets/ui_bar.h"
@@ -50,6 +53,7 @@ void PhysicsDemoSceneBase::on_enter(const elysia::scene::ScenePayload&)
         build_hud();
         _built = true;
     }
+    configure_fixed_camera();
     if (_tile_map && physics_world().tile_world() != _tile_map)
         (void)physics_world().set_tile_world(*_tile_map);
 }
@@ -121,8 +125,6 @@ void PhysicsDemoSceneBase::on_input(
 std::optional<elysia::core::Rect>
 PhysicsDemoSceneBase::resolve_camera_focus_rect() const
 {
-    if (_player && !_player->is_destroyed())
-        return _player->world_rect();
     return std::nullopt;
 }
 
@@ -130,6 +132,12 @@ void PhysicsDemoSceneBase::set_player(
     example::physics_demo::BlockCombatActor& player) noexcept
 {
     _player = &player;
+}
+
+void PhysicsDemoSceneBase::set_demo_camera_center(
+    const elysia::core::Vector2& center) noexcept
+{
+    _demo_camera_center = center;
 }
 
 void PhysicsDemoSceneBase::bind_tile_map(
@@ -141,8 +149,11 @@ void PhysicsDemoSceneBase::bind_tile_map(
 
 void PhysicsDemoSceneBase::build_hud()
 {
+    const PhysicsDemoLayout layout = make_physics_demo_layout(
+        static_cast<float>(runtime_context().logical_width()),
+        static_cast<float>(runtime_context().logical_height()));
     _hud = create_and_add_object<elysia::ui::UiWindow>(
-        elysia::core::Rect{0, 0, 1280, 720}, 100);
+        layout.viewport, 100);
     if (!_hud)
         return;
     elysia::ui::UiWindowStyleOverrides style;
@@ -150,35 +161,65 @@ void PhysicsDemoSceneBase::build_hud()
     style.draw_border = false;
     _hud->set_style_overrides(style);
 
+    auto panel = std::make_unique<elysia::ui::UiPanel>(layout.hud_panel);
+    elysia::ui::UiPanelStyleOverrides panel_style;
+    panel_style.corner_radius = 10.0f;
+    panel_style.draw_background = true;
+    panel_style.draw_border = true;
+    panel_style.background = elysia::core::colors::slate_blue;
+    panel_style.border = elysia::core::colors::steel_blue;
+    panel->set_style_overrides(panel_style);
+    _hud->add_child(
+        std::move(panel), physics_demo_layout_options(layout.hud_panel));
+
     auto title = std::make_unique<elysia::ui::UiLabel>(
-        elysia::core::Rect{18, 12, 520, 34}, 0,
+        layout.title, 0,
         elysia::ui::ui_raw_text(_title));
     title->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
-    _hud->add_child(std::move(title));
+    _hud->add_child(
+        std::move(title), physics_demo_layout_options(layout.title));
 
     auto controls = std::make_unique<elysia::ui::UiLabel>(
-        elysia::core::Rect{18, 50, 900, 28}, 0,
+        layout.controls, 0,
         elysia::ui::ui_raw_text(_controls + " | R Reset | F1 Debug | Esc Back"));
-    _hud->add_child(std::move(controls));
+    _hud->add_child(
+        std::move(controls), physics_demo_layout_options(layout.controls));
 
     auto health = std::make_unique<elysia::ui::UiBar>(
-        elysia::core::Rect{18, 84, 260, 18});
+        layout.health);
     health->set_range(0, 100);
     health->set_value(100);
     _health_bar = health.get();
-    _hud->add_child(std::move(health));
+    _hud->add_child(
+        std::move(health), physics_demo_layout_options(layout.health));
 
     auto stats = std::make_unique<elysia::ui::UiLabel>(
-        elysia::core::Rect{18, 108, 900, 26});
+        layout.stats);
     _stats_label = stats.get();
-    _hud->add_child(std::move(stats));
+    _hud->add_child(
+        std::move(stats), physics_demo_layout_options(layout.stats));
 
     auto status = std::make_unique<elysia::ui::UiLabel>(
-        elysia::core::Rect{420, 310, 440, 80});
+        layout.status);
     status->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
     status->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
     _status_label = status.get();
-    _hud->add_child(std::move(status));
+    _hud->add_child(
+        std::move(status), physics_demo_layout_options(layout.status));
+}
+
+void PhysicsDemoSceneBase::configure_fixed_camera()
+{
+    if (!_demo_camera_center)
+        return;
+
+    auto* cameras = elysia::camera::CameraManager::instance();
+    constexpr auto slot = elysia::camera::CameraSlot::Main;
+    cameras->set_follow_strategy(slot, nullptr);
+    cameras->set_focus_rect(slot, std::nullopt);
+    cameras->set_world_bounds(slot, std::nullopt);
+    cameras->set_zoom(slot, 1.0f);
+    cameras->set_center(slot, *_demo_camera_center);
 }
 
 void PhysicsDemoSceneBase::update_hud()

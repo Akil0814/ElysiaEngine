@@ -239,7 +239,7 @@ flowchart LR
 
 ## 8. 跟随真实代码阅读：容器测试场景
 
-[`engine/testbed/scene/ui_test_scene.cpp`](../../../engine/testbed/scene/ui_test_scene.cpp) 是本教程最好的综合入口。它建立如下真实结构：
+[`game/testbed/scene/ui_test_scene.cpp`](../../../game/testbed/scene/ui_test_scene.cpp) 是本教程最好的综合入口。它建立如下真实结构：
 
 ```text
 UiWindow

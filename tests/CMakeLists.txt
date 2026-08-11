@@ -184,8 +184,8 @@ add_elysia_test(settings_scene_tests
 
 add_elysia_test(testbed_scene_tests
     LABEL scene
-    SOURCES scene/testbed_scene_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    SOURCES game/testbed_scene_tests.cpp
+    LIBRARIES game_lib ${SDL2_LIBRARIES}
     SDL
 )
 target_compile_definitions(testbed_scene_tests

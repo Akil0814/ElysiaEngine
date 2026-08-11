@@ -119,17 +119,17 @@ int main()
     require(cache.sound_count() == 0 && cache.music_count() == 1,
         "cache must expose the registered Elysia scene music");
     require(cache.find_sound("") == nullptr
-            && cache.find_sound(elysia::builtin::asset_keys::TestSound) == nullptr
+            && cache.find_sound("system.button_click_up") == nullptr
             && cache.find_music("") == nullptr
-            && cache.find_music(elysia::builtin::asset_keys::TestMusic) == nullptr
+            && cache.find_music("missing.music") == nullptr
             && cache.find_music(elysia::builtin::asset_keys::ElysianRealm) != nullptr,
         "cache must distinguish registered and unregistered Engine audio keys");
 
     elysia::builtin::BuiltinAudioPlayer audio_player;
     require(!audio_player.bound(),
         "Built-in audio player must begin unbound");
-    require(audio_player.play_sound(elysia::builtin::asset_keys::TestSound) == -1
-            && !audio_player.play_music(elysia::builtin::asset_keys::TestMusic),
+    require(audio_player.play_sound("system.button_click_up") == -1
+            && !audio_player.play_music(elysia::builtin::asset_keys::ElysianRealm),
         "unbound built-in audio requests must fail safely");
     audio_player.bind(cache,elysia::audio::AudioSettings{
         .master_volume = 125,
@@ -141,8 +141,8 @@ int main()
             && audio_player.settings().music_volume == 0
             && audio_player.settings().sound_volume == 42,
         "binding the built-in audio player must clamp its volume snapshot");
-    require(audio_player.play_sound(elysia::builtin::asset_keys::TestSound) == -1
-            && !audio_player.play_music(elysia::builtin::asset_keys::TestMusic),
+    require(audio_player.play_sound("system.button_click_up") == -1
+            && !audio_player.play_music("missing.music"),
         "bound built-in audio requests must not fall back to project resources");
     require(audio_player.play_music(elysia::builtin::asset_keys::ElysianRealm),
         "bound built-in audio player must play registered scene music");

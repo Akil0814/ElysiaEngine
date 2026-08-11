@@ -20,6 +20,19 @@ void SceneManager::set_runtime_context(const SceneRuntimeContext& context) noexc
 {
     _runtime_context = &context;
 
+    auto* camera_manager = elysia::camera::CameraManager::instance();
+    const elysia::core::Vector2 viewport_size{
+        static_cast<float>(context.logical_width()),
+        static_cast<float>(context.logical_height())};
+    for (std::size_t index = 0;
+         index < static_cast<std::size_t>(elysia::camera::CameraSlot::Count);
+         ++index)
+    {
+        camera_manager->set_viewport_size(
+            static_cast<elysia::camera::CameraSlot>(index),
+            viewport_size);
+    }
+
     if (_current_scene)
         _current_scene->bind_runtime_context(context);
 }

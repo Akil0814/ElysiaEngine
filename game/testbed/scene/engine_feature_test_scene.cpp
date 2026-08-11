@@ -1,24 +1,23 @@
 #include "engine_feature_test_scene.h"
 
-#include "../../builtin/resources/builtin_asset_cache.h"
-#include "../../builtin/audio/builtin_audio_player.h"
-#include "../../builtin/resources/builtin_asset_keys.h"
-#include "../../builtin/object/engine_character.h"
-#include "../../core/render/colors.h"
-#include "../../effects/effect_service.h"
-#include "../../input/raw_input_types.h"
-#include "../../ui/containers/ui_list_container.h"
-#include "../../ui/containers/ui_scroll_container.h"
-#include "../../ui/widgets/ui_button.h"
-#include "../../ui/widgets/image/ui_animation.h"
-#include "../../ui/window/ui_window.h"
-#include "../../scene/runtime/scene_runtime_context.h"
+#include "../../../engine/builtin/resources/builtin_asset_cache.h"
+#include "../../../engine/builtin/resources/builtin_asset_keys.h"
+#include "../../../engine/builtin/object/engine_character.h"
+#include "../../../engine/core/render/colors.h"
+#include "../../../engine/effects/effect_service.h"
+#include "../../../engine/input/raw_input_types.h"
+#include "../../../engine/ui/containers/ui_list_container.h"
+#include "../../../engine/ui/containers/ui_scroll_container.h"
+#include "../../../engine/ui/widgets/ui_button.h"
+#include "../../../engine/ui/widgets/image/ui_animation.h"
+#include "../../../engine/ui/window/ui_window.h"
+#include "../../../engine/scene/runtime/scene_runtime_context.h"
 
 #include <stdexcept>
 #include <array>
 #include <optional>
 
-namespace elysia::testbed
+namespace example::testbed
 {
 namespace
 {
@@ -89,12 +88,6 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
     const auto* cache = runtime_context().builtin_asset_cache();
     if (!cache || !cache->is_initialized())
         throw std::logic_error("EngineFeatureTestScene requires an initialized BuiltinAssetCache.");
-    _audio_player = runtime_context().builtin_audio_player();
-    if (!_audio_player || !_audio_player->bound())
-    {
-        throw std::logic_error(
-            "EngineFeatureTestScene requires a bound BuiltinAudioPlayer.");
-    }
     if (!_character || _character->is_destroyed())
     {
         _character = create_and_add_object<elysia::builtin::EngineCharacter>(
@@ -189,7 +182,6 @@ void EngineFeatureTestScene::reset()
     _secondary_animation = nullptr;
     _character = nullptr;
     destroy_feature_controls();
-    _audio_player = nullptr;
     _color_overlay_index = 2;
     elysia::tools::DebugDraw::instance()->clear_categories(
         elysia::tools::DebugDrawCategory::PhysicsCollider);
@@ -213,49 +205,15 @@ void EngineFeatureTestScene::apply_secondary_color_overlay()
 void EngineFeatureTestScene::build_feature_controls()
 {
     _controls_window = create_and_add_object<elysia::ui::UiWindow>(
-        elysia::core::Rect{ 390.0f,490.0f,500.0f,200.0f },100);
+        elysia::core::Rect{ 390.0f,540.0f,500.0f,124.0f },100);
     if (!_controls_window)
     {
         throw std::runtime_error(
             "EngineFeatureTestScene could not create its feature control window.");
     }
 
-    auto audio_controls = std::make_unique<elysia::ui::UiListContainer>(
-        elysia::core::Rect{ 18.0f,16.0f,464.0f,kControlButtonHeight });
-    audio_controls->set_direction(elysia::ui::UiListDirection::Horizontal);
-    audio_controls->set_item_spacing(kControlSpacing);
-
-    auto play_sound = make_control_button("Play Sound");
-    play_sound->set_on_click([this]()
-    {
-        if (_audio_player)
-        {
-            (void)_audio_player->play_sound(
-                elysia::builtin::asset_keys::TestSound);
-        }
-    });
-    audio_controls->add_back(std::move(play_sound));
-
-    auto play_music = make_control_button("Play Music");
-    play_music->set_on_click([this]()
-    {
-        if (_audio_player)
-        {
-            (void)_audio_player->play_music(elysia::builtin::asset_keys::TestMusic);
-        }
-    });
-    audio_controls->add_back(std::move(play_music));
-
-    auto stop_music = make_control_button("Stop Music");
-    stop_music->set_on_click([this]()
-    {
-        if (_audio_player)
-            _audio_player->stop_music();
-    });
-    audio_controls->add_back(std::move(stop_music));
-
     auto number_scroll = std::make_unique<elysia::ui::UiScrollContainer>(
-        elysia::core::Rect{ 18.0f,80.0f,464.0f,92.0f });
+        elysia::core::Rect{ 18.0f,16.0f,464.0f,92.0f });
     number_scroll->set_scroll_axis(elysia::ui::UiScrollAxis::Horizontal);
     number_scroll->set_scrollbar_visibility(elysia::ui::UiScrollBarVisibility::Auto);
     number_scroll->set_scroll_step_x(kControlButtonWidth + kControlSpacing);
@@ -287,17 +245,10 @@ void EngineFeatureTestScene::build_feature_controls()
     add_number_button("Fraction",FloatingNumberPreset::Fraction);
     add_number_button("Decimal",FloatingNumberPreset::Decimal);
 
-    elysia::ui::UiListContainer* audio_controls_ptr = audio_controls.get();
     elysia::ui::UiScrollContainer* number_scroll_ptr = number_scroll.get();
     number_scroll->set_content(std::move(number_controls));
-    _controls_window->add_child(std::move(audio_controls));
     _controls_window->add_child(std::move(number_scroll));
-    _controls_window->register_focus_scope(
-        *audio_controls_ptr,
-        elysia::ui::UiFocusScopeNeighbors{ .down = number_scroll_ptr });
-    _controls_window->register_focus_scope(
-        *number_scroll_ptr,
-        elysia::ui::UiFocusScopeNeighbors{ .up = audio_controls_ptr });
+    _controls_window->register_focus_scope(*number_scroll_ptr);
 }
 
 void EngineFeatureTestScene::destroy_feature_controls() noexcept

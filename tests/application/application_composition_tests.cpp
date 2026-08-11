@@ -5,7 +5,6 @@
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
-#include "engine/testbed/testbed_scene_keys.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
@@ -141,18 +140,16 @@ int main()
             [&scene_manager] { request_scene(scene_manager,99); },
             "unregistered game"),
         "the Elysia module must no longer register the former game UiTest key");
-    require(throws_logic_error_containing(
-            [&scene_manager] { request_scene(scene_manager,elysia::testbed::SceneKeys::Home); },
-            "TestbedHomeScene"),
-        "Application composition must register the Testbed home scene");
-    require(throws_logic_error_containing(
-            [&scene_manager] { request_scene(scene_manager,elysia::testbed::SceneKeys::UiTest); },
-            "UiTestScene"),
-        "Application composition must register the Testbed UI scene");
-    require(throws_logic_error_containing(
-            [&scene_manager] { request_scene(scene_manager,elysia::testbed::SceneKeys::EngineFeatureTest); },
-            "EngineFeatureTestScene"),
-        "Application composition must register the Testbed Engine feature scene");
+    for (const elysia::scene::SceneKey legacy_testbed_key : {
+            0xFFFF0003u,0xFFFF0004u,0xFFFF0006u })
+    {
+        require(throws_logic_error_containing(
+                [&scene_manager,legacy_testbed_key] {
+                    request_scene(scene_manager,legacy_testbed_key);
+                },
+                "unregistered engine-owned"),
+            "Application composition must not register legacy Engine Testbed keys");
+    }
     require(throws_logic_error_containing(
             [&scene_manager] { request_scene(
                 scene_manager,elysia::scene::SceneKeys::ElysiaEasterEgg); },

@@ -168,48 +168,6 @@ const std::set<std::string> expected_keys = {
     "engine.settings.window_modes.borderless_fullscreen",
     "engine.settings.title",
     "engine.startup_loading.press_any_button",
-    "engine.ui_test.typography.description",
-    "engine.ui_test.typography.sample_10",
-    "engine.ui_test.typography.sample_20",
-    "engine.ui_test.typography.sample_30",
-    "engine.ui_test.typography.sample_40",
-    "engine.ui_test.typography.sample_50",
-    "engine.ui_test.typography.sample_60",
-    "engine.ui_test.typography.sample_70",
-    "engine.ui_test.typography.tab",
-    "engine.ui_test.typography.title",
-    "engine.ui_test.status.ready",
-    "engine.ui_test.status.interaction",
-    "engine.ui_test.pages.overview",
-    "engine.ui_test.pages.controls",
-    "engine.ui_test.pages.media",
-    "engine.ui_test.pages.containers",
-    "engine.ui_test.pages.overlays",
-    "engine.ui_test.pages.appearance",
-    "engine.ui_test.sections.overview",
-    "engine.ui_test.sections.controls",
-    "engine.ui_test.sections.media",
-    "engine.ui_test.sections.containers",
-    "engine.ui_test.sections.overlays",
-    "engine.ui_test.sections.appearance",
-    "engine.ui_test.actions.replay",
-    "engine.ui_test.actions.reset",
-    "engine.ui_test.controls.labeled_check",
-    "engine.ui_test.controls.labeled_radio",
-    "engine.ui_test.controls.placeholder",
-    "engine.ui_test.media.long_text",
-    "engine.ui_test.containers.chrome",
-    "engine.ui_test.containers.nested_tab",
-    "engine.ui_test.overlays.open_overlay",
-    "engine.ui_test.overlays.open_dialog",
-    "engine.ui_test.overlays.open_confirm",
-    "engine.ui_test.overlays.tooltip",
-    "engine.ui_test.overlays.tooltip_text",
-    "engine.ui_test.dialog.title",
-    "engine.ui_test.dialog.body",
-    "engine.ui_test.confirm.title",
-    "engine.ui_test.confirm.message",
-    "engine.ui_test.appearance.note",
 };
 
 } // namespace
@@ -253,8 +211,8 @@ int main()
             require(key.find("menu_scene") == std::string::npos, "engine locale must not contain menu scene copy");
             require(key.find("character_select_scene") == std::string::npos,
                     "engine locale must not contain character select copy");
-            require(key.find("ui_test_scene") == std::string::npos,
-                    "engine locale must not contain UI test copy");
+            require(key.find("ui_test") == std::string::npos,
+                "engine locale must not contain Testbed UI copy");
             require(key.find("theme") == std::string::npos, "engine locale must not contain theme copy");
         }
     }

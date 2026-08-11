@@ -1,7 +1,6 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/builtin/resources/builtin_asset_cache.h"
-#include "engine/builtin/audio/builtin_audio_player.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/core/render/render_command.h"
 #include "engine/effects/number/floating_number_effect.h"
@@ -11,11 +10,11 @@
 #include "engine/resources/resource_service.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
-#include "engine/testbed/scene/engine_feature_test_scene.h"
-#include "engine/testbed/scene/testbed_home_scene.h"
-#include "engine/testbed/scene/testbed_scene_payload.h"
-#include "engine/testbed/scene/ui_test_scene.h"
-#include "engine/testbed/testbed_scene_keys.h"
+#include "game/testbed/scene/engine_feature_test_scene.h"
+#include "game/testbed/scene/testbed_home_scene.h"
+#include "game/testbed/testbed_scene_payload.h"
+#include "game/testbed/scene/ui_test_scene.h"
+#include "game/scene/example_scene_keys.h"
 #include "engine/tools/debug_draw.h"
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
@@ -153,7 +152,7 @@ void press_and_release_key(
 
 void test_engine_feature_overlay_cycle()
 {
-    elysia::testbed::EngineFeatureTestScene scene;
+    example::testbed::EngineFeatureTestScene scene;
     require(scene.color_overlay_index() == 2,
         "Engine feature test must start with the blue overlay");
 
@@ -179,21 +178,21 @@ void test_engine_feature_overlay_cycle()
 
 void test_payload_contract_names_each_scene()
 {
-    elysia::testbed::TestbedHomeScene home_scene;
+    example::testbed::TestbedHomeScene home_scene;
     require(throws_logic_error_containing(
             [&home_scene] { home_scene.on_enter({}); },
             "TestbedHomeScene"),
         "TestbedHomeScene must name itself when the Testbed payload is missing");
 
-    elysia::testbed::UiTestScene ui_test_scene;
+    example::testbed::UiTestScene ui_test_scene;
     require(throws_logic_error_containing(
             [&ui_test_scene] { ui_test_scene.on_enter({}); },
             "UiTestScene"),
         "UiTestScene must name itself when the Testbed payload is missing");
 
-    elysia::testbed::EngineFeatureTestScene feature_test_scene;
+    example::testbed::EngineFeatureTestScene feature_test_scene;
     const elysia::scene::ScenePayload invalid_payload =
-        elysia::testbed::TestbedScenePayload{
+        example::testbed::TestbedScenePayload{
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
@@ -230,26 +229,22 @@ void test_escape_returns_the_full_caller_route()
         fixture.renderer(),&font_resolver);
 
     elysia::io::ContentRegistry registry;
-    elysia::builtin::BuiltinAudioPlayer audio_player;
-    audio_player.bind(cache,elysia::audio::AudioSettings{});
     elysia::scene::SceneRuntimeContext context(
-        fixture.renderer(),registry,1280,720,&cache,&font_resolver,&audio_player);
-    require(context.builtin_audio_player() == &audio_player,
-        "Testbed runtime context must expose its built-in audio player");
+        fixture.renderer(),registry,1280,720,&cache,&font_resolver);
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
-    scene_manager.register_engine_scene<elysia::testbed::TestbedHomeScene>(
-        elysia::testbed::SceneKeys::Home);
-    scene_manager.register_engine_scene<elysia::testbed::UiTestScene>(
-        elysia::testbed::SceneKeys::UiTest);
-    scene_manager.register_engine_scene<elysia::testbed::EngineFeatureTestScene>(
-        elysia::testbed::SceneKeys::EngineFeatureTest);
+    scene_manager.register_game_scene<example::testbed::TestbedHomeScene>(
+        ExampleSceneKeys::TestbedHome);
+    scene_manager.register_game_scene<example::testbed::UiTestScene>(
+        ExampleSceneKeys::UiTest);
+    scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(
+        ExampleSceneKeys::EngineFeatureTest);
     scene_manager.register_game_scene<FirstReturnScene>(1);
     scene_manager.register_game_scene<SecondReturnScene>(2);
 
     scene_manager.start(elysia::scene::SceneRoute{
-        .target = elysia::testbed::SceneKeys::UiTest,
-        .payload = elysia::testbed::TestbedScenePayload{
+        .target = ExampleSceneKeys::UiTest,
+        .payload = example::testbed::TestbedScenePayload{
             .return_route = elysia::scene::SceneRoute{
                 .target = 1,
                 .payload = ReturnPayload{ .marker = 17 },
@@ -270,8 +265,8 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = elysia::testbed::SceneKeys::EngineFeatureTest,
-            .payload = elysia::testbed::TestbedScenePayload{
+            .target = ExampleSceneKeys::EngineFeatureTest,
+            .payload = example::testbed::TestbedScenePayload{
                 .return_route = elysia::scene::SceneRoute{
                     .target = 2,
                     .payload = ReturnPayload{ .marker = 29 },
@@ -333,8 +328,8 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = elysia::testbed::SceneKeys::Home,
-            .payload = elysia::testbed::TestbedScenePayload{
+            .target = ExampleSceneKeys::TestbedHome,
+            .payload = example::testbed::TestbedScenePayload{
                 .return_route = original_caller
             }
         }
@@ -344,11 +339,11 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = elysia::testbed::SceneKeys::UiTest,
-            .payload = elysia::testbed::TestbedScenePayload{
+            .target = ExampleSceneKeys::UiTest,
+            .payload = example::testbed::TestbedScenePayload{
                 .return_route = elysia::scene::SceneRoute{
-                    .target = elysia::testbed::SceneKeys::Home,
-                    .payload = elysia::testbed::TestbedScenePayload{
+                    .target = ExampleSceneKeys::TestbedHome,
+                    .payload = example::testbed::TestbedScenePayload{
                         .return_route = original_caller
                     },
                     .reload_mode = elysia::scene::SceneReloadMode::Reuse
@@ -358,7 +353,7 @@ void test_escape_returns_the_full_caller_route()
     });
     scene_manager.on_update(0.0);
     send_escape(scene_manager);
-    require(scene_manager.current_scene_key() == elysia::testbed::SceneKeys::Home,
+    require(scene_manager.current_scene_key() == ExampleSceneKeys::TestbedHome,
         "Testbed child Escape must return to TestbedHomeScene");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 41,
@@ -368,7 +363,6 @@ void test_escape_returns_the_full_caller_route()
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         nullptr,nullptr);
     font_resolver.shutdown();
-    audio_player.unbind();
     cache.shutdown();
 }
 }

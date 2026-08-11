@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../scene/scene.h"
-#include "testbed_scene_payload.h"
-#include "../../ui/style/ui_theme_manager.h"
+#include "../../../engine/scene/scene.h"
+#include "../testbed_scene_payload.h"
+#include "../../../engine/ui/style/ui_theme_manager.h"
 
 #include <array>
 #include <vector>
@@ -14,7 +14,7 @@ class UiLabel;
 class UiWindow;
 }
 
-namespace elysia::testbed
+namespace example::testbed
 {
 class UiTestScene final : public elysia::scene::Scene
 {

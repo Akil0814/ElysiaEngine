@@ -1,11 +1,11 @@
-# Engine Testbed
+# Project Testbed
 
-`engine/testbed` owns interactive, runtime engine experiments that may depend on
-multiple engine subsystems. It is a leaf module: production engine subsystems
-must not depend on Testbed code.
+`game/testbed` owns interactive runtime experiments that may depend on multiple
+engine subsystems. It is part of the example game: `engine_lib` does not compile,
+register, or depend on Testbed code.
 
 - Put each camera, physics, effects, or other subsystem showcase in its own scene.
-- Put Testbed-only runtime `GameObject` types in `engine/testbed/objects/` when
+- Put Testbed-only runtime `GameObject` types in `game/testbed/objects/` when
   they are introduced.
 - Keep automated unit and integration tests under `tests/`; that directory is
   not runtime Testbed code.
@@ -19,7 +19,6 @@ mask color overlay to the right sprite. Press `Space` to cycle through no
 overlay, white, blue, purple, and gray. The world-space `EngineCharacter` at the
 center uses the built-in idle and move animations; move it with WASD or the arrow
 keys. Its green AABB is submitted through the `PhysicsCollider` debug category.
-The control window keeps audio actions on its first row. Its second row is a
-horizontally scrollable set of `Damage`, `Critical`, `Heal`, `Percent`,
+The control window contains a horizontally scrollable set of `Damage`, `Critical`, `Heal`, `Percent`,
 `Fraction`, and `Decimal` buttons that spawn representative floating-number
 effects above the character. Press `Escape` to return to the caller.

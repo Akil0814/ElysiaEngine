@@ -20,9 +20,5 @@ namespace elysia::builtin::asset_keys
 	inline constexpr std::string_view EngineCharacterIdleAnimation = "engine.character.idle";
 	inline constexpr std::string_view EngineCharacterMoveAnimation = "engine.character.move";
 
-	// Reserved Testbed keys. These are intentionally not registered yet.
-	inline constexpr std::string_view TestSound = "engine.test.sound";
-	inline constexpr std::string_view TestMusic = "engine.test.music";
-
 	inline constexpr std::string_view ElysianRealm = "engine.elysia.music";
 }

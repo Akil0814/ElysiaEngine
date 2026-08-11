@@ -51,12 +51,14 @@ protected:
     }
 
     void set_player(example::physics_demo::BlockCombatActor& player) noexcept;
+    void set_demo_camera_center(const elysia::core::Vector2& center) noexcept;
     void bind_tile_map(example::physics_demo::DemoTileMap& tile_map);
     [[nodiscard]] example::physics_demo::SolidColorTexture& solid_texture() noexcept { return _solid_texture; }
     [[nodiscard]] example::physics_demo::DemoCombatSession& combat() noexcept { return _combat; }
 
 private:
     void build_hud();
+    void configure_fixed_camera();
     void update_hud();
     void handle_actor_death(example::physics_demo::BlockCombatActor& actor);
     void request_restart();
@@ -68,6 +70,7 @@ private:
     example::physics_demo::SolidColorTexture _solid_texture;
     example::physics_demo::DemoCombatSession _combat;
     example::physics_demo::BlockCombatActor* _player = nullptr;
+    std::optional<elysia::core::Vector2> _demo_camera_center;
     example::physics_demo::DemoTileMap* _tile_map = nullptr;
     std::vector<example::physics_demo::BlockCombatActor*> _actors;
     elysia::ui::UiWindow* _hud = nullptr;

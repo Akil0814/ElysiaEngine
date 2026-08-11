@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../../scene/scene.h"
-#include "testbed_scene_payload.h"
+#include "../../../engine/scene/scene.h"
+#include "../testbed_scene_payload.h"
 
 namespace elysia::ui
 {
 class UiWindow;
 }
 
-namespace elysia::testbed
+namespace example::testbed
 {
 class TestbedHomeScene final : public elysia::scene::Scene
 {

@@ -5,8 +5,7 @@
 #include "../../engine/resources/resource_service.h"
 #include "../../engine/builtin/builtin_scene_keys.h"
 #include "../../engine/builtin/scenes/settings_scene.h"
-#include "../../engine/testbed/scene/testbed_scene_payload.h"
-#include "../../engine/testbed/testbed_scene_keys.h"
+#include "../testbed/testbed_scene_payload.h"
 
 #include "../../engine/ui/composites/ui_confirmation_dialog.h"
 #include "../../engine/ui/widgets/ui_button.h"
@@ -178,8 +177,8 @@ void MainMenuScene::build_menu_buttons()
     testbed_button->set_sounds(menu_button_sounds);
     testbed_button->set_on_click([this]() {
         Scene::request_scene_switch(
-            elysia::testbed::SceneKeys::Home,
-            elysia::testbed::TestbedScenePayload{
+            ExampleSceneKeys::TestbedHome,
+            example::testbed::TestbedScenePayload{
                 .return_route = {
                     .target = ExampleSceneKeys::MainMenu,
                     .payload = MainMenuEnterPayload{ .replay_theme_music = false },

@@ -88,6 +88,7 @@ PhysicsCollisionTestScene::PhysicsCollisionTestScene()
 void PhysicsCollisionTestScene::build_demo()
 {
     using namespace example::physics_demo;
+    set_demo_camera_center({640.0f, 360.0f});
     create_and_add_object<StaticBlockObstacle>(solid_texture(),
         aabb_obstacle({0, 650, 1280, 70}, elysia::core::colors::gray_700));
     create_and_add_object<StaticBlockObstacle>(solid_texture(),
@@ -144,6 +145,7 @@ PlatformTilePhysicsTestScene::PlatformTilePhysicsTestScene()
 void PlatformTilePhysicsTestScene::build_demo()
 {
     using namespace example::physics_demo;
+    set_demo_camera_center({320.0f, 360.0f});
     auto* map = create_and_add_object<DemoTileMap>(solid_texture(),
         elysia::core::Vector2{-320, 40}, elysia::core::Vector2{32, 32},
         40, 20, elysia::physics::TileOutOfBoundsPolicy::Block);
@@ -181,6 +183,7 @@ TopDownTilePhysicsTestScene::TopDownTilePhysicsTestScene()
 void TopDownTilePhysicsTestScene::build_demo()
 {
     using namespace example::physics_demo;
+    set_demo_camera_center({576.0f, 344.0f});
     auto* map = create_and_add_object<DemoTileMap>(solid_texture(),
         elysia::core::Vector2{-64, 80}, elysia::core::Vector2{32, 24},
         40, 22, elysia::physics::TileOutOfBoundsPolicy::Block);

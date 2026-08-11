@@ -10,4 +10,7 @@ inline constexpr elysia::scene::SceneKey PhysicsDemoMenu = 5;
 inline constexpr elysia::scene::SceneKey PhysicsCollisionTest = 6;
 inline constexpr elysia::scene::SceneKey PlatformTilePhysicsTest = 7;
 inline constexpr elysia::scene::SceneKey TopDownTilePhysicsTest = 8;
+inline constexpr elysia::scene::SceneKey TestbedHome = 9;
+inline constexpr elysia::scene::SceneKey UiTest = 10;
+inline constexpr elysia::scene::SceneKey EngineFeatureTest = 11;
 }

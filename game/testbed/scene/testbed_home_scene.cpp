@@ -1,18 +1,18 @@
 #include "testbed_home_scene.h"
 
-#include "../testbed_scene_keys.h"
-#include "../../input/raw_input_types.h"
-#include "../../builtin/scenes/application_failure_scene_payload.h"
-#include "../../elysia/elysia_scene_payload.h"
-#include "../../ui/containers/ui_list_container.h"
-#include "../../ui/widgets/label/ui_label.h"
-#include "../../ui/widgets/ui_button.h"
-#include "../../ui/window/ui_window.h"
+#include "../../scene/example_scene_keys.h"
+#include "../../../engine/input/raw_input_types.h"
+#include "../../../engine/builtin/scenes/application_failure_scene_payload.h"
+#include "../../../engine/elysia/elysia_scene_payload.h"
+#include "../../../engine/ui/containers/ui_list_container.h"
+#include "../../../engine/ui/widgets/label/ui_label.h"
+#include "../../../engine/ui/widgets/ui_button.h"
+#include "../../../engine/ui/window/ui_window.h"
 
 #include <memory>
 #include <stdexcept>
 
-namespace elysia::testbed
+namespace example::testbed
 {
 namespace
 {
@@ -108,7 +108,7 @@ void TestbedHomeScene::build_ui()
     auto ui_test = make_button("UI Test");
     ui_test->set_on_click([this]() {
         request_scene_switch(
-            SceneKeys::UiTest,
+            ExampleSceneKeys::UiTest,
             TestbedScenePayload{ .return_route = make_home_route() });
     });
     list->add_back(std::move(ui_test));
@@ -116,7 +116,7 @@ void TestbedHomeScene::build_ui()
     auto engine_feature_test = make_button("Engine Feature Test");
     engine_feature_test->set_on_click([this]() {
         request_scene_switch(
-            SceneKeys::EngineFeatureTest,
+            ExampleSceneKeys::EngineFeatureTest,
             TestbedScenePayload{ .return_route = make_home_route() });
     });
     list->add_back(std::move(engine_feature_test));
@@ -166,7 +166,7 @@ void TestbedHomeScene::return_to_caller()
 elysia::scene::SceneRoute TestbedHomeScene::make_home_route() const
 {
     return elysia::scene::SceneRoute{
-        .target = SceneKeys::Home,
+        .target = ExampleSceneKeys::TestbedHome,
         .payload = TestbedScenePayload{ .return_route = _return_route },
         .reload_mode = elysia::scene::SceneReloadMode::Reuse
     };

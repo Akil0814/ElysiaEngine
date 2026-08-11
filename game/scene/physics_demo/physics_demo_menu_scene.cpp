@@ -1,4 +1,5 @@
 #include "physics_demo_menu_scene.h"
+#include "physics_demo_layout.h"
 
 #include "../example_scene_keys.h"
 #include "../../../engine/input/raw_input_types.h"
@@ -67,13 +68,16 @@ void PhysicsDemoMenuScene::on_input(
 
 void PhysicsDemoMenuScene::build_ui()
 {
+    const PhysicsDemoLayout layout = make_physics_demo_layout(
+        static_cast<float>(runtime_context().logical_width()),
+        static_cast<float>(runtime_context().logical_height()));
     _window = create_and_add_object<elysia::ui::UiWindow>(
-        elysia::core::Rect{0, 0, 1280, 720}, 100);
+        layout.viewport, 100);
     if (!_window)
         return;
     _window->set_on_cancel([this] { return_to_main_menu(); });
     auto list = std::make_unique<elysia::ui::UiListContainer>(
-        elysia::core::Rect{430, 100, 420, 520});
+        layout.menu_list);
     list->set_item_spacing(18.0f);
     auto title = std::make_unique<elysia::ui::UiLabel>(
         elysia::core::Rect{0, 0, 420, 72}, 0,
@@ -102,7 +106,8 @@ void PhysicsDemoMenuScene::build_ui()
     list->add_back(std::move(back));
 
     auto* list_ptr = list.get();
-    _window->add_child(std::move(list));
+    _window->add_child(
+        std::move(list), physics_demo_layout_options(layout.menu_list));
     _window->register_focus_scope(*list_ptr);
 }
 

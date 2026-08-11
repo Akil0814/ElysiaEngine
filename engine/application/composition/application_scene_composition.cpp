@@ -6,7 +6,6 @@
 #include "../../builtin/scenes/startup_loading_scene.h"
 #include "../../elysia/realm_scene_composition.h"
 #include "../../scene/scene_manager.h"
-#include "../../testbed/testbed_scene_composition.h"
 
 namespace elysia::application
 {
@@ -30,8 +29,6 @@ void compose_application_scenes(
         elysia::builtin::ApplicationFailureScene>(
             elysia::builtin::SceneKeys::ApplicationFailure);
     elysia::realm::register_realm_scene(scene_manager);
-    elysia::testbed::register_testbed_scenes(scene_manager);
-
     game_module.register_scenes(scene_manager);
     scene_manager.start(descriptor.initial_route);
 }

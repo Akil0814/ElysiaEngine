@@ -5,6 +5,9 @@
 #include "../scene/example_scene_keys.h"
 #include "../scene/physics_demo/physics_demo_menu_scene.h"
 #include "../scene/physics_demo/physics_test_scenes.h"
+#include "../testbed/scene/engine_feature_test_scene.h"
+#include "../testbed/scene/testbed_home_scene.h"
+#include "../testbed/scene/ui_test_scene.h"
 
 #include "../../engine/builtin/builtin_scene_keys.h"
 #include "../../engine/builtin/scenes/startup_loading_scene.h"
@@ -64,5 +67,11 @@ void GameModule::register_scenes(elysia::scene::SceneManager& scene_manager) con
         ExampleSceneKeys::PlatformTilePhysicsTest);
     scene_manager.register_game_scene<example::scene::TopDownTilePhysicsTestScene>(
         ExampleSceneKeys::TopDownTilePhysicsTest);
+    scene_manager.register_game_scene<example::testbed::TestbedHomeScene>(
+        ExampleSceneKeys::TestbedHome);
+    scene_manager.register_game_scene<example::testbed::UiTestScene>(
+        ExampleSceneKeys::UiTest);
+    scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(
+        ExampleSceneKeys::EngineFeatureTest);
 }
 }

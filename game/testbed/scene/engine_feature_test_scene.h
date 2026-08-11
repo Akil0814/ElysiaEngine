@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../scene/scene.h"
-#include "../../tools/debug_draw.h"
-#include "testbed_scene_payload.h"
+#include "../../../engine/scene/scene.h"
+#include "../../../engine/tools/debug_draw.h"
+#include "../testbed_scene_payload.h"
 
 #include <cstddef>
 
@@ -14,13 +14,12 @@ class UiWindow;
 
 namespace elysia::builtin
 {
-class BuiltinAudioPlayer;
 class EngineCharacter;
 }
 
-namespace elysia::testbed
+namespace example::testbed
 {
-// Engine-owned playground for runtime gameplay features such as animation.
+// Project-owned playground for runtime engine features such as animation.
 class EngineFeatureTestScene final : public elysia::scene::Scene
 {
     enum class FloatingNumberPreset
@@ -59,7 +58,6 @@ private:
     elysia::ui::UiAnimation* _secondary_animation = nullptr;
     elysia::builtin::EngineCharacter* _character = nullptr;
     elysia::ui::UiWindow* _controls_window = nullptr;
-    const elysia::builtin::BuiltinAudioPlayer* _audio_player = nullptr;
     std::size_t _color_overlay_index = 2;
     bool _debug_draw_state_captured = false;
     bool _previous_debug_draw_enabled = false;

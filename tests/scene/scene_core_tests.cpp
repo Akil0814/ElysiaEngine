@@ -2,6 +2,7 @@
 
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/builtin/builtin_scene_keys.h"
+#include "engine/camera/camera_manager.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/routing/scene_key.h"
 #include "engine/scene/scene_manager.h"
@@ -216,6 +217,46 @@ void test_registration_and_route_key_errors_are_distinct()
         "duplicate"), "engine-owned registration must share duplicate-key protection");
 }
 
+void test_runtime_context_synchronizes_camera_viewports()
+{
+    using elysia::camera::CameraManager;
+    using elysia::camera::CameraSlot;
+
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext full_hd_context(
+        nullptr, registry, 1280, 720);
+    elysia::scene::SceneManager manager;
+    manager.set_runtime_context(full_hd_context);
+
+    auto* cameras = CameraManager::instance();
+    for (std::size_t index = 0;
+         index < static_cast<std::size_t>(CameraSlot::Count);
+         ++index)
+    {
+        const auto slot = static_cast<CameraSlot>(index);
+        require(cameras->camera(slot).viewport_size()
+                == elysia::core::Vector2(1280.0f, 720.0f),
+            "Scene runtime binding must initialize every camera viewport");
+    }
+
+    elysia::scene::SceneRuntimeContext resized_context(
+        nullptr, registry, 960, 540);
+    manager.set_runtime_context(resized_context);
+    for (std::size_t index = 0;
+         index < static_cast<std::size_t>(CameraSlot::Count);
+         ++index)
+    {
+        const auto slot = static_cast<CameraSlot>(index);
+        require(cameras->camera(slot).viewport_size()
+                == elysia::core::Vector2(960.0f, 540.0f),
+            "Rebinding runtime context must refresh every camera viewport");
+        cameras->reset(slot);
+        require(cameras->camera(slot).viewport_size()
+                == elysia::core::Vector2(960.0f, 540.0f),
+            "Camera scene reset must preserve the synchronized viewport");
+    }
+}
+
 void test_route_copy_reload_modes_and_runtime_context_binding()
 {
     using namespace elysia::scene;
@@ -396,6 +437,7 @@ int main()
 {
     test_scene_key_domains_and_payload_helpers();
     test_registration_and_route_key_errors_are_distinct();
+    test_runtime_context_synchronizes_camera_viewports();
     test_route_copy_reload_modes_and_runtime_context_binding();
     test_unbound_scene_runtime_context_is_rejected();
     return EXIT_SUCCESS;
