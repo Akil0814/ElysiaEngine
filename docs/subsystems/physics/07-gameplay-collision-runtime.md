@@ -1,5 +1,7 @@
 # 07｜Gameplay 碰撞 Runtime
 
+> **实现状态**：具体 `GameplayCollisionRuntime`、默认 Team 规则、Body/PushBox/Hit 路由、攻击实例去重、drop-through 转发以及 GameplayScene 自动 attach/detach 已落地。
+
 > Gameplay 事件现已携带 `CollisionEventPhase`，Body/drop-through 已使用结构化 `CollisionTarget`，Runtime/Service 已具备 listener add/remove 契约；具体 `GameplayCollisionRuntime`、binding map、路由、命中去重和恢复逻辑仍未实现。
 
 返回：[物理文档入口](README.md)　上一篇：[Tile Map 碰撞](06-tile-map-collision.md)　下一篇：[实施路线与测试](08-implementation-roadmap-and-tests.md)
@@ -256,9 +258,9 @@ listener 集合是非 owning。规则：
 ### Scene 进入
 
 ```text
-构造 PhysicsWorld
-PhysicsService.apply_to(world.collision_system)
-构造 GameplayCollisionRuntime(world, relation_resolver)
+构造带默认完整策略集的 PhysicsWorld
+构造 GameplayCollisionRuntime(world)
+可选注入 TeamRelationResolver
 runtime 订阅 PhysicsWorld
 GameplayCollisionService.attach_runtime(runtime)
 注册对象和 binding

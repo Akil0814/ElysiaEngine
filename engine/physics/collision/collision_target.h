@@ -4,6 +4,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <functional>
 
 namespace elysia::physics
 {
@@ -90,6 +91,23 @@ struct CollisionTarget
         if (kind == CollisionTargetKind::Tile)
             return tile <=> other.tile;
         return std::strong_ordering::equal;
+    }
+};
+
+struct CollisionTargetHash
+{
+    [[nodiscard]] std::size_t operator()(
+        const CollisionTarget& target) const noexcept
+    {
+        std::size_t seed = static_cast<std::size_t>(target.kind);
+        if (target.kind == CollisionTargetKind::Collider)
+            return seed ^ (std::hash<ColliderId>{}(target.collider) << 1u);
+        if (target.kind == CollisionTargetKind::Tile)
+        {
+            seed ^= std::hash<int>{}(target.tile.x) << 1u;
+            seed ^= std::hash<int>{}(target.tile.y) << 2u;
+        }
+        return seed;
     }
 };
 }

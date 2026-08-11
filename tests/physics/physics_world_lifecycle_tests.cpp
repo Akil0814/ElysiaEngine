@@ -266,7 +266,6 @@ void test_tile_listener_and_empty_fixed_steps()
     require(world.register_object(object, &object, &object).is_valid(),
         "The fixed-step probe must register");
     const auto original_position = object.position();
-    const auto original_velocity = object.physics_body()->velocity;
 
     require(world.advance(0.05) == 0, "A partial fixed step must remain accumulated");
     require(world.advance(0.05) == 1, "Two partial advances must produce one fixed step");
@@ -279,9 +278,9 @@ void test_tile_listener_and_empty_fixed_steps()
         "Invalid frame deltas must not advance the world");
     require(world.advance(std::numeric_limits<double>::max()) == 2,
         "A huge finite delta must remain bounded by the fixed-step cap");
-    require(object.position() == original_position
-            && object.physics_body()->velocity == original_velocity,
-        "The runtime scaffold must not integrate bodies");
+    require(object.position() != original_position
+            && object.physics_body()->accumulated_force == elysia::core::Vector2{},
+        "Fixed steps must integrate enabled Dynamic bodies and consume force");
     require(!world.raycast({}).has_value() && !world.segment_cast({}).has_value(),
         "Unimplemented world queries must safely return no hit");
 }

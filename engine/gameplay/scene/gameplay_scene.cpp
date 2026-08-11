@@ -1,14 +1,35 @@
 #include "gameplay_scene.h"
 
 #include "../../scene/detail/scene_input_order.h"
+#include "../collision/gameplay_collision_service.h"
 
 #include <algorithm>
 
 namespace elysia::gameplay
 {
 GameplayScene::GameplayScene()
-    : _gameplay_input_map(make_default_gameplay_input_map())
+    : _collision_runtime(physics_world()),
+      _gameplay_input_map(make_default_gameplay_input_map())
 {
+}
+
+GameplayScene::GameplayScene(elysia::physics::PhysicsWorldConfig physics_config)
+    : elysia::scene::Scene(physics_config),
+      _collision_runtime(physics_world()),
+      _gameplay_input_map(make_default_gameplay_input_map())
+{
+}
+
+bool GameplayScene::activate_collision_runtime() noexcept
+{
+    return collision::GameplayCollisionService::instance()->attach_runtime(
+        _collision_runtime);
+}
+
+void GameplayScene::deactivate_collision_runtime() noexcept
+{
+    (void)collision::GameplayCollisionService::instance()->detach_runtime(
+        _collision_runtime);
 }
 
 void GameplayScene::set_gameplay_input_enabled(bool enabled) noexcept

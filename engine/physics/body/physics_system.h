@@ -9,7 +9,7 @@ namespace elysia::physics
 {
 struct PhysicsWorldConfig;
 
-struct PhysicsBodyView
+struct PhysicsObjectState
 {
     PhysicsObjectHandle object{};
     PhysicsBody* body = nullptr;
@@ -23,10 +23,8 @@ public:
     PhysicsSystem() = default;
 
     void integrate(
-        std::span<PhysicsBodyView> body_views,
+        std::span<PhysicsObjectState> object_states,
         const PhysicsWorldConfig& config,
         double fixed_delta_seconds) const noexcept;
-
-    void clear_forces(std::span<PhysicsBodyView> body_views) const noexcept;
 };
 }

@@ -13,6 +13,9 @@ struct BroadPhasePair
 {
     ColliderId first = InvalidColliderId;
     ColliderId second = InvalidColliderId;
+
+    [[nodiscard]] constexpr bool operator==(const BroadPhasePair&) const noexcept = default;
+    [[nodiscard]] constexpr auto operator<=>(const BroadPhasePair&) const noexcept = default;
 };
 
 struct BroadPhaseProxy

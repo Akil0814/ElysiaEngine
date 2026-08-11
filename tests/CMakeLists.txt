@@ -228,14 +228,16 @@ add_elysia_test(physics_framework_contract_tests
     SOURCES physics/physics_framework_contract_tests.cpp
 )
 
-add_elysia_test(physics_service_tests
-    LABEL physics
-    SOURCES physics/physics_service_tests.cpp
-)
-
 add_elysia_test(physics_world_lifecycle_tests
     LABEL physics
     SOURCES physics/physics_world_lifecycle_tests.cpp
+    LIBRARIES ${SDL2_LIBRARIES}
+    SDL
+)
+
+add_elysia_test(physics_runtime_tests
+    LABEL physics
+    SOURCES physics/physics_runtime_tests.cpp
     LIBRARIES ${SDL2_LIBRARIES}
     SDL
 )
@@ -319,6 +321,13 @@ endforeach()
 add_elysia_test(logging_tests
     LABEL tools
     SOURCES tools/logging_tests.cpp
+    LIBRARIES ${SDL2_LIBRARIES}
+    SDL
+)
+
+add_elysia_test(gameplay_collision_runtime_tests
+    LABEL physics
+    SOURCES physics/gameplay_collision_runtime_tests.cpp
     LIBRARIES ${SDL2_LIBRARIES}
     SDL
 )

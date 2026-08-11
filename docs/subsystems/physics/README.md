@@ -1,35 +1,49 @@
-# ElysiaEngine 物理与 Gameplay 碰撞文档
+# ElysiaEngine 2D 物理系统
 
-> 当前结论：物理模块已经完成公共 API、每 Scene 运行时和生命周期骨架，但仍不是可工作的物理引擎。注册、Collider ID、固定步调度、Tile World 绑定和策略装配已经可用；积分、宽相、窄相、求解、事件生成、Tile 碰撞和查询算法仍未实现。
+> 状态（2026-08）：无旋转 2D 首版运行闭环已经落地。默认 `PhysicsWorld` 使用 SAP 扫描线宽相，可直接完成 Body 积分、普通 Collider、规则 Tile、AABB CCD、Block/Overlap、单向平台、Begin/Stay/End、Ray/Segment、Gameplay 路由以及调试快照。本文档中的“目标设计”章节保留设计理由；当前代码事实以本页、[当前实现审计](01-current-state-audit.md)和头文件为准。
 
-## 当前实现边界
+## 已实现能力
 
-本轮已经落地：
+- `Static`、`Kinematic`、`Dynamic` Body，以及重力、力、质量、阻尼、分轴限速和半隐式欧拉积分；
+- 每个 `Scene` 独占一个 `PhysicsWorld`，Provider 自动注册，Collider ID 单调分配且不复用；
+- `BruteForceBroadPhaseIndex` 正确性基线和默认 `SweepAndPruneBroadPhaseIndex`；
+- AABB/AABB、Circle/Circle、AABB/Circle 离散检测；
+- AABB/AABB、AABB/Tile 的 Swept AABB CCD；Circle Continuous 明确回退离散；
+- 逆质量加权 Block 求解、Overlap、过滤、四方向单向平台和 drop-through；
+- `ContactCache` 与稳定排序的 Begin/Stay/End 核心事件；
+- 规则 Tile World、负坐标、非零原点、非正方形 Tile 和可配置越界策略；
+- AABB、Circle、Tile DDA 的 RayCast/SegmentCast 最近命中；
+- `GameplayCollisionRuntime` 的 Body、PushBox、HitBox/HurtBox 路由、Team 判定和攻击实例去重；
+- Scene 自动 attach/detach Gameplay runtime；
+- 物理步统计、调试快照以及到现有 `DebugDraw` 的适配。
 
-- `PhysicsBody::type` 与 `BodyType { Static, Kinematic, Dynamic }`；
-- 强类型 `PhysicsObjectHandle`，以及由 `PhysicsWorld` 独占管理的单调递增 `ColliderId`；
-- mutable/const `ColliderProvider::colliders()`；
-- `CollisionTarget`、`CollisionEventPhase`、`CollisionEvent`、`CollisionFrame`；
-- `ITileCollisionWorld` 数据契约与每 World 单实例绑定；
-- 可维护状态的 `IBroadPhaseIndex` 接口，未来可替换为四叉树；
-- `PhysicsSystem::integrate`、`CollisionSystem::evaluate` 的类型化空阶段；
-- 每个 `Scene` 独占一个 `PhysicsWorld`，自动注册/注销 Provider，并在非暂停帧调用 `advance(delta)`；
-- Gameplay 结构化目标、事件 phase 和 listener 转发契约。
+## 关键入口
 
-本轮明确未实现：重力和速度积分、任何生产宽相索引、碰撞检测与求解、接触缓存和事件分发、Tile 几何碰撞、Ray/Segment 查询、具体 `GameplayCollisionRuntime`。
+```cpp
+elysia::physics::PhysicsWorldConfig config;
+config.gravity = {0.0f, 980.0f}; // Y 向下
 
-文档中“当前实现”描述仓库已有且有测试约束的行为；“后续目标”描述仍需实现的算法或类型。早期章节中的目标 API 已按本轮落地状态更新，算法章节仍是后续实现规范。
+elysia::physics::PhysicsWorld world(config); // 默认 SAP 与完整策略集
+auto handle = world.register_object(object, body_provider, collider_provider);
+world.advance(frame_delta_seconds);
+
+auto hit = world.raycast({origin, direction, max_distance, filter});
+auto state = world.contact_state(handle);
+```
+
+自定义宽相或测试 oracle 必须整体注入不可部分构造的 `CollisionStrategySet`：
+
+```cpp
+elysia::physics::PhysicsWorld world(
+    config,
+    elysia::physics::make_brute_force_collision_strategies());
+```
+
+旧 `PhysicsService`、策略工厂、CollisionSystem 单槽 setter、`PhysicsBodyView`、`ColliderView` 和独立 `clear_forces` 已删除，不提供兼容包装。
 
 ## 阅读路线
 
-### 快速确认还缺什么
-
-1. [当前状态与缺失审计](01-current-state-audit.md)
-2. [目标架构与一帧数据流](02-target-architecture.md)
-
-### 按顺序实现完整物理系统
-
-1. [当前状态与缺失审计](01-current-state-audit.md)
+1. [当前状态与剩余限制](01-current-state-audit.md)
 2. [目标架构与一帧数据流](02-target-architecture.md)
 3. [逐类职责](03-class-responsibilities.md)
 4. [逐函数实现契约](04-function-responsibilities.md)
@@ -37,55 +51,24 @@
 6. [Tile Map 碰撞适配](06-tile-map-collision.md)
 7. [Gameplay 碰撞 Runtime](07-gameplay-collision-runtime.md)
 8. [实施路线与测试验收](08-implementation-roadmap-and-tests.md)
+9. [首版实现索引与调试](09-v1-implementation-reference.md)
 
-### 只关注 Tile Map 碰撞
-
-1. [目标架构与一帧数据流](02-target-architecture.md)
-2. [碰撞算法与数值约定](05-collision-algorithms.md)
-3. [Tile Map 碰撞适配](06-tile-map-collision.md)
-4. [实施路线与测试验收](08-implementation-roadmap-and-tests.md#阶段-8tile-collision-world)
-
-## 不可破坏的分层原则
-
-`engine/physics` 只认识 Body、Collider、几何形状、过滤、响应、接触、Tile 碰撞单元和查询，不认识 Actor、玩家、敌人、阵营、攻击或伤害。
+## 分层原则
 
 ```text
-engine/physics
-    ↑ 只输出几何接触与查询结果
+game / 项目 TileMap
+        ↓ 适配与业务规则
 engine/gameplay/collision
-    ↑ 将 Collider 绑定为 Body / PushBox / HurtBox / HitBox / Sensor
-game 或具体项目
-    ↑ 决定 Tile 数据、阵营关系、伤害、硬直、击退和角色规则
+        ↓ Actor、Team、Attack 到 Collider 的绑定
+engine/physics
+        ↓ 只处理 Body、形状、目标、接触和查询
+engine/core
 ```
 
-- category 位由上层定义，物理核心不得硬编码 Player、Enemy、HitBox；
-- 项目 Tile Map 通过 `ITileCollisionWorld` 适配，不得进入引擎头文件；
-- 伤害和攻击去重发生在 Gameplay 层，不进入检测或响应策略；
-- `PhysicsService` 只配置策略工厂；运行状态属于每个 `Scene` 的 `PhysicsWorld`。
+`engine/physics` 不认识 Actor、阵营、HitBox、攻击或伤害；项目 Tile 类型只能通过 `ITileCollisionWorld` 适配，不能进入物理核心头文件。
 
-## 当前实际调用点
+## 首版明确不支持
 
-`Scene::register_scene_object_interfaces` 一次发现 Body/Collider Provider 并注册到 `_physics_world`。非暂停更新在普通对象更新后调用：
-
-```cpp
-_physics_world.advance(delta);
-```
-
-`advance` 已实现固定步累积、每帧最多 8 步和超额完整步丢弃。每个固定步会构造 `PhysicsBodyView` / `ColliderView`，调用当前为空操作的 `PhysicsSystem::integrate` 和 `CollisionSystem::evaluate`；因此本轮不会移动对象、产生接触或通知 listener。`raycast` 和 `segment_cast` 安全返回 `std::nullopt`。
-
-## 默认决策
-
-| 项目 | 首版约定 |
-| --- | --- |
-| 坐标系 | X 向右、Y 向下 |
-| 固定步长 | `1 / 60` 秒 |
-| 单帧最大物理步 | 8 |
-| 求解迭代 | 4 |
-| Body 类型 | Static / Kinematic / Dynamic |
-| Tile World | 每个 Scene 一个活动世界 |
-| Tile 越界 | 默认 Block，可配置 Empty |
-| 接触事件 | Begin / Stay / End |
-| Circle CCD | 首版不承诺，保持离散检测 |
-| 对象局部 time scale | 首版不参与物理 |
+旋转、角速度、OBB、多边形、斜坡、摩擦、弹性、关节、睡眠和 Circle CCD 不在首版范围。Kinematic 是无限质量移动平台语义，不会被 solver 推动。一个 Scene 当前只绑定一个活动 Tile Collision World。
 
 返回：[引擎文档入口](../README.md)

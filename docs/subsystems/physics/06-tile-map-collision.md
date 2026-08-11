@@ -1,5 +1,7 @@
 # 06｜Tile Map 碰撞适配
 
+> **实现状态**：规则整格 Tile 候选、Block/Overlap/OneWay、负坐标、非零原点、非方格尺寸、越界策略、AABB CCD 和 Tile DDA 查询均已落地。项目仍只需实现 `ITileCollisionWorld`。
+
 > `TileCoordinate`、`CollisionTarget`、`TileCollisionCell` 与 `ITileCollisionWorld` 已作为公共契约落地；每个 `PhysicsWorld` 可绑定一个活动 Tile World。坐标换算、候选范围、Tile 检测/求解和项目适配器仍待实现。
 
 返回：[物理文档入口](README.md)　上一篇：[碰撞算法](05-collision-algorithms.md)　下一篇：[Gameplay Runtime](07-gameplay-collision-runtime.md)

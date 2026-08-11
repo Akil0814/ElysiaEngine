@@ -1,6 +1,6 @@
 # 04｜逐函数实现契约
 
-> **当前 API 基线**：注册、注销、固定步调度、Tile/listener 身份管理和策略装配已经实现；`PhysicsSystem::integrate` 与 `CollisionSystem::evaluate` 已取代旧空壳入口，但函数体仍刻意不执行物理。`raycast`/`segment_cast` 当前安全返回 `std::nullopt`。本章标为算法目标的处理步骤尚未落地。
+> **实现状态**：本章描述的首版算法已经落地。最终 API 使用 `PhysicsObjectState`、`CollisionShapeView`、`CollisionStrategySet` 和 `ICollisionResponseStrategy::classify`；force 在 `integrate` 读取后立即清零。文中旧 `PhysicsBodyView`、`ColliderView`、独立 setter、`resolve`、`PhysicsService` 与“空操作”说明仅保留为迁移记录，不再是可调用 API。
 
 返回：[物理文档入口](README.md)　上一篇：[逐类职责](03-class-responsibilities.md)　下一篇：[碰撞算法](05-collision-algorithms.md)
 
@@ -70,13 +70,13 @@ class PhysicsWorld final : public ICollisionQueryService
 {
 public:
     explicit PhysicsWorld(PhysicsWorldConfig config = {});
+    PhysicsWorld(PhysicsWorldConfig config, CollisionStrategySet strategies);
 
-    bool configure_strategies(const PhysicsService& service);
     PhysicsObjectHandle register_object(
         elysia::core::GameObject& owner,
         PhysicsBodyProvider* body_provider,
         ColliderProvider* collider_provider);
-    bool unregister_object(PhysicsObjectHandle handle) noexcept;
+    bool unregister_object(PhysicsObjectHandle handle);
 
     bool set_tile_world(const ITileCollisionWorld& world) noexcept;
     bool clear_tile_world(const ITileCollisionWorld& world) noexcept;
@@ -99,18 +99,17 @@ public:
 - **失败**：无效配置抛 `std::invalid_argument`，不能静默修正，因为这属于开发期配置错误。
 - **测试**：默认构造、每个无效字段、初始空状态。
 
-### `configure_strategies(service)`（当前已实现）
+### `PhysicsWorld(config, strategies)`（当前已实现）
 
-- **调用者**：Scene 初始化，仅一次。
-- **职责**：调用 service 为内部 CollisionSystem 安装完整独立策略集。
-- **返回**：安装成功 true；service 未配置或工厂产物为空 false。
-- **异常**：工厂异常原样传播，内部 CollisionSystem 保持原策略不变。
-- **重复调用**：首版允许显式重新安装，但必须仍保持全套原子替换；生产 Scene 通常只调用一次。
+- **调用者**：测试、性能实验或自定义空间索引的 Scene。
+- **职责**：一次性接管完整 `CollisionStrategySet`。
+- **异常**：任一策略为空时构造失败，不产生部分配置 World。
+- **默认路径**：单参数构造自动调用 `make_default_collision_strategies()`，无需启动配置。
 
 ### `register_object(owner, body_provider, collider_provider)`（当前已实现）
 
 - **调用者**：`Scene::register_scene_object_interfaces`。
-- **时机**：只允许在 `advance` 之外立即注册；步中/事件重入当前返回 invalid handle，未来可在不改签名的前提下升级 pending queue。
+- **时机**：步外立即提交；步中/事件回调立即预留稳定 handle/ID，并在下一安全边界提交。
 - **输入**：owner 必须存活；两个 provider 至少一个非空。
 - **步骤**：
   1. 查 owner 索引；已注册则返回已有 handle；
@@ -187,16 +186,15 @@ public:
 ### 建议接口
 
 ```cpp
-void integrate(std::span<PhysicsBodyView> entries,
+void integrate(std::span<PhysicsObjectState> entries,
                const PhysicsWorldConfig& config,
-               double fixed_delta_seconds) const;
-void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
+               double fixed_delta_seconds) const noexcept;
 ```
 
-### `integrate(entries, config, dt)`（当前入口为空操作，以下为后续算法契约）
+### `integrate(entries, config, dt)`（当前已实现）
 
 - **输入**：已清理、owner/Body 借用有效的 entry span。
-- **Static**：不改 velocity、force 或 position；force 在步尾统一清除。
+- **Static**：不改 velocity 或 position；进入函数后本步旧 force 仍会被清除。
 - **Kinematic**：不消费重力和 force；按 `velocity * dt` 更新 position，再应用分轴限速。
 - **Dynamic**：
   1. 验证 mass；
@@ -210,10 +208,9 @@ void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
 - **确定性**：按 handle 升序遍历。
 - **测试**：三种 Body、重力、力、阻尼、限速、禁用、无效质量、固定输入复现。
 
-### `clear_forces(entries)`（当前入口为空操作，以下为后续算法契约）
+### force 清理（已合并到 `integrate`）
 
-- **职责**：对仍有效的所有 Body 把 accumulated_force 设为 zero；包括本步禁用、Static 和 Kinematic Body，避免旧力在重新启用/改类型后突然生效。
-- **异常**：noexcept。
+- `integrate` 先复制并清空 accumulated_force，再执行本步积分。这样事件回调中新施加的 force 不会在步尾被误删，而会留给下一固定步。
 
 ### 已删除的 `PhysicsSystem::step(body_entries, delta)`
 
@@ -221,24 +218,17 @@ void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
 
 ## 6. CollisionSystem 与策略函数
 
-### Strategy setter（当前已实现）
+### `CollisionStrategySet` 与构造（当前已实现）
 
-`set_broad_phase_index`、`set_discrete_detection_strategy`、`set_continuous_detection_strategy`、`set_response_strategy`：
-
-- 接管 `unique_ptr` 所有权；
-- 允许传 nullptr 清空槽；
-- noexcept，仅替换对应槽；
-- 不应隐式重置其他槽或世界状态；
-- 测试所有权转移和独立槽。
+四个策略作为一个完整值传入 `CollisionSystem` 构造函数。任一 `unique_ptr` 为空都抛出 `std::invalid_argument`，因此运行时不存在“漏配某个 detector”的状态。
 
 ### Strategy getter（当前已实现）
 
 四个 getter：
 
-- 返回内部策略的 const 非 owning 指针；
-- 空槽返回 nullptr；
+- 返回内部策略的 const 非 owning 引用；
 - noexcept；
-- 指针只在对应 setter、CollisionSystem 移动/销毁前有效。
+- 引用只在 CollisionSystem 移动/销毁前有效。
 
 ### `IBroadPhaseIndex`（当前接口）
 
@@ -246,8 +236,8 @@ void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
 - `collect_pairs(vector<BroadPhasePair>&)` 必须先清空输出，再写入规范化、稳定排序且去重的候选。
 - `query_aabb(bounds, vector<ColliderId>&)` 同样先清空输出，再返回稳定排序且去重的候选 ID。
 - `clear() noexcept` 清除全部索引状态。
-- 索引只能长期保存 ColliderId、bounds 和必要过滤快照，不能保存跨帧 `ColliderView*`、`Collider*` 或 GameObject 指针。
-- 本轮没有生产实现；测试通过 fake index 约束装配和所有权。
+- 索引只能长期保存 ColliderId、bounds 和必要过滤快照，不能保存跨帧 `CollisionShapeView*`、`Collider*` 或 GameObject 指针。
+- 当前提供 Brute Force 与 SAP；SAP 是默认实现。
 
 ### `ICollisionDetectionStrategy::detect`（当前接口）
 
@@ -257,16 +247,16 @@ void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
 - **不得做**：修改 Collider/owner、检查 Team、分发事件。
 - **测试**：各形状组合及交换顺序后的法线翻转。
 
-### `ICollisionResponseStrategy::resolve`（当前接口）
+### `ICollisionResponseStrategy::classify`（当前接口）
 
-- **输入**：两 view、已验证 hit、fixed dt；目标扩展应增加只读 response context 以查询临时忽略对。
+- **输入**：两个 `CollisionShapeView`、已验证 hit 和只读 `CollisionResponseContext`。
 - **返回**：最终 Ignore/Overlap/Block。
 - **步骤**：filter 已在之前完成；合并 response；若 Block 再检查 one-way/drop-through。
 - **不得做**：位置修正或修改 ignore set。
 
 ### `CollisionSystem::build_views(entries, out_views)`（目标）
 
-- **职责**：从注册表生成本步只读 ColliderView；跳过 destroyed/inactive/disabled Collider；验证 ID 索引一致。
+- **职责**：从注册表生成本步值语义 `CollisionShapeView`；跳过 destroyed/inactive/disabled Collider；验证 ID 索引一致。
 - **世界形状**：可在 view 中缓存 previous/current AABB/circle，或由统一 helper 延迟计算；同一固定步不能混用不同来源。
 - **排序**：ColliderId 升序。
 
@@ -296,35 +286,19 @@ void clear_forces(std::span<PhysicsBodyView> entries) const noexcept;
 - **同一步重复 contact**：合并后再进入 cache。
 - **End manifold**：来自 previous cache。
 
-### `CollisionSystem::evaluate(...)`（当前阶段入口）
+### `CollisionSystem::evaluate(...)`（当前已实现）
 
-签名为 `evaluate(span<const ColliderView>, const ITileCollisionWorld*, double, CollisionFrame&) noexcept`。它是非 const 成员，因为后续必须同步有状态的空间索引。本轮只调用 `out_frame.clear()`，不同步 index、不调用 detection/response，也不生成事件。旧 `dispatch_events` 已删除且不保留兼容包装；后续候选、检测与响应都应在该入口内部实现。
+入口接收 mutable `PhysicsObjectState`、只读 `CollisionShapeView`、Tile World、临时忽略对、config、fixed dt、输出 frame、stats 和 debug snapshot。它同步索引、收集候选、执行检测/分类/CCD/迭代求解并稳定输出 contact。跨步事件仍由 PhysicsWorld 的 ContactCache 构造。
 
-## 7. PhysicsService 函数
+## 7. 默认策略构造函数
 
-### `configure(factories)`（当前已实现）
+### `make_default_collision_strategies()`（当前已实现）
 
-- 未配置且四个 callable 都非空时接管 factories 并返回 true；
-- 已配置或任一 callable 为空返回 false，保持旧状态；
-- 不在 configure 时调用 factory；
-- 目标行为保持不变。
+返回 SAP、默认离散检测、Swept AABB 和默认响应的完整独立实例集。
 
-### `apply_to(collision_system)`（当前已实现）
+### `make_brute_force_collision_strategies()`（当前已实现）
 
-- 未配置返回 false；
-- 依次创建四个临时策略；
-- 任一产物为空则返回 false，目标系统保持不变；
-- 工厂异常传播，目标系统保持不变；
-- 全部成功后再移动进目标系统；
-- 每次调用创建独立实例。
-
-### `is_configured()`（当前已实现）
-
-只返回配置标志，noexcept，无副作用。
-
-### `shutdown()`（当前已实现）
-
-清空 factory 和配置标志，noexcept；不遍历或修改已经创建的 PhysicsWorld/CollisionSystem。
+返回 Brute Force 与相同三个默认策略，用作测试 oracle 和小规模诊断。两个 builder 每次都创建互不共享的实例。
 
 ## 8. Tile Collision 函数
 
@@ -504,7 +478,7 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 | --- | --- |
 | register/unregister | 重复、冲突、回滚、步中延迟、ID 不复用 |
 | advance/fixed_step | 0/负/NaN、小于一步、恰好一步、8+ 步、重入 |
-| integrate/clear_forces | 三 BodyType、重力、阻尼、限速、禁用、无效质量 |
+| integrate/force consumption | 三 BodyType、重力、阻尼、限速、禁用、无效质量 |
 | collect/detect/solve | 稳定 pair、三形状组合、Block/Overlap、零逆质量 |
 | contact cache | Begin→Stay→End、disable、unregister、Tile clear |
 | tile helpers | 负坐标、非零 origin、半开边界、非正方形格子、越界策略 |

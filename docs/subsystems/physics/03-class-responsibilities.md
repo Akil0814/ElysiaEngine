@@ -1,6 +1,6 @@
 # 03｜逐类职责
 
-> **命名更新**：`BodyType`、`PhysicsWorldConfig`、`PhysicsWorld`、`PhysicsObjectHandle`、`CollisionTarget`、`CollisionEvent`、`CollisionFrame`、`ITileCollisionWorld` 和 `Gameplay` listener 契约现已存在。宽相扩展点最终采用可维护状态的 `IBroadPhaseIndex`，不再采用一次性 `IBroadPhaseStrategy`；生产实现（包括 Brute Force 与四叉树）仍待新增。
+> **实现状态**：本章类型已完成首版实现。最终名称为 `PhysicsObjectState`、值语义 `CollisionShapeView` 和不可部分构造的 `CollisionStrategySet`；Brute Force 与 SAP 已实现，SAP 为默认。文中出现的 `ColliderView`、`PhysicsService` 或“目标新增/算法待实现”属于早期设计记录，以 [当前审计](01-current-state-audit.md) 为准。
 
 返回：[物理文档入口](README.md)　上一篇：[目标架构](02-target-architecture.md)　下一篇：[逐函数实现契约](04-function-responsibilities.md)
 
@@ -61,7 +61,7 @@ Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kin
 
 保存相对 owner origin 的 `local_rect`。矩形必须保持非负尺寸；空矩形不产生 Block/Overlap，也不参与查询命中。
 
-不保存 world rect，不缓存 Transform，不拥有 Collider。世界 AABB 每固定步由 `ColliderView` 或几何辅助函数计算。
+不保存 world rect，不缓存 Transform，不拥有 Collider。世界形状每固定步由 `CollisionShapeView` 或几何辅助函数计算。
 
 ### `CircleShape`（当前存在）
 
@@ -173,13 +173,13 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 ## 5. 策略与 CollisionSystem
 
-### `ColliderView`（当前存在，目标扩展）
+### `CollisionShapeView`（当前已实现）
 
-固定步内对 Collider 的只读快照，包含 Collider 引用、target/owner handle、previous/current owner origin，以及便于算法读取的 Body 引用或索引。View 不拥有任何对象，仅在本固定步有效。
+固定步内的值语义形状快照，包含 target、owner handle、previous/current 世界形状与 bounds、filter、response、detection mode 和 one-way。策略不得持有跨步指针。
 
 ### `BroadPhaseProxy` / `BroadPhasePair` / `IBroadPhaseIndex`（当前存在）
 
-`IBroadPhaseIndex` 是可维护状态的普通 Collider 空间索引。`synchronize` 接收全量 proxy 快照；`collect_pairs` 输出规范化候选；`query_aabb` 为查询和局部检索提供候选；`clear` 清除索引。实现只能跨帧保存 ColliderId 与 bounds，不能保存 `Collider*` 或 `ColliderView*`。四叉树、Sweep-and-Prune 和 Brute Force 都可作为独立实现注入。
+`IBroadPhaseIndex` 是可维护状态的普通 Collider 空间索引。`synchronize` 接收全量 proxy 快照；`collect_pairs` 输出规范化候选；`query_aabb` 为查询和局部检索提供候选；`clear` 清除索引。实现只能跨帧保存 ColliderId 与 bounds，不能保存 `Collider*` 或 `CollisionShapeView*`。SAP、四叉树和 Brute Force 都可作为独立实现注入。
 
 ### `ICollisionDetectionStrategy`（当前存在）
 
@@ -189,23 +189,23 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 合并双方 response，处理 one-way 和 runtime 临时忽略规则，输出最终 Ignore/Overlap/Block。它选择语义但不直接移动对象。
 
-### `BruteForceBroadPhaseIndex`（后续目标）
+### `BruteForceBroadPhaseIndex`（当前已实现）
 
 首版正确性基线。遍历 `i < j` 的所有普通 Collider view，做 enabled、filter 和包围盒快速排除后输出 pair。即使未来增加 Sweep-and-Prune，它仍应保留作测试 oracle。
 
-### `DefaultDiscreteCollisionStrategy`（目标新增）
+### `DefaultDiscreteCollisionStrategy`（当前已实现）
 
 实现 AABB/AABB、Circle/Circle、AABB/Circle。负责法线方向规范化、退化情况和接触点，不负责 response。
 
-### `SweptAabbCollisionStrategy`（目标新增）
+### `SweptAabbCollisionStrategy`（当前已实现）
 
 实现 previous/current AABB 的相对扫掠和 AABB/Tile TOI。首版遇到 Circle 时明确回退离散策略。
 
-### `DefaultCollisionResponseStrategy`（目标新增）
+### `DefaultCollisionResponseStrategy`（当前已实现）
 
 实现 response 合并、one-way 和 drop-through predicate。临时忽略数据由调用方以只读上下文传入，策略不能拥有 gameplay binding。
 
-### `CollisionSystem`（当前阶段边界已落地，算法待实现）
+### `CollisionSystem`（当前已实现）
 
 **目的**：协调 view 构建、普通候选收集、Tile 候选、窄检、响应选择、Block 求解和本步 contact 输出。
 
@@ -213,7 +213,7 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 **不拥有**：GameObject、Body、Collider、Tile World、跨步 ContactCache、Gameplay listener。
 
-当前公开入口为 `evaluate(span<ColliderView>, tile_world, fixed_dt, CollisionFrame&)`，本轮只清空 frame。事件生命周期将归 PhysicsWorld/ContactCache，不由 CollisionSystem 持有跨步状态。
+当前公开入口接收 mutable `PhysicsObjectState`、只读 `CollisionShapeView`、Tile World、临时忽略对、config 和 fixed dt，在一次调用内完成索引同步、检测、分类和求解。事件生命周期归 PhysicsWorld/ContactCache，CollisionSystem 不持有跨步接触状态。
 
 ## 6. PhysicsWorld 与配置
 
@@ -286,25 +286,23 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 描述 start、end 和 filter。零长度 segment 返回无命中，不自动变成 point overlap 查询。
 
-### `CollisionQueryHit`（当前存在，目标调整）
+### `CollisionQueryHit`（当前已实现）
 
-目标把 `collider` 字段替换为 `CollisionTarget target`，继续保存 point、normal、distance、fraction。最近命中按 fraction，平局按 target 稳定顺序决定。
+使用 `CollisionTarget target` 保存普通 Collider 或 Tile 身份，并保存 point、normal、distance、fraction。最近命中按 distance，epsilon 平局按 target 稳定顺序决定。
 
 ### `ICollisionQueryService`（当前存在）
 
 纯只读查询契约。PhysicsWorld 实现它；查询不得推进模拟、修改 contact cache 或产生 Gameplay 事件。
 
-## 9. PhysicsService
+## 9. CollisionStrategySet
 
-### `CollisionStrategyFactories`（当前存在）
+### `CollisionStrategySet`（当前已实现）
 
-保存四个创建函数。每次应用必须创建互不共享的策略实例。所有工厂都成功返回后才能替换目标系统，保持强异常安全。
+直接拥有 broad phase、discrete、continuous 和 response 四个 `unique_ptr`。CollisionSystem 构造时校验完整性，禁止产生部分配置系统。
 
-### `PhysicsService`（当前存在）
+### 默认策略构造函数（当前已实现）
 
-全局配置门面，不是世界。它只负责：一次性接受完整 factory 集、为 CollisionSystem 创建策略、查询配置状态和 shutdown。
-
-目标接入点是在 Scene/PhysicsWorld 初始化时调用 `apply_to`。它不得保存注册对象、Tile World、contact cache 或当前 Scene 指针。
+`make_default_collision_strategies()` 返回 SAP 与三个默认策略；`make_brute_force_collision_strategies()` 返回测试 oracle 组合。旧 PhysicsService 已删除。
 
 ## 10. Gameplay 碰撞类型
 
@@ -363,7 +361,7 @@ Service 转发目标。声明 binding、解绑和 drop-through 操作。目标�
 | PhysicsWorld 目标类型 | §6 |
 | Tile 目标类型 | §7 |
 | Query | §8 |
-| PhysicsService / factories | §9 |
+| CollisionStrategySet / default builders | §9 |
 | Gameplay IDs / bindings / events / listener / runtime / service | §10 |
 
 下一篇：[逐函数实现契约](04-function-responsibilities.md)

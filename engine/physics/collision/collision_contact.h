@@ -13,7 +13,20 @@ struct CollisionPair
 {
     CollisionTarget first{};
     CollisionTarget second{};
+
+    [[nodiscard]] constexpr bool operator==(const CollisionPair&) const noexcept = default;
+    [[nodiscard]] constexpr std::strong_ordering operator<=>(
+        const CollisionPair&) const noexcept = default;
 };
+
+[[nodiscard]] constexpr CollisionPair normalized_collision_pair(
+    CollisionTarget first,
+    CollisionTarget second) noexcept
+{
+    return second < first
+        ? CollisionPair{second, first}
+        : CollisionPair{first, second};
+}
 
 struct CollisionManifold
 {
@@ -41,5 +54,6 @@ struct CollisionContact
     CollisionPair pair{};
     CollisionManifold manifold{};
     CollisionResponse response = CollisionResponse::Ignore;
+    float time_of_impact = 1.0f;
 };
 }

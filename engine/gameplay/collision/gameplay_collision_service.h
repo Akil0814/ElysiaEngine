@@ -25,6 +25,7 @@ public:
     [[nodiscard]] bool request_drop_through(const DropThroughRequest& request);
     [[nodiscard]] bool add_listener(GameplayCollisionListener& listener);
     [[nodiscard]] bool remove_listener(const GameplayCollisionListener& listener);
+    void end_attack_instance(AttackInstanceId attack_instance);
 
 private:
     GameplayCollisionService() = default;

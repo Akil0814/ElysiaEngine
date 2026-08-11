@@ -2,6 +2,7 @@
 
 #include "../camera/camera_manager.h"
 #include "../effects/runtime/effect_manager.h"
+#include "../gameplay/scene/gameplay_scene.h"
 #include "../object_query/runtime/game_object_query_manager.h"
 #include "../tools/debug_draw.h"
 #include "../tools/logger.h"
@@ -228,6 +229,11 @@ void SceneManager::attach_to_scene(Scene* scene)
 
 	elysia::effects::EffectManager::instance()->bind_active_scene(*scene);
 	elysia::object_query::GameObjectQueryManager::instance()->bind_active_runtime(*scene);
+	if (auto* gameplay_scene = dynamic_cast<elysia::gameplay::GameplayScene*>(scene))
+	{
+		if (!gameplay_scene->activate_collision_runtime())
+			throw std::logic_error("SceneManager failed to activate gameplay collision runtime.");
+	}
 	scene->attach(this);
 }
 
@@ -236,6 +242,8 @@ void SceneManager::detach_from_scene(Scene* scene)
     if (!scene)
         return;
 
+	if (auto* gameplay_scene = dynamic_cast<elysia::gameplay::GameplayScene*>(scene))
+		gameplay_scene->deactivate_collision_runtime();
 	elysia::object_query::GameObjectQueryManager::instance()->unbind_active_runtime(*scene);
 	elysia::effects::EffectManager::instance()->unbind_active_scene(*scene);
 	scene->detach(this);

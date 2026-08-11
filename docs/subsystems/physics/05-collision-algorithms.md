@@ -1,5 +1,7 @@
 # 05｜碰撞算法与数值约定
 
+> **实现状态**：本章约定已用于首版实现；SAP 为默认宽相，Brute Force 为 oracle。Circle CCD 仍按约定回退离散。
+
 > 本章是后续算法实现规范。当前运行时不会执行本章的积分、宽相、窄相、CCD、响应或单向平台规则。
 
 返回：[物理文档入口](README.md)　上一篇：[逐函数实现契约](04-function-responsibilities.md)　下一篇：[Tile Map 碰撞](06-tile-map-collision.md)

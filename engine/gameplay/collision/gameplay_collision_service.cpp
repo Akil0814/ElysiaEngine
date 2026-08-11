@@ -100,6 +100,15 @@ bool GameplayCollisionService::remove_listener(
     return runtime && runtime->remove_listener(listener);
 }
 
+void GameplayCollisionService::end_attack_instance(AttackInstanceId attack_instance)
+{
+    if (attack_instance == InvalidAttackInstanceId)
+        return;
+    IGameplayCollisionRuntime* runtime = runtime_or_log("end attack instance");
+    if (runtime)
+        runtime->end_attack_instance(attack_instance);
+}
+
 IGameplayCollisionRuntime* GameplayCollisionService::runtime_or_log(
     std::string_view operation
 ) const noexcept

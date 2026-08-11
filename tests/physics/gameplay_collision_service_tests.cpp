@@ -75,6 +75,13 @@ public:
         return operation_result;
     }
 
+    void end_attack_instance(
+        elysia::gameplay::collision::AttackInstanceId attack_instance) override
+    {
+        ++end_attack_calls;
+        last_ended_attack = attack_instance;
+    }
+
     bool operation_result = true;
     int bind_actor_calls = 0;
     int bind_collider_calls = 0;
@@ -83,12 +90,15 @@ public:
     int drop_through_calls = 0;
     int add_listener_calls = 0;
     int remove_listener_calls = 0;
+    int end_attack_calls = 0;
     elysia::gameplay::collision::ActorCollisionRig last_actor{};
     elysia::gameplay::collision::ColliderBinding last_collider{};
     elysia::gameplay::collision::HitBoxBinding last_hit_box{};
     elysia::physics::ColliderId last_unbound_collider = elysia::physics::InvalidColliderId;
     elysia::gameplay::collision::DropThroughRequest last_drop_through{};
     const elysia::gameplay::collision::GameplayCollisionListener* last_listener = nullptr;
+    elysia::gameplay::collision::AttackInstanceId last_ended_attack =
+        elysia::gameplay::collision::InvalidAttackInstanceId;
 };
 
 std::string capture_logs(const std::function<void()>& action)
@@ -195,6 +205,10 @@ int main()
             && first_runtime.remove_listener_calls == 1
             && first_runtime.last_listener == &listener,
         "Listener forwarding must preserve listener identity");
+    service->end_attack_instance(23);
+    require(first_runtime.end_attack_calls == 1
+            && first_runtime.last_ended_attack == 23,
+        "Ending an attack instance must be forwarded exactly once");
 
     const int valid_drop_through_calls = first_runtime.drop_through_calls;
     capture_logs([&]

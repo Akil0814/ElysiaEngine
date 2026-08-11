@@ -42,6 +42,8 @@ class Scene
 {
 public:
     Scene() = default;
+    explicit Scene(elysia::physics::PhysicsWorldConfig physics_config)
+        : _physics_world(physics_config) {}
     virtual ~Scene() = default;
 
     Scene(const Scene&) = delete;

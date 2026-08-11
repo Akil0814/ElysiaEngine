@@ -1,17 +1,17 @@
 # 02｜目标架构与一帧数据流
 
-> **当前落地边界**：`Scene → PhysicsWorld → PhysicsSystem/CollisionSystem` 的所有权、固定步协调、注册表、结构化目标、Tile World 契约和 `IBroadPhaseIndex` 插槽已经落地。图中积分、候选生成、检测、求解、接触缓存、事件分发和 Gameplay 路由仍表示后续目标。
+> **实现状态**：本章描述的数据流已经落地。策略装配最终采用不可部分构造的 `CollisionStrategySet`，默认 SAP；早期草案中的全局 `PhysicsService` 已删除。当前实现索引见 [09](09-v1-implementation-reference.md)。
 
 返回：[物理文档入口](README.md)　下一篇：[逐类职责](03-class-responsibilities.md)
 
 ## 1. 核心决策
 
-每个 `Scene` 拥有一个 `PhysicsWorld`。世界拥有本场景的注册表、固定步状态、两个系统组件、接触缓存和当前 Tile World 借用指针，并实现查询服务。全局 `PhysicsService` 仍然只保存策略工厂。
+每个 `Scene` 拥有一个 `PhysicsWorld`。世界拥有本场景的注册表、固定步状态、两个系统组件、接触缓存和当前 Tile World 借用指针，并实现查询服务。默认策略由 World 构造时创建，自定义策略必须作为完整 `CollisionStrategySet` 注入。
 
 ```mermaid
 classDiagram
     class Scene
-    class PhysicsService
+    class CollisionStrategySet
     class PhysicsWorld
     class PhysicsSystem
     class CollisionSystem
@@ -28,7 +28,7 @@ classDiagram
     PhysicsWorld *-- ContactCache
     PhysicsWorld ..|> ICollisionQueryService
     PhysicsWorld o-- ITileCollisionWorld : 非 owning
-    PhysicsService ..> CollisionSystem : 创建并安装策略
+    CollisionStrategySet ..> CollisionSystem : 构造时整体注入
     GameTileMapAdapter ..|> ITileCollisionWorld
     GameplayCollisionRuntime --> PhysicsWorld : 消费核心事件
     GameplayCollisionService o-- GameplayCollisionRuntime : active runtime 非 owning
@@ -53,7 +53,7 @@ game -> engine/gameplay/collision -> engine/physics -> engine/core
 | Body/Collider | `GameObject`/Provider | 不由 world 删除 | world 仅保存受控借用引用与句柄 |
 | `ITileCollisionWorld` | Scene 或 gameplay map owner | 必须覆盖绑定期 | world 只保存一个非 owning 指针 |
 | `GameplayCollisionRuntime` | Gameplay Scene/runtime | 场景活动期 | attach 到 Service，监听 PhysicsWorld |
-| Strategy factory | `PhysicsService` | 应用生命周期 | 创建出的实例归各 CollisionSystem |
+| Strategy set | `PhysicsWorld` 构造者 | 与 CollisionSystem 一致 | 四个策略不可部分缺失 |
 
 借用对象在物理步执行期间不得被立即销毁。对象的新增、禁用、销毁和注销请求先进入 pending queue，在固定步边界统一应用。
 
@@ -86,7 +86,7 @@ sequenceDiagram
         C->>C: 生成本步 contacts/overlaps
         W->>W: 对比 ContactCache 生成 Begin/Stay/End
         W->>G: 分发稳定排序后的核心事件
-        W->>P: clear_forces(entries)
+        Note over P: integrate 已在读取 force 后立即清零
         W->>W: accumulator -= fixed dt
     end
     W-->>S: 本帧执行步数和诊断
@@ -171,7 +171,7 @@ Scene 发现 Provider 后调用 `PhysicsWorld::register_object`。注册必须�
 
 ```mermaid
 flowchart LR
-    R[Registry entries] --> V[ColliderView world snapshots]
+    R[Registry entries] --> V[CollisionShapeView value snapshots]
     V --> B[IBroadPhaseIndex]
     B --> P[canonical BroadPhasePair]
     P --> D[Discrete / Continuous detector]

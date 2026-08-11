@@ -7,6 +7,7 @@
 #include "../core/render/render_command_projection.h"
 #include "../core/render/sdl_render_command_executor.h"
 #include "../input/contracts/raw_input_event_receiver.h"
+#include "../physics/physics_debug_draw.h"
 #include "../tools/debug_draw.h"
 #include "../tools/logger.h"
 #include "../input/contracts/raw_input_frame_receiver.h"
@@ -99,6 +100,20 @@ void Scene::on_update(double delta)
 
     if (!_paused)
         (void)_physics_world.advance(delta);
+
+    elysia::tools::DebugDraw* physics_debug_draw =
+        elysia::tools::DebugDraw::instance();
+    const auto physics_categories =
+        elysia::tools::DebugDrawCategory::PhysicsCollider
+        | elysia::tools::DebugDrawCategory::PhysicsContact
+        | elysia::tools::DebugDrawCategory::PhysicsContactNormal
+        | elysia::tools::DebugDrawCategory::PhysicsBroadPhase
+        | elysia::tools::DebugDrawCategory::PhysicsCcd
+        | elysia::tools::DebugDrawCategory::PhysicsVelocity;
+    physics_debug_draw->clear_categories(physics_categories);
+    if (physics_debug_draw->enabled())
+        elysia::physics::submit_physics_debug_snapshot(
+            _physics_world.debug_snapshot(), *physics_debug_draw);
 
     auto* camera_manager = elysia::camera::CameraManager::instance();
     camera_manager->set_focus_rect(

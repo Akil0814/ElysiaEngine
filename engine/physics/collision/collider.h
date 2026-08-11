@@ -15,7 +15,7 @@ inline constexpr ColliderId InvalidColliderId = 0;
 
 struct CollisionFilter
 {
-    CollisionBits category = 0;
+    CollisionBits category = 1u;
     CollisionBits mask = 0xffffffffu;
     std::int32_t group = 0;
 };

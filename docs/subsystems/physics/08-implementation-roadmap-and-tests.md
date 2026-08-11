@@ -1,6 +1,6 @@
 # 08｜实施路线与测试验收
 
-> **进度更新**：阶段 1 的公共数据契约、阶段 2 的 `PhysicsWorld`/注册表/稳定 ID，以及阶段 7 的 Scene 生命周期骨架已经完成；固定步 accumulator 已完成，但阶段 3 的实际积分尚未开始。阶段 4 以后所有物理算法仍待实现。宽相生产实现应基于 `IBroadPhaseIndex`，Brute Force 与四叉树都是该接口的可替换实现。
+> **进度更新（2026-08）**：阶段 1—12 的无旋转 2D 首版均已落地。默认宽相为 SAP，Brute Force 保留为正确性 oracle；四叉树仍是可选后续实现。各阶段的“修改/测试”条目现在同时作为回归验收清单。
 
 返回：[物理文档入口](README.md)　上一篇：[Gameplay Runtime](07-gameplay-collision-runtime.md)
 
@@ -107,7 +107,7 @@ flowchart LR
 
 给定 owner/provider，world 能建立和销毁一致注册状态；还不移动、不碰撞。
 
-## 阶段 3：固定步长与 Body 积分
+## 阶段 3：固定步长与 Body 积分（已完成）
 
 ### 前置
 
@@ -145,7 +145,7 @@ flowchart LR
 
 没有 Collider 时，world 已能稳定驱动 Body；Scene 尚未接入。
 
-## 阶段 4：世界形状与过滤
+## 阶段 4：世界形状与过滤（已完成）
 
 ### 前置
 
@@ -158,7 +158,7 @@ flowchart LR
 - 实现 shape 参数验证；
 - 实现统一 `should_collide`；
 - 明确 response 合并纯函数；
-- 扩展 ColliderView 保存 target、owner handle、Body 索引和 origins；
+- 使用值语义 CollisionShapeView 保存 target、owner handle、世界形状和 origins；
 - build_views 按 ColliderId 稳定排序。
 
 ### 测试
@@ -176,7 +176,7 @@ flowchart LR
 
 任何注册 Collider 都能产生可信固定步 view，过滤规则只有一个事实来源。
 
-## 阶段 5：Brute Force 与离散窄检
+## 阶段 5：Brute Force、SAP 与离散窄检（已完成）
 
 ### 前置
 
@@ -190,7 +190,7 @@ flowchart LR
 - 实现 AABB/Circle，并支持输入交换；
 - 实现 `DefaultDiscreteCollisionStrategy`；
 - CollisionSystem collect/detect 输出 contact，但先不修正位置；
-- PhysicsService 默认配置由 Application bootstrap 或测试显式安装。
+- 默认 CollisionStrategySet 由 PhysicsWorld 构造，测试可整体注入 Brute Force。
 
 ### 测试
 
@@ -208,7 +208,7 @@ flowchart LR
 
 系统能可靠报告普通 Collider 当前重叠，但还不会阻挡或生成生命周期事件。
 
-## 阶段 6：Block/Overlap 响应与 ContactCache
+## 阶段 6：Block/Overlap 响应与 ContactCache（已完成）
 
 ### 前置
 
@@ -243,7 +243,7 @@ flowchart LR
 
 纯普通 Collider 世界已经具备可用的离散 Block/Overlap 和事件生命周期。
 
-## 阶段 7：Scene 生命周期接入
+## 阶段 7：Scene 生命周期接入（已完成）
 
 ### 前置
 
@@ -256,7 +256,7 @@ flowchart LR
 - 销毁/移除时排队注销；
 - 非暂停帧普通 update 后调用 `world.advance(delta)`；
 - 删除或收缩 Scene 对 PhysicsSystem/CollisionSystem 的直接持有；
-- Scene 创建时应用 PhysicsService 策略；
+- Scene 创建的 PhysicsWorld 默认已经拥有完整策略；
 - 暴露受保护/只读 physics world/query 入口供派生 Scene；
 - EngineCharacter 等示例对象只选择一种运动方式，避免 update 直接移动与 PhysicsBody 重复移动。
 
@@ -267,7 +267,7 @@ flowchart LR
 - paused Scene 不积 accumulator；
 - inactive/destroyed 对象不参与；
 - Scene reset/reuse 不遗留 handle/contact；
-- PhysicsService 未配置时 Scene 行为明确（初始化失败或禁用物理，首版推荐初始化失败并诊断）；
+- 不完整 CollisionStrategySet 在构造时抛出，Scene 不会进入半配置状态；
 - 对象在事件中 destroy，帧尾安全移除；
 - 不发生悬空 provider 解引用。
 
@@ -275,7 +275,7 @@ flowchart LR
 
 示例 Scene 能通过真实 PhysicsBody/Collider 运动和碰撞；Scene 保持只调用 `PhysicsWorld::advance`。
 
-## 阶段 8：Tile Collision World
+## 阶段 8：Tile Collision World（已完成）
 
 ### 前置
 
@@ -310,7 +310,7 @@ flowchart LR
 
 规则静态地图可阻挡 AABB Body 并产生 Tile 坐标明确的事件；尚不承诺高速和 OneWay。
 
-## 阶段 9：Swept AABB 与单向平台
+## 阶段 9：Swept AABB 与单向平台（已完成）
 
 ### 前置
 
@@ -345,7 +345,7 @@ flowchart LR
 
 AABB Continuous 不穿一格厚墙，单向平台与临时下落行为在移动平台和 Tile 上一致。
 
-## 阶段 10：RayCast 与 SegmentCast
+## 阶段 10：RayCast 与 SegmentCast（已完成）
 
 ### 前置
 
@@ -376,7 +376,7 @@ AABB Continuous 不穿一格厚墙，单向平台与临时下落行为在移动�
 
 AI/Gameplay 能查询当前提交世界的最近普通 Collider 或 Tile，重复查询无状态变化。
 
-## 阶段 11：GameplayCollisionRuntime
+## 阶段 11：GameplayCollisionRuntime（已完成）
 
 ### 前置
 
@@ -412,7 +412,7 @@ AI/Gameplay 能查询当前提交世界的最近普通 Collider 或 Tile，重�
 
 物理事件可以稳定转换为业务语义，但 runtime 本身不结算伤害。
 
-## 阶段 12：调试、诊断与性能基线
+## 阶段 12：调试、诊断与性能基线（已完成）
 
 ### 前置
 
@@ -483,18 +483,18 @@ PushBox 重叠持续路由；Hostile HitBox 对 HurtBox 首次 Begin 命中；St
 | 当前符号 | 类职责 | 函数职责/算法 |
 | --- | --- | --- |
 | `PhysicsBody` | [03 §2](03-class-responsibilities.md#physicsbody当前存在建议调整) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
-| `PhysicsSystem::integrate` / `clear_forces` | [03 §2](03-class-responsibilities.md#physicssystem当前存在但为空壳) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
+| `PhysicsSystem::integrate` | [03 §2](03-class-responsibilities.md) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
 | AABB/Circle/ColliderShape | [03 §3](03-class-responsibilities.md#3-collider-与形状) | [05 §2、6—8](05-collision-algorithms.md#2-世界形状构造) |
 | Filter/Response/DetectionMode | [03 §3](03-class-responsibilities.md#collisionfilter当前存在) | [05 §4、11](05-collision-algorithms.md#4-collisionfilter) |
 | PassThrough/OneWay | [03 §3](03-class-responsibilities.md#passthroughdirection--onewaycollision当前存在) | [04 §2](04-function-responsibilities.md#2-现有小型纯函数)、[05 §12](05-collision-algorithms.md#12-单向平台判断) |
 | `Collider` / `ColliderProvider` | [03 §3](03-class-responsibilities.md#collider当前存在注册方式建议调整) | [04 §3](04-function-responsibilities.md#3-provider-函数) |
 | Pair/Manifold/Hit/Contact/Overlap | [03 §4](03-class-responsibilities.md#4-接触命中与目标身份) | [05](05-collision-algorithms.md) |
 | Ray/Segment/QueryHit | [03 §8](03-class-responsibilities.md#8-query-类型) | [04 §9](04-function-responsibilities.md#9-query-函数细则) |
-| `ColliderView` / 三个 Strategy | [03 §5](03-class-responsibilities.md#5-策略与-collisionsystem) | [04 §6](04-function-responsibilities.md#6-collisionsystem-与策略函数) |
+| `CollisionShapeView` / 三个 Strategy | [03 §5](03-class-responsibilities.md#5-策略与-collisionsystem) | [04 §6](04-function-responsibilities.md#6-collisionsystem-与策略函数) |
 | `CollisionSystem` 全部 setter/getter/dispatch | [03 §5](03-class-responsibilities.md#collisionsystem当前存在目标实现) | [04 §6](04-function-responsibilities.md#6-collisionsystem-与策略函数) |
 | `PhysicsBodyProvider` | [03 §2](03-class-responsibilities.md#2-body-与运动) | [04 §3](04-function-responsibilities.md#3-provider-函数) |
 | `ICollisionQueryService` | [03 §8](03-class-responsibilities.md#icollisionqueryservice当前存在) | [04 §4、9](04-function-responsibilities.md#raycastquery--segment_castquery目标实现) |
-| factories / `PhysicsService` | [03 §9](03-class-responsibilities.md#9-physicsservice) | [04 §7](04-function-responsibilities.md#7-physicsservice-函数) |
+| `CollisionStrategySet` / default builders | [03 §9](03-class-responsibilities.md#9-collisionstrategyset) | [04 §7](04-function-responsibilities.md) |
 | Gameplay IDs/Role/Relation | [03 §10](03-class-responsibilities.md#10-gameplay-碰撞类型) | [07](07-gameplay-collision-runtime.md) |
 | Binding/Rig/Event | [03 §10](03-class-responsibilities.md#10-gameplay-碰撞类型) | [04 §10](04-function-responsibilities.md#10-gameplay-runtime-与-service-函数) |
 | Listener / Team resolver | [03 §10](03-class-responsibilities.md#10-gameplay-碰撞类型) | [04 §10](04-function-responsibilities.md#10-gameplay-runtime-与-service-函数) |
