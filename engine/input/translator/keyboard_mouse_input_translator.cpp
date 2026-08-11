@@ -190,7 +190,8 @@ std::optional<RawInputControl> KeyboardMouseInputTranslator::control_from_key(SD
     }
 }
 
-std::optional<RawInputControl> KeyboardMouseInputTranslator::control_from_mouse_button(Uint8 button) const
+std::optional<RawInputControl> KeyboardMouseInputTranslator::control_from_mouse_button(
+    std::uint8_t button) const
 {
     switch (button)
     {

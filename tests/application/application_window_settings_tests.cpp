@@ -3,6 +3,8 @@
 #include "engine/application/presentation/application_window_settings.h"
 #include "tests/support/test_assertions.h"
 
+#include <SDL.h>
+
 #include <cstdlib>
 #include <string>
 #include <vector>

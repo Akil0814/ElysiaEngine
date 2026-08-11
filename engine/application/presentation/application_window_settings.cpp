@@ -1,5 +1,7 @@
 #include "application_window_settings.h"
 
+#include <SDL.h>
+
 namespace elysia::application::detail
 {
 std::expected<void,std::string> apply_window_settings(

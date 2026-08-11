@@ -5,8 +5,10 @@
 #include "../../builtin/resources/builtin_asset_keys.h"
 #include "../../builtin/object/engine_character.h"
 #include "../../core/render/colors.h"
+#include "../../effects/effect_service.h"
 #include "../../input/raw_input_types.h"
 #include "../../ui/containers/ui_list_container.h"
+#include "../../ui/containers/ui_scroll_container.h"
 #include "../../ui/widgets/ui_button.h"
 #include "../../ui/widgets/image/ui_animation.h"
 #include "../../ui/window/ui_window.h"
@@ -33,10 +35,14 @@ const std::array<std::optional<elysia::core::Color>,5> kColorOverlays = {
     elysia::core::colors::gray_700
 };
 
-std::unique_ptr<elysia::ui::UiButton> make_audio_button(const char* label)
+constexpr float kControlButtonWidth = 144.0f;
+constexpr float kControlButtonHeight = 52.0f;
+constexpr float kControlSpacing = 16.0f;
+
+std::unique_ptr<elysia::ui::UiButton> make_control_button(const char* label)
 {
     auto button = std::make_unique<elysia::ui::UiButton>(
-        elysia::core::Rect{ 0,0,144,52 });
+        elysia::core::Rect{ 0,0,kControlButtonWidth,kControlButtonHeight });
     button->set_text_content(elysia::ui::ui_raw_text(label));
     return button;
 }
@@ -140,11 +146,11 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
     _secondary_animation->play();
     apply_secondary_color_overlay();
 
-    if (!_audio_window || _audio_window->is_destroyed())
-        build_audio_controls();
-    _audio_window->set_visible(true);
-    _audio_window->set_active(true);
-    _audio_window->focus_first_available_scope();
+    if (!_controls_window || _controls_window->is_destroyed())
+        build_feature_controls();
+    _controls_window->set_visible(true);
+    _controls_window->set_active(true);
+    _controls_window->focus_first_available_scope();
 
     enable_character_debug_draw();
     refresh_character_debug_draw();
@@ -159,10 +165,10 @@ void EngineFeatureTestScene::on_exit()
         _primary_animation->pause();
     if (_secondary_animation)
         _secondary_animation->pause();
-    if (_audio_window && !_audio_window->is_destroyed())
+    if (_controls_window && !_controls_window->is_destroyed())
     {
-        _audio_window->set_active(false);
-        _audio_window->set_visible(false);
+        _controls_window->set_active(false);
+        _controls_window->set_visible(false);
     }
     elysia::tools::DebugDraw::instance()->clear_categories(
         elysia::tools::DebugDrawCategory::PhysicsCollider);
@@ -182,7 +188,7 @@ void EngineFeatureTestScene::reset()
     _primary_animation = nullptr;
     _secondary_animation = nullptr;
     _character = nullptr;
-    destroy_audio_controls();
+    destroy_feature_controls();
     _audio_player = nullptr;
     _color_overlay_index = 2;
     elysia::tools::DebugDraw::instance()->clear_categories(
@@ -204,22 +210,22 @@ void EngineFeatureTestScene::apply_secondary_color_overlay()
     }
 }
 
-void EngineFeatureTestScene::build_audio_controls()
+void EngineFeatureTestScene::build_feature_controls()
 {
-    _audio_window = create_and_add_object<elysia::ui::UiWindow>(
-        elysia::core::Rect{ 390.0f,530.0f,500.0f,120.0f },100);
-    if (!_audio_window)
+    _controls_window = create_and_add_object<elysia::ui::UiWindow>(
+        elysia::core::Rect{ 390.0f,490.0f,500.0f,200.0f },100);
+    if (!_controls_window)
     {
         throw std::runtime_error(
-            "EngineFeatureTestScene could not create its audio control window.");
+            "EngineFeatureTestScene could not create its feature control window.");
     }
 
-    auto controls = std::make_unique<elysia::ui::UiListContainer>(
-        elysia::core::Rect{ 18.0f,24.0f,464.0f,52.0f });
-    controls->set_direction(elysia::ui::UiListDirection::Horizontal);
-    controls->set_item_spacing(16.0f);
+    auto audio_controls = std::make_unique<elysia::ui::UiListContainer>(
+        elysia::core::Rect{ 18.0f,16.0f,464.0f,kControlButtonHeight });
+    audio_controls->set_direction(elysia::ui::UiListDirection::Horizontal);
+    audio_controls->set_item_spacing(kControlSpacing);
 
-    auto play_sound = make_audio_button("Play Sound");
+    auto play_sound = make_control_button("Play Sound");
     play_sound->set_on_click([this]()
     {
         if (_audio_player)
@@ -228,9 +234,9 @@ void EngineFeatureTestScene::build_audio_controls()
                 elysia::builtin::asset_keys::TestSound);
         }
     });
-    controls->add_back(std::move(play_sound));
+    audio_controls->add_back(std::move(play_sound));
 
-    auto play_music = make_audio_button("Play Music");
+    auto play_music = make_control_button("Play Music");
     play_music->set_on_click([this]()
     {
         if (_audio_player)
@@ -238,26 +244,175 @@ void EngineFeatureTestScene::build_audio_controls()
             (void)_audio_player->play_music(elysia::builtin::asset_keys::TestMusic);
         }
     });
-    controls->add_back(std::move(play_music));
+    audio_controls->add_back(std::move(play_music));
 
-    auto stop_music = make_audio_button("Stop Music");
+    auto stop_music = make_control_button("Stop Music");
     stop_music->set_on_click([this]()
     {
         if (_audio_player)
             _audio_player->stop_music();
     });
-    controls->add_back(std::move(stop_music));
+    audio_controls->add_back(std::move(stop_music));
 
-    elysia::ui::UiListContainer* controls_ptr = controls.get();
-    _audio_window->add_child(std::move(controls));
-    _audio_window->register_focus_scope(*controls_ptr);
+    auto number_scroll = std::make_unique<elysia::ui::UiScrollContainer>(
+        elysia::core::Rect{ 18.0f,80.0f,464.0f,92.0f });
+    number_scroll->set_scroll_axis(elysia::ui::UiScrollAxis::Horizontal);
+    number_scroll->set_scrollbar_visibility(elysia::ui::UiScrollBarVisibility::Auto);
+    number_scroll->set_scroll_step_x(kControlButtonWidth + kControlSpacing);
+
+    constexpr std::size_t kPresetCount = 6;
+    const float number_content_width =
+        kPresetCount * kControlButtonWidth
+        + (kPresetCount - 1) * kControlSpacing;
+    auto number_controls = std::make_unique<elysia::ui::UiListContainer>(
+        elysia::core::Rect{ 0.0f,0.0f,number_content_width,kControlButtonHeight });
+    number_controls->set_direction(elysia::ui::UiListDirection::Horizontal);
+    number_controls->set_item_spacing(kControlSpacing);
+
+    const auto add_number_button = [this,&number_controls](
+        const char* label,
+        FloatingNumberPreset preset)
+    {
+        auto button = make_control_button(label);
+        button->set_on_click([this,preset]()
+        {
+            spawn_floating_number_effect(preset);
+        });
+        number_controls->add_back(std::move(button));
+    };
+    add_number_button("Damage",FloatingNumberPreset::Damage);
+    add_number_button("Critical",FloatingNumberPreset::Critical);
+    add_number_button("Heal",FloatingNumberPreset::Heal);
+    add_number_button("Percent",FloatingNumberPreset::Percent);
+    add_number_button("Fraction",FloatingNumberPreset::Fraction);
+    add_number_button("Decimal",FloatingNumberPreset::Decimal);
+
+    elysia::ui::UiListContainer* audio_controls_ptr = audio_controls.get();
+    elysia::ui::UiScrollContainer* number_scroll_ptr = number_scroll.get();
+    number_scroll->set_content(std::move(number_controls));
+    _controls_window->add_child(std::move(audio_controls));
+    _controls_window->add_child(std::move(number_scroll));
+    _controls_window->register_focus_scope(
+        *audio_controls_ptr,
+        elysia::ui::UiFocusScopeNeighbors{ .down = number_scroll_ptr });
+    _controls_window->register_focus_scope(
+        *number_scroll_ptr,
+        elysia::ui::UiFocusScopeNeighbors{ .up = audio_controls_ptr });
 }
 
-void EngineFeatureTestScene::destroy_audio_controls() noexcept
+void EngineFeatureTestScene::destroy_feature_controls() noexcept
 {
-    if (_audio_window)
-        _audio_window->destroy();
-    _audio_window = nullptr;
+    if (_controls_window)
+        _controls_window->destroy();
+    _controls_window = nullptr;
+}
+
+void EngineFeatureTestScene::spawn_floating_number_effect(
+    FloatingNumberPreset preset)
+{
+    if (!_character || _character->is_destroyed())
+        return;
+
+    elysia::effects::FloatingNumberEffectSpawnRequest request;
+    request.position = _character->world_rect().top_center();
+    request.alignment = elysia::effects::FloatingNumberAlignment::Center;
+    request.target_height = 28.0f;
+    request.lifetime_seconds = 0.6;
+
+    switch (preset)
+    {
+    case FloatingNumberPreset::Damage:
+        request.text = "-128";
+        request.color = elysia::effects::FloatingNumberColor::Red;
+        request.effects.motion = elysia::effects::FloatingNumberLinearMotion{
+            .offset = { 0.0f,-64.0f }
+        };
+        request.effects.scale = elysia::effects::FloatingNumberScale{
+            .from_scale = 1.2f,
+            .to_scale = 1.0f,
+            .time_range = { 0.0f,0.25f }
+        };
+        request.effects.fade = elysia::effects::FloatingNumberFade{
+            .time_range = { 0.6f,1.0f }
+        };
+        break;
+    case FloatingNumberPreset::Critical:
+        request.text = "-999";
+        request.color = elysia::effects::FloatingNumberColor::Yellow;
+        request.target_height = 32.0f;
+        request.lifetime_seconds = 0.8;
+        request.effects.motion = elysia::effects::FloatingNumberArcMotion{
+            .offset = { 48.0f,-72.0f },
+            .arc_height = 40.0f
+        };
+        request.effects.scale = elysia::effects::FloatingNumberScale{
+            .from_scale = 1.8f,
+            .to_scale = 1.0f,
+            .time_range = { 0.0f,0.3f }
+        };
+        request.effects.fade = elysia::effects::FloatingNumberFade{
+            .time_range = { 0.65f,1.0f }
+        };
+        break;
+    case FloatingNumberPreset::Heal:
+        request.text = "256";
+        request.color = elysia::effects::FloatingNumberColor::Green;
+        request.effects.motion = elysia::effects::FloatingNumberLinearMotion{
+            .offset = { 0.0f,-56.0f }
+        };
+        request.effects.scale = elysia::effects::FloatingNumberScale{
+            .from_scale = 0.75f,
+            .to_scale = 1.15f,
+            .time_range = { 0.0f,0.3f }
+        };
+        request.effects.fade = elysia::effects::FloatingNumberFade{
+            .time_range = { 0.6f,1.0f }
+        };
+        break;
+    case FloatingNumberPreset::Percent:
+        request.text = "75%";
+        request.color = elysia::effects::FloatingNumberColor::LightBlue;
+        request.effects.motion = elysia::effects::FloatingNumberLinearMotion{
+            .offset = { 0.0f,-40.0f }
+        };
+        request.effects.scale = elysia::effects::FloatingNumberScale{
+            .from_scale = 1.0f,
+            .to_scale = 1.25f,
+            .time_range = { 0.1f,0.6f }
+        };
+        request.effects.fade = elysia::effects::FloatingNumberFade{
+            .time_range = { 0.5f,1.0f }
+        };
+        break;
+    case FloatingNumberPreset::Fraction:
+        request.text = "3/10";
+        request.color = elysia::effects::FloatingNumberColor::Orange;
+        request.effects.motion = elysia::effects::FloatingNumberArcMotion{
+            .offset = { -44.0f,-60.0f },
+            .arc_height = 28.0f
+        };
+        request.effects.fade = elysia::effects::FloatingNumberFade{
+            .time_range = { 0.55f,1.0f }
+        };
+        break;
+    case FloatingNumberPreset::Decimal:
+        request.text = "12.5";
+        request.color = elysia::effects::FloatingNumberColor::Purple;
+        request.effects.motion = elysia::effects::FloatingNumberLinearMotion{
+            .offset = { 0.0f,-52.0f }
+        };
+        request.effects.scale = elysia::effects::FloatingNumberScale{
+            .from_scale = 1.15f,
+            .to_scale = 0.85f,
+            .time_range = { 0.1f,0.7f }
+        };
+        request.effects.fade = elysia::effects::FloatingNumberFade{
+            .time_range = { 0.6f,1.0f }
+        };
+        break;
+    }
+
+    (void)ELYSIA_EFFECTS->request_floating_number_effect(request);
 }
 
 void EngineFeatureTestScene::enable_character_debug_draw()

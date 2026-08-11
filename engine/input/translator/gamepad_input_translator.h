@@ -2,6 +2,8 @@
 
 #include "input_translator.h"
 
+#include <cstdint>
+
 namespace elysia::input
 {
 class GamepadInputTranslator : public InputTranslator
@@ -13,7 +15,7 @@ public:
 private:
     void append_controller_button_events(
         std::vector<RawInputEvent>& events,
-        Uint8 button,
+        std::uint8_t button,
         RawInputEventType type
     ) const;
     void append_axis_event(
@@ -26,8 +28,8 @@ private:
         RawInputControl control,
         bool pressed
     ) const;
-    float normalize_stick_axis(Sint16 value) const;
-    float normalize_trigger_axis(Sint16 value) const;
+    float normalize_stick_axis(std::int16_t value) const;
+    float normalize_trigger_axis(std::int16_t value) const;
 
 private:
     bool _left_trigger_pressed = false;

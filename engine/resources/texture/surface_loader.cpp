@@ -102,10 +102,10 @@ std::expected<SurfacePtr,ResourceFailure> create_coverage_mask_surface(
 				&source_pixel,
 				source_row + static_cast<std::size_t>(x) * sizeof(std::uint32_t),
 				sizeof(source_pixel));
-			Uint8 red = 0;
-			Uint8 green = 0;
-			Uint8 blue = 0;
-			Uint8 alpha = 0;
+			std::uint8_t red = 0;
+			std::uint8_t green = 0;
+			std::uint8_t blue = 0;
+			std::uint8_t alpha = 0;
 			SDL_GetRGBA(source_pixel,converted->format,&red,&green,&blue,&alpha);
 			const std::uint32_t mask_pixel =
 				SDL_MapRGBA(mask->format,255,255,255,alpha);

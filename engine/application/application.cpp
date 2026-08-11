@@ -21,6 +21,7 @@
 #include "../tools/logger.h"
 #include "../ui/style/ui_theme_defaults.h"
 
+#include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <utility>
@@ -383,7 +384,7 @@ bool Application::initialize_runtime(
         SDL_SetWindowPosition(_window,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED);
     }
 
-    Uint32 renderer_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
+    std::uint32_t renderer_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
     if (user_settings.vsync)
         renderer_flags |= SDL_RENDERER_PRESENTVSYNC;
 
@@ -433,8 +434,8 @@ bool Application::enter_initial_scene(
 
 ApplicationRunResult Application::run()
 {
-    Uint64 last_counter = SDL_GetPerformanceCounter();
-    const Uint64 counter_freq = SDL_GetPerformanceFrequency();
+    std::uint64_t last_counter = SDL_GetPerformanceCounter();
+    const std::uint64_t counter_freq = SDL_GetPerformanceFrequency();
     elysia::core::Time::instance()->reset();
 
     ApplicationRunResult run_result = ApplicationRunResult::NormalExit;
@@ -486,7 +487,7 @@ ApplicationRunResult Application::run()
         if (resolve_exit())
             break;
 
-        const Uint64 current_counter = SDL_GetPerformanceCounter();
+        const std::uint64_t current_counter = SDL_GetPerformanceCounter();
         const double delta =
             static_cast<double>(current_counter - last_counter) / counter_freq;
         last_counter = current_counter;
@@ -494,7 +495,7 @@ ApplicationRunResult Application::run()
 
         if (delta * 1000.0 < 1000.0 / _target_fps)
         {
-            SDL_Delay(static_cast<Uint32>(
+            SDL_Delay(static_cast<std::uint32_t>(
                 1000.0 / _target_fps - delta * 1000.0));
         }
 
@@ -674,7 +675,7 @@ Application::apply_window_settings(
 
     const auto result = detail::apply_window_settings(settings,
         detail::ApplicationWindowOperations{
-            .set_fullscreen = [this](Uint32 flags)
+            .set_fullscreen = [this](std::uint32_t flags)
             {
                 return SDL_SetWindowFullscreen(_window,flags);
             },

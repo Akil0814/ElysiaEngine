@@ -7,6 +7,7 @@
 #include "../geometry/vector2.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <optional>
 #include <vector>
@@ -35,9 +36,9 @@ enum class UiRenderCommandType
 
 struct TextureColorModulation
 {
-    Uint8 r = 255;
-    Uint8 g = 255;
-    Uint8 b = 255;
+    std::uint8_t r = 255;
+    std::uint8_t g = 255;
+    std::uint8_t b = 255;
 
     [[nodiscard]] constexpr bool operator==(
         const TextureColorModulation&) const noexcept = default;
@@ -65,7 +66,7 @@ struct RenderCommand
     // This remains world-space until it is projected into a ScreenRenderCommand.
     Rect command_rect{};
 
-    Uint8 alpha = 255;
+    std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
 
     // Source rectangle in texture space.
@@ -90,7 +91,7 @@ struct ScreenRenderCommand
     // Destination rectangle in screen space.
     Rect screen_rect{};
 
-    Uint8 alpha = 255;
+    std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
 
     bool use_src_rect = false;
@@ -135,7 +136,7 @@ struct UiRenderCommand
     float circle_radius = 0.0f;
 
     // Used by Texture.
-    Uint8 alpha = 255;
+    std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
 
     // Source rectangle in texture space.
@@ -196,7 +197,7 @@ inline void set_ui_command_clip_rect(UiRenderCommand& command, const Rect& clip_
 [[nodiscard]] inline UiRenderCommand make_ui_texture_command(
     SDL_Texture* texture,
     const Rect& screen_rect,
-    Uint8 alpha = 255
+    std::uint8_t alpha = 255
 ) noexcept
 {
     UiRenderCommand command;
@@ -211,7 +212,7 @@ inline void set_ui_command_clip_rect(UiRenderCommand& command, const Rect& clip_
     SDL_Texture* texture,
     const Rect& screen_rect,
     const Rect& clip_rect,
-    Uint8 alpha = 255
+    std::uint8_t alpha = 255
 ) noexcept
 {
     UiRenderCommand command = make_ui_texture_command(texture, screen_rect, alpha);

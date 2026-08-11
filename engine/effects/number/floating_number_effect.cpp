@@ -191,7 +191,7 @@ void FloatingNumberEffect::update_visual_state()
             static_cast<float>(fade.to_alpha),
             range_progress(fade.time_range, progress)
         );
-        _alpha = static_cast<Uint8>(std::clamp(alpha, 0.0f, 255.0f));
+        _alpha = static_cast<std::uint8_t>(std::clamp(alpha, 0.0f, 255.0f));
     }
 
     set_position(_render_position);

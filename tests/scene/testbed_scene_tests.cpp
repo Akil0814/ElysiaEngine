@@ -3,7 +3,12 @@
 #include "engine/builtin/resources/builtin_asset_cache.h"
 #include "engine/builtin/audio/builtin_audio_player.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
+#include "engine/core/render/render_command.h"
+#include "engine/effects/number/floating_number_effect.h"
+#include "engine/effects/runtime/effect_manager.h"
 #include "engine/io/loaders/asset_config_types.h"
+#include "engine/object_query/game_object_query_service.h"
+#include "engine/resources/resource_service.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/testbed/scene/engine_feature_test_scene.h"
@@ -12,6 +17,7 @@
 #include "engine/testbed/scene/ui_test_scene.h"
 #include "engine/testbed/testbed_scene_keys.h"
 #include "engine/tools/debug_draw.h"
+#include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
 
 #include <SDL.h>
@@ -123,6 +129,28 @@ void send_escape(elysia::scene::SceneManager& scene_manager)
         } });
 }
 
+void send_key(
+    elysia::scene::SceneManager& scene_manager,
+    elysia::input::RawInputControl control,
+    elysia::input::RawInputEventType type)
+{
+    scene_manager.on_input(
+        elysia::input::RawInputFrame{},
+        { elysia::input::RawInputEvent{
+            .control = control,
+            .type = type,
+            .device = elysia::input::InputDevice::Keyboard
+        } });
+}
+
+void press_and_release_key(
+    elysia::scene::SceneManager& scene_manager,
+    elysia::input::RawInputControl control)
+{
+    send_key(scene_manager,control,elysia::input::RawInputEventType::ControlPressed);
+    send_key(scene_manager,control,elysia::input::RawInputEventType::ControlReleased);
+}
+
 void test_engine_feature_overlay_cycle()
 {
     elysia::testbed::EngineFeatureTestScene scene;
@@ -177,19 +205,35 @@ void test_payload_contract_names_each_scene()
 void test_escape_returns_the_full_caller_route()
 {
     SdlFixture fixture;
+    const auto resolved_font_settings =
+        elysia::typography::resolve_font_settings(elysia::typography::FontSettings{});
+    require(resolved_font_settings.has_value(),
+        "Engine test scene tests must resolve default font settings");
     elysia::builtin::BuiltinAssetCache cache;
     require(cache.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(std::filesystem::path{ ELYSIA_SOURCE_DIR }),
-                std::array{10,20,30,40,50,60,70})
+                resolved_font_settings->engine_point_sizes())
                 .has_value(),
         "Engine test scene tests must initialize built-in resources");
+
+    elysia::typography::FontResolver font_resolver;
+    const std::array<std::string,1> supported_languages{ "en" };
+    require(font_resolver.configure(
+                *resolved_font_settings,
+                cache,
+                *elysia::resources::ResourceService::instance(),
+                supported_languages)
+                .has_value(),
+        "Engine test scene tests must configure floating-number fonts");
+    elysia::effects::EffectManager::instance()->set_runtime_dependencies(
+        fixture.renderer(),&font_resolver);
 
     elysia::io::ContentRegistry registry;
     elysia::builtin::BuiltinAudioPlayer audio_player;
     audio_player.bind(cache,elysia::audio::AudioSettings{});
     elysia::scene::SceneRuntimeContext context(
-        fixture.renderer(),registry,1280,720,&cache,nullptr,&audio_player);
+        fixture.renderer(),registry,1280,720,&cache,&font_resolver,&audio_player);
     require(context.builtin_audio_player() == &audio_player,
         "Testbed runtime context must expose its built-in audio player");
     elysia::scene::SceneManager scene_manager;
@@ -246,6 +290,19 @@ void test_escape_returns_the_full_caller_route()
     require(initial_collider != nullptr,
         "Engine feature test character must submit an AABB debug command");
     const float initial_collider_x = initial_collider->rect.x();
+
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+    for (int index = 0; index < 5; ++index)
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyRight);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
+    auto* decimal_effect = ELYSIA_OBJECT_QUERY->find_object<
+        elysia::effects::FloatingNumberEffect>();
+    require(decimal_effect != nullptr,
+        "Engine feature controls must navigate to and spawn the final scrolling number preset");
+    std::vector<elysia::core::RenderCommand> decimal_commands;
+    decimal_effect->submit_render_commands(decimal_commands);
+    require(decimal_commands.size() == 4,
+        "The final Engine feature number preset must render the four glyphs in 12.5");
 
     scene_manager.on_input(
         elysia::input::RawInputFrame{},
@@ -308,6 +365,9 @@ void test_escape_returns_the_full_caller_route()
         "TestbedHomeScene must preserve and return the original caller route");
 
     scene_manager.shutdown();
+    elysia::effects::EffectManager::instance()->set_runtime_dependencies(
+        nullptr,nullptr);
+    font_resolver.shutdown();
     audio_player.unbind();
     cache.shutdown();
 }

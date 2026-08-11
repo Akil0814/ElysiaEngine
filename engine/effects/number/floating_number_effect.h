@@ -4,6 +4,7 @@
 #include "../../core/game_object.h"
 #include "../../core/interface/updatable.h"
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -50,8 +51,8 @@ struct FloatingNumberScale
 
 struct FloatingNumberFade
 {
-    Uint8 from_alpha = 255;
-    Uint8 to_alpha = 0;
+    std::uint8_t from_alpha = 255;
+    std::uint8_t to_alpha = 0;
     FloatingNumberEffectTimeRange time_range;
 };
 
@@ -103,7 +104,7 @@ private:
     FloatingNumberEffects _effects;
     Callback _on_finished;
     float _scale = 1.0f;
-    Uint8 _alpha = 255;
+    std::uint8_t _alpha = 255;
     bool _started = false;
     bool _finished_callback_invoked = false;
 };

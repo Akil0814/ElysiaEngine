@@ -9,19 +9,20 @@
 
 #include <cmath>
 #include <cassert>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
 namespace elysia::core
 {
-[[nodiscard]] inline Sint16 clamp_circle_component(float value) noexcept
+[[nodiscard]] inline std::int16_t clamp_circle_component(float value) noexcept
 {
     const long rounded = std::lround(value);
-    if (rounded < static_cast<long>(std::numeric_limits<Sint16>::min()))
-        return std::numeric_limits<Sint16>::min();
-    if (rounded > static_cast<long>(std::numeric_limits<Sint16>::max()))
-        return std::numeric_limits<Sint16>::max();
-    return static_cast<Sint16>(rounded);
+    if (rounded < static_cast<long>(std::numeric_limits<std::int16_t>::min()))
+        return std::numeric_limits<std::int16_t>::min();
+    if (rounded > static_cast<long>(std::numeric_limits<std::int16_t>::max()))
+        return std::numeric_limits<std::int16_t>::max();
+    return static_cast<std::int16_t>(rounded);
 }
 
 [[nodiscard]] inline SDL_RendererFlip to_sdl_renderer_flip(SpriteFlip flip) noexcept
@@ -47,7 +48,7 @@ inline void execute_textured_render_command(
     SDL_Renderer* renderer,
     SDL_Texture* texture,
     const Rect& destination_rect_value,
-    Uint8 alpha,
+    std::uint8_t alpha,
     const std::optional<TextureColorModulation>& texture_color_modulation,
     bool use_src_rect,
     const Rect& src_rect_value,
@@ -73,12 +74,12 @@ inline void execute_textured_render_command(
         src_rect = &converted_src_rect;
     }
 
-    Uint8 previous_alpha = 255;
+    std::uint8_t previous_alpha = 255;
     SDL_GetTextureAlphaMod(texture, &previous_alpha);
     SDL_SetTextureAlphaMod(texture, alpha);
-    Uint8 previous_red = 255;
-    Uint8 previous_green = 255;
-    Uint8 previous_blue = 255;
+    std::uint8_t previous_red = 255;
+    std::uint8_t previous_green = 255;
+    std::uint8_t previous_blue = 255;
     if (texture_color_modulation)
     {
         SDL_GetTextureColorMod(
@@ -175,10 +176,10 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
         SDL_Rect rect = to_sdl_rect(render_command.screen_rect);
         const SDL_Color color = to_sdl_color(render_command.color);
 
-        Uint8 old_r = 0;
-        Uint8 old_g = 0;
-        Uint8 old_b = 0;
-        Uint8 old_a = 0;
+        std::uint8_t old_r = 0;
+        std::uint8_t old_g = 0;
+        std::uint8_t old_b = 0;
+        std::uint8_t old_a = 0;
         SDL_GetRenderDrawColor(renderer, &old_r, &old_g, &old_b, &old_a);
 
         SDL_SetRenderDrawColor(
@@ -211,11 +212,11 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
 
         const SDL_Rect rect = to_sdl_rect(render_command.screen_rect);
         const SDL_Color color = to_sdl_color(render_command.color);
-        const Sint16 x1 = clamp_circle_component(static_cast<float>(rect.x));
-        const Sint16 y1 = clamp_circle_component(static_cast<float>(rect.y));
-        const Sint16 x2 = clamp_circle_component(static_cast<float>(rect.x + rect.w - 1));
-        const Sint16 y2 = clamp_circle_component(static_cast<float>(rect.y + rect.h - 1));
-        const Sint16 radius = clamp_circle_component(render_command.corner_radius);
+        const std::int16_t x1 = clamp_circle_component(static_cast<float>(rect.x));
+        const std::int16_t y1 = clamp_circle_component(static_cast<float>(rect.y));
+        const std::int16_t x2 = clamp_circle_component(static_cast<float>(rect.x + rect.w - 1));
+        const std::int16_t y2 = clamp_circle_component(static_cast<float>(rect.y + rect.h - 1));
+        const std::int16_t radius = clamp_circle_component(render_command.corner_radius);
 
         roundedBoxRGBA(renderer,x1,y1,x2,y2,radius,color.r,color.g,color.b,color.a);
         break;
@@ -231,13 +232,13 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
 
     case UiRenderCommandType::FillCircle:
     {
-        const Sint16 radius = clamp_circle_component(render_command.circle_radius);
+        const std::int16_t radius = clamp_circle_component(render_command.circle_radius);
         if (radius <= 0)
             break;
 
         const SDL_Color color = to_sdl_color(render_command.color);
-        const Sint16 x = clamp_circle_component(render_command.circle_center.x);
-        const Sint16 y = clamp_circle_component(render_command.circle_center.y);
+        const std::int16_t x = clamp_circle_component(render_command.circle_center.x);
+        const std::int16_t y = clamp_circle_component(render_command.circle_center.y);
 
         filledCircleRGBA(renderer, x, y, radius, color.r, color.g, color.b, color.a);
         break;

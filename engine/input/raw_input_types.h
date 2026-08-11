@@ -4,6 +4,7 @@
 
 #include "input_types.h"
 
+#include <cstdint>
 #include <string>
 
 namespace elysia::input
@@ -206,7 +207,7 @@ struct RawInputEvent
     InputDevice device = InputDevice::Unknown;
     SDL_Keycode keycode = SDLK_UNKNOWN;
     SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
-    Uint8 mouse_button = 0;
+    std::uint8_t mouse_button = 0;
     int mouse_x = 0;
     int mouse_y = 0;
     int mouse_delta_x = 0;

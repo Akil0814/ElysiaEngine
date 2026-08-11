@@ -2,6 +2,7 @@
 
 #include "input_translator.h"
 
+#include <cstdint>
 #include <optional>
 
 namespace elysia::input
@@ -13,7 +14,7 @@ public:
 
 private:
     std::optional<RawInputControl> control_from_key(SDL_Keycode key) const;
-    std::optional<RawInputControl> control_from_mouse_button(Uint8 button) const;
+    std::optional<RawInputControl> control_from_mouse_button(std::uint8_t button) const;
 };
 
 }

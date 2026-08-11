@@ -19,4 +19,7 @@ mask color overlay to the right sprite. Press `Space` to cycle through no
 overlay, white, blue, purple, and gray. The world-space `EngineCharacter` at the
 center uses the built-in idle and move animations; move it with WASD or the arrow
 keys. Its green AABB is submitted through the `PhysicsCollider` debug category.
-Press `Escape` to return to the caller.
+The control window keeps audio actions on its first row. Its second row is a
+horizontally scrollable set of `Damage`, `Critical`, `Heal`, `Percent`,
+`Fraction`, and `Decimal` buttons that spawn representative floating-number
+effects above the character. Press `Escape` to return to the caller.

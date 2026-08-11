@@ -134,7 +134,7 @@ void GamepadInputTranslator::reset()
 
 void GamepadInputTranslator::append_controller_button_events(
     std::vector<RawInputEvent>& events,
-    Uint8 button,
+    std::uint8_t button,
     RawInputEventType type
 ) const
 {
@@ -238,12 +238,12 @@ void GamepadInputTranslator::append_trigger_virtual_button_event(
     );
 }
 
-float GamepadInputTranslator::normalize_stick_axis(Sint16 value) const
+float GamepadInputTranslator::normalize_stick_axis(std::int16_t value) const
 {
     return std::clamp(static_cast<float>(value) / 32767.0f, -1.0f, 1.0f);
 }
 
-float GamepadInputTranslator::normalize_trigger_axis(Sint16 value) const
+float GamepadInputTranslator::normalize_trigger_axis(std::int16_t value) const
 {
     return std::clamp(static_cast<float>(value) / 32767.0f, 0.0f, 1.0f);
 }
