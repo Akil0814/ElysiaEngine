@@ -4,6 +4,7 @@
 #include "game/physics_demo/demo_tile_map.h"
 #include "game/application/example_game_module.h"
 #include "game/scene/example_scene_keys.h"
+#include "game/scene/demo/demo_scene_payload.h"
 #include "game/scene/physics_demo/physics_demo_layout.h"
 #include "engine/camera/camera_manager.h"
 #include "engine/io/loaders/asset_config_types.h"
@@ -27,6 +28,43 @@ public:
     void on_exit() override {}
     void reset() override {}
 };
+
+struct DemoReturnPayload
+{
+    int marker = 0;
+};
+
+class DemoReturnScene final : public elysia::scene::Scene
+{
+public:
+    void on_enter(const elysia::scene::ScenePayload& payload) override
+    {
+        const auto* value =
+            elysia::scene::try_scene_payload<DemoReturnPayload>(payload);
+        marker = value ? value->marker : 0;
+    }
+    void on_exit() override {}
+    void reset() override {}
+
+    static inline int marker = 0;
+};
+
+void press_and_release_key(
+    elysia::scene::SceneManager& scene_manager,
+    elysia::input::RawInputControl control)
+{
+    for (const auto type : {
+            elysia::input::RawInputEventType::ControlPressed,
+            elysia::input::RawInputEventType::ControlReleased})
+    {
+        scene_manager.on_input(
+            elysia::input::RawInputFrame{},
+            {elysia::input::RawInputEvent{
+                .control = control,
+                .type = type,
+                .device = elysia::input::InputDevice::Keyboard}});
+    }
+}
 
 void test_health_contract()
 {
@@ -126,12 +164,12 @@ void test_scene_keys_are_unique()
 {
     constexpr std::array keys{
         ExampleSceneKeys::MainMenu,
-        ExampleSceneKeys::Sandbox,
+        ExampleSceneKeys::AnimationPreview,
         ExampleSceneKeys::PhysicsDemoMenu,
         ExampleSceneKeys::PhysicsCollisionTest,
         ExampleSceneKeys::PlatformTilePhysicsTest,
         ExampleSceneKeys::TopDownTilePhysicsTest,
-        ExampleSceneKeys::TestbedHome,
+        ExampleSceneKeys::DemoGallery,
         ExampleSceneKeys::UiTest,
         ExampleSceneKeys::EngineFeatureTest};
     for (std::size_t i = 0; i < keys.size(); ++i)
@@ -139,13 +177,14 @@ void test_scene_keys_are_unique()
             require(keys[i] != keys[j], "Game scene keys must be unique");
 }
 
-void test_game_module_registers_testbed_scenes()
+void test_game_module_registers_demo_scenes()
 {
     elysia::scene::SceneManager scene_manager;
     example::application::GameModule{}.register_scenes(scene_manager);
 
     for (const elysia::scene::SceneKey key : {
-            ExampleSceneKeys::TestbedHome,
+            ExampleSceneKeys::DemoGallery,
+            ExampleSceneKeys::AnimationPreview,
             ExampleSceneKeys::UiTest,
             ExampleSceneKeys::EngineFeatureTest })
     {
@@ -161,7 +200,7 @@ void test_game_module_registers_testbed_scenes()
                 != std::string_view::npos;
         }
         require(duplicate_rejected,
-            "GameModule must register every project-owned Testbed scene");
+            "GameModule must register every project-owned demo scene");
     }
 }
 
@@ -213,6 +252,10 @@ void require_demo_camera(
     scene_manager.set_runtime_context(context);
     scene_manager.start({
         .target = scene_key,
+        .payload = example::scene::DemoScenePayload{
+            .return_route = {
+                .target = ExampleSceneKeys::MainMenu,
+                .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
         .reload_mode = elysia::scene::SceneReloadMode::Recreate});
     scene_manager.on_update(0.0);
 
@@ -237,6 +280,97 @@ void test_physics_demo_fixed_cameras()
     require_demo_camera(
         ExampleSceneKeys::TopDownTilePhysicsTest, {576.0f, 344.0f});
 }
+
+void test_physics_demo_navigation_and_recreate_route()
+{
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    elysia::scene::SceneManager scene_manager;
+    example::application::GameModule{}.register_scenes(scene_manager);
+    scene_manager.register_game_scene<DemoReturnScene>(1);
+    scene_manager.set_runtime_context(context);
+
+    const elysia::scene::SceneRoute caller{
+        .target = 1,
+        .payload = DemoReturnPayload{.marker = 73},
+        .reload_mode = elysia::scene::SceneReloadMode::Reuse};
+    scene_manager.start({
+        .target = ExampleSceneKeys::PhysicsDemoMenu,
+        .payload = example::scene::DemoScenePayload{
+            .return_route = caller},
+        .reload_mode = elysia::scene::SceneReloadMode::Reuse});
+
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEnter);
+    require(scene_manager.current_scene_key()
+            == ExampleSceneKeys::PhysicsCollisionTest,
+        "The first Physics menu entry must open Collider Combat");
+
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyR);
+    require(scene_manager.current_scene_key()
+            == ExampleSceneKeys::PhysicsCollisionTest,
+        "Recreating a Physics demo must keep the active scene route");
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEscape);
+    require(scene_manager.current_scene_key()
+            == ExampleSceneKeys::PhysicsDemoMenu,
+        "A recreated Physics demo must retain its Physics menu return route");
+
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEscape);
+    require(scene_manager.current_scene_key() == 1
+            && DemoReturnScene::marker == 73,
+        "Physics menu Escape must preserve the complete Gallery caller route");
+    scene_manager.shutdown();
+}
+
+void test_animation_preview_returns_complete_caller_route()
+{
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    elysia::scene::SceneManager scene_manager;
+    example::application::GameModule{}.register_scenes(scene_manager);
+    scene_manager.register_game_scene<DemoReturnScene>(1);
+    scene_manager.set_runtime_context(context);
+    scene_manager.start({
+        .target = ExampleSceneKeys::AnimationPreview,
+        .payload = example::scene::DemoScenePayload{
+            .return_route = {
+                .target = 1,
+                .payload = DemoReturnPayload{.marker = 91},
+                .reload_mode = elysia::scene::SceneReloadMode::Reset}},
+        .reload_mode = elysia::scene::SceneReloadMode::Reuse});
+
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEscape);
+    require(scene_manager.current_scene_key() == 1
+            && DemoReturnScene::marker == 91,
+        "Animation Preview Escape must preserve the complete Gallery caller route");
+    scene_manager.shutdown();
+}
+
+void test_main_menu_uses_gallery_as_its_primary_demo_entry()
+{
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    elysia::scene::SceneManager scene_manager;
+    example::application::GameModule{}.register_scenes(scene_manager);
+    scene_manager.set_runtime_context(context);
+    scene_manager.start({
+        .target = ExampleSceneKeys::MainMenu,
+        .reload_mode = elysia::scene::SceneReloadMode::Reuse});
+
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEnter);
+    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+        "The first Main Menu action must open the unified Demo Gallery");
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEscape);
+    require(scene_manager.current_scene_key() == ExampleSceneKeys::MainMenu,
+        "Demo Gallery must return to the Main Menu caller route");
+    scene_manager.shutdown();
+}
 }
 
 int main()
@@ -245,9 +379,12 @@ int main()
     test_tile_adapter_contract();
     test_actor_provider_and_damage_flow();
     test_scene_keys_are_unique();
-    test_game_module_registers_testbed_scenes();
+    test_game_module_registers_demo_scenes();
     test_physics_demo_layout_contract();
     test_physics_demo_fixed_cameras();
+    test_physics_demo_navigation_and_recreate_route();
+    test_animation_preview_returns_complete_caller_route();
+    test_main_menu_uses_gallery_as_its_primary_demo_entry();
     std::cout << "physics demo tests passed\n";
     return 0;
 }

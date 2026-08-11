@@ -2,7 +2,7 @@
 
 #include "../../../engine/scene/scene.h"
 #include "../../../engine/tools/debug_draw.h"
-#include "../testbed_scene_payload.h"
+#include "../../scene/demo/demo_scene_payload.h"
 
 #include <cstddef>
 

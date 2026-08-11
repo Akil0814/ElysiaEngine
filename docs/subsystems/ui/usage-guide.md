@@ -17,9 +17,15 @@ auto* start = window->create_child<elysia::ui::UiButton>(
         ._anchor = elysia::ui::UiLayoutAnchor::TopLeft,
         ._margin = {0.0f, 0.0f, 0.0f, 0.0f}},
     elysia::core::Rect{0, 0, 180, 44},
-    elysia::ui::UiButtonConfig{.content = elysia::ui::ui_text_key("menu_scene.start")});
+    elysia::ui::UiButtonConfig{.content = elysia::ui::ui_text_key("menu_scene.demo_gallery")});
 start->set_on_click([this] {
-    request_scene_switch(ExampleSceneKeys::Sandbox);
+    request_scene_switch(
+        ExampleSceneKeys::DemoGallery,
+        example::scene::DemoScenePayload{
+            .return_route = {
+                .target = ExampleSceneKeys::MainMenu,
+                .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
+        elysia::scene::SceneReloadMode::Reuse);
 });
 
 settings->set_on_click([this] {

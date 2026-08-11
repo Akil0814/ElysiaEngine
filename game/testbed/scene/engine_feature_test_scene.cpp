@@ -78,10 +78,11 @@ void EngineFeatureTestScene::on_input(
 
 void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
-    const TestbedScenePayload* test_payload =
-        elysia::scene::try_scene_payload<TestbedScenePayload>(payload);
+    const example::scene::DemoScenePayload* test_payload =
+        elysia::scene::try_scene_payload<
+            example::scene::DemoScenePayload>(payload);
     if (!test_payload || !is_valid_return_route(test_payload->return_route))
-        throw std::logic_error("EngineFeatureTestScene requires TestbedScenePayload with a valid return route.");
+        throw std::logic_error("EngineFeatureTestScene requires DemoScenePayload with a valid return route.");
 
     _return_route = test_payload->return_route;
     _paused = false;

@@ -9,10 +9,9 @@
   },
   "menu_scene": {
     "project_name": "Elysia Engine",
-    "start": "開始",
+    "demo_gallery": "デモギャラリー",
     "settings": "設定",
     "exit": "終了",
-    "about": "情報",
     "exit_confirm": {
       "title": "終了の確認",
       "message": "Elysia Engineを終了しますか？",
@@ -20,8 +19,32 @@
       "close": "X"
     }
   },
-  "sandbox_scene": {
-    "title": "サンドボックス",
+  "demo_gallery": {
+    "title": "デモギャラリー",
+    "physics": "物理・戦闘",
+    "animation_preview": "アニメーションプレビュー",
+    "ui_gallery": "UIコンポーネントギャラリー",
+    "engine_features": "エンジン機能ラボ",
+    "elysia_realm": "エリシアレルム",
+    "failure_test": "アプリケーション障害テスト",
+    "back": "戻る",
+    "failure_confirm": {
+      "title": "障害テストの確認",
+      "message": "このテストはアプリケーションを終了します。続行しますか？",
+      "confirm": "障害テストを実行",
+      "cancel": "キャンセル",
+      "close": "閉じる"
+    }
+  },
+  "physics_demo_menu": {
+    "title": "物理・戦闘デモ",
+    "collider": "コライダー戦闘",
+    "platform_tile": "横スクロールタイル戦闘",
+    "top_down_tile": "見下ろし型タイル戦闘",
+    "back": "戻る"
+  },
+  "animation_preview": {
+    "title": "アニメーションプレビュー",
     "description": "RyougiShikiのフレームディレクトリと多段攻撃アニメーションを確認します。",
     "animation_idle": "待機",
     "animation_run": "走行",

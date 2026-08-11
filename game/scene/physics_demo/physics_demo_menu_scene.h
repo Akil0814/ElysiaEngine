@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../../engine/scene/scene.h"
+#include "../demo/demo_scene_payload.h"
 
 namespace elysia::ui { class UiWindow; }
 
@@ -16,7 +17,9 @@ public:
         const std::vector<elysia::input::RawInputEvent>& events) override;
 private:
     void build_ui();
-    void return_to_main_menu();
+    void return_to_caller();
+    [[nodiscard]] elysia::scene::SceneRoute make_menu_route() const;
     elysia::ui::UiWindow* _window = nullptr;
+    elysia::scene::SceneRoute _return_route;
 };
 }

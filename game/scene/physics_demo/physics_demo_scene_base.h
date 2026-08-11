@@ -2,6 +2,7 @@
 
 #include "../../physics_demo/block_actor.h"
 #include "../../physics_demo/demo_tile_map.h"
+#include "../demo/demo_scene_payload.h"
 #include "../../../engine/gameplay/scene/gameplay_scene.h"
 #include "../../../engine/tools/debug_draw.h"
 
@@ -22,6 +23,7 @@ class PhysicsDemoSceneBase : public elysia::gameplay::GameplayScene
 public:
     PhysicsDemoSceneBase(
         elysia::scene::SceneKey own_key,
+        std::string scene_name,
         elysia::physics::PhysicsWorldConfig config,
         std::string title,
         std::string controls);
@@ -62,9 +64,11 @@ private:
     void update_hud();
     void handle_actor_death(example::physics_demo::BlockCombatActor& actor);
     void request_restart();
-    void return_to_demo_menu();
+    void return_to_caller();
 
     elysia::scene::SceneKey _own_key{};
+    elysia::scene::SceneRoute _return_route;
+    std::string _scene_name;
     std::string _title;
     std::string _controls;
     example::physics_demo::SolidColorTexture _solid_texture;

@@ -80,6 +80,7 @@ private:
 
 PhysicsCollisionTestScene::PhysicsCollisionTestScene()
     : PhysicsDemoSceneBase(ExampleSceneKeys::PhysicsCollisionTest,
+          "PhysicsCollisionTestScene",
           gravity_config(1200.0f), "Collider Combat Demo",
           "A/D Move | Space Jump | J Attack | K Query")
 {
@@ -137,6 +138,7 @@ void PhysicsCollisionTestScene::build_demo()
 
 PlatformTilePhysicsTestScene::PlatformTilePhysicsTestScene()
     : PhysicsDemoSceneBase(ExampleSceneKeys::PlatformTilePhysicsTest,
+          "PlatformTilePhysicsTestScene",
           gravity_config(1400.0f), "Platform Tile Combat Demo",
           "A/D Move | Space Jump | Down+Space Drop | J Attack")
 {
@@ -175,6 +177,7 @@ void PlatformTilePhysicsTestScene::build_demo()
 
 TopDownTilePhysicsTestScene::TopDownTilePhysicsTestScene()
     : PhysicsDemoSceneBase(ExampleSceneKeys::TopDownTilePhysicsTest,
+          "TopDownTilePhysicsTestScene",
           gravity_config(0.0f), "Top-Down Tile Combat Demo",
           "WASD Move | J Attack | Enemies require line of sight")
 {

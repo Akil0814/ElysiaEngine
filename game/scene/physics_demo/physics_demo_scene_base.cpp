@@ -1,7 +1,6 @@
 #include "physics_demo_scene_base.h"
 #include "physics_demo_layout.h"
 
-#include "../example_scene_keys.h"
 #include "../../../engine/camera/camera_manager.h"
 #include "../../../engine/core/render/colors.h"
 #include "../../../engine/input/raw_input_types.h"
@@ -15,15 +14,18 @@
 
 #include <algorithm>
 #include <sstream>
+#include <stdexcept>
 
 namespace example::scene
 {
 PhysicsDemoSceneBase::PhysicsDemoSceneBase(
     elysia::scene::SceneKey own_key,
+    std::string scene_name,
     elysia::physics::PhysicsWorldConfig config,
     std::string title,
     std::string controls)
-    : GameplayScene(config), _own_key(own_key), _title(std::move(title)),
+    : GameplayScene(config), _own_key(own_key),
+      _scene_name(std::move(scene_name)), _title(std::move(title)),
       _controls(std::move(controls)),
       _combat(physics_world(), collision_runtime())
 {
@@ -33,8 +35,21 @@ PhysicsDemoSceneBase::PhysicsDemoSceneBase(
 
 PhysicsDemoSceneBase::~PhysicsDemoSceneBase() = default;
 
-void PhysicsDemoSceneBase::on_enter(const elysia::scene::ScenePayload&)
+void PhysicsDemoSceneBase::on_enter(
+    const elysia::scene::ScenePayload& payload)
 {
+    const DemoScenePayload* demo_payload =
+        elysia::scene::try_scene_payload<DemoScenePayload>(payload);
+    if (!demo_payload
+        || !elysia::scene::SceneKeys::is_supported(
+            demo_payload->return_route.target))
+    {
+        throw std::logic_error(
+            _scene_name
+            + " requires DemoScenePayload with a valid return route.");
+    }
+    _return_route = demo_payload->return_route;
+
     auto* debug = elysia::tools::DebugDraw::instance();
     _previous_debug_enabled = debug->enabled();
     _previous_debug_categories = debug->enabled_categories();
@@ -110,7 +125,7 @@ void PhysicsDemoSceneBase::on_input(
         }
         if (event.control == elysia::input::RawInputControl::KeyEscape)
         {
-            return_to_demo_menu();
+            return_to_caller();
             return;
         }
         if (event.control == elysia::input::RawInputControl::KeyF1)
@@ -269,12 +284,15 @@ void PhysicsDemoSceneBase::request_restart()
     if (_restart_requested)
         return;
     _restart_requested = true;
-    request_scene_switch(_own_key, {}, elysia::scene::SceneReloadMode::Recreate);
+    request_scene_switch(
+        _own_key,
+        DemoScenePayload{.return_route = _return_route},
+        elysia::scene::SceneReloadMode::Recreate);
 }
 
-void PhysicsDemoSceneBase::return_to_demo_menu()
+void PhysicsDemoSceneBase::return_to_caller()
 {
-    request_scene_switch(ExampleSceneKeys::PhysicsDemoMenu, {},
-        elysia::scene::SceneReloadMode::Reuse);
+    if (elysia::scene::SceneKeys::is_supported(_return_route.target))
+        request_scene_switch(_return_route);
 }
 }

@@ -1,18 +1,19 @@
-#include "sandbox_scene.h"
+#include "animation_preview_scene.h"
 
-#include "example_scene_keys.h"
-#include "main_menu_scene.h"
+#include "../example_scene_keys.h"
+#include "demo_scene_payload.h"
 
-#include "../../engine/tools/logger.h"
-#include "../../engine/ui/containers/ui_list_container.h"
-#include "../../engine/ui/layout/ui_layout_types.h"
-#include "../../engine/ui/widgets/image/ui_animation.h"
-#include "../../engine/ui/widgets/label/ui_label.h"
-#include "../../engine/ui/widgets/ui_button.h"
-#include "../../engine/ui/window/ui_window.h"
+#include "../../../engine/tools/logger.h"
+#include "../../../engine/ui/containers/ui_list_container.h"
+#include "../../../engine/ui/layout/ui_layout_types.h"
+#include "../../../engine/ui/widgets/image/ui_animation.h"
+#include "../../../engine/ui/widgets/label/ui_label.h"
+#include "../../../engine/ui/widgets/ui_button.h"
+#include "../../../engine/ui/window/ui_window.h"
 
 #include <array>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -46,9 +47,18 @@ std::unique_ptr<elysia::ui::UiButton> make_button(
 }
 }
 
-void SandboxScene::on_enter(const elysia::scene::ScenePayload& payload)
+void AnimationPreviewScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
-    (void)payload;
+    const DemoScenePayload* demo_payload =
+        elysia::scene::try_scene_payload<DemoScenePayload>(payload);
+    if (!demo_payload
+        || !elysia::scene::SceneKeys::is_supported(
+            demo_payload->return_route.target))
+    {
+        throw std::logic_error(
+            "AnimationPreviewScene requires DemoScenePayload with a valid return route.");
+    }
+    _return_route = demo_payload->return_route;
 
     if (!_window || _window->is_destroyed())
         build_ui();
@@ -65,7 +75,7 @@ void SandboxScene::on_enter(const elysia::scene::ScenePayload& payload)
     play_idle();
 }
 
-void SandboxScene::on_exit()
+void AnimationPreviewScene::on_exit()
 {
     if (_window && !_window->is_destroyed())
     {
@@ -74,7 +84,7 @@ void SandboxScene::on_exit()
     }
 }
 
-void SandboxScene::reset()
+void AnimationPreviewScene::reset()
 {
     _attack_segment_index = 0;
     update_attack_segment_label();
@@ -82,7 +92,7 @@ void SandboxScene::reset()
         _animation_preview->reset();
 }
 
-void SandboxScene::build_ui()
+void AnimationPreviewScene::build_ui()
 {
     _window = Scene::create_and_add_object<elysia::ui::UiWindow>(
         elysia::core::Rect{ 0, 0, 1280, 720 }, 10);
@@ -96,7 +106,7 @@ void SandboxScene::build_ui()
 
     auto title = std::make_unique<elysia::ui::UiLabel>(
         elysia::core::Rect{ 0, 0, 880, 68 }, 0,
-        elysia::ui::ui_text_key("sandbox_scene.title"));
+        elysia::ui::ui_text_key("animation_preview.title"));
     title->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
     title->set_typography_role(elysia::typography::UiTypographyRole::Title);
     title->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
@@ -105,7 +115,7 @@ void SandboxScene::build_ui()
 
     auto description = std::make_unique<elysia::ui::UiLabel>(
         elysia::core::Rect{ 0, 0, 880, 52 }, 0,
-        elysia::ui::ui_text_key("sandbox_scene.description"));
+        elysia::ui::ui_text_key("animation_preview.description"));
     description->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
     description->set_vertical_align(elysia::ui::TextVerticalAlign::Center);
     content->add_back(std::move(description));
@@ -121,11 +131,11 @@ void SandboxScene::build_ui()
     animation_controls->set_cross_align(elysia::ui::UiLayoutAlign::Center);
     animation_controls->set_item_spacing(12.0f);
 
-    auto idle = make_button("sandbox_scene.animation_idle", 250.0f);
+    auto idle = make_button("animation_preview.animation_idle", 250.0f);
     idle->set_on_click([this]() { play_idle(); });
     animation_controls->add_back(std::move(idle));
 
-    auto run = make_button("sandbox_scene.animation_run", 250.0f);
+    auto run = make_button("animation_preview.animation_run", 250.0f);
     run->set_on_click([this]() { play_run(); });
     animation_controls->add_back(std::move(run));
     content->add_back(std::move(animation_controls));
@@ -137,7 +147,7 @@ void SandboxScene::build_ui()
 
     auto segment_title = std::make_unique<elysia::ui::UiLabel>(
         elysia::core::Rect{ 0, 0, 280, 40 }, 0,
-        elysia::ui::ui_text_key("sandbox_scene.attack_segment"));
+        elysia::ui::ui_text_key("animation_preview.attack_segment"));
     segment_title->set_horizontal_align(elysia::ui::TextHorizontalAlign::Right);
     segment_title->set_vertical_align(elysia::ui::TextVerticalAlign::Center);
     segment_status->add_back(std::move(segment_title));
@@ -156,21 +166,21 @@ void SandboxScene::build_ui()
     attack_controls->set_cross_align(elysia::ui::UiLayoutAlign::Center);
     attack_controls->set_item_spacing(12.0f);
 
-    auto previous = make_button("sandbox_scene.attack_previous", 250.0f);
+    auto previous = make_button("animation_preview.attack_previous", 250.0f);
     previous->set_on_click([this]() { select_previous_attack(); });
     attack_controls->add_back(std::move(previous));
 
-    auto replay = make_button("sandbox_scene.attack_replay", 250.0f);
+    auto replay = make_button("animation_preview.attack_replay", 250.0f);
     replay->set_on_click([this]() { play_current_attack(); });
     attack_controls->add_back(std::move(replay));
 
-    auto next = make_button("sandbox_scene.attack_next", 250.0f);
+    auto next = make_button("animation_preview.attack_next", 250.0f);
     next->set_on_click([this]() { select_next_attack(); });
     attack_controls->add_back(std::move(next));
     content->add_back(std::move(attack_controls));
 
-    auto back = make_button("sandbox_scene.back", 260.0f);
-    back->set_on_click([this]() { return_to_main_menu(); });
+    auto back = make_button("animation_preview.back", 260.0f);
+    back->set_on_click([this]() { return_to_caller(); });
     content->add_back(std::move(back));
 
     elysia::ui::UiElement* added = _window->add_child(
@@ -178,10 +188,10 @@ void SandboxScene::build_ui()
     if (auto* list = dynamic_cast<elysia::ui::UiListContainer*>(added))
         _window->register_focus_scope(*list);
 
-    _window->set_on_cancel([this]() { return_to_main_menu(); });
+    _window->set_on_cancel([this]() { return_to_caller(); });
 }
 
-void SandboxScene::play_animation(std::string_view animation_key)
+void AnimationPreviewScene::play_animation(std::string_view animation_key)
 {
     if (!_animation_preview || _animation_preview->is_destroyed())
         return;
@@ -199,22 +209,22 @@ void SandboxScene::play_animation(std::string_view animation_key)
     _animation_preview->play();
 }
 
-void SandboxScene::play_idle()
+void AnimationPreviewScene::play_idle()
 {
     play_animation(kIdleAnimation);
 }
 
-void SandboxScene::play_run()
+void AnimationPreviewScene::play_run()
 {
     play_animation(kRunAnimation);
 }
 
-void SandboxScene::play_current_attack()
+void AnimationPreviewScene::play_current_attack()
 {
     play_animation(kAttackAnimations[_attack_segment_index]);
 }
 
-void SandboxScene::select_previous_attack()
+void AnimationPreviewScene::select_previous_attack()
 {
     _attack_segment_index = _attack_segment_index == 0
         ? kAttackAnimations.size() - 1
@@ -223,7 +233,7 @@ void SandboxScene::select_previous_attack()
     play_current_attack();
 }
 
-void SandboxScene::select_next_attack()
+void AnimationPreviewScene::select_next_attack()
 {
     _attack_segment_index =
         (_attack_segment_index + 1) % kAttackAnimations.size();
@@ -231,7 +241,7 @@ void SandboxScene::select_next_attack()
     play_current_attack();
 }
 
-void SandboxScene::update_attack_segment_label()
+void AnimationPreviewScene::update_attack_segment_label()
 {
     if (!_attack_segment_label || _attack_segment_label->is_destroyed())
         return;
@@ -241,11 +251,9 @@ void SandboxScene::update_attack_segment_label()
         + " / " + std::to_string(kAttackAnimations.size())));
 }
 
-void SandboxScene::return_to_main_menu()
+void AnimationPreviewScene::return_to_caller()
 {
-    Scene::request_scene_switch(
-        ExampleSceneKeys::MainMenu,
-        MainMenuEnterPayload{ .replay_theme_music = false },
-        elysia::scene::SceneReloadMode::Reuse);
+    if (elysia::scene::SceneKeys::is_supported(_return_route.target))
+        Scene::request_scene_switch(_return_route);
 }
 }

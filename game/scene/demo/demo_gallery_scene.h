@@ -1,16 +1,17 @@
 #pragma once
 
 #include "../../../engine/scene/scene.h"
-#include "../testbed_scene_payload.h"
+#include "demo_scene_payload.h"
 
 namespace elysia::ui
 {
 class UiWindow;
+class UiConfirmationDialog;
 }
 
-namespace example::testbed
+namespace example::scene
 {
-class TestbedHomeScene final : public elysia::scene::Scene
+class DemoGalleryScene final : public elysia::scene::Scene
 {
 public:
     void on_input(
@@ -24,10 +25,12 @@ private:
     void build_ui();
     void destroy_ui() noexcept;
     void return_to_caller();
-    [[nodiscard]] elysia::scene::SceneRoute make_home_route() const;
+    void reset_failure_confirmation() noexcept;
+    [[nodiscard]] elysia::scene::SceneRoute make_gallery_route() const;
 
 private:
     elysia::scene::SceneRoute _return_route;
     elysia::ui::UiWindow* _root_window = nullptr;
+    elysia::ui::UiConfirmationDialog* _failure_confirmation = nullptr;
 };
 }

@@ -9,10 +9,9 @@
   },
   "menu_scene": {
     "project_name": "Elysia Engine",
-    "start": "開始",
+    "demo_gallery": "展示庫",
     "settings": "設定",
     "exit": "結束",
-    "about": "關於",
     "exit_confirm": {
       "title": "確認結束",
       "message": "要結束 Elysia Engine 嗎？",
@@ -20,8 +19,32 @@
       "close": "X"
     }
   },
-  "sandbox_scene": {
-    "title": "沙盒",
+  "demo_gallery": {
+    "title": "展示庫",
+    "physics": "物理與戰鬥",
+    "animation_preview": "動畫預覽",
+    "ui_gallery": "UI 元件庫",
+    "engine_features": "引擎功能實驗室",
+    "elysia_realm": "愛莉希雅領域",
+    "failure_test": "應用程式故障測試",
+    "back": "返回",
+    "failure_confirm": {
+      "title": "確認故障測試",
+      "message": "此測試會終止應用程式。是否繼續？",
+      "confirm": "執行故障測試",
+      "cancel": "取消",
+      "close": "關閉"
+    }
+  },
+  "physics_demo_menu": {
+    "title": "物理與戰鬥展示",
+    "collider": "碰撞體戰鬥",
+    "platform_tile": "橫向 Tile 戰鬥",
+    "top_down_tile": "俯視 Tile 戰鬥",
+    "back": "返回"
+  },
+  "animation_preview": {
+    "title": "動畫預覽",
     "description": "預覽 RyougiShiki 的目錄影格動畫和多段攻擊動畫。",
     "animation_idle": "待機",
     "animation_run": "奔跑",

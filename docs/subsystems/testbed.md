@@ -1,10 +1,20 @@
-# Project Testbed
+# Demo Gallery and Project Testbed
 
-`game/testbed` owns interactive runtime experiments that may depend on multiple
-engine subsystems. It is part of the example game: `engine_lib` does not compile,
-register, or depend on Testbed code.
+The project-owned `DemoGalleryScene` is the single runtime entry for showcases.
+It lives under `game/scene/demo/` together with `AnimationPreviewScene` and the
+shared `DemoScenePayload`. `game/testbed` continues to own the UI workbench and
+engine-feature experiments that may depend on multiple engine subsystems.
+None of these files are compiled into or registered by `engine_lib`.
 
-- Put each camera, physics, effects, or other subsystem showcase in its own scene.
+The main menu links only to Demo Gallery, Settings, and Exit. Demo Gallery then
+routes to Physics & Combat, Animation Preview, UI Component Gallery, Engine
+Feature Lab, Elysia Realm, and the guarded Application Failure test. Every demo
+receives a complete return route through `DemoScenePayload`, so Escape restores
+the caller key, payload, and reload mode. The failure test is a danger action and
+requires confirmation before it enters the terminating engine failure flow.
+
+- Put each camera, physics, effects, or other subsystem showcase in its own scene
+  and register its entry through Demo Gallery.
 - Put Testbed-only runtime `GameObject` types in `game/testbed/objects/` when
   they are introduced.
 - Keep automated unit and integration tests under `tests/`; that directory is

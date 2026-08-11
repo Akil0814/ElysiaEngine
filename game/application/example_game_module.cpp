@@ -1,12 +1,12 @@
 #include "example_game_module.h"
 
 #include "../scene/main_menu_scene.h"
-#include "../scene/sandbox_scene.h"
+#include "../scene/demo/animation_preview_scene.h"
+#include "../scene/demo/demo_gallery_scene.h"
 #include "../scene/example_scene_keys.h"
 #include "../scene/physics_demo/physics_demo_menu_scene.h"
 #include "../scene/physics_demo/physics_test_scenes.h"
 #include "../testbed/scene/engine_feature_test_scene.h"
-#include "../testbed/scene/testbed_home_scene.h"
 #include "../testbed/scene/ui_test_scene.h"
 
 #include "../../engine/builtin/builtin_scene_keys.h"
@@ -57,8 +57,8 @@ void GameModule::register_scenes(elysia::scene::SceneManager& scene_manager) con
 {
     scene_manager.register_game_scene<example::scene::MainMenuScene>(
         ExampleSceneKeys::MainMenu);
-    scene_manager.register_game_scene<example::scene::SandboxScene>(
-        ExampleSceneKeys::Sandbox);
+    scene_manager.register_game_scene<example::scene::AnimationPreviewScene>(
+        ExampleSceneKeys::AnimationPreview);
     scene_manager.register_game_scene<example::scene::PhysicsDemoMenuScene>(
         ExampleSceneKeys::PhysicsDemoMenu);
     scene_manager.register_game_scene<example::scene::PhysicsCollisionTestScene>(
@@ -67,8 +67,8 @@ void GameModule::register_scenes(elysia::scene::SceneManager& scene_manager) con
         ExampleSceneKeys::PlatformTilePhysicsTest);
     scene_manager.register_game_scene<example::scene::TopDownTilePhysicsTestScene>(
         ExampleSceneKeys::TopDownTilePhysicsTest);
-    scene_manager.register_game_scene<example::testbed::TestbedHomeScene>(
-        ExampleSceneKeys::TestbedHome);
+    scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
+        ExampleSceneKeys::DemoGallery);
     scene_manager.register_game_scene<example::testbed::UiTestScene>(
         ExampleSceneKeys::UiTest);
     scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(

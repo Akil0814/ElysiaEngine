@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../../engine/scene/scene.h"
-#include "../testbed_scene_payload.h"
+#include "../../scene/demo/demo_scene_payload.h"
 #include "../../../engine/ui/style/ui_theme_manager.h"
 
 #include <array>

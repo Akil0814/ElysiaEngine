@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../engine/scene/scene.h"
+#include "../../../engine/scene/scene.h"
 
 #include <cstddef>
 #include <string_view>
@@ -14,7 +14,7 @@ class UiWindow;
 
 namespace example::scene
 {
-class SandboxScene final : public elysia::scene::Scene
+class AnimationPreviewScene final : public elysia::scene::Scene
 {
 public:
     void on_enter(const elysia::scene::ScenePayload& payload) override;
@@ -30,11 +30,12 @@ private:
     void select_previous_attack();
     void select_next_attack();
     void update_attack_segment_label();
-    void return_to_main_menu();
+    void return_to_caller();
 
     elysia::ui::UiWindow* _window = nullptr;
     elysia::ui::UiAnimation* _animation_preview = nullptr;
     elysia::ui::UiLabel* _attack_segment_label = nullptr;
     std::size_t _attack_segment_index = 0;
+    elysia::scene::SceneRoute _return_route;
 };
 }

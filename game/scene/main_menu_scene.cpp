@@ -1,11 +1,11 @@
 #include "main_menu_scene.h"
 
 #include "example_scene_keys.h"
+#include "demo/demo_scene_payload.h"
 
 #include "../../engine/resources/resource_service.h"
 #include "../../engine/builtin/builtin_scene_keys.h"
 #include "../../engine/builtin/scenes/settings_scene.h"
-#include "../testbed/testbed_scene_payload.h"
 
 #include "../../engine/ui/composites/ui_confirmation_dialog.h"
 #include "../../engine/ui/widgets/ui_button.h"
@@ -64,7 +64,13 @@ void MainMenuScene::build_menu_buttons()
     if (_main_menu_window && !_main_menu_window->is_destroyed())
         return;
 
-    _main_menu_window = Scene::create_and_add_object<elysia::ui::UiWindow>(elysia::core::Rect{ 0,0,1280,720 },10);
+    _main_menu_window = Scene::create_and_add_object<elysia::ui::UiWindow>(
+        elysia::core::Rect{
+            0.0f,
+            0.0f,
+            static_cast<float>(runtime_context().logical_width()),
+            static_cast<float>(runtime_context().logical_height())},
+        10);
     _exit_confirmation = nullptr;
 
     if (!_main_menu_window)
@@ -87,30 +93,30 @@ void MainMenuScene::build_menu_buttons()
     }
 
     //create the inner button container
-    std::unique_ptr<elysia::ui::UiListContainer> ui_list = std::make_unique<elysia::ui::UiListContainer>(elysia::core::Rect{ 0,0,300,400 });
+    std::unique_ptr<elysia::ui::UiListContainer> ui_list =
+        std::make_unique<elysia::ui::UiListContainer>(
+            elysia::core::Rect{0, 0, 300, 260});
+    ui_list->set_item_spacing(12.0f);
 
     constexpr int button_wide = 250;
-    constexpr int button_hight = 75;
     const elysia::ui::UiButtonSounds menu_button_sounds{
         .press = "system.button_click_down",
         .click = "system.button_click_up"
     };
-    //start button
+    // Demo Gallery is the only top-level entry for project-owned showcases.
     std::unique_ptr<elysia::ui::UiButton> ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
-    ui_button->set_text_content(elysia::ui::ui_text_key("menu_scene.start"));
-    ui_button->set_sounds(menu_button_sounds);
-    ui_button->set_on_click([this] {
-        Scene::request_scene_switch(ExampleSceneKeys::Sandbox);
-    });
-    ui_list->add_back(std::move(ui_button));
-
-    ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
-    ui_button->set_text_content(elysia::ui::ui_raw_text("Physics Demos"));
+    ui_button->set_text_content(
+        elysia::ui::ui_text_key("menu_scene.demo_gallery"));
     ui_button->set_sounds(menu_button_sounds);
     ui_button->set_on_click([this] {
         Scene::request_scene_switch(
-            ExampleSceneKeys::PhysicsDemoMenu,
-            {},
+            ExampleSceneKeys::DemoGallery,
+            DemoScenePayload{
+                .return_route = {
+                    .target = ExampleSceneKeys::MainMenu,
+                    .payload = MainMenuEnterPayload{
+                        .replay_theme_music = false},
+                    .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
             elysia::scene::SceneReloadMode::Reuse);
     });
     ui_list->add_back(std::move(ui_button));
@@ -130,12 +136,6 @@ void MainMenuScene::build_menu_buttons()
                 }
             });
     });
-    ui_list->add_back(std::move(ui_button));
-
-    //about button
-    ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
-    ui_button->set_text_content(elysia::ui::ui_text_key("menu_scene.about"));
-    ui_button->set_sounds(menu_button_sounds);
     ui_list->add_back(std::move(ui_button));
 
     //exit button
@@ -160,7 +160,9 @@ void MainMenuScene::build_menu_buttons()
     ui_label->set_vertical_align(elysia::ui::TextVerticalAlign::Center);
 
 
-    std::unique_ptr<elysia::ui::UiListContainer> ui_outer_list = std::make_unique<elysia::ui::UiListContainer>(elysia::core::Rect{ 0,0,600,536 });
+    std::unique_ptr<elysia::ui::UiListContainer> ui_outer_list =
+        std::make_unique<elysia::ui::UiListContainer>(
+            elysia::core::Rect{0, 0, 600, 400});
     ui_outer_list->add_front(std::move(ui_label));
     ui_outer_list->add_back(std::move(ui_list));
 
@@ -170,22 +172,6 @@ void MainMenuScene::build_menu_buttons()
 
     if (auto* list = dynamic_cast<elysia::ui::UiListContainer*>(list_added))
         _main_menu_window->register_focus_scope(*list);
-
-    auto* testbed_button = Scene::create_and_add_object<elysia::ui::UiButton>(
-        elysia::core::Rect{ 20,20,180,50 },20);
-    testbed_button->set_text_content(elysia::ui::ui_raw_text("Engine Testbed"));
-    testbed_button->set_sounds(menu_button_sounds);
-    testbed_button->set_on_click([this]() {
-        Scene::request_scene_switch(
-            ExampleSceneKeys::TestbedHome,
-            example::testbed::TestbedScenePayload{
-                .return_route = {
-                    .target = ExampleSceneKeys::MainMenu,
-                    .payload = MainMenuEnterPayload{ .replay_theme_music = false },
-                    .reload_mode = elysia::scene::SceneReloadMode::Reuse
-                }
-            });
-    });
 
     SDL_Texture* tex =
         ELYSIA_RESOURCES->find_texture("ui.moon");

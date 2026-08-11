@@ -9,10 +9,9 @@
   },
   "menu_scene": {
     "project_name": "Elysia Engine",
-    "start": "시작",
+    "demo_gallery": "데모 갤러리",
     "settings": "설정",
     "exit": "종료",
-    "about": "정보",
     "exit_confirm": {
       "title": "종료 확인",
       "message": "Elysia Engine을 종료하시겠습니까?",
@@ -20,8 +19,32 @@
       "close": "X"
     }
   },
-  "sandbox_scene": {
-    "title": "샌드박스",
+  "demo_gallery": {
+    "title": "데모 갤러리",
+    "physics": "물리 및 전투",
+    "animation_preview": "애니메이션 미리보기",
+    "ui_gallery": "UI 컴포넌트 갤러리",
+    "engine_features": "엔진 기능 실험실",
+    "elysia_realm": "엘리시아 렐름",
+    "failure_test": "애플리케이션 오류 테스트",
+    "back": "뒤로",
+    "failure_confirm": {
+      "title": "오류 테스트 확인",
+      "message": "이 테스트는 애플리케이션을 종료합니다. 계속하시겠습니까?",
+      "confirm": "오류 테스트 실행",
+      "cancel": "취소",
+      "close": "닫기"
+    }
+  },
+  "physics_demo_menu": {
+    "title": "물리 및 전투 데모",
+    "collider": "콜라이더 전투",
+    "platform_tile": "플랫폼 타일 전투",
+    "top_down_tile": "탑다운 타일 전투",
+    "back": "뒤로"
+  },
+  "animation_preview": {
+    "title": "애니메이션 미리보기",
     "description": "RyougiShiki의 프레임 디렉터리와 다단 공격 애니메이션을 확인합니다.",
     "animation_idle": "대기",
     "animation_run": "달리기",

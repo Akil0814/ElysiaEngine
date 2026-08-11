@@ -9,10 +9,9 @@
   },
   "menu_scene": {
     "project_name": "Elysia Engine",
-    "start": "开始",
+    "demo_gallery": "演示库",
     "settings": "设置",
     "exit": "退出",
-    "about": "关于",
     "exit_confirm": {
       "title": "确认退出",
       "message": "要退出 Elysia Engine 吗？",
@@ -20,8 +19,32 @@
       "close": "X"
     }
   },
-  "sandbox_scene": {
-    "title": "沙盒",
+  "demo_gallery": {
+    "title": "演示库",
+    "physics": "物理与战斗",
+    "animation_preview": "动画预览",
+    "ui_gallery": "UI 组件库",
+    "engine_features": "引擎功能实验室",
+    "elysia_realm": "爱莉希雅领域",
+    "failure_test": "应用故障测试",
+    "back": "返回",
+    "failure_confirm": {
+      "title": "确认故障测试",
+      "message": "该测试会终止应用程序。是否继续？",
+      "confirm": "运行故障测试",
+      "cancel": "取消",
+      "close": "关闭"
+    }
+  },
+  "physics_demo_menu": {
+    "title": "物理与战斗演示",
+    "collider": "碰撞体战斗",
+    "platform_tile": "横版 Tile 战斗",
+    "top_down_tile": "俯视 Tile 战斗",
+    "back": "返回"
+  },
+  "animation_preview": {
+    "title": "动画预览",
     "description": "预览 RyougiShiki 的目录帧动画和多段攻击动画。",
     "animation_idle": "待机",
     "animation_run": "奔跑",

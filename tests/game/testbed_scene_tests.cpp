@@ -2,6 +2,7 @@
 
 #include "engine/builtin/resources/builtin_asset_cache.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
+#include "engine/builtin/scenes/application_failure_scene.h"
 #include "engine/core/render/render_command.h"
 #include "engine/effects/number/floating_number_effect.h"
 #include "engine/effects/runtime/effect_manager.h"
@@ -11,8 +12,8 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "game/testbed/scene/engine_feature_test_scene.h"
-#include "game/testbed/scene/testbed_home_scene.h"
-#include "game/testbed/testbed_scene_payload.h"
+#include "game/scene/demo/demo_gallery_scene.h"
+#include "game/scene/demo/demo_scene_payload.h"
 #include "game/testbed/scene/ui_test_scene.h"
 #include "game/scene/example_scene_keys.h"
 #include "engine/tools/debug_draw.h"
@@ -150,6 +151,26 @@ void press_and_release_key(
     send_key(scene_manager,control,elysia::input::RawInputEventType::ControlReleased);
 }
 
+void click_mouse(
+    elysia::scene::SceneManager& scene_manager,
+    int x,
+    int y)
+{
+    for (const auto type : {
+            elysia::input::RawInputEventType::ControlPressed,
+            elysia::input::RawInputEventType::ControlReleased})
+    {
+        scene_manager.on_input(
+            elysia::input::RawInputFrame{},
+            {elysia::input::RawInputEvent{
+                .control = elysia::input::RawInputControl::MouseLeft,
+                .type = type,
+                .device = elysia::input::InputDevice::Mouse,
+                .mouse_x = x,
+                .mouse_y = y}});
+    }
+}
+
 void test_engine_feature_overlay_cycle()
 {
     example::testbed::EngineFeatureTestScene scene;
@@ -178,11 +199,11 @@ void test_engine_feature_overlay_cycle()
 
 void test_payload_contract_names_each_scene()
 {
-    example::testbed::TestbedHomeScene home_scene;
+    example::scene::DemoGalleryScene home_scene;
     require(throws_logic_error_containing(
             [&home_scene] { home_scene.on_enter({}); },
-            "TestbedHomeScene"),
-        "TestbedHomeScene must name itself when the Testbed payload is missing");
+            "DemoGalleryScene"),
+        "DemoGalleryScene must name itself when the demo payload is missing");
 
     example::testbed::UiTestScene ui_test_scene;
     require(throws_logic_error_containing(
@@ -192,7 +213,7 @@ void test_payload_contract_names_each_scene()
 
     example::testbed::EngineFeatureTestScene feature_test_scene;
     const elysia::scene::ScenePayload invalid_payload =
-        example::testbed::TestbedScenePayload{
+        example::scene::DemoScenePayload{
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
@@ -233,18 +254,21 @@ void test_escape_returns_the_full_caller_route()
         fixture.renderer(),registry,1280,720,&cache,&font_resolver);
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
-    scene_manager.register_game_scene<example::testbed::TestbedHomeScene>(
-        ExampleSceneKeys::TestbedHome);
+    scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
+        ExampleSceneKeys::DemoGallery);
     scene_manager.register_game_scene<example::testbed::UiTestScene>(
         ExampleSceneKeys::UiTest);
     scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(
         ExampleSceneKeys::EngineFeatureTest);
     scene_manager.register_game_scene<FirstReturnScene>(1);
     scene_manager.register_game_scene<SecondReturnScene>(2);
+    scene_manager.register_engine_scene<
+        elysia::builtin::ApplicationFailureScene>(
+            elysia::builtin::SceneKeys::ApplicationFailure);
 
     scene_manager.start(elysia::scene::SceneRoute{
         .target = ExampleSceneKeys::UiTest,
-        .payload = example::testbed::TestbedScenePayload{
+        .payload = example::scene::DemoScenePayload{
             .return_route = elysia::scene::SceneRoute{
                 .target = 1,
                 .payload = ReturnPayload{ .marker = 17 },
@@ -266,7 +290,7 @@ void test_escape_returns_the_full_caller_route()
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
             .target = ExampleSceneKeys::EngineFeatureTest,
-            .payload = example::testbed::TestbedScenePayload{
+            .payload = example::scene::DemoScenePayload{
                 .return_route = elysia::scene::SceneRoute{
                     .target = 2,
                     .payload = ReturnPayload{ .marker = 29 },
@@ -328,8 +352,8 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = ExampleSceneKeys::TestbedHome,
-            .payload = example::testbed::TestbedScenePayload{
+            .target = ExampleSceneKeys::DemoGallery,
+            .payload = example::scene::DemoScenePayload{
                 .return_route = original_caller
             }
         }
@@ -340,10 +364,10 @@ void test_escape_returns_the_full_caller_route()
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
             .target = ExampleSceneKeys::UiTest,
-            .payload = example::testbed::TestbedScenePayload{
+            .payload = example::scene::DemoScenePayload{
                 .return_route = elysia::scene::SceneRoute{
-                    .target = ExampleSceneKeys::TestbedHome,
-                    .payload = example::testbed::TestbedScenePayload{
+                    .target = ExampleSceneKeys::DemoGallery,
+                    .payload = example::scene::DemoScenePayload{
                         .return_route = original_caller
                     },
                     .reload_mode = elysia::scene::SceneReloadMode::Reuse
@@ -353,11 +377,46 @@ void test_escape_returns_the_full_caller_route()
     });
     scene_manager.on_update(0.0);
     send_escape(scene_manager);
-    require(scene_manager.current_scene_key() == ExampleSceneKeys::TestbedHome,
-        "Testbed child Escape must return to TestbedHomeScene");
+    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+        "Demo child Escape must return to DemoGalleryScene");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 41,
-        "TestbedHomeScene must preserve and return the original caller route");
+        "DemoGalleryScene must preserve and return the original caller route");
+
+    const auto open_gallery = [&scene_manager,&original_caller]()
+    {
+        scene_manager.on_scene_request(elysia::scene::SceneRequest{
+            .type = elysia::scene::SceneRequestType::Switch,
+            .route = {
+                .target = ExampleSceneKeys::DemoGallery,
+                .payload = example::scene::DemoScenePayload{
+                    .return_route = original_caller},
+                .reload_mode = elysia::scene::SceneReloadMode::Reuse}});
+        scene_manager.on_update(0.0);
+    };
+
+    open_gallery();
+    click_mouse(scene_manager, 640, 502);
+    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+        "Failure Test must open a confirmation without immediately leaving Gallery");
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEscape);
+    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+        "Canceling the Failure confirmation must remain in Gallery");
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEscape);
+    require(scene_manager.current_scene_key() == 1,
+        "Gallery Escape must resume returning to its caller after closing the modal");
+
+    open_gallery();
+    click_mouse(scene_manager, 640, 502);
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyRight);
+    press_and_release_key(
+        scene_manager, elysia::input::RawInputControl::KeyEnter);
+    require(scene_manager.current_scene_key()
+            == elysia::builtin::SceneKeys::ApplicationFailure,
+        "Confirming the guarded Failure Test must enter the engine failure scene");
 
     scene_manager.shutdown();
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(

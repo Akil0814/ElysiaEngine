@@ -9,10 +9,9 @@
   },
   "menu_scene": {
     "project_name": "Elysia Engine",
-    "start": "Start",
+    "demo_gallery": "Demo Gallery",
     "settings": "Settings",
     "exit": "Exit",
-    "about": "About",
     "exit_confirm": {
       "title": "Confirm Exit",
       "message": "Exit Elysia Engine?",
@@ -20,8 +19,32 @@
       "close": "X"
     }
   },
-  "sandbox_scene": {
-    "title": "Sandbox",
+  "demo_gallery": {
+    "title": "Demo Gallery",
+    "physics": "Physics & Combat",
+    "animation_preview": "Animation Preview",
+    "ui_gallery": "UI Component Gallery",
+    "engine_features": "Engine Feature Lab",
+    "elysia_realm": "Elysia Realm",
+    "failure_test": "Application Failure Test",
+    "back": "Back",
+    "failure_confirm": {
+      "title": "Confirm Failure Test",
+      "message": "This test terminates the application. Continue?",
+      "confirm": "Run Failure Test",
+      "cancel": "Cancel",
+      "close": "Close"
+    }
+  },
+  "physics_demo_menu": {
+    "title": "Physics & Combat Demos",
+    "collider": "Collider Combat",
+    "platform_tile": "Platform Tile Combat",
+    "top_down_tile": "Top-Down Tile Combat",
+    "back": "Back"
+  },
+  "animation_preview": {
+    "title": "Animation Preview",
     "description": "Preview the RyougiShiki frame-directory and segmented animations.",
     "animation_idle": "Idle",
     "animation_run": "Run",

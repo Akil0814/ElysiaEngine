@@ -10,22 +10,37 @@
 #include "../../../engine/ui/window/ui_window.h"
 
 #include <memory>
+#include <stdexcept>
 
 namespace example::scene
 {
 namespace
 {
-std::unique_ptr<elysia::ui::UiButton> button(const char* text)
+std::unique_ptr<elysia::ui::UiButton> button(const char* text_key)
 {
     auto result = std::make_unique<elysia::ui::UiButton>(
         elysia::core::Rect{0, 0, 420, 58});
-    result->set_text_content(elysia::ui::ui_raw_text(text));
+    result->set_text_content(elysia::ui::ui_text_key(text_key));
+    result->set_sounds({
+        .press = "system.button_click_down",
+        .click = "system.button_click_up"});
     return result;
 }
 }
 
-void PhysicsDemoMenuScene::on_enter(const elysia::scene::ScenePayload&)
+void PhysicsDemoMenuScene::on_enter(
+    const elysia::scene::ScenePayload& payload)
 {
+    const DemoScenePayload* demo_payload =
+        elysia::scene::try_scene_payload<DemoScenePayload>(payload);
+    if (!demo_payload
+        || !elysia::scene::SceneKeys::is_supported(
+            demo_payload->return_route.target))
+    {
+        throw std::logic_error(
+            "PhysicsDemoMenuScene requires DemoScenePayload with a valid return route.");
+    }
+    _return_route = demo_payload->return_route;
     if (!_window || _window->is_destroyed())
         build_ui();
     if (_window)
@@ -50,6 +65,7 @@ void PhysicsDemoMenuScene::reset()
     if (_window)
         _window->destroy();
     _window = nullptr;
+    _return_route = {};
 }
 
 void PhysicsDemoMenuScene::on_input(
@@ -60,7 +76,7 @@ void PhysicsDemoMenuScene::on_input(
         if (event.type == elysia::input::RawInputEventType::ControlPressed
             && event.control == elysia::input::RawInputControl::KeyEscape)
         {
-            return_to_main_menu();
+            return_to_caller();
             return;
         }
     elysia::scene::Scene::on_input(input, events);
@@ -75,34 +91,40 @@ void PhysicsDemoMenuScene::build_ui()
         layout.viewport, 100);
     if (!_window)
         return;
-    _window->set_on_cancel([this] { return_to_main_menu(); });
+    _window->set_on_cancel([this] { return_to_caller(); });
     auto list = std::make_unique<elysia::ui::UiListContainer>(
         layout.menu_list);
     list->set_item_spacing(18.0f);
     auto title = std::make_unique<elysia::ui::UiLabel>(
         elysia::core::Rect{0, 0, 420, 72}, 0,
-        elysia::ui::ui_raw_text("Physics & Combat Demos"));
+        elysia::ui::ui_text_key("physics_demo_menu.title"));
     title->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
     title->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
     list->add_back(std::move(title));
 
-    auto collider = button("Collider Combat");
+    auto collider = button("physics_demo_menu.collider");
     collider->set_on_click([this] {
-        request_scene_switch(ExampleSceneKeys::PhysicsCollisionTest, {},
+        request_scene_switch(
+            ExampleSceneKeys::PhysicsCollisionTest,
+            DemoScenePayload{.return_route = make_menu_route()},
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(collider));
-    auto platform = button("Platform Tile Combat");
+    auto platform = button("physics_demo_menu.platform_tile");
     platform->set_on_click([this] {
-        request_scene_switch(ExampleSceneKeys::PlatformTilePhysicsTest, {},
+        request_scene_switch(
+            ExampleSceneKeys::PlatformTilePhysicsTest,
+            DemoScenePayload{.return_route = make_menu_route()},
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(platform));
-    auto top_down = button("Top-Down Tile Combat");
+    auto top_down = button("physics_demo_menu.top_down_tile");
     top_down->set_on_click([this] {
-        request_scene_switch(ExampleSceneKeys::TopDownTilePhysicsTest, {},
+        request_scene_switch(
+            ExampleSceneKeys::TopDownTilePhysicsTest,
+            DemoScenePayload{.return_route = make_menu_route()},
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(top_down));
-    auto back = button("Back to Main Menu");
-    back->set_on_click([this] { return_to_main_menu(); });
+    auto back = button("physics_demo_menu.back");
+    back->set_on_click([this] { return_to_caller(); });
     list->add_back(std::move(back));
 
     auto* list_ptr = list.get();
@@ -111,9 +133,17 @@ void PhysicsDemoMenuScene::build_ui()
     _window->register_focus_scope(*list_ptr);
 }
 
-void PhysicsDemoMenuScene::return_to_main_menu()
+void PhysicsDemoMenuScene::return_to_caller()
 {
-    request_scene_switch(ExampleSceneKeys::MainMenu, {},
-        elysia::scene::SceneReloadMode::Reuse);
+    if (elysia::scene::SceneKeys::is_supported(_return_route.target))
+        request_scene_switch(_return_route);
+}
+
+elysia::scene::SceneRoute PhysicsDemoMenuScene::make_menu_route() const
+{
+    return elysia::scene::SceneRoute{
+        .target = ExampleSceneKeys::PhysicsDemoMenu,
+        .payload = DemoScenePayload{.return_route = _return_route},
+        .reload_mode = elysia::scene::SceneReloadMode::Reuse};
 }
 }
