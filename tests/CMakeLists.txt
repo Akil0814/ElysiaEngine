@@ -332,6 +332,13 @@ add_elysia_test(gameplay_collision_runtime_tests
     SDL
 )
 
+add_elysia_test(physics_demo_tests
+    LABEL physics
+    SOURCES game/physics_demo_tests.cpp
+    LIBRARIES game_lib ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES}
+    SDL
+)
+
 add_elysia_test(logger_startup_phase_tests
     LABEL tools
     SOURCES tools/logger_startup_phase_tests.cpp

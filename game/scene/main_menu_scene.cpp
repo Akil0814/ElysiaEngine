@@ -105,6 +105,17 @@ void MainMenuScene::build_menu_buttons()
     });
     ui_list->add_back(std::move(ui_button));
 
+    ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
+    ui_button->set_text_content(elysia::ui::ui_raw_text("Physics Demos"));
+    ui_button->set_sounds(menu_button_sounds);
+    ui_button->set_on_click([this] {
+        Scene::request_scene_switch(
+            ExampleSceneKeys::PhysicsDemoMenu,
+            {},
+            elysia::scene::SceneReloadMode::Reuse);
+    });
+    ui_list->add_back(std::move(ui_button));
+
     //setting button
     ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
     ui_button->set_text_content(elysia::ui::ui_text_key("menu_scene.settings"));
