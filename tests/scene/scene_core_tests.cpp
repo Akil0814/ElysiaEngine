@@ -104,6 +104,11 @@ public:
         return runtime_context();
     }
 
+    elysia::physics::PhysicsWorld& exposed_physics_world() noexcept
+    {
+        return physics_world();
+    }
+
     static inline ProbeState state{};
     static inline ProbeScene* last_instance = nullptr;
 };
@@ -257,6 +262,60 @@ void test_runtime_context_synchronizes_camera_viewports()
     }
 }
 
+void test_scene_maps_debug_draw_categories_to_physics_capture()
+{
+    using elysia::physics::PhysicsDebugCapture;
+    using elysia::tools::DebugDrawCategory;
+
+    FirstProbeScene scene;
+    auto* debug_draw = elysia::tools::DebugDraw::instance();
+    debug_draw->set_enabled(false);
+    debug_draw->set_enabled_categories(DebugDrawCategory::All);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::None,
+        "disabled DebugDraw must disable physics diagnostic capture");
+
+    debug_draw->set_enabled(true);
+    debug_draw->set_enabled_categories(DebugDrawCategory::Gameplay);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::None,
+        "non-physics categories must not enable physics diagnostic capture");
+
+    debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsCollider);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::Shapes,
+        "collider drawing must request shape capture");
+
+    debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsBroadPhase);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::BroadPhase,
+        "broad-phase drawing must request broad-phase capture");
+
+    debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsContactNormal);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::Contacts,
+        "contact-normal drawing must request contact capture");
+
+    debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsVelocity);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::Velocities,
+        "velocity drawing must request velocity capture");
+
+    debug_draw->set_enabled(false);
+    scene.on_update(0.0);
+    require(scene.exposed_physics_world().debug_capture()
+            == PhysicsDebugCapture::None
+            && scene.exposed_physics_world().debug_snapshot().shapes.empty(),
+        "turning DebugDraw off must clear the active physics snapshot");
+    debug_draw->set_enabled_categories(DebugDrawCategory::All);
+}
+
 void test_route_copy_reload_modes_and_runtime_context_binding()
 {
     using namespace elysia::scene;
@@ -272,6 +331,9 @@ void test_route_copy_reload_modes_and_runtime_context_binding()
 
     auto* debug_draw = elysia::tools::DebugDraw::instance();
     debug_draw->clear();
+    debug_draw->set_enabled(true);
+    debug_draw->set_enabled_categories(
+        elysia::tools::DebugDrawCategory::Gameplay);
     debug_draw->draw_point(
         elysia::tools::DebugDrawCategory::Gameplay,
         elysia::core::Vector2{},
@@ -421,6 +483,9 @@ void test_route_copy_reload_modes_and_runtime_context_binding()
     require(FirstProbeScene::state.context_cleared_before_destruction
         && SecondProbeScene::state.context_cleared_before_destruction,
         "shutdown must clear runtime contexts before cached scenes are destroyed");
+    debug_draw->set_enabled(false);
+    debug_draw->set_enabled_categories(
+        elysia::tools::DebugDrawCategory::All);
 }
 
 void test_unbound_scene_runtime_context_is_rejected()
@@ -438,6 +503,7 @@ int main()
     test_scene_key_domains_and_payload_helpers();
     test_registration_and_route_key_errors_are_distinct();
     test_runtime_context_synchronizes_camera_viewports();
+    test_scene_maps_debug_draw_categories_to_physics_capture();
     test_route_copy_reload_modes_and_runtime_context_binding();
     test_unbound_scene_runtime_context_is_rejected();
     return EXIT_SUCCESS;

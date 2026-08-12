@@ -193,6 +193,9 @@ void test_collider_and_debug_draw(
 
     elysia::tools::DebugDraw* debug_draw = elysia::tools::DebugDraw::instance();
     debug_draw->clear();
+    debug_draw->set_enabled(true);
+    debug_draw->set_enabled_categories(
+        elysia::tools::DebugDrawCategory::PhysicsCollider);
     character.set_position(elysia::core::Vector2{10.0f, 20.0f});
     character.submit_debug_draw();
     require(debug_draw->commands().size() == 1,
@@ -213,6 +216,8 @@ void test_collider_and_debug_draw(
             && refreshed_rect->rect == elysia::core::Rect{44.0f, 46.0f, 48.0f, 72.0f},
         "refreshing the collider snapshot must leave only the current world position");
     debug_draw->clear();
+    debug_draw->set_enabled(false);
+    debug_draw->set_enabled_categories(elysia::tools::DebugDrawCategory::All);
 }
 }
 

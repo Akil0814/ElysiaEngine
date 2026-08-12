@@ -82,7 +82,7 @@ sequenceDiagram
         T-->>C: TileCollisionCell
         C->>C: 离散/连续窄检
         C->>C: filter + one-way + drop-through
-        C->>C: 4 次 Block 求解
+        C->>C: 默认 8 次 Block 顺序冲量求解
         C->>C: 生成本步 contacts/overlaps
         W->>W: 对比 ContactCache 生成 Begin/Stay/End
         W->>G: 分发稳定排序后的核心事件
@@ -103,8 +103,15 @@ struct PhysicsWorldConfig
 {
     double fixed_delta_seconds = 1.0 / 60.0;
     std::uint32_t max_steps_per_advance = 8;
-    std::uint32_t solver_iterations = 4;
+    std::uint32_t solver_iterations = 8;
+    std::uint32_t max_ccd_iterations = 4;
+    std::uint32_t max_tile_candidates_per_operation = 65536;
     elysia::core::Vector2 gravity{};
+    float collision_epsilon = 0.00001f;
+    float penetration_slop = 0.001f;
+    float position_correction_percent = 0.8f;
+    float contact_normal_threshold = 0.5f;
+    float restitution_velocity_threshold = 1.0f;
 };
 ```
 
@@ -116,6 +123,8 @@ struct PhysicsWorldConfig
 4. 达上限后仍有一个以上完整步：丢弃完整步对应的超额时间，只保留不足一步的余数；
 5. 增加 dropped-step 诊断计数，日志必须限频；
 6. 返回实际执行步数，便于测试与性能统计。
+
+固定步对应的 accumulator 时间在进入 `fixed_step` 前扣除，因此 listener 或外部策略异常传播时不会把已经推进的状态以同一时间重复执行。dropped-step 使用饱和累计；超大有限 delta 不会令 `uint64_t` 回绕。
 
 首版不做渲染插值。未来若加入插值，应使用 previous/current Transform 生成只读 render transform，不能改写物理事实状态。
 
@@ -141,6 +150,13 @@ Scene 发现 Provider 后调用 `PhysicsWorld::register_object`。注册必须�
 - 对仍可安全识别的另一方产生 End；
 - 清理 Gameplay binding 应由 Gameplay runtime 响应对象生命周期完成；
 - ID 在当前 PhysicsWorld 生命周期内不再复用。
+
+### Reset 与回调异常
+
+- 步外 `reset()` 立即静默清理；advance 或事件回调中调用时只设置 pending reset；
+- pending reset 优先于 pending register/unregister/teleport/listener/Tile 操作；当前核心事件批次仍按进入批次时的快照完成，随后 reset，并停止本次 advance 的剩余固定步；
+- listener 是调用方代码，契约要求不抛异常。物理层只负责解除 guard 并继续上抛，不吞异常、不尝试状态回滚；Application update boundary 记录 `UnhandledException` 并进入 FaultExit；
+- 一旦回调异常逃逸，Scene、PhysicsWorld 和 Gameplay runtime 不承诺可继续使用。
 
 ### Scene 退出
 

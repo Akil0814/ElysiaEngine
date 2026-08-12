@@ -17,6 +17,7 @@ struct ObstacleConfig
     elysia::physics::CollisionResponse response = elysia::physics::CollisionResponse::Block;
     elysia::physics::CollisionDetectionMode detection = elysia::physics::CollisionDetectionMode::Discrete;
     std::optional<elysia::physics::OneWayCollision> one_way;
+    elysia::physics::PhysicsMaterial material{};
 };
 
 class StaticBlockObstacle final
@@ -48,5 +49,31 @@ public:
 private:
     elysia::physics::PhysicsBody _body;
     elysia::physics::Collider _collider;
+};
+
+class KinematicMovingPlatform final
+    : public ColoredBlockObject
+    , public elysia::core::Updatable
+    , public elysia::physics::ColliderProvider
+    , public elysia::physics::PhysicsBodyProvider
+{
+public:
+    KinematicMovingPlatform(
+        SolidColorTexture& texture,
+        ObstacleConfig config,
+        float left,
+        float right,
+        float speed);
+    void update(double delta) override;
+    [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }
+    [[nodiscard]] const elysia::physics::PhysicsBody* physics_body() const noexcept override { return &_body; }
+    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }
+    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override { return {&_collider, 1}; }
+private:
+    elysia::physics::PhysicsBody _body;
+    elysia::physics::Collider _collider;
+    float _left = 0.0f;
+    float _right = 0.0f;
+    float _speed = 0.0f;
 };
 }

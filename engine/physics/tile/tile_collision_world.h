@@ -28,6 +28,7 @@ struct TileCollisionCell
     TileCollisionType type = TileCollisionType::Empty;
     CollisionFilter filter{};
     std::optional<OneWayCollision> one_way;
+    PhysicsMaterial material{};
     std::string_view tag{};
 };
 

@@ -103,7 +103,8 @@ void BruteForceBroadPhaseIndex::collect_pairs(
             const auto& second = _proxies[j];
             if (!second.enabled || second.collider == InvalidColliderId)
                 continue;
-            if (!bounds_touch(first.swept_bounds, second.swept_bounds))
+            if (!collision_filters_allow(first.filter, second.filter)
+                || !bounds_touch(first.swept_bounds, second.swept_bounds))
                 continue;
             out_pairs.push_back(normalized_broad_pair(first.collider, second.collider));
         }
@@ -162,7 +163,8 @@ void SweepAndPruneBroadPhaseIndex::collect_pairs(
                 break;
             if (!second.enabled || second.collider == InvalidColliderId)
                 continue;
-            if (bounds_touch(first.swept_bounds, second.swept_bounds))
+            if (collision_filters_allow(first.filter, second.filter)
+                && bounds_touch(first.swept_bounds, second.swept_bounds))
                 out_pairs.push_back(normalized_broad_pair(first.collider, second.collider));
         }
     }
@@ -197,18 +199,18 @@ void SweepAndPruneBroadPhaseIndex::clear() noexcept
 std::optional<CollisionHit> DefaultDiscreteCollisionStrategy::detect(
     const CollisionShapeView& first,
     const CollisionShapeView& second,
-    double delta_seconds) const noexcept
+    const CollisionDetectionContext& context) const noexcept
 {
-    (void)delta_seconds;
-    return detect_discrete_shapes(first.current_shape, second.current_shape);
+    return detect_discrete_shapes(
+        first.current_shape, second.current_shape, context.epsilon);
 }
 
 std::optional<CollisionHit> SweptAabbCollisionStrategy::detect(
     const CollisionShapeView& first,
     const CollisionShapeView& second,
-    double delta_seconds) const noexcept
+    const CollisionDetectionContext& context) const noexcept
 {
-    (void)delta_seconds;
+    (void)context.fixed_delta_seconds;
     const auto* first_previous = std::get_if<WorldAabb>(&first.previous_shape);
     const auto* first_current = std::get_if<WorldAabb>(&first.current_shape);
     const auto* second_previous = std::get_if<WorldAabb>(&second.previous_shape);
@@ -220,7 +222,7 @@ std::optional<CollisionHit> SweptAabbCollisionStrategy::detect(
         *first_current,
         *second_previous,
         *second_current,
-        elysia::core::Vector2::k_epsilon);
+        context.epsilon);
 }
 
 CollisionResponse DefaultCollisionResponseStrategy::classify(

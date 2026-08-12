@@ -87,6 +87,12 @@ bool GameplayCollisionService::request_drop_through(const DropThroughRequest& re
     return runtime && runtime->request_drop_through(request);
 }
 
+bool GameplayCollisionService::unbind_actor(ActorId actor)
+{
+    IGameplayCollisionRuntime* runtime = runtime_or_log("unbind actor");
+    return runtime && runtime->unbind_actor(actor);
+}
+
 bool GameplayCollisionService::add_listener(GameplayCollisionListener& listener)
 {
     IGameplayCollisionRuntime* runtime = runtime_or_log("add listener");

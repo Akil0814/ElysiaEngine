@@ -9,13 +9,15 @@
 - `BruteForceBroadPhaseIndex` 正确性基线和默认 `SweepAndPruneBroadPhaseIndex`；
 - AABB/AABB、Circle/Circle、AABB/Circle 离散检测；
 - AABB/AABB、AABB/Tile 的 Swept AABB CCD；Circle Continuous 明确回退离散；
-- 逆质量加权 Block 求解、Overlap、过滤、四方向单向平台和 drop-through；
+- `PhysicsMaterial`、静/动摩擦、弹性、低速回弹阈值，以及默认 8 次稳定顺序冲量求解；
+- 逆质量加权位置修正、Kinematic 相对速度携带、Overlap、过滤、四方向单向平台和 drop-through；
 - `ContactCache` 与稳定排序的 Begin/Stay/End 核心事件；
-- 规则 Tile World、负坐标、非零原点、非正方形 Tile 和可配置越界策略；
-- AABB、Circle、Tile DDA 的 RayCast/SegmentCast 最近命中；
-- `GameplayCollisionRuntime` 的 Body、PushBox、HitBox/HurtBox 路由、Team 判定和攻击实例去重；
+- 回调批次快照、回调期延迟 `reset()`、注册/解绑安全边界，以及异常向 Application FaultExit 边界传播；
+- 规则 Tile World、负坐标、非零原点、非正方形 Tile、可配置越界策略和内部边缘抑制；
+- AABB、Circle、Tile DDA 的 Ray/Segment 最近与 all-hits 查询，AABB/Circle overlap 和最近 AABB sweep；
+- `GameplayCollisionRuntime` 的 Body、PushBox、HitBox/HurtBox、Sensor/Body 路由、Team 判定和攻击实例去重；
 - Scene 自动 attach/detach Gameplay runtime；
-- 物理步统计、调试快照以及到现有 `DebugDraw` 的适配。
+- 始终可用的物理步统计、按分类按需采集的调试快照，以及到现有 `DebugDraw` 的零请求关闭语义适配。
 
 ## 关键入口
 
@@ -28,6 +30,8 @@ auto handle = world.register_object(object, body_provider, collider_provider);
 world.advance(frame_delta_seconds);
 
 auto hit = world.raycast({origin, direction, max_distance, filter});
+std::vector<elysia::physics::CollisionOverlapQueryHit> overlaps;
+world.overlap_aabb({query_bounds, filter}, overlaps);
 auto state = world.contact_state(handle);
 ```
 
@@ -69,6 +73,6 @@ engine/core
 
 ## 首版明确不支持
 
-旋转、角速度、OBB、多边形、斜坡、摩擦、弹性、关节、睡眠和 Circle CCD 不在首版范围。Kinematic 是无限质量移动平台语义，不会被 solver 推动。一个 Scene 当前只绑定一个活动 Tile Collision World。
+旋转、角速度、OBB、多边形、斜坡、关节、睡眠、warm starting、渲染插值和 Circle CCD 不在首版范围。Circle 的摩擦只改变线速度，不模拟滚动。Kinematic 是无限质量移动平台语义，不会被 solver 推动，但其速度参与相对速度和摩擦计算。Dynamic–Dynamic CCD 首版只保证最早撞击，剩余时间的多次推进主要面向零逆质量目标。一个 Scene 当前只绑定一个活动 Tile Collision World。
 
 返回：[引擎文档入口](../README.md)

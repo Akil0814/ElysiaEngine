@@ -53,7 +53,7 @@ void test_global_and_category_visibility()
         "unknown category bits must be removed from the enabled mask");
 }
 
-void test_primitive_submission_and_snapshot_retention()
+void test_primitive_submission_requires_enabled_categories()
 {
     using tools::DebugDrawCategory;
 
@@ -65,6 +65,17 @@ void test_primitive_submission_and_snapshot_retention()
     const core::Color blue{0, 0, 255};
     const core::Color white{};
 
+    debug_draw->draw_rect(
+        DebugDrawCategory::PhysicsCollider,
+        core::Rect{1.0f, 2.0f, 3.0f, 4.0f},
+        red,
+        2.0f
+    );
+    require(debug_draw->commands().empty(),
+        "disabled DebugDraw must reject otherwise valid primitives");
+
+    debug_draw->set_enabled(true);
+    debug_draw->set_enabled_categories(DebugDrawCategory::All);
     debug_draw->draw_rect(
         DebugDrawCategory::PhysicsCollider,
         core::Rect{1.0f, 2.0f, 3.0f, 4.0f},
@@ -94,7 +105,7 @@ void test_primitive_submission_and_snapshot_retention()
 
     const std::span<const tools::DebugDrawCommand> commands = debug_draw->commands();
     require(commands.size() == 4,
-        "all valid primitives must be retained even while DebugDraw is disabled");
+        "enabled categories must retain valid primitives");
     require(std::holds_alternative<tools::DebugDrawRect>(commands[0].primitive)
             && commands[0].category == DebugDrawCategory::PhysicsCollider
             && commands[0].color == red
@@ -111,9 +122,25 @@ void test_primitive_submission_and_snapshot_retention()
     require(point && point->size == 6.0f && commands[3].thickness == 1.0f,
         "point commands must preserve their screen-space diameter");
 
+    debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsCollider);
+    debug_draw->draw_circle(
+        DebugDrawCategory::PhysicsContact,
+        core::Vector2{5.0f, 6.0f},
+        7.0f,
+        green,
+        3.0f
+    );
+    require(debug_draw->commands().size() == 1
+            && debug_draw->commands().front().category
+                == DebugDrawCategory::PhysicsCollider,
+        "disabling a category must clear its commands and reject new submissions");
+
+    debug_draw->set_enabled(false);
+    require(debug_draw->commands().empty(),
+        "disabling DebugDraw must clear every retained command");
     debug_draw->set_enabled(true);
-    require(debug_draw->commands().size() == 4,
-        "toggling visibility must not discard retained category snapshots");
+    require(debug_draw->commands().empty(),
+        "re-enabling DebugDraw must not restore stale commands");
 }
 
 void test_invalid_input_and_category_clearing()
@@ -122,6 +149,7 @@ void test_invalid_input_and_category_clearing()
 
     tools::DebugDraw* debug_draw = tools::DebugDraw::instance();
     reset_debug_draw();
+    debug_draw->set_enabled(true);
 
     const float nan = std::numeric_limits<float>::quiet_NaN();
     const core::Color color{};
@@ -192,7 +220,7 @@ void test_invalid_input_and_category_clearing()
 int main()
 {
     test_global_and_category_visibility();
-    test_primitive_submission_and_snapshot_retention();
+    test_primitive_submission_requires_enabled_categories();
     test_invalid_input_and_category_clearing();
     reset_debug_draw();
     return EXIT_SUCCESS;

@@ -278,6 +278,9 @@ void test_tile_listener_and_empty_fixed_steps()
         "Invalid frame deltas must not advance the world");
     require(world.advance(std::numeric_limits<double>::max()) == 2,
         "A huge finite delta must remain bounded by the fixed-step cap");
+    require(world.last_step_stats().dropped_fixed_steps
+            == std::numeric_limits<std::uint64_t>::max(),
+        "Dropped-step diagnostics must saturate instead of overflowing");
     require(object.position() != original_position
             && object.physics_body()->accumulated_force == elysia::core::Vector2{},
         "Fixed steps must integrate enabled Dynamic bodies and consume force");

@@ -2,9 +2,11 @@
 
 #include "default_collision_strategies.h"
 #include "../tile/tile_collision_world.h"
+#include "../tile/tile_coordinate_range.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -143,7 +145,24 @@ void sort_and_deduplicate_contacts(
     view.one_way = cell.type == TileCollisionType::OneWay
         ? cell.one_way
         : std::nullopt;
+    view.material = cell.material;
     return view;
+}
+
+[[nodiscard]] bool matching_internal_tile_surface(
+    const TileCollisionCell& first,
+    const TileCollisionCell& second) noexcept
+{
+    if (first.type == TileCollisionType::Block
+        && second.type == TileCollisionType::Block)
+    {
+        return true;
+    }
+    return first.type == TileCollisionType::OneWay
+        && second.type == TileCollisionType::OneWay
+        && first.one_way.has_value()
+        && second.one_way.has_value()
+        && first.one_way->pass_through == second.one_way->pass_through;
 }
 
 [[nodiscard]] bool supports_continuous(
@@ -158,29 +177,86 @@ void sort_and_deduplicate_contacts(
         && std::holds_alternative<WorldAabb>(second.current_shape);
 }
 
-void apply_velocity_impulse(
+struct VelocityImpulseResult
+{
+    float normal = 0.0f;
+    float tangent = 0.0f;
+};
+
+[[nodiscard]] elysia::core::Vector2 body_velocity(
+    const PhysicsObjectState* state) noexcept
+{
+    if (!state || !state->body || !state->body->enabled)
+        return {};
+    const PhysicsBody& body = *state->body;
+    if (!finite_vector(body.velocity) || body.type == BodyType::Static)
+        return {};
+    if (body.type == BodyType::Dynamic
+        && (!std::isfinite(body.mass) || body.mass <= 0.0f))
+    {
+        return {};
+    }
+    return body.velocity;
+}
+
+void apply_impulse(
+    PhysicsObjectState* state,
+    const elysia::core::Vector2& impulse,
+    float inverse_mass_value) noexcept
+{
+    if (state && state->body && inverse_mass_value > 0.0f)
+        state->body->velocity += impulse * inverse_mass_value;
+}
+
+[[nodiscard]] VelocityImpulseResult solve_velocity_contact(
     PhysicsObjectState* first,
     PhysicsObjectState* second,
-    const elysia::core::Vector2& normal) noexcept
+    const elysia::core::Vector2& normal,
+    PhysicsMaterial material,
+    float restitution_velocity_threshold,
+    float epsilon) noexcept
 {
+    VelocityImpulseResult result;
     const float first_inverse_mass = inverse_mass(first);
     const float second_inverse_mass = inverse_mass(second);
     const float inverse_mass_sum = first_inverse_mass + second_inverse_mass;
-    if (inverse_mass_sum <= 0.0f)
-        return;
-    const elysia::core::Vector2 first_velocity = first && first->body
-        ? first->body->velocity : elysia::core::Vector2{};
-    const elysia::core::Vector2 second_velocity = second && second->body
-        ? second->body->velocity : elysia::core::Vector2{};
-    const float closing_speed = (second_velocity - first_velocity).dot(normal);
-    if (closing_speed >= 0.0f)
-        return;
-    const float magnitude = -closing_speed / inverse_mass_sum;
-    const auto impulse = normal * magnitude;
-    if (first && first->body && first_inverse_mass > 0.0f)
-        first->body->velocity -= impulse * first_inverse_mass;
-    if (second && second->body && second_inverse_mass > 0.0f)
-        second->body->velocity += impulse * second_inverse_mass;
+    if (inverse_mass_sum <= 0.0f || normal.is_zero(epsilon))
+        return result;
+
+    material = normalized_physics_material(material);
+    const float closing_speed = (body_velocity(second) - body_velocity(first)).dot(normal);
+    if (closing_speed >= -epsilon)
+        return result;
+
+    const float restitution = -closing_speed >= restitution_velocity_threshold
+        ? material.restitution
+        : 0.0f;
+    result.normal = -(1.0f + restitution) * closing_speed / inverse_mass_sum;
+    const auto normal_impulse = normal * result.normal;
+    apply_impulse(first, -normal_impulse, first_inverse_mass);
+    apply_impulse(second, normal_impulse, second_inverse_mass);
+
+    const elysia::core::Vector2 tangent{-normal.y, normal.x};
+    const float tangent_speed = (body_velocity(second) - body_velocity(first)).dot(tangent);
+    if (std::fabs(tangent_speed) <= epsilon)
+        return result;
+
+    const float desired_tangent_impulse = -tangent_speed / inverse_mass_sum;
+    const float static_limit = material.static_friction * result.normal;
+    if (std::fabs(desired_tangent_impulse) <= static_limit + epsilon)
+    {
+        result.tangent = desired_tangent_impulse;
+    }
+    else
+    {
+        result.tangent = -std::copysign(
+            material.dynamic_friction * result.normal,
+            tangent_speed);
+    }
+    const auto tangent_impulse = tangent * result.tangent;
+    apply_impulse(first, -tangent_impulse, first_inverse_mass);
+    apply_impulse(second, tangent_impulse, second_inverse_mass);
+    return result;
 }
 }
 
@@ -225,10 +301,21 @@ void CollisionSystem::evaluate(
     double fixed_delta_seconds,
     CollisionFrame& out_frame,
     PhysicsStepStats& stats,
-    PhysicsDebugSnapshot& debug_snapshot)
+    PhysicsDebugCapture debug_capture,
+    PhysicsDebugSnapshot* debug_snapshot)
 {
     out_frame.clear();
-    debug_snapshot.clear();
+    if (debug_snapshot)
+        debug_snapshot->clear();
+    const bool capture_broad_phase = debug_snapshot
+        && captures_physics_debug(debug_capture, PhysicsDebugCapture::BroadPhase);
+    const bool capture_shapes = debug_snapshot
+        && (captures_physics_debug(debug_capture, PhysicsDebugCapture::Shapes)
+            || capture_broad_phase);
+    const bool capture_contacts = debug_snapshot
+        && captures_physics_debug(debug_capture, PhysicsDebugCapture::Contacts);
+    const CollisionDetectionContext detection_context{
+        fixed_delta_seconds, config.collision_epsilon};
 
     std::vector<BroadPhaseProxy> proxies;
     proxies.reserve(collider_views.size());
@@ -249,8 +336,12 @@ void CollisionSystem::evaluate(
             true
         });
         collider_lookup.emplace(view.target.collider, i);
-        debug_snapshot.shapes.push_back(
-            PhysicsDebugShape{view.target, view.previous_shape, view.current_shape, view.swept_bounds});
+        if (capture_shapes)
+        {
+            debug_snapshot->shapes.push_back(
+                PhysicsDebugShape{view.target, view.previous_shape,
+                    view.current_shape, view.swept_bounds});
+        }
     }
     stats.broad_phase_proxies = proxies.size();
     _strategies.broad_phase->synchronize(proxies);
@@ -258,7 +349,58 @@ void CollisionSystem::evaluate(
     std::vector<BroadPhasePair> broad_pairs;
     _strategies.broad_phase->collect_pairs(broad_pairs);
     stats.broad_phase_pairs = broad_pairs.size();
-    debug_snapshot.broad_phase_pairs = broad_pairs;
+    if (capture_broad_phase)
+        debug_snapshot->broad_phase_pairs = broad_pairs;
+
+    const auto is_internal_tile_face = [&](
+        const CollisionShapeView& first,
+        const CollisionShapeView& second,
+        const CollisionHit& hit,
+        const CollisionResponseContext& context,
+        CollisionResponse response)
+    {
+        if (response != CollisionResponse::Block || !tile_world
+            || first.target.kind != CollisionTargetKind::Collider
+            || second.target.kind != CollisionTargetKind::Tile)
+            return false;
+
+        const auto normal = hit.manifold.normal;
+        TileCoordinate neighbour = second.target.tile;
+        bool axis_aligned = false;
+        if (std::fabs(normal.x) >= 1.0f - config.collision_epsilon
+            && std::fabs(normal.y) <= config.collision_epsilon)
+        {
+            neighbour.x -= normal.x > 0.0f ? 1 : -1;
+            axis_aligned = true;
+        }
+        else if (std::fabs(normal.y) >= 1.0f - config.collision_epsilon
+            && std::fabs(normal.x) <= config.collision_epsilon)
+        {
+            neighbour.y -= normal.y > 0.0f ? 1 : -1;
+            axis_aligned = true;
+        }
+        if (!axis_aligned)
+            return false;
+
+        const TileCollisionCell current_cell = resolved_cell(
+            *tile_world, second.target.tile);
+        const TileCollisionCell neighbour_cell = resolved_cell(
+            *tile_world, neighbour);
+        if (!matching_internal_tile_surface(current_cell, neighbour_cell)
+            || !collision_filters_allow(first.filter, neighbour_cell.filter))
+            return false;
+
+        const CollisionShapeView neighbour_view = make_tile_view(
+            *tile_world, neighbour, neighbour_cell);
+        const auto neighbour_hit = detect_discrete_shapes(
+            first.current_shape,
+            neighbour_view.current_shape,
+            config.collision_epsilon);
+        return neighbour_hit
+            && _strategies.response->classify(
+                first, neighbour_view, *neighbour_hit, context)
+                == CollisionResponse::Block;
+    };
 
     const auto detect_candidate = [&](
         const CollisionShapeView& first,
@@ -274,8 +416,8 @@ void CollisionSystem::evaluate(
         ++stats.narrow_phase_tests;
         const bool continuous = supports_continuous(first, second);
         std::optional<CollisionHit> hit = continuous
-            ? _strategies.continuous_detection->detect(first, second, fixed_delta_seconds)
-            : _strategies.discrete_detection->detect(first, second, fixed_delta_seconds);
+            ? _strategies.continuous_detection->detect(first, second, detection_context)
+            : _strategies.discrete_detection->detect(first, second, detection_context);
         if (!hit)
             return;
         if (continuous && hit->time_of_impact < 1.0f)
@@ -296,6 +438,12 @@ void CollisionSystem::evaluate(
                 out_frame.ignored_pairs_overlapping.push_back(pair);
             return;
         }
+
+        // A tile face covered by an equivalent solid neighbour is not part of
+        // the map boundary. Dropping it before caching/solving prevents a body
+        // from catching on seams while preserving each exposed support tile.
+        if (is_internal_tile_face(first, second, *hit, context, response))
+            return;
 
         CollisionContact contact;
         contact.pair = pair;
@@ -322,23 +470,27 @@ void CollisionSystem::evaluate(
         const auto tile_size = tile_world->tile_size();
         for (const CollisionShapeView& collider : collider_views)
         {
-            const auto& bounds = collider.swept_bounds;
-            const int min_x = static_cast<int>(std::floor((bounds.left() - origin.x) / tile_size.x));
-            const int min_y = static_cast<int>(std::floor((bounds.top() - origin.y) / tile_size.y));
-            const int max_x = static_cast<int>(std::floor(
-                (bounds.right() - origin.x - config.collision_epsilon) / tile_size.x));
-            const int max_y = static_cast<int>(std::floor(
-                (bounds.bottom() - origin.y - config.collision_epsilon) / tile_size.y));
-            for (int y = min_y; y <= max_y; ++y)
+            const auto range = checked_tile_range(
+                collider.swept_bounds, origin, tile_size,
+                TileRangeBoundary::HalfOpen,
+                config.max_tile_candidates_per_operation);
+            if (!range)
             {
-                for (int x = min_x; x <= max_x; ++x)
+                ++stats.rejected_tile_candidate_ranges;
+                continue;
+            }
+            for (std::int64_t y = range->min_y; y <= range->max_y; ++y)
+            {
+                for (std::int64_t x = range->min_x; x <= range->max_x; ++x)
                 {
                     ++stats.tile_samples;
-                    const TileCoordinate coordinate{x, y};
+                    const TileCoordinate coordinate{
+                        static_cast<int>(x), static_cast<int>(y)};
                     const TileCollisionCell cell = resolved_cell(*tile_world, coordinate);
                     if (cell.type == TileCollisionType::Empty)
                         continue;
-                    debug_snapshot.tile_candidates.push_back(coordinate);
+                    if (capture_broad_phase)
+                        debug_snapshot->tile_candidates.push_back(coordinate);
                     CollisionShapeView tile = make_tile_view(*tile_world, coordinate, cell);
                     detect_candidate(collider, tile);
                     all_views.push_back(std::move(tile));
@@ -419,7 +571,15 @@ void CollisionSystem::evaluate(
             second_state->current_owner_origin = second_state->previous_owner_origin + movement * toi;
             second_impact = second_state->current_owner_origin;
         }
-        apply_velocity_impulse(first_state, second_state, contact.manifold.normal);
+        const auto impulse = solve_velocity_contact(
+            first_state,
+            second_state,
+            contact.manifold.normal,
+            combine_physics_materials(first_view->material, second_view->material),
+            config.restitution_velocity_threshold,
+            config.collision_epsilon);
+        contact.normal_impulse += impulse.normal;
+        contact.tangent_impulse += impulse.tangent;
         const float remaining = static_cast<float>(fixed_delta_seconds) * (1.0f - toi);
         if (first_inverse_mass > 0.0f && first_state->body)
             first_state->current_owner_origin += first_state->body->velocity * remaining;
@@ -492,7 +652,10 @@ void CollisionSystem::evaluate(
                         != progress.hit_pairs.end())
                         continue;
                     const auto hit = _strategies.continuous_detection->detect(
-                        moving, target, progress.remaining_seconds);
+                        moving, target,
+                        CollisionDetectionContext{
+                            progress.remaining_seconds,
+                            config.collision_epsilon});
                     if (!hit || hit->time_of_impact >= 1.0f - config.collision_epsilon)
                         continue;
                     CollisionResponseContext context;
@@ -503,7 +666,9 @@ void CollisionSystem::evaluate(
                         pair, transient_ignored_pairs);
                     const CollisionResponse response = _strategies.response->classify(
                         moving, target, *hit, context);
-                    if (response != CollisionResponse::Block)
+                    if (response != CollisionResponse::Block
+                        || is_internal_tile_face(
+                            moving, target, *hit, context, response))
                         continue;
                     if (!best
                         || hit->time_of_impact + config.collision_epsilon
@@ -533,8 +698,14 @@ void CollisionSystem::evaluate(
             progress.state->current_owner_origin = impact_origin;
             PhysicsObjectState* target_state = find_state(
                 object_states, best->target.object);
-            apply_velocity_impulse(
-                progress.state, target_state, best->hit.manifold.normal);
+            const auto impulse = solve_velocity_contact(
+                progress.state,
+                target_state,
+                best->hit.manifold.normal,
+                combine_physics_materials(
+                    best->moving.material, best->target.material),
+                config.restitution_velocity_threshold,
+                config.collision_epsilon);
             progress.remaining_seconds *= 1.0f - toi;
             progress.sweep_start = impact_origin;
             progress.state->current_owner_origin = impact_origin
@@ -549,6 +720,8 @@ void CollisionSystem::evaluate(
             contact.manifold = best->hit.manifold;
             contact.response = best->response;
             contact.time_of_impact = global_toi;
+            contact.normal_impulse = impulse.normal;
+            contact.tangent_impulse = impulse.tangent;
             if (contact.pair.first != best->moving.target)
                 contact.manifold.normal = -contact.manifold.normal;
             out_frame.contacts.push_back(contact);
@@ -570,7 +743,10 @@ void CollisionSystem::evaluate(
                 continue;
             const CollisionShapeView first = adjusted_view(*first_source, object_states);
             const CollisionShapeView second = adjusted_view(*second_source, object_states);
-            const auto hit = detect_discrete_shapes(first.current_shape, second.current_shape);
+            const auto hit = detect_discrete_shapes(
+                first.current_shape,
+                second.current_shape,
+                config.collision_epsilon);
             if (!hit)
                 continue;
             contact.manifold = hit->manifold;
@@ -590,16 +766,29 @@ void CollisionSystem::evaluate(
                 first_state->current_owner_origin -= correction * (first_inverse_mass / inverse_mass_sum);
             if (second_inverse_mass > 0.0f)
                 second_state->current_owner_origin += correction * (second_inverse_mass / inverse_mass_sum);
-            apply_velocity_impulse(first_state, second_state, hit->manifold.normal);
+            const auto impulse = solve_velocity_contact(
+                first_state,
+                second_state,
+                hit->manifold.normal,
+                combine_physics_materials(first.material, second.material),
+                config.restitution_velocity_threshold,
+                config.collision_epsilon);
+            contact.normal_impulse += impulse.normal;
+            contact.tangent_impulse += impulse.tangent;
         }
     }
 
     stats.contacts = out_frame.contacts.size();
-    debug_snapshot.contacts = out_frame.contacts;
-    std::ranges::sort(debug_snapshot.tile_candidates);
-    debug_snapshot.tile_candidates.erase(
-        std::unique(debug_snapshot.tile_candidates.begin(), debug_snapshot.tile_candidates.end()),
-        debug_snapshot.tile_candidates.end());
+    if (capture_contacts)
+        debug_snapshot->contacts = out_frame.contacts;
+    if (capture_broad_phase)
+    {
+        std::ranges::sort(debug_snapshot->tile_candidates);
+        debug_snapshot->tile_candidates.erase(
+            std::unique(debug_snapshot->tile_candidates.begin(),
+                debug_snapshot->tile_candidates.end()),
+            debug_snapshot->tile_candidates.end());
+    }
 }
 
 void CollisionSystem::query_aabb(

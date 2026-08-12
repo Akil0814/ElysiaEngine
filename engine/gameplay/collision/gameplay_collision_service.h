@@ -21,6 +21,7 @@ public:
     [[nodiscard]] bool bind_actor(const ActorCollisionRig& rig);
     [[nodiscard]] bool bind_collider(const ColliderBinding& binding);
     [[nodiscard]] bool bind_hit_box(const HitBoxBinding& binding);
+    [[nodiscard]] bool unbind_actor(ActorId actor);
     [[nodiscard]] bool unbind_collider(elysia::physics::ColliderId collider);
     [[nodiscard]] bool request_drop_through(const DropThroughRequest& request);
     [[nodiscard]] bool add_listener(GameplayCollisionListener& listener);

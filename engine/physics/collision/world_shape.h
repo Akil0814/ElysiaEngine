@@ -42,7 +42,8 @@ using WorldColliderShape = std::variant<WorldAabb, WorldCircle>;
     CollisionResponse second) noexcept;
 [[nodiscard]] std::optional<CollisionHit> detect_discrete_shapes(
     const WorldColliderShape& first,
-    const WorldColliderShape& second) noexcept;
+    const WorldColliderShape& second,
+    float epsilon = elysia::core::Vector2::k_epsilon) noexcept;
 [[nodiscard]] std::optional<CollisionHit> detect_swept_aabbs(
     const WorldAabb& first_previous,
     const WorldAabb& first_current,

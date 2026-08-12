@@ -2,7 +2,7 @@
 
 > **实现状态**：本章约定已用于首版实现；SAP 为默认宽相，Brute Force 为 oracle。Circle CCD 仍按约定回退离散。
 
-> 本章是后续算法实现规范。当前运行时不会执行本章的积分、宽相、窄相、CCD、响应或单向平台规则。
+> 本章既是当前首版实现的数值契约，也是后续扩展必须保持的兼容规则。
 
 返回：[物理文档入口](README.md)　上一篇：[逐函数实现契约](04-function-responsibilities.md)　下一篇：[Tile Map 碰撞](06-tile-map-collision.md)
 
@@ -11,9 +11,9 @@
 - 世界 X 向右、Y 向下；
 - `Rect::top()` 数值小于 `bottom()`；
 - Collider 的 AABB/Circle 均是 owner origin 的局部形状；
-- Rect 使用半开碰撞语义：只接触边界但没有面积穿透时，离散 `intersects` 为 false；
-- 查询可以命中边界；碰撞求解和查询不要共用一个“是否包含边界”的无名函数；
-- 首版统一使用 `Vector2::k_epsilon` 作为几何基础 epsilon；需要更大的 penetration slop 时在 solver config 中独立命名，不能散落魔法数。
+- 几何命中把边界相切视为 penetration=0 的接触；Tile 模拟候选范围仍使用半开边界，避免把只位于下一格边界的 Tile 重复采样；
+- overlap/sweep 查询使用包含相切目标的闭合 Tile 候选范围；碰撞求解和查询不要共用一个“是否包含边界”的无名函数；
+- detection strategy 统一接收 `CollisionDetectionContext`，其 epsilon 来自 `PhysicsWorldConfig::collision_epsilon`；需要更大的 penetration slop 时在 solver config 中独立命名，不能散落魔法数。
 
 所有算法入口先拒绝非有限坐标、尺寸、半径、速度和 dt。NaN 不能进入排序比较，否则会破坏确定性。
 
@@ -103,20 +103,25 @@ for i in [0, n):
 
 对 world rect `a`、`b`：
 
+先确认 `touches_or_intersects`。随后计算把 A 沿正/负方向推出 B 的四个边界距离：
+
 ```text
-overlap_x = min(a.right, b.right) - max(a.left, b.left)
-overlap_y = min(a.bottom, b.bottom) - max(a.top, b.top)
+positive_x_depth = a.right  - b.left
+negative_x_depth = b.right  - a.left
+positive_y_depth = a.bottom - b.top
+negative_y_depth = b.bottom - a.top
+depth_x = min(positive_x_depth, negative_x_depth)
+depth_y = min(positive_y_depth, negative_y_depth)
 ```
 
-任一 overlap 小于等于 epsilon：无穿透。否则选择最小穿透轴：
+这样在 A 完全包含 B、B 完全包含 A 或同中心时仍得到真实最小平移距离，而不是只得到交集宽高。边界相切时 depth 为 0，仍返回接触。选择最小推出轴：
 
-- `overlap_x < overlap_y`：X 法线；
-- `overlap_y < overlap_x`：Y 法线；
-- epsilon 内相等：先看相对位移最大轴，再看相对速度，仍相等时固定选 X。
+- `depth_x <= depth_y`：X 法线，平局稳定选择 X；
+- `depth_y < depth_x`：Y 法线。
 
 法线符号由中心差决定。例如 `b.center.x >= a.center.x` 时 X 法线为 `(1,0)`。
 
-contact point 首版可取两矩形 intersection 的对应接触边中心。penetration 为所选轴 overlap。TOI=1。
+方向由所选轴两侧 depth 的较小者决定；完全平局时以中心差决定符号，中心也相同则稳定使用 `+X`（X 轴未选时为 `+Y`）法线。contact point 取对应推出边与另一轴重叠区间的中心。penetration 为所选轴 depth，TOI=1。
 
 ## 7. Circle/Circle 离散检测
 
@@ -126,7 +131,7 @@ radius_sum = radius_a + radius_b
 distance_sq = dot(delta, delta)
 ```
 
-若 `distance_sq >= radius_sum²`（考虑 epsilon）则无穿透。命中时：
+若 `distance_sq > radius_sum²` 则无命中；相切返回 penetration=0。命中时：
 
 - distance > epsilon：normal=`delta/distance`；
 - 中心重合：使用稳定 fallback normal；
@@ -227,7 +232,7 @@ Static/Kinematic/Tile: inv_mass = 0
 Dynamic: inv_mass = 1 / mass
 ```
 
-质量无效的 Dynamic 在进入求解前应被诊断并跳过积分；不得生成无穷逆质量。
+质量无效的 Dynamic 在进入求解前应被诊断并跳过积分；其约束速度也必须视为零，不得让非法 Body 的旧速度制造“幽灵推动”。Static、Collider-only 和 disabled Body 的约束速度为零；只有 Kinematic 以零逆质量保留 authored velocity。
 
 ### 位置修正
 
@@ -240,29 +245,32 @@ A.position -= correction * inv_mass_a / sum
 B.position += correction * inv_mass_b / sum
 ```
 
-首版可使用 `slop=0.001f`、`correction_percent=1.0f`，但必须进入具名 solver config，不能散落在算法里。若 sum=0，不修正。
+当前默认使用 `slop=0.001f`、`correction_percent=0.8f`，均来自 `PhysicsWorldConfig`。若 sum=0，不修正。
 
-### 法向速度修正
+### 法向与切向顺序冲量
 
 ```text
 relative_velocity = velocity_b - velocity_a
 closing_speed = dot(relative_velocity, normal)
 ```
 
-若 closing_speed >= 0，双方正在分离，不修改。否则计算无弹性 impulse：
+若 closing_speed >= 0，双方正在分离，不修改。否则先计算法向冲量。双方弹性取较大值；闭合速度低于 `restitution_velocity_threshold` 时强制使用零弹性，避免静止接触微弹：
 
 ```text
-impulse_magnitude = -closing_speed / (inv_mass_a + inv_mass_b)
+impulse_magnitude = -(1 + restitution) * closing_speed
+                    / (inv_mass_a + inv_mass_b)
 impulse = normal * impulse_magnitude
 velocity_a -= impulse * inv_mass_a
 velocity_b += impulse * inv_mass_b
 ```
 
-首版 restitution=0，不修改切向速度，不实现摩擦。
+应用法向冲量后重新计算相对速度。切线固定为 `(-normal.y, normal.x)`；完全抵消切向速度所需冲量未超过 `static_friction * normal_impulse` 时使用静摩擦，否则按 `dynamic_friction * normal_impulse` 截断。两目标摩擦系数取几何平均。
+
+Static、Tile、Collider-only 和 Kinematic 的逆质量为零，但 Kinematic 的 authored velocity 仍参与相对速度，因此移动平台能给 Dynamic 施加切向冲量，自己不会被反推。每个 `CollisionContact` 累加本步 normal/tangent impulse；Overlap 始终保持零。
 
 ### 迭代
 
-按稳定 contact 顺序执行 4 次。每次位置修正后，后续接触需要读取最新 current shape。可以每次重新构造受影响 view 的世界形状；不能继续使用过期缓存。
+按稳定 contact 顺序默认执行 8 次。位置修正和速度冲量分离；每次位置修正后重新构造受影响的 current shape。当前不跨帧保存冲量，因此没有 warm starting。
 
 ## 14. Overlap
 
@@ -290,7 +298,7 @@ key 包含规范化完整 target pair。value 保存最近 manifold 与 response
 
 事件顺序建议 phase 不单独分组，而按 target pair 排序后对每 pair 产生唯一 phase；这样消费方观察顺序只取决于身份，不取决于 hash 容器。
 
-## 16. RayCast
+## 16. 查询
 
 ### Ray/AABB slab
 
@@ -305,6 +313,16 @@ key 包含规范化完整 target pair。value 保存最近 manifold 与 response
 ### Tile DDA
 
 从 origin 所在格开始，计算下一 X/Y 网格线的 tMax 与每跨一格的 tDelta，按较小 tMax 前进。平局时两轴都前进，并按稳定顺序检查角邻格，避免从格角穿漏。遇到 filter 匹配且非 Empty 的 Tile 后做精确 cell rect ray test，再与普通 Collider 最近 hit 比较。
+
+### all-hits、overlap 与 sweep
+
+- Ray/Segment all-hits 遍历完整有效距离，按 distance、target 排序并对 target 去重；最近查询复用第一项；
+- AABB/Circle overlap 复用离散几何，manifold normal 从 query 指向 target，结果按 target 排序；
+- AABB sweep 复用 Swept AABB，只检测 AABB Collider 与 Tile；Circle 目标跳过；
+- 零位移 sweep 仍走 AABB-only initial-overlap 路径，返回 target 最小者，不能复用会包含 Circle 的通用 overlap API；
+- Collider 查询使用 registration 中最后一次提交的 `current_owner_origin`，不会读取尚未进入 fixed step 的外部 Transform 修改；
+- Tile world-to-coordinate、DDA 和候选范围先检查 `int` 可表示性、候选计数溢出和配置上限；失败时安全跳过 Tile 部分，不执行未定义转换或无界循环；
+- 查询只读当前已提交世界，不写 contact、event、stats 或 debug snapshot。
 
 ## 17. 接地、墙体和天花板派生
 

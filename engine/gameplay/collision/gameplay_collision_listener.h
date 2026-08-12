@@ -23,5 +23,10 @@ public:
     {
         (void)event;
     }
+
+    virtual void on_sensor_overlap(const SensorOverlapEvent& event)
+    {
+        (void)event;
+    }
 };
 }

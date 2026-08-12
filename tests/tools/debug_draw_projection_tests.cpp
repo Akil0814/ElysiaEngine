@@ -17,6 +17,8 @@ void test_world_debug_projection()
 
     tools::DebugDraw* debug_draw = tools::DebugDraw::instance();
     debug_draw->clear();
+    debug_draw->set_enabled(true);
+    debug_draw->set_enabled_categories(tools::DebugDrawCategory::All);
 
     const core::Color red{255, 0, 0};
     const core::Color green{0, 255, 0};
@@ -102,6 +104,8 @@ void test_world_debug_projection()
         "point projection must keep its logical diameter independent of camera zoom");
 
     debug_draw->clear();
+    debug_draw->set_enabled(false);
+    debug_draw->set_enabled_categories(tools::DebugDrawCategory::All);
 }
 }
 

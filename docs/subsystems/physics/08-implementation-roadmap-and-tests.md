@@ -218,7 +218,7 @@ flowchart LR
 
 - 实现 `DefaultCollisionResponseStrategy` 的 response 合并；
 - 实现 inverse-mass 位置和法向速度修正；
-- 默认 4 次稳定迭代；
+- 默认 8 次稳定迭代；
 - Overlap 保持非阻挡；
 - 实现 CollisionFrame 和 ContactCache；
 - 生成 Begin/Stay/End；
@@ -357,7 +357,7 @@ AABB Continuous 不穿一格厚墙，单向平台与临时下落行为在移动�
 - AABB slab、Circle ray、Tile DDA；
 - Segment 转有限 Ray；
 - QueryHit 使用 CollisionTarget；
-- 普通 Collider 与 Tile 统一最近命中比较；
+- 普通 Collider 与 Tile 统一最近/all-hits 命中比较，并补充 overlap 与 AABB sweep；
 - 查询严格只读，不产生事件。
 
 ### 测试
@@ -428,8 +428,8 @@ AI/Gameplay 能查询当前提交世界的最近普通 Collider 或 Tile，重�
 
 ### 测试与基准
 
-- debug disabled 时不积累命令；
-- enabled category 只输出对应几何；
+- debug disabled 时不积累命令，也不构造 Physics Debug Snapshot；
+- enabled category 只采集并输出对应几何，关闭或切换分类会清除旧快照；
 - 日志限频不会每 fixed step 刷屏；
 - 100/500/1000 Collider 的候选与耗时基线；
 - 大 Tile Map 查询成本与访问格数相关，而不是总格数；
@@ -438,6 +438,51 @@ AI/Gameplay 能查询当前提交世界的最近普通 Collider 或 Tile，重�
 ### 完成定义
 
 开发者能解释某次碰撞为何被过滤、命中、忽略或求解，并有数据判断下一步优化方向。
+
+## 阶段 13：基本可用接触材质、查询与 Sensor（已完成）
+
+### 修改
+
+- 新增 `PhysicsMaterial`，并接入 Collider、Tile cell、shape view 和材质合并；
+- 默认 8 次稳定顺序冲量，分离位置修正、法向冲量、静/动摩擦与弹性；
+- Kinematic 速度参与相对速度，保持零逆质量；
+- Tile Block/同向 OneWay 内部面在离散和全部 CCD 路径中统一抑制；
+- 增加 Ray/Segment all-hits、AABB/Circle overlap 和最近 AABB sweep；
+- 增加 `SensorOverlapEvent` 的 Sensor↔Body 三阶段路由；
+- Collider Combat 演示增加高摩擦方块、弹性圆和带乘客的往返 Kinematic 平台。
+
+### 验收
+
+- 高摩擦支撑体停止、零摩擦保持切向速度、低速不微弹；
+- Kinematic 平台携带 Dynamic 且不被反推；
+- 连续 Tile 地面横移和连续墙面滑动不被格缝法线卡住；
+- 三层堆叠长时间保持有限、不过度下沉且无能量增长；
+- nearest 与 all-hits 第一项一致，所有查询只读且稳定排序；
+- Sensor Begin→Stay→End，pair 反序和同 Team 不改变路由。
+
+## 阶段 14：稳定性、安全边界与数值缺陷修复（已完成）
+
+### 修改
+
+- detection strategy 统一接收 fixed dt/epsilon context；Static、Collider-only、disabled、非法质量 Dynamic 使用零约束速度，Kinematic 保留 authored velocity；
+- AABB 完全包含改用四边推出距离计算真实 MTV；Brute 与 SAP 在宽相统一 filter；
+- PhysicsWorld 回调期 reset 延迟到整批 listener 完成，并优先清除其他 pending 操作、停止后续固定步；固定步在开始前消费 accumulator，dropped-step 饱和累计；
+- Gameplay binding 严格校验并事务提交；新增 `unbind_actor`；单个 unbind 同步 rig；Hit Team 来自 instigator rig；回调前完整构造值语义路由快照；
+- checked Tile range 统一处理 floor、负坐标、`int` 可表示性、候选溢出/上限、模拟半开与查询闭合边界；
+- drop-through 只接受当前 Block OneWay 支撑，并原子扩展到同方向、同平面相邻支撑；
+- 查询读取最后提交 origin；零位移 AABB sweep 不再误命中 Circle；Tile DDA 对极端坐标有界拒绝。
+
+### 异常契约
+
+listener 抛异常属于不可恢复的调用方错误。Physics/Gameplay 只解除内部 guard 后继续上抛，不做状态回滚；Application update boundary 记录 `UnhandledException` 并 FaultExit。正常无效注册、binding、drop-through 和 query 仍通过 bool/空结果安全拒绝，不用异常表达。
+
+### 验收
+
+- 回调中 reset/unbind/clear/end-attack 不使迭代器失效，当前事件快照完整，后续步正确停止；
+- Static/非法质量 Body 不制造幽灵速度，Kinematic 仍可携带 Dynamic；
+- AABB 部分重叠、完全包含、同中心和轴平局稳定；
+- Tile 四侧相切、sweep TOI 0/1、极端坐标和超限范围安全；
+- 同一 Actor 可整体解绑并重新绑定；Hit 阵营无法被 collider binding Team 伪造。
 
 ## 3. 跨阶段验收场景
 
@@ -451,7 +496,7 @@ world gravity=zero；Kinematic/Dynamic 角色按显式速度移动；墙 Tile �
 
 ### 动态对象
 
-两个不同质量 Dynamic AABB 相撞，位置修正按逆质量分配；切向速度保留；Static/Kinematic 不被反推。
+两个不同质量 Dynamic AABB 相撞，位置修正和冲量按逆质量分配；摩擦按材质改变切向速度；Static/Kinematic 不被反推，移动 Kinematic 可携带有摩擦的 Dynamic。
 
 ### 战斗
 
@@ -459,7 +504,7 @@ PushBox 重叠持续路由；Hostile HitBox 对 HurtBox 首次 Begin 命中；St
 
 ### 查询
 
-同一 Ray 前方依次有 Overlap Circle、Block AABB、Block Tile，filter 决定候选后返回最近 target；重复查询不改变事件或 contact。
+同一 Ray 前方依次有 Overlap Circle、Block AABB、Block Tile，all-hits 稳定排序且最近查询等于第一项；AABB/Circle overlap 与 AABB sweep 使用相同 filter/target/response 语义；重复查询不改变事件、contact、stats 或 Transform。
 
 ## 4. 失败与回归检查表
 
@@ -485,11 +530,11 @@ PushBox 重叠持续路由；Hostile HitBox 对 HurtBox 首次 Begin 命中；St
 | `PhysicsBody` | [03 §2](03-class-responsibilities.md#physicsbody当前存在建议调整) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
 | `PhysicsSystem::integrate` | [03 §2](03-class-responsibilities.md) | [04 §5](04-function-responsibilities.md#5-physicssystem-函数) |
 | AABB/Circle/ColliderShape | [03 §3](03-class-responsibilities.md#3-collider-与形状) | [05 §2、6—8](05-collision-algorithms.md#2-世界形状构造) |
-| Filter/Response/DetectionMode | [03 §3](03-class-responsibilities.md#collisionfilter当前存在) | [05 §4、11](05-collision-algorithms.md#4-collisionfilter) |
+| Filter/Response/DetectionMode/PhysicsMaterial | [03 §3](03-class-responsibilities.md#collisionfilter当前存在) | [05 §4、11、13](05-collision-algorithms.md#4-collisionfilter) |
 | PassThrough/OneWay | [03 §3](03-class-responsibilities.md#passthroughdirection--onewaycollision当前存在) | [04 §2](04-function-responsibilities.md#2-现有小型纯函数)、[05 §12](05-collision-algorithms.md#12-单向平台判断) |
 | `Collider` / `ColliderProvider` | [03 §3](03-class-responsibilities.md#collider当前存在注册方式建议调整) | [04 §3](04-function-responsibilities.md#3-provider-函数) |
 | Pair/Manifold/Hit/Contact/Overlap | [03 §4](03-class-responsibilities.md#4-接触命中与目标身份) | [05](05-collision-algorithms.md) |
-| Ray/Segment/QueryHit | [03 §8](03-class-responsibilities.md#8-query-类型) | [04 §9](04-function-responsibilities.md#9-query-函数细则) |
+| Ray/Segment/Overlap/Sweep/QueryHit | [03 §8](03-class-responsibilities.md#8-query-类型) | [04 §9](04-function-responsibilities.md#9-query-函数细则) |
 | `CollisionShapeView` / 三个 Strategy | [03 §5](03-class-responsibilities.md#5-策略与-collisionsystem) | [04 §6](04-function-responsibilities.md#6-collisionsystem-与策略函数) |
 | `CollisionSystem` 全部 setter/getter/dispatch | [03 §5](03-class-responsibilities.md#collisionsystem当前存在目标实现) | [04 §6](04-function-responsibilities.md#6-collisionsystem-与策略函数) |
 | `PhysicsBodyProvider` | [03 §2](03-class-responsibilities.md#2-body-与运动) | [04 §3](04-function-responsibilities.md#3-provider-函数) |
@@ -498,7 +543,7 @@ PushBox 重叠持续路由；Hostile HitBox 对 HurtBox 首次 Begin 命中；St
 | Gameplay IDs/Role/Relation | [03 §10](03-class-responsibilities.md#10-gameplay-碰撞类型) | [07](07-gameplay-collision-runtime.md) |
 | Binding/Rig/Event | [03 §10](03-class-responsibilities.md#10-gameplay-碰撞类型) | [04 §10](04-function-responsibilities.md#10-gameplay-runtime-与-service-函数) |
 | Listener / Team resolver | [03 §10](03-class-responsibilities.md#10-gameplay-碰撞类型) | [04 §10](04-function-responsibilities.md#10-gameplay-runtime-与-service-函数) |
-| `IGameplayCollisionRuntime` | [03 §10](03-class-responsibilities.md#igameplaycollisionruntime当前存在) | [04 §10](04-function-responsibilities.md#igameplaycollisionruntime-五个当前纯虚函数) |
+| `IGameplayCollisionRuntime` | [03 §10](03-class-responsibilities.md#igameplaycollisionruntime当前存在) | [04 §10](04-function-responsibilities.md#igameplaycollisionruntime-当前生命周期函数) |
 | `GameplayCollisionService` 全部函数 | [03 §10](03-class-responsibilities.md#gameplaycollisionservice当前存在) | [04 §10](04-function-responsibilities.md#10-gameplay-runtime-与-service-函数) |
 
 ## 6. 最终完成标准

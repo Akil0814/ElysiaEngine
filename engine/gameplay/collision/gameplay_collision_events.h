@@ -29,4 +29,12 @@ struct HitOverlapEvent
     ColliderBinding hurt_box{};
     elysia::physics::CollisionOverlap overlap{};
 };
+
+struct SensorOverlapEvent
+{
+    elysia::physics::CollisionEventPhase phase = elysia::physics::CollisionEventPhase::Begin;
+    ColliderBinding sensor{};
+    ColliderBinding body{};
+    elysia::physics::CollisionOverlap overlap{};
+};
 }

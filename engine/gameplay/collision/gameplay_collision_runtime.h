@@ -22,6 +22,7 @@ public:
     [[nodiscard]] virtual bool bind_actor(const ActorCollisionRig& rig) = 0;
     [[nodiscard]] virtual bool bind_collider(const ColliderBinding& binding) = 0;
     [[nodiscard]] virtual bool bind_hit_box(const HitBoxBinding& binding) = 0;
+    [[nodiscard]] virtual bool unbind_actor(ActorId actor) = 0;
     [[nodiscard]] virtual bool unbind_collider(elysia::physics::ColliderId collider) = 0;
     [[nodiscard]] virtual bool request_drop_through(const DropThroughRequest& request) = 0;
     [[nodiscard]] virtual bool add_listener(GameplayCollisionListener& listener) = 0;
@@ -43,6 +44,7 @@ public:
     [[nodiscard]] bool bind_actor(const ActorCollisionRig& rig) override;
     [[nodiscard]] bool bind_collider(const ColliderBinding& binding) override;
     [[nodiscard]] bool bind_hit_box(const HitBoxBinding& binding) override;
+    [[nodiscard]] bool unbind_actor(ActorId actor) override;
     [[nodiscard]] bool unbind_collider(elysia::physics::ColliderId collider) override;
     [[nodiscard]] bool request_drop_through(const DropThroughRequest& request) override;
     [[nodiscard]] bool add_listener(GameplayCollisionListener& listener) override;
@@ -67,10 +69,6 @@ private:
     };
 
     void on_collision_event(const elysia::physics::CollisionEvent& event) override;
-    void dispatch_body(
-        const ColliderBinding& body,
-        elysia::physics::CollisionTarget other,
-        const elysia::physics::CollisionEvent& event);
     void flush_listener_operations();
 
     elysia::physics::PhysicsWorld* _world = nullptr;

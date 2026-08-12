@@ -54,7 +54,8 @@ public:
         double fixed_delta_seconds,
         CollisionFrame& out_frame,
         PhysicsStepStats& stats,
-        PhysicsDebugSnapshot& debug_snapshot);
+        PhysicsDebugCapture debug_capture,
+        PhysicsDebugSnapshot* debug_snapshot);
 
     void query_aabb(
         const elysia::core::Rect& bounds,

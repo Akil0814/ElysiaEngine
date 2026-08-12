@@ -55,5 +55,7 @@ struct CollisionContact
     CollisionManifold manifold{};
     CollisionResponse response = CollisionResponse::Ignore;
     float time_of_impact = 1.0f;
+    float normal_impulse = 0.0f;
+    float tangent_impulse = 0.0f;
 };
 }

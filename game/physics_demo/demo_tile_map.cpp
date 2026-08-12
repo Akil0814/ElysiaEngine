@@ -113,7 +113,7 @@ void DemoTileMap::submit_render_commands(
 elysia::physics::TileCollisionCell block_tile() noexcept
 {
     return {elysia::physics::TileCollisionType::Block,
-        {collision_layers::World, collision_layers::Body, 0}, std::nullopt, "block"};
+        {collision_layers::World, collision_layers::Body, 0}, std::nullopt, {}, "block"};
 }
 
 elysia::physics::TileCollisionCell one_way_tile() noexcept
@@ -121,12 +121,13 @@ elysia::physics::TileCollisionCell one_way_tile() noexcept
     return {elysia::physics::TileCollisionType::OneWay,
         {collision_layers::World, collision_layers::Body, 0},
         elysia::physics::OneWayCollision{elysia::physics::PassThroughDirection::Up, 0.02f},
+        {},
         "one_way"};
 }
 
 elysia::physics::TileCollisionCell hazard_tile() noexcept
 {
     return {elysia::physics::TileCollisionType::Overlap,
-        {collision_layers::World, collision_layers::Body, 0}, std::nullopt, "hazard"};
+        {collision_layers::World, collision_layers::Body, 0}, std::nullopt, {}, "hazard"};
 }
 }

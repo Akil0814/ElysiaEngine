@@ -1,6 +1,6 @@
 #pragma once
 
-#include "collision_target.h"
+#include "collision_contact.h"
 
 namespace elysia::physics
 {
@@ -19,6 +19,33 @@ struct SegmentCastQuery
     CollisionFilter filter{};
 };
 
+struct AabbOverlapQuery
+{
+    elysia::core::Rect bounds{};
+    CollisionFilter filter{};
+};
+
+struct CircleOverlapQuery
+{
+    elysia::core::Vector2 center{};
+    float radius = 0.0f;
+    CollisionFilter filter{};
+};
+
+struct AabbSweepQuery
+{
+    elysia::core::Rect start_bounds{};
+    elysia::core::Vector2 displacement{};
+    CollisionFilter filter{};
+};
+
+struct CollisionOverlapQueryHit
+{
+    CollisionTarget target{};
+    CollisionManifold manifold{};
+    CollisionResponse response = CollisionResponse::Ignore;
+};
+
 struct CollisionQueryHit
 {
     CollisionTarget target{};
@@ -26,6 +53,7 @@ struct CollisionQueryHit
     elysia::core::Vector2 normal{};
     float distance = 0.0f;
     float fraction = 0.0f;
+    CollisionResponse response = CollisionResponse::Ignore;
 };
 
 }

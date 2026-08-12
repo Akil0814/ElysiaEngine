@@ -1,6 +1,6 @@
 # 03｜逐类职责
 
-> **实现状态**：本章类型已完成首版实现。最终名称为 `PhysicsObjectState`、值语义 `CollisionShapeView` 和不可部分构造的 `CollisionStrategySet`；Brute Force 与 SAP 已实现，SAP 为默认。文中出现的 `ColliderView`、`PhysicsService` 或“目标新增/算法待实现”属于早期设计记录，以 [当前审计](01-current-state-audit.md) 为准。
+> **实现状态**：本章类型已完成首版实现。最终名称为 `PhysicsObjectState`、值语义 `CollisionShapeView` 和不可部分构造的 `CollisionStrategySet`；Brute Force 与 SAP 已实现，SAP 为默认。当前代码事实以 [当前审计](01-current-state-audit.md)和公开头文件为准。
 
 返回：[物理文档入口](README.md)　上一篇：[目标架构](02-target-architecture.md)　下一篇：[逐函数实现契约](04-function-responsibilities.md)
 
@@ -43,7 +43,7 @@
 
 Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kinematic Block 命中只产生接触，不做位置修正，因为双方总逆质量为零。
 
-### `PhysicsSystem`（当前存在但为空壳）
+### `PhysicsSystem`（当前已实现）
 
 **目的**：只负责 Body 的数值积分、速度约束、owner Transform 写回和力清理。
 
@@ -51,7 +51,7 @@ Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kin
 
 **不负责**：候选收集、形状相交、接触缓存、Tile 查询、Gameplay 事件。
 
-**协作**：由 `PhysicsWorld::fixed_step` 调用。积分完成后，`CollisionSystem` 使用更新后的 current origin 检测；求解器修正 Transform/velocity 后，PhysicsSystem 清力。
+**协作**：由 `PhysicsWorld::fixed_step` 调用。它用半隐式欧拉推进 Dynamic、按 authored velocity 推进 Kinematic，并在读取本步 force 后立即清零；`CollisionSystem` 随后检测和修正状态。
 
 **完成标准**：Static、Kinematic、Dynamic 行为分别满足表格；禁用 Body 不被修改；无效 dt 安全返回。
 
@@ -81,6 +81,10 @@ Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kin
 
 目标规则是双向 mask；同组正值强制允许、同组负值强制忽略、其他情况使用 mask。它不认识 TeamRelation。
 
+### `PhysicsMaterial`（当前存在）
+
+保存静摩擦、动摩擦和弹性。输入在求解前归一化：非有限或负摩擦按零处理，静摩擦不小于动摩擦，弹性钳制到 `[0,1]`。两目标摩擦取几何平均，弹性取较大值。材质只描述接触响应，不拥有速度、质量或接触缓存。
+
 ### `CollisionResponse`（当前存在）
 
 - `Ignore`：不产生接触、不求解；
@@ -104,7 +108,7 @@ Kinematic 可以推动 Dynamic，但不会被求解器反推。两个 Static/Kin
 
 ### `Collider`（当前存在，注册生命周期已落地）
 
-**目的**：持久保存形状、过滤、响应和检测意图。
+**目的**：持久保存形状、过滤、响应、检测意图和材质。
 
 **所有权**：由 GameObject/Provider 拥有。PhysicsWorld 借用并在注册时分配 ID。
 
@@ -142,7 +146,7 @@ Manifold 不保存 response、Body 或事件阶段。
 
 ### `CollisionOverlap` / `CollisionContact`（当前存在，目标统一）
 
-当前分别表达 overlap 和带 response 的 contact。目标设计保留 `CollisionContact` 作为本步规范化事实，并由 response 区分 Block/Overlap；Gameplay 兼容事件可以继续使用 `CollisionOverlap` 视图。
+当前分别表达 overlap 和带 response 的 contact。`CollisionContact` 额外保存 TOI、本步累计法向冲量和有符号切向冲量；Overlap 的冲量始终为零。Gameplay 事件使用 `CollisionOverlap` 视图时不会暴露可变求解状态。
 
 ### `TileCoordinate`（当前存在）
 
@@ -161,11 +165,11 @@ Manifold 不保存 response、Body 或事件阶段。
 
 phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 manifold 和 response。End 可以沿用上一缓存 manifold，调用方不得把 End 的 penetration 当成本步仍重叠。
 
-### `CollisionFrame`（当前存在，内容生成待实现）
+### `CollisionFrame`（当前已实现）
 
 一个固定物理步的临时结果容器，当前保存 contacts 和 events，并由 `clear()` 复用容量。它由 PhysicsWorld 每步复用，不能跨步向外暴露内部 span；views 和 candidate pairs 保持为 CollisionSystem 内部临时数据。
 
-### `ContactCache`（目标新增）
+### `ContactCache`（当前已实现）
 
 拥有上一固定步和当前固定步的规范化 contact map/set。负责比较并生成 Begin/Stay/End，不负责检测或 Gameplay 路由。
 
@@ -175,7 +179,7 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 ### `CollisionShapeView`（当前已实现）
 
-固定步内的值语义形状快照，包含 target、owner handle、previous/current 世界形状与 bounds、filter、response、detection mode 和 one-way。策略不得持有跨步指针。
+固定步内的值语义形状快照，包含 target、owner handle、previous/current 世界形状与 bounds、filter、response、detection mode、one-way 和 material。策略不得持有跨步指针。
 
 ### `BroadPhaseProxy` / `BroadPhasePair` / `IBroadPhaseIndex`（当前存在）
 
@@ -183,7 +187,7 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 ### `ICollisionDetectionStrategy`（当前存在）
 
-对一个已经规范化的 pair 做几何检测。离散与连续实例可以共享几何辅助函数，但不能持有场景对象所有权。
+对一个已经规范化的 pair 做几何检测。每次调用同时接收值语义 `CollisionDetectionContext`，其中 `fixed_delta_seconds` 描述本固定步时长，`epsilon` 统一来自 World 配置；策略不得自行硬编码另一套数值容差。离散与连续实例可以共享几何辅助函数，但不能持有场景对象所有权。
 
 ### `ICollisionResponseStrategy`（当前存在）
 
@@ -213,21 +217,25 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 **不拥有**：GameObject、Body、Collider、Tile World、跨步 ContactCache、Gameplay listener。
 
-当前公开入口接收 mutable `PhysicsObjectState`、只读 `CollisionShapeView`、Tile World、临时忽略对、config 和 fixed dt，在一次调用内完成索引同步、检测、分类和求解。事件生命周期归 PhysicsWorld/ContactCache，CollisionSystem 不持有跨步接触状态。
+当前公开入口接收 mutable `PhysicsObjectState`、只读 `CollisionShapeView`、Tile World、临时忽略对、config、fixed dt、`PhysicsDebugCapture` 和可空快照输出，在一次调用内完成索引同步、检测、分类和求解。事件生命周期归 PhysicsWorld/ContactCache，CollisionSystem 不持有跨步接触状态；未请求的调试分类不得产生额外快照复制。
 
 ## 6. PhysicsWorld 与配置
 
 ### `PhysicsWorldConfig`（当前存在）
 
-保存固定步长、单次 advance 最大步数、求解迭代数和世界重力。构造 world 时校验一次，运行期间首版保持不变。
+保存固定步长、单次 advance 最大步数、世界重力、8 次默认求解迭代、位置修正参数、低速回弹阈值和单次 Tile 候选上限。构造 world 时校验一次，运行期间首版保持不变。候选上限用于拒绝不可表示或异常巨大的范围，不允许截断后返回难以识别的不完整结果。
 
 默认 gravity 为零，具体游戏必须显式配置向下重力；这样 top-down 游戏不会被意外施加平台游戏重力。
+
+### `PhysicsDebugCapture` 与 `PhysicsDebugSnapshot`（当前存在）
+
+`PhysicsDebugCapture` 是不依赖 `engine/tools` 的按位采集契约，包含 Shapes、BroadPhase、Contacts 和 Velocities。`None` 为默认值；Scene 根据当前 `DebugDrawCategory` 映射它。`PhysicsDebugSnapshot` 由 World 拥有并复用容量，只保存最近一个已采集固定步的数据；切换 capture、reset 或关闭采集会立即清空，不能作为 Gameplay 状态来源。
 
 ### `PhysicsObjectHandle`（当前存在）
 
 轻量、可比较的 world 内注册句柄，包含单调递增 generation/value。无效值为零。它标识注册 entry，不等同于 ColliderId，也不等同于 ActorId。
 
-### `PhysicsWorld`（当前生命周期骨架已落地）
+### `PhysicsWorld`（当前运行闭环已落地）
 
 **目的**：每 Scene 的物理运行时与唯一协调者。
 
@@ -237,7 +245,9 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 - 注册 entries 和索引；
 - ID/handle 计数器；
 - `PhysicsSystem`、`CollisionSystem`、`ContactCache`、`CollisionFrame`；
+- 当前 debug capture 与按需填充的 `PhysicsDebugSnapshot`；
 - pending 注册/注销/状态同步队列；
+- 最高优先级 pending reset；
 - 核心 collision listeners 的非 owning 注册集合。
 
 **借用**：GameObject、Provider、Body、Collider、当前 `ITileCollisionWorld`。
@@ -264,13 +274,13 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 ### `TileCollisionCell`（当前存在）
 
-保存 type、filter、one_way 和调试 tag。它是查询返回值，不拥有 Tile 数据。Empty cell 的其他字段不应影响结果。
+保存 type、filter、one_way、material 和调试 tag。它是查询返回值，不拥有 Tile 数据。Empty cell 的其他字段不应影响结果。
 
 ### `ITileCollisionWorld`（当前存在）
 
 物理核心读取规则网格的最小接口：origin、tile_size、columns、rows、out_of_bounds_policy、cell_at。它不提供渲染纹理、图块 ID、房间、对象层或地图生成 API。
 
-### `TileCollisionResolver`（目标新增）
+### Tile collision resolver（当前为 `CollisionSystem` 内部算法）
 
 无状态或仅持有临时缓冲区的算法组件。负责 world/tile 转换、移动 AABB 候选范围、Tile rect、Tile 窄检和查询；不拥有适配器。
 
@@ -286,9 +296,13 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 描述 start、end 和 filter。零长度 segment 返回无命中，不自动变成 point overlap 查询。
 
+### Overlap/Sweep Query 与结果（当前已实现）
+
+`AabbOverlapQuery`、`CircleOverlapQuery` 返回按 target 排序的 `CollisionOverlapQueryHit`；manifold normal 从 query 指向 target。`AabbSweepQuery` 返回最近 `CollisionQueryHit`，首版只命中 AABB Collider 和 Tile；零位移仍走 AABB-only 的 initial-overlap 路径，不会意外命中 Circle。
+
 ### `CollisionQueryHit`（当前已实现）
 
-使用 `CollisionTarget target` 保存普通 Collider 或 Tile 身份，并保存 point、normal、distance、fraction。最近命中按 distance，epsilon 平局按 target 稳定顺序决定。
+使用 `CollisionTarget target` 保存普通 Collider 或 Tile 身份，并保存 point、normal、distance、fraction 和目标 response。Ray/Segment all-hits 按 distance、target 排序并按 target 去重。
 
 ### `ICollisionQueryService`（当前存在）
 
@@ -327,8 +341,9 @@ ActorId、TeamId、AttackInstanceId、AttackDefinitionId 属于 Gameplay 身份�
 - `BodyContactEvent`：Body 与世界/普通 Collider 的接触；
 - `PushBoxOverlapEvent`：两个 PushBox；
 - `HitOverlapEvent`：定向的 HitBox → HurtBox。
+- `SensorOverlapEvent`：定向的 Sensor → Body，Begin/Stay/End 全部转发。
 
-目标事件都应带 `CollisionEventPhase`；Body 的 other 应升级为 `CollisionTarget` 以表示 Tile。
+所有事件都带 `CollisionEventPhase`；Body 的 other 使用 `CollisionTarget` 表示 Collider 或 Tile。
 
 ### `GameplayCollisionListener`（当前存在）
 
@@ -340,11 +355,11 @@ ActorId、TeamId、AttackInstanceId、AttackDefinitionId 属于 Gameplay 身份�
 
 ### `IGameplayCollisionRuntime`（当前存在）
 
-Service 转发目标。声明 binding、解绑和 drop-through 操作。目标实现可扩展 listener 注册、攻击实例结束和对象生命周期清理接口。
+Service 转发目标。声明 Actor rig/普通 Collider/HitBox binding、`unbind_actor`/`unbind_collider`、listener、攻击实例结束和 drop-through 操作。所有业务拒绝使用 bool/空结果表达，不用异常表示正常的无效请求。
 
-### `GameplayCollisionRuntime`（目标新增）
+### `GameplayCollisionRuntime`（当前已实现）
 
-每 Scene 的具体 runtime，拥有 binding map、rig map、命中去重集合和 drop-through 集合，借用 PhysicsWorld、TeamRelationResolver 与 listeners。它消费核心事件并输出语义事件，不执行伤害。
+每 Scene 的具体 runtime，拥有 binding map、rig map、命中去重集合，借用 PhysicsWorld、TeamRelationResolver 与 listeners。它在调用业务 listener 前把当前核心事件所需 binding、rig Team 和全部语义事件复制为值；回调内 unbind/clear/end-attack 不会使当前路由失效。Hit 的阵营来自 instigator 对应 Actor rig，不信任 HitBox collider 上可伪造的 Team。它不执行伤害。
 
 ### `GameplayCollisionService`（当前存在）
 

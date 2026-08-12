@@ -86,12 +86,28 @@ public:
     [[nodiscard]] const PhysicsWorldConfig& config() const noexcept;
     [[nodiscard]] double accumulator_seconds() const noexcept;
     [[nodiscard]] const PhysicsStepStats& last_step_stats() const noexcept;
+    void set_debug_capture(PhysicsDebugCapture capture) noexcept;
+    [[nodiscard]] PhysicsDebugCapture debug_capture() const noexcept;
     [[nodiscard]] const PhysicsDebugSnapshot& debug_snapshot() const noexcept;
 
     [[nodiscard]] std::optional<CollisionQueryHit> raycast(
         const RayCastQuery& query) const override;
     [[nodiscard]] std::optional<CollisionQueryHit> segment_cast(
         const SegmentCastQuery& query) const override;
+    void raycast_all(
+        const RayCastQuery& query,
+        std::vector<CollisionQueryHit>& out_hits) const override;
+    void segment_cast_all(
+        const SegmentCastQuery& query,
+        std::vector<CollisionQueryHit>& out_hits) const override;
+    void overlap_aabb(
+        const AabbOverlapQuery& query,
+        std::vector<CollisionOverlapQueryHit>& out_hits) const override;
+    void overlap_circle(
+        const CircleOverlapQuery& query,
+        std::vector<CollisionOverlapQueryHit>& out_hits) const override;
+    [[nodiscard]] std::optional<CollisionQueryHit> sweep_aabb(
+        const AabbSweepQuery& query) const override;
 
 private:
     struct Registration
@@ -126,8 +142,9 @@ private:
         Clear
     };
 
-    void fixed_step(double fixed_delta_seconds);
-    void flush_pending_operations();
+    [[nodiscard]] bool fixed_step(double fixed_delta_seconds);
+    [[nodiscard]] bool flush_pending_operations();
+    void reset_immediate() noexcept;
     [[nodiscard]] std::optional<Registration> prepare_registration(
         elysia::core::GameObject& owner,
         PhysicsBodyProvider* body_provider,
@@ -171,5 +188,7 @@ private:
     double _accumulator_seconds = 0.0;
     std::uint64_t _dropped_fixed_steps = 0;
     bool _advancing = false;
+    bool _pending_reset = false;
+    PhysicsDebugCapture _debug_capture = PhysicsDebugCapture::None;
 };
 }

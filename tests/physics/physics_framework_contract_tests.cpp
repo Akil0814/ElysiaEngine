@@ -5,7 +5,9 @@
 #include "tests/support/test_assertions.h"
 
 #include <array>
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <type_traits>
 
@@ -25,6 +27,20 @@ int main()
     require(collider.response == CollisionResponse::Block
             && collider.detection_mode == CollisionDetectionMode::Discrete,
         "Collider response and detection defaults must be usable");
+    require(collider.material == PhysicsMaterial{},
+        "Colliders must use the stable default physics material");
+    const auto normalized_material = normalized_physics_material({
+        std::numeric_limits<float>::quiet_NaN(), -2.0f, 4.0f});
+    require(normalized_material.static_friction == 0.0f
+            && normalized_material.dynamic_friction == 0.0f
+            && normalized_material.restitution == 1.0f,
+        "Invalid material values must normalize without propagating NaN");
+    const auto combined_material = combine_physics_materials(
+        {0.9f, 0.4f, 0.2f}, {0.4f, 0.1f, 0.8f});
+    require(std::fabs(combined_material.static_friction - 0.6f) < 0.0001f
+            && std::fabs(combined_material.dynamic_friction - 0.2f) < 0.0001f
+            && combined_material.restitution == 0.8f,
+        "Material combination must use geometric-mean friction and max restitution");
     PhysicsBody body;
     require(body.type == BodyType::Dynamic,
         "Bodies must default to Dynamic");
@@ -65,8 +81,32 @@ int main()
         WorldCircle{{3.0f, 3.0f}, 2.0f}, WorldCircle{{3.0f, 3.0f}, 2.0f});
     require(circles && circles->manifold.normal == elysia::core::Vector2{1.0f, 0.0f},
         "Coincident circles must use the stable +X normal");
+    const auto contained = detect_discrete_shapes(
+        WorldAabb{{0, 0, 10, 10}}, WorldAabb{{4, 4, 2, 2}});
+    require(contained && std::fabs(contained->manifold.penetration - 6.0f) < 0.0001f
+            && contained->manifold.normal == elysia::core::Vector2{1, 0},
+        "AABB containment must report the true minimum translation depth");
+    CollisionShapeView first_circle_view;
+    CollisionShapeView second_circle_view;
+    first_circle_view.current_shape = WorldCircle{{0, 0}, 1};
+    second_circle_view.current_shape = WorldCircle{{0, 0.001f}, 1};
+    DefaultDiscreteCollisionStrategy discrete_strategy;
+    const auto coarse_epsilon_hit = discrete_strategy.detect(
+        first_circle_view, second_circle_view, {1.0 / 60.0, 0.01f});
+    const auto fine_epsilon_hit = discrete_strategy.detect(
+        first_circle_view, second_circle_view, {1.0 / 60.0, 0.0001f});
+    require(coarse_epsilon_hit && fine_epsilon_hit
+            && coarse_epsilon_hit->manifold.normal
+                == elysia::core::Vector2{1, 0}
+            && fine_epsilon_hit->manifold.normal.y > 0.99f,
+        "Discrete detection must use the epsilon supplied by its context");
 
     PhysicsWorldConfig config;
+    require(config.solver_iterations == 8
+            && config.position_correction_percent == 0.8f
+            && config.restitution_velocity_threshold == 1.0f
+            && config.max_tile_candidates_per_operation == 65536,
+        "The default solver configuration must favor stable resting contacts");
     config.gravity = {0.0f, 10.0f};
     PhysicsObjectState dynamic_state{PhysicsObjectHandle{1}, &body, {}, {}};
     body.velocity = {2.0f, 0.0f};
@@ -95,6 +135,14 @@ int main()
     require(brute_pairs == sap_pairs
             && brute_pairs == std::vector<BroadPhasePair>{{1, 2}},
         "SAP must match the Brute Force candidate oracle, including touching bounds");
+    proxies[1].filter.mask = 0;
+    brute.synchronize(proxies);
+    sap.synchronize(proxies);
+    brute.collect_pairs(brute_pairs);
+    sap.collect_pairs(sap_pairs);
+    require(brute_pairs.empty() && sap_pairs.empty(),
+        "Broad-phase indices must consistently reject filter-incompatible bounds");
+    proxies[1].filter.mask = 0xffffffffu;
     std::mt19937 random(0xE1751Au);
     std::uniform_real_distribution<float> position(-200.0f, 200.0f);
     std::uniform_real_distribution<float> size(1.0f, 30.0f);

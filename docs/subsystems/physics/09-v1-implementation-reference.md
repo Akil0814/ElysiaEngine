@@ -9,6 +9,7 @@
 | 固定步、注册、事件、查询 | `engine/physics/physics_world.h/.cpp` |
 | Body 积分 | `engine/physics/body/physics_system.h/.cpp` |
 | 世界形状与几何 | `engine/physics/collision/world_shape.h/.cpp` |
+| 材质归一化与合并 | `engine/physics/collision/physics_material.h` |
 | Brute、SAP、离散/CCD/响应策略 | `engine/physics/collision/default_collision_strategies.h/.cpp` |
 | 候选、Tile、求解 | `engine/physics/collision/collision_system.h/.cpp` |
 | Begin/Stay/End | `engine/physics/collision/contact_cache.h/.cpp` |
@@ -25,7 +26,7 @@
 
 ## 调试
 
-启用 `DebugDraw` 后，Scene 每帧把最近物理步快照提交到已有分类：
+启用 `DebugDraw` 后，Scene 在物理步前把当前分类映射为 `PhysicsDebugCapture`，并只采集、提交已请求的数据：
 
 | 分类 | 内容 |
 | --- | --- |
@@ -36,7 +37,11 @@
 | `PhysicsContactNormal` | first → second 法线 |
 | `PhysicsVelocity` | 速度向量 |
 
-`PhysicsWorld::last_step_stats()` 返回注册数、proxy、候选、窄检、contact、Tile sample、CCD hit/iteration、solver iteration 和累计 dropped fixed steps。
+`PhysicsCollider`/`PhysicsCcd` 映射到 `Shapes`，`PhysicsBroadPhase` 映射到 `BroadPhase`，两个 contact 分类映射到 `Contacts`，`PhysicsVelocity` 映射到 `Velocities`。全局关闭或只启用非物理分类时，`PhysicsWorld` 使用 `PhysicsDebugCapture::None`，不会复制 shape、pair、Tile candidate、contact 或 velocity。修改 capture 会立即清空旧快照，避免重新启用时显示过期数据。
+
+`DebugDraw::draw_*` 只接受当前已启用的单一分类；全局或分类关闭时不会创建命令。关闭全局开关会清空全部命令，移除分类会清空该分类命令，重新启用不会恢复旧请求。
+
+`PhysicsWorld::last_step_stats()` 返回注册数、proxy、候选、窄检、contact、Tile sample、被拒绝的 Tile 候选范围、CCD hit/iteration、solver iteration 和累计 dropped fixed steps。统计与物理事件不受 Debug Capture 开关影响。
 
 ## Tile 适配最小骨架
 
@@ -60,3 +65,26 @@ public:
 ## 事件使用提醒
 
 核心 listener 接收规范化 `CollisionPair`，法线始终从 pair.first 指向 pair.second。若调用方关注 second，必须反转法线。Gameplay Runtime 已完成该角色路由，不应在物理核心中加入 Actor 或伤害判断。
+
+## 材质与求解
+
+`Collider` 和 `TileCollisionCell` 都携带 `PhysicsMaterial`。求解前会把非有限/负摩擦归零、保证 static friction 不小于 dynamic friction，并把 restitution 钳制到 `[0,1]`；双方摩擦取几何平均、弹性取较大值。
+
+Block contact 使用默认 8 次稳定顺序冲量：位置修正与速度冲量分离，先法向后切向。低于 `restitution_velocity_threshold` 的闭合速度不回弹。Kinematic 保持零逆质量，但 authored velocity 参与相对速度和摩擦，因此可携带 Dynamic。`CollisionContact` 的 `normal_impulse` / `tangent_impulse` 是本固定步累计值，不跨帧 warm start。
+
+## 查询入口
+
+- `raycast` / `segment_cast`：最近命中；
+- `raycast_all` / `segment_cast_all`：按 distance、target 排序的全部命中；
+- `overlap_aabb` / `overlap_circle`：按 target 排序的当前重叠；
+- `sweep_aabb`：最近 AABB/Tile TOI，Circle 目标不参与。
+
+所有查询使用当前已提交状态，Ignore 不命中，Overlap/Block 返回；不会推进模拟或修改 contact、event、stats。Gameplay Sensor 仅把物理 Overlap 的 Sensor↔Body 路由为 `SensorOverlapEvent`，Begin/Stay/End 全部转发。
+
+## 稳定性与失败边界
+
+- `PhysicsWorld::reset()` 步外立即执行，advance/事件回调中延迟；当前 listener 批次完成后 reset 优先于其他 pending 操作，并停止本次 advance 的剩余固定步；
+- listener 回调不得抛异常。异常解除 Physics/Gameplay guard 后传播至 Application update boundary，由 `UnhandledException`/FaultExit 终止；不做回滚，异常后不保证 runtime 可继续使用；
+- Gameplay Runtime 在回调前复制当前核心事件的全部语义路由，支持回调中安全 unbind/clear/end-attack；`unbind_actor` 一次清理 rig、owner bindings 和相关 hurt history；
+- Tile 模拟使用半开 checked range，overlap/sweep 使用闭合 checked range；不可表示坐标、候选溢出或超过配置上限时安全拒绝 Tile 部分；
+- Query 读取 registration 的最后提交 origin。AABB sweep 只考虑 AABB/Tile，即使零位移也不会通过通用 overlap 意外命中 Circle。

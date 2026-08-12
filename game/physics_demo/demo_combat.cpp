@@ -47,9 +47,7 @@ DemoCombatSession::~DemoCombatSession()
         (void)id;
         if (!actor)
             continue;
-        (void)_runtime->unbind_collider(actor->body_collider_id());
-        (void)_runtime->unbind_collider(actor->hurt_collider_id());
-        (void)_runtime->unbind_collider(actor->hit_collider_id());
+        (void)_runtime->unbind_actor(actor->actor_id());
     }
 }
 
@@ -79,9 +77,7 @@ void DemoCombatSession::unregister_actor(BlockCombatActor& actor) noexcept
     if (!_runtime || actor.actor_id() == elysia::gameplay::collision::InvalidActorId)
         return;
     actor.stop_attack();
-    (void)_runtime->unbind_collider(actor.body_collider_id());
-    (void)_runtime->unbind_collider(actor.hurt_collider_id());
-    (void)_runtime->unbind_collider(actor.hit_collider_id());
+    (void)_runtime->unbind_actor(actor.actor_id());
     _hazard_cooldowns.erase(actor.actor_id());
     _actors.erase(actor.actor_id());
 }

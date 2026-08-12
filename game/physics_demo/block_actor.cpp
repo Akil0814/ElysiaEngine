@@ -46,6 +46,7 @@ BlockCombatActor::BlockCombatActor(
         collision_layers::World | collision_layers::Body,
         elysia::physics::CollisionResponse::Block,
         {0, 0, size.x, size.y}, "body");
+    _colliders[0].material = {0.0f, 0.0f, 0.0f};
     _colliders[1] = make_actor_collider(
         collision_layers::HurtBox, collision_layers::HitBox,
         elysia::physics::CollisionResponse::Overlap,

@@ -11,6 +11,47 @@
 
 namespace elysia::physics
 {
+enum class PhysicsDebugCapture : std::uint8_t
+{
+    None = 0,
+    Shapes = 1u << 0,
+    BroadPhase = 1u << 1,
+    Contacts = 1u << 2,
+    Velocities = 1u << 3,
+    All = (1u << 4) - 1u
+};
+
+[[nodiscard]] constexpr PhysicsDebugCapture operator|(
+    PhysicsDebugCapture first,
+    PhysicsDebugCapture second) noexcept
+{
+    return static_cast<PhysicsDebugCapture>(
+        static_cast<std::uint8_t>(first) | static_cast<std::uint8_t>(second));
+}
+
+[[nodiscard]] constexpr PhysicsDebugCapture operator&(
+    PhysicsDebugCapture first,
+    PhysicsDebugCapture second) noexcept
+{
+    return static_cast<PhysicsDebugCapture>(
+        static_cast<std::uint8_t>(first) & static_cast<std::uint8_t>(second));
+}
+
+constexpr PhysicsDebugCapture& operator|=(
+    PhysicsDebugCapture& first,
+    PhysicsDebugCapture second) noexcept
+{
+    first = first | second;
+    return first;
+}
+
+[[nodiscard]] constexpr bool captures_physics_debug(
+    PhysicsDebugCapture capture,
+    PhysicsDebugCapture requested) noexcept
+{
+    return (capture & requested) != PhysicsDebugCapture::None;
+}
+
 struct PhysicsStepStats
 {
     std::size_t registered_objects = 0;
@@ -20,6 +61,7 @@ struct PhysicsStepStats
     std::size_t narrow_phase_tests = 0;
     std::size_t contacts = 0;
     std::size_t tile_samples = 0;
+    std::size_t rejected_tile_candidate_ranges = 0;
     std::size_t ccd_hits = 0;
     std::size_t ccd_iterations = 0;
     std::size_t solver_iterations = 0;

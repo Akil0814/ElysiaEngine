@@ -29,6 +29,30 @@ void erase_destroyed_entries(std::vector<Entry>& entries)
         return !entry.object || entry.object->is_destroyed();
     });
 }
+
+[[nodiscard]] elysia::physics::PhysicsDebugCapture physics_debug_capture(
+    const elysia::tools::DebugDraw& debug_draw) noexcept
+{
+    using elysia::physics::PhysicsDebugCapture;
+    using elysia::tools::DebugDrawCategory;
+
+    PhysicsDebugCapture capture = PhysicsDebugCapture::None;
+    if (debug_draw.is_enabled(DebugDrawCategory::PhysicsCollider)
+        || debug_draw.is_enabled(DebugDrawCategory::PhysicsCcd))
+    {
+        capture |= PhysicsDebugCapture::Shapes;
+    }
+    if (debug_draw.is_enabled(DebugDrawCategory::PhysicsBroadPhase))
+        capture |= PhysicsDebugCapture::BroadPhase;
+    if (debug_draw.is_enabled(DebugDrawCategory::PhysicsContact)
+        || debug_draw.is_enabled(DebugDrawCategory::PhysicsContactNormal))
+    {
+        capture |= PhysicsDebugCapture::Contacts;
+    }
+    if (debug_draw.is_enabled(DebugDrawCategory::PhysicsVelocity))
+        capture |= PhysicsDebugCapture::Velocities;
+    return capture;
+}
 }
 
 void Scene::on_input(const elysia::input::RawInputFrame& input, const std::vector<elysia::input::RawInputEvent>& events)
@@ -98,11 +122,14 @@ void Scene::on_update(double delta)
         ui_root->update_presentation_animations(delta);
     }
 
+    elysia::tools::DebugDraw* physics_debug_draw =
+        elysia::tools::DebugDraw::instance();
+    const auto debug_capture = physics_debug_capture(*physics_debug_draw);
+    _physics_world.set_debug_capture(debug_capture);
+
     if (!_paused)
         (void)_physics_world.advance(delta);
 
-    elysia::tools::DebugDraw* physics_debug_draw =
-        elysia::tools::DebugDraw::instance();
     const auto physics_categories =
         elysia::tools::DebugDrawCategory::PhysicsCollider
         | elysia::tools::DebugDrawCategory::PhysicsContact
@@ -111,7 +138,7 @@ void Scene::on_update(double delta)
         | elysia::tools::DebugDrawCategory::PhysicsCcd
         | elysia::tools::DebugDrawCategory::PhysicsVelocity;
     physics_debug_draw->clear_categories(physics_categories);
-    if (physics_debug_draw->enabled())
+    if (debug_capture != elysia::physics::PhysicsDebugCapture::None)
         elysia::physics::submit_physics_debug_snapshot(
             _physics_world.debug_snapshot(), *physics_debug_draw);
 

@@ -20,15 +20,24 @@ namespace
 {
     const auto& a = first.rect;
     const auto& b = second.rect;
-    const float overlap_x = std::min(a.right(), b.right()) - std::max(a.left(), b.left());
-    const float overlap_y = std::min(a.bottom(), b.bottom()) - std::max(a.top(), b.top());
-    if (overlap_x < 0.0f || overlap_y < 0.0f)
+    if (!a.touches_or_intersects(b))
         return std::nullopt;
+
+    const float positive_x_depth = a.right() - b.left();
+    const float negative_x_depth = b.right() - a.left();
+    const float positive_y_depth = a.bottom() - b.top();
+    const float negative_y_depth = b.bottom() - a.top();
+    const float overlap_x = std::min(positive_x_depth, negative_x_depth);
+    const float overlap_y = std::min(positive_y_depth, negative_y_depth);
 
     CollisionHit hit;
     if (overlap_x <= overlap_y)
     {
-        const float direction = b.center().x >= a.center().x ? 1.0f : -1.0f;
+        const float direction = positive_x_depth < negative_x_depth
+            ? 1.0f
+            : (negative_x_depth < positive_x_depth
+                ? -1.0f
+                : (b.center().x >= a.center().x ? 1.0f : -1.0f));
         hit.manifold.normal = {direction, 0.0f};
         hit.manifold.penetration = clamp_non_negative(overlap_x);
         const float contact_x = direction > 0.0f ? a.right() : a.left();
@@ -37,7 +46,11 @@ namespace
     }
     else
     {
-        const float direction = b.center().y >= a.center().y ? 1.0f : -1.0f;
+        const float direction = positive_y_depth < negative_y_depth
+            ? 1.0f
+            : (negative_y_depth < positive_y_depth
+                ? -1.0f
+                : (b.center().y >= a.center().y ? 1.0f : -1.0f));
         hit.manifold.normal = {0.0f, direction};
         hit.manifold.penetration = clamp_non_negative(overlap_y);
         const float contact_x = (std::max(a.left(), b.left()) + std::min(a.right(), b.right())) * 0.5f;
@@ -50,7 +63,8 @@ namespace
 
 [[nodiscard]] std::optional<CollisionHit> detect_circle_circle(
     const WorldCircle& first,
-    const WorldCircle& second) noexcept
+    const WorldCircle& second,
+    float epsilon) noexcept
 {
     const elysia::core::Vector2 delta = second.center - first.center;
     const float radius_sum = first.radius + second.radius;
@@ -59,7 +73,7 @@ namespace
         return std::nullopt;
 
     const float distance = std::sqrt(std::max(0.0f, distance_squared));
-    const elysia::core::Vector2 normal = distance > elysia::core::Vector2::k_epsilon
+    const elysia::core::Vector2 normal = distance > epsilon
         ? delta / distance
         : elysia::core::Vector2{1.0f, 0.0f};
     CollisionHit hit;
@@ -74,7 +88,8 @@ namespace
 
 [[nodiscard]] std::optional<CollisionHit> detect_aabb_circle(
     const WorldAabb& first,
-    const WorldCircle& second) noexcept
+    const WorldCircle& second,
+    float epsilon) noexcept
 {
     const auto& rect = first.rect;
     const elysia::core::Vector2 closest{
@@ -87,7 +102,7 @@ namespace
         return std::nullopt;
 
     CollisionHit hit;
-    if (distance_squared > elysia::core::Vector2::k_epsilon * elysia::core::Vector2::k_epsilon)
+    if (distance_squared > epsilon * epsilon)
     {
         const float distance = std::sqrt(distance_squared);
         hit.manifold.normal = delta / distance;
@@ -233,19 +248,25 @@ CollisionResponse combine_collision_responses(
 
 std::optional<CollisionHit> detect_discrete_shapes(
     const WorldColliderShape& first,
-    const WorldColliderShape& second) noexcept
+    const WorldColliderShape& second,
+    float epsilon) noexcept
 {
+    if (!std::isfinite(epsilon) || epsilon < 0.0f)
+        epsilon = 0.0f;
     if (const auto* first_aabb = std::get_if<WorldAabb>(&first))
     {
         if (const auto* second_aabb = std::get_if<WorldAabb>(&second))
             return detect_aabb_aabb(*first_aabb, *second_aabb);
-        return detect_aabb_circle(*first_aabb, std::get<WorldCircle>(second));
+        return detect_aabb_circle(
+            *first_aabb, std::get<WorldCircle>(second), epsilon);
     }
     if (const auto* second_circle = std::get_if<WorldCircle>(&second))
-        return detect_circle_circle(std::get<WorldCircle>(first), *second_circle);
+        return detect_circle_circle(
+            std::get<WorldCircle>(first), *second_circle, epsilon);
     const auto hit = detect_aabb_circle(
         std::get<WorldAabb>(second),
-        std::get<WorldCircle>(first));
+        std::get<WorldCircle>(first),
+        epsilon);
     return hit ? std::optional<CollisionHit>(flipped_hit(*hit)) : std::nullopt;
 }
 

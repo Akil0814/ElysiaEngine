@@ -2,6 +2,7 @@
 
 #include "game/physics_demo/block_actor.h"
 #include "game/physics_demo/demo_tile_map.h"
+#include "game/physics_demo/demo_obstacle.h"
 #include "game/application/example_game_module.h"
 #include "game/scene/example_scene_keys.h"
 #include "game/scene/demo/demo_scene_payload.h"
@@ -135,6 +136,9 @@ void test_actor_provider_and_damage_flow()
             && player_span[2].filter.category == collision_layers::HitBox
             && !player_span[2].enabled,
         "Actor collider roles and initial HitBox state must match the contract");
+    require(player_span[0].material.static_friction == 0.0f
+            && player_span[0].material.dynamic_friction == 0.0f,
+        "Player Body material must avoid wall-sticking friction");
 
     player.start_attack();
     player.update(0.10);
@@ -158,6 +162,29 @@ void test_actor_provider_and_damage_flow()
     combat.flush_deaths();
     require(!enemy_span[0].enabled && !enemy_span[1].enabled,
         "Death processing must leave all physical participation disabled");
+}
+
+void test_obstacle_material_and_kinematic_platform()
+{
+    using namespace example::physics_demo;
+    SolidColorTexture texture;
+    ObstacleConfig config;
+    config.rect = {20, 30, 80, 12};
+    config.shape = elysia::physics::AabbShape{{0, 0, 80, 12}};
+    config.material = {1.0f, 0.8f, 0.25f};
+    DynamicBlockObstacle dynamic(texture, config);
+    require(dynamic.colliders().front().material == config.material,
+        "Demo obstacles must forward configured contact material");
+
+    KinematicMovingPlatform platform(texture, config, 10, 40, 15);
+    require(platform.physics_body()->type == elysia::physics::BodyType::Kinematic
+            && platform.physics_body()->velocity.x == 15.0f
+            && platform.colliders().front().material == config.material,
+        "Moving platform must be Kinematic and retain its configured material");
+    platform.set_position({41, 30});
+    platform.update(0.0);
+    require(platform.physics_body()->velocity.x == -15.0f,
+        "Moving platform must reverse after reaching its authored bound");
 }
 
 void test_scene_keys_are_unique()
@@ -378,6 +405,7 @@ int main()
     test_health_contract();
     test_tile_adapter_contract();
     test_actor_provider_and_damage_flow();
+    test_obstacle_material_and_kinematic_platform();
     test_scene_keys_are_unique();
     test_game_module_registers_demo_scenes();
     test_physics_demo_layout_contract();

@@ -23,6 +23,7 @@ struct CollisionShapeView
     CollisionResponse response = CollisionResponse::Ignore;
     CollisionDetectionMode detection_mode = CollisionDetectionMode::Discrete;
     std::optional<OneWayCollision> one_way;
+    PhysicsMaterial material{};
 };
 
 struct CollisionResponseContext
@@ -33,6 +34,12 @@ struct CollisionResponseContext
     bool transiently_ignored = false;
 };
 
+struct CollisionDetectionContext
+{
+    double fixed_delta_seconds = 0.0;
+    float epsilon = 1.0e-5f;
+};
+
 class ICollisionDetectionStrategy
 {
 public:
@@ -41,7 +48,7 @@ public:
     [[nodiscard]] virtual std::optional<CollisionHit> detect(
         const CollisionShapeView& first,
         const CollisionShapeView& second,
-        double delta_seconds) const noexcept = 0;
+        const CollisionDetectionContext& context) const noexcept = 0;
 };
 
 class ICollisionResponseStrategy

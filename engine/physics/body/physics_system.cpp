@@ -23,13 +23,13 @@ void PhysicsSystem::integrate(
 
         const elysia::core::Vector2 force = body->accumulated_force;
         body->accumulated_force = {};
-        if (!body->enabled || body->type == BodyType::Static)
-            continue;
         if (!std::isfinite(body->velocity.x) || !std::isfinite(body->velocity.y))
         {
             body->velocity = {};
             continue;
         }
+        if (!body->enabled || body->type == BodyType::Static)
+            continue;
 
         if (body->type == BodyType::Dynamic)
         {

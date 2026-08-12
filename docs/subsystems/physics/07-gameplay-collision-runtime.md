@@ -1,8 +1,6 @@
 # 07｜Gameplay 碰撞 Runtime
 
-> **实现状态**：具体 `GameplayCollisionRuntime`、默认 Team 规则、Body/PushBox/Hit 路由、攻击实例去重、drop-through 转发以及 GameplayScene 自动 attach/detach 已落地。
-
-> Gameplay 事件现已携带 `CollisionEventPhase`，Body/drop-through 已使用结构化 `CollisionTarget`，Runtime/Service 已具备 listener add/remove 契约；具体 `GameplayCollisionRuntime`、binding map、路由、命中去重和恢复逻辑仍未实现。
+> **实现状态**：具体 `GameplayCollisionRuntime`、默认 Team 规则、Body/PushBox/Hit/Sensor 路由、攻击实例去重、drop-through 转发以及 GameplayScene 自动 attach/detach 已落地。Gameplay 事件均携带 `CollisionEventPhase`，Body/drop-through 使用结构化 `CollisionTarget`，Runtime/Service 具备 listener add/remove 契约。
 
 返回：[物理文档入口](README.md)　上一篇：[Tile Map 碰撞](06-tile-map-collision.md)　下一篇：[实施路线与测试](08-implementation-roadmap-and-tests.md)
 
@@ -93,9 +91,9 @@ runtime 还借用：
 - 所有非零 ID 必须存在相符 binding；
 - `bind_actor` 原子提交，失败不留下部分索引。
 
-## 5. 建议事件形状
+## 5. 当前事件形状
 
-当前事件缺少 phase，Body 的 other 也不能表达 Tile。目标调整：
+当前公开事件均为值语义，带 phase；Body 的 other 可表达 Collider 或 Tile：
 
 ```cpp
 struct BodyContactEvent
@@ -121,9 +119,17 @@ struct HitOverlapEvent
     ColliderBinding hurt_box{};
     CollisionOverlap overlap{};
 };
+
+struct SensorOverlapEvent
+{
+    CollisionEventPhase phase = CollisionEventPhase::Begin;
+    ColliderBinding sensor{};
+    ColliderBinding body{};
+    CollisionOverlap overlap{};
+};
 ```
 
-`CollisionContact`/`CollisionOverlap` 自身也应升级为结构化 target pair。Gameplay event 中复制 binding 快照，避免 listener 回调中解绑后借用失效。
+`CollisionContact`/`CollisionOverlap` 使用结构化 target pair。Runtime 在进入任何 Gameplay listener 前复制当前核心事件所需的 binding、HitBox、instigator Team 和全部路由事件，避免 listener 回调中解绑、clear 或结束攻击后借用/迭代器失效。
 
 ## 6. Role 路由表
 
@@ -131,15 +137,16 @@ struct HitOverlapEvent
 | --- | --- | --- | --- |
 | Body | Tile | Block | BodyContact |
 | Body | 普通 World/Body | Block | BodyContact；项目可决定是否双方各一条 |
-| Body | Sensor/Overlap | Overlap | 首版可作为 BodyContact 或新增 Sensor 事件，必须统一 |
+| Body | Sensor | Overlap | BodyContact，并额外输出定向 SensorOverlap |
 | PushBox | PushBox | Overlap | PushBoxOverlap |
 | HitBox | HurtBox | Overlap | HitOverlap（定向） |
 | HurtBox | HitBox | Overlap | 交换为 HitBox→HurtBox 后输出 |
 | HitBox | HitBox | 任意 | 默认忽略 Gameplay |
 | HurtBox | HurtBox | 任意 | 默认忽略 Gameplay |
-| Sensor | 任意 | Overlap | 首版暂不声明专用事件，可由 BodyContact 扩展或后续加入 |
+| Sensor | Body | Overlap | SensorOverlap（Begin/Stay/End） |
+| Sensor | Sensor/HurtBox/HitBox/未绑定 | 任意 | 不产生 SensorOverlap |
 
-为了避免模糊，首版建议只把表中明确的前三类事件作为承诺；Sensor 专用路由列入后续。物理 Overlap 仍正常存在。
+Sensor 路由不读取 TeamRelation，也不参与攻击实例去重；只有最终物理 response 为 Overlap 时才产生。
 
 ## 7. Pair 规范化
 
@@ -148,6 +155,7 @@ Physics pair 顺序按 target 身份，与 Gameplay 角色方向无关。runtime
 - BodyContact：被绑定为 Body 的一方放入 `body`；contact manifold 若交换双方，normal 取反；
 - PushBoxOverlap：按 ActorId、再 ColliderId 稳定排序 first/second；这是对称事件；
 - HitOverlap：HitBox 永远是 hit_box，HurtBox 永远是 hurt_box；交换时 manifold normal 取反，使其仍从 hit 指向 hurt。
+- SensorOverlap：Sensor 永远是 sensor，Body 永远是 body；底层 pair 反序时仍规范化字段。
 
 禁止假定 `pair.first` 就是攻击方。
 
@@ -189,6 +197,10 @@ Begin/Stay/End 都路由。PushBox 本身在物理层通常配置 Overlap；角�
 
 如果设计需要持续伤害，必须由攻击定义提供 tick 规则，不能让所有 Stay 自动伤害。
 
+### Sensor
+
+Begin、Stay、End 全部转发。Sensor 事件只表达区域关系，不自动造成伤害、修改 Team 或改变物理解算；同一底层接触中的 Body 仍可收到 BodyContact。
+
 ## 10. 攻击命中去重
 
 建议 key：
@@ -209,7 +221,7 @@ AttackInstanceId -> set<ActorId hurt_owner>
 6. 未包含：先插入，再通知 listener，防止回调重入导致重复；
 7. `end_attack_instance` 显式清理。
 
-监听器抛异常的策略应与引擎统一。若允许异常传播，history 已写入，因此重试不会重复；若引擎禁止回调异常，应捕获、记录并继续下一个 listener。首版建议引擎回调边界捕获并记录，保持物理步完整。
+Gameplay listener 与核心 listener 的契约都是不得抛异常。Runtime 只在异常路径解除 dispatch guard、应用已排队的 listener 操作，然后继续上抛；不吞异常、不继续后续 listener、不回滚 binding/history/物理状态。异常最终由 Application update boundary 记录为 `UnhandledException` 并进入 FaultExit，异常后的 World/runtime 不保证可继续使用。
 
 ## 11. Drop-through
 
@@ -253,6 +265,8 @@ listener 集合是非 owning。规则：
 
 若 listener A 在回调中移除 listener B，B 是否收到当前事件容易产生歧义。首版采用快照语义：B 仍收到当前事件，从下一事件开始移除。
 
+一个核心 `CollisionEvent` 可能同时生成 Body 与 Sensor 等多条 Gameplay 路由。Runtime 先一次性生成全部值事件，再开始回调；因此当前核心事件的全部路由都反映进入该事件时的 binding/Team 状态。从下一个核心事件开始才观察回调所做的 binding 或 listener 修改。
+
 ## 13. Service 与 Scene 生命周期
 
 ### Scene 进入
@@ -292,6 +306,7 @@ PhysicsWorld reset
 | bind_actor | invalid owner/team、重复 rig 冲突、Collider 缺失/重复/role 不符 | 旧 maps 完全不变 |
 | bind_collider | invalid 字段、Collider 未注册、ID 已绑定 | 旧 binding 不变 |
 | bind_hit_box | role 非 HitBox、attack IDs 无效、普通 binding 冲突 | 不留下普通半 binding |
+| unbind_actor | invalid/未知 Actor，且没有该 owner 的独立 binding | 其他 Actor、binding 和攻击实例不变 |
 | unbind_collider | invalid/未知 ID | 其他 binding 不变 |
 | request_drop_through | 非支撑、非 OneWay、目标失效 | ignore set 不变 |
 | end_attack_instance | invalid/未知 ID | 其他 history 不变 |
@@ -308,7 +323,8 @@ PhysicsWorld reset
 - HitBox role 错误；
 - 重复 owner rig；
 - 失败后所有 map 数量不变；
-- unbind 同时清 rig、HitBox map、hit history 引用和 drop-through。
+- `unbind_collider` 同步清理 rig 中 body/push/hurt/sensor 槽位，空 rig 随之移除；
+- `unbind_actor` 一次清 rig、该 owner 的全部普通/HitBox binding，以及以该 Actor 为 hurt owner 的 hit history；清理后允许安全重新绑定同一 ActorId。
 
 ### 路由
 
@@ -316,11 +332,13 @@ PhysicsWorld reset
 - Body/Tile target 保留具体坐标；
 - PushBox 以 ActorId/ColliderId 稳定排序；
 - HitBox/HurtBox 始终定向；
+- Sensor/Body 始终定向，三阶段转发且 Team 不过滤；
 - 无 binding、同 role 非法组合安全忽略并限频诊断。
 
 ### 阵营与命中
 
 - Hostile 首次 Begin 命中；
+- Hostile/Friendly 由 HitBox instigator 对应 Actor rig 的 Team 决定，不直接相信 HitBox collider 的 Team；无有效 instigator rig 时拒绝命中；
 - Friendly 拒绝；
 - Neutral 默认拒绝；
 - 一个 attack 的多个 HitBox 不重复伤同一 Actor；

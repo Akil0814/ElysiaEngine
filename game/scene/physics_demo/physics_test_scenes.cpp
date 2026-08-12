@@ -121,10 +121,22 @@ void PhysicsCollisionTestScene::build_demo()
         elysia::core::Rect{1000, 594, 38, 52}, *player, 950.0f, 1180.0f);
 
     auto box = aabb_obstacle({470, 430, 38, 38}, elysia::core::colors::purple_500);
+    box.material = {1.1f, 0.8f, 0.0f};
     create_and_add_object<DynamicBlockObstacle>(solid_texture(), box);
     auto circle = aabb_obstacle({540, 420, 36, 36}, elysia::core::colors::pink_500);
     circle.shape = elysia::physics::CircleShape{{18, 18}, 18};
+    circle.material = {0.2f, 0.1f, 0.65f};
     create_and_add_object<DynamicBlockObstacle>(solid_texture(), circle);
+
+    auto moving_platform = aabb_obstacle(
+        {670, 430, 180, 18}, elysia::core::colors::purple_700);
+    moving_platform.material = {1.0f, 0.8f, 0.0f};
+    create_and_add_object<KinematicMovingPlatform>(
+        solid_texture(), moving_platform, 650.0f, 850.0f, 90.0f);
+    auto passenger = aabb_obstacle(
+        {735, 390, 34, 38}, elysia::core::colors::orange_500);
+    passenger.material = {1.0f, 0.8f, 0.0f};
+    create_and_add_object<DynamicBlockObstacle>(solid_texture(), passenger);
 
     auto ccd = aabb_obstacle({70, 210, 24, 24}, elysia::core::colors::cyan_500);
     ccd.detection = elysia::physics::CollisionDetectionMode::Continuous;

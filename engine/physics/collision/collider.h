@@ -1,6 +1,7 @@
 #pragma once
 
 #include "collider_shape.h"
+#include "physics_material.h"
 
 #include <cstdint>
 #include <optional>
@@ -90,6 +91,7 @@ struct Collider
     CollisionResponse response = CollisionResponse::Block;
     CollisionDetectionMode detection_mode = CollisionDetectionMode::Discrete;
     std::optional<OneWayCollision> one_way;
+    PhysicsMaterial material{};
 
     std::string_view tag{};
 

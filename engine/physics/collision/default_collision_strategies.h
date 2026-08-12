@@ -39,7 +39,7 @@ public:
     [[nodiscard]] std::optional<CollisionHit> detect(
         const CollisionShapeView& first,
         const CollisionShapeView& second,
-        double delta_seconds) const noexcept override;
+        const CollisionDetectionContext& context) const noexcept override;
 };
 
 class SweptAabbCollisionStrategy final
@@ -49,7 +49,7 @@ public:
     [[nodiscard]] std::optional<CollisionHit> detect(
         const CollisionShapeView& first,
         const CollisionShapeView& second,
-        double delta_seconds) const noexcept override;
+        const CollisionDetectionContext& context) const noexcept override;
 };
 
 class DefaultCollisionResponseStrategy final

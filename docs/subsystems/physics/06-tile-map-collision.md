@@ -2,7 +2,7 @@
 
 > **实现状态**：规则整格 Tile 候选、Block/Overlap/OneWay、负坐标、非零原点、非方格尺寸、越界策略、AABB CCD 和 Tile DDA 查询均已落地。项目仍只需实现 `ITileCollisionWorld`。
 
-> `TileCoordinate`、`CollisionTarget`、`TileCollisionCell` 与 `ITileCollisionWorld` 已作为公共契约落地；每个 `PhysicsWorld` 可绑定一个活动 Tile World。坐标换算、候选范围、Tile 检测/求解和项目适配器仍待实现。
+> `TileCoordinate`、`CollisionTarget`、`TileCollisionCell` 与 `ITileCollisionWorld` 已作为公共契约落地；每个 `PhysicsWorld` 可绑定一个活动 Tile World。坐标换算、候选范围、Tile 检测/求解、内部边缘抑制与查询均已实现，项目只需提供适配器。
 
 返回：[物理文档入口](README.md)　上一篇：[碰撞算法](05-collision-algorithms.md)　下一篇：[Gameplay Runtime](07-gameplay-collision-runtime.md)
 
@@ -38,7 +38,7 @@ PhysicsWorld / CollisionSystem
 
 ## 3. 目标契约
 
-以下是建议接口，不是当前已存在代码：
+以下是当前已存在的公共契约：
 
 ```cpp
 #pragma once
@@ -77,6 +77,7 @@ struct TileCollisionCell
     TileCollisionType type = TileCollisionType::Empty;
     CollisionFilter filter{};
     std::optional<OneWayCollision> one_way;
+    PhysicsMaterial material{};
     std::string_view tag{};
 };
 
@@ -244,7 +245,7 @@ tile_y = floor((world_y - origin_y) / tile_height)
 | (116,82) | (1,1) |
 | (99.9,50) | (-1,0) |
 
-转换 helper 应在 tile_size 无效时返回 nullopt，而不是除零。
+转换 helper 应在 tile_size 无效、输入非有限或 floor 结果超出 `int` 可表示范围时返回 nullopt，而不是除零或执行未定义浮点到整数转换。
 
 ## 8. Tile rect
 
@@ -256,7 +257,7 @@ rect = Rect(left, top, tile_size.x, tile_size.y)
 
 允许构造越界坐标的 rect，因为 Block 越界策略需要把地图外覆盖区域视作虚拟格子。整数乘浮点前要显式转换，极端坐标导致非有限结果时跳过并诊断。
 
-## 9. AABB 候选范围
+## 9. checked Tile 候选范围
 
 对 candidate/swept rect：
 
@@ -267,13 +268,14 @@ min_y = floor((top    - origin.y) / tile_height)
 max_y = floor((bottom - origin.y - epsilon) / tile_height)
 ```
 
-减 epsilon 的目的：AABB 的 right 恰好等于下一格 left 时，不把下一格算作面积相交候选。
+这是模拟碰撞使用的半开模式；减 epsilon 的目的，是在 AABB 的 right 恰好等于下一格 left 时不把下一格算作面积相交候选。Overlap 和 sweep 查询改用闭合模式，左右上下边界相切的 Tile 都必须进入精确检测，`fraction == 1` 的 sweep 也必须返回。
 
 - Empty 越界策略：range 裁剪至 `[0, columns-1] × [0, rows-1]`；
-- Block 越界策略：不裁剪到地图，但 range 只来自有限 swept rect，所以不会无限遍历；
+- Block 越界策略：不裁剪到地图，但 range 只来自有限 swept rect；
 - candidate rect 为空：返回空 range；
 - max < min：返回空 range；
-- 单次候选格数超过安全阈值时记录诊断，但不能悄悄漏碰撞。首版阈值只用于监控，不用于截断。
+- min/max floor 结果超出 `int`、候选宽高或乘积溢出、单次候选格数超过 `PhysicsWorldConfig::max_tile_candidates_per_operation` 时，整段 Tile 操作安全拒绝；不截断为不完整结果；
+- 模拟拒绝计入 `PhysicsStepStats::rejected_tile_candidate_ranges`；query/ray 的 Tile 部分安全返回空，但普通 Collider 结果仍可返回。
 
 ## 10. Cell 到响应的映射
 
@@ -314,10 +316,13 @@ Filter 先于几何窄检。Cell 的 filter 与移动 Collider filter 使用和�
 
 ## 13. 相邻 Tile 接缝
 
-角色沿连续墙面移动时，不应被内部接缝法线卡住。建议：
+角色沿连续墙面移动时，不应被内部接缝法线卡住。当前实现的规则是：
 
-- 同一步相邻 Tile 产生同方向共面 contact 时合并为一个求解约束，事件仍可按具体 Tile target 保留；
-- 或在 solver 中先按最早 TOI/最大穿透处理主要法线，忽略不会增加约束的共线次 contact；
+- 只检查轴对齐法线，并在 Tile 朝向 collider 的一侧查询相邻格；
+- 当前格和相邻格都是 Block，或都是相同 pass-through 方向且本次都分类为 Block 的 OneWay 时，丢弃被覆盖的内部面；
+- Block/Overlap、不同 OneWay 规则、真实外轮廓和不匹配 filter 不合并；
+- 过滤在初次离散/CCD 候选及 CCD 剩余时间迭代中使用同一入口，早于求解、缓存和事件；
+- 外露顶面不合并，因此跨格支撑仍保留具体 TileCoordinate；
 - 不要对 Tile rect 人为缩小，否则高速对象可能从缝隙穿过；
 - 不要把所有相邻实心格预合并成永久 Collider，除非另做 chunk mesh 缓存和脏区更新设计。
 
@@ -335,7 +340,7 @@ OneWay cell 仍使用整格 AABB 做候选，但只阻挡指定表面。以常�
 
 ## 15. Drop-through 与 Tile target
 
-现有 `DropThroughRequest` 的 target 是 ColliderId，无法指向 Tile。目标接口应调整为：
+当前 `DropThroughRequest` 使用结构化 target，可指向 Collider 或 Tile：
 
 ```cpp
 struct DropThroughRequest

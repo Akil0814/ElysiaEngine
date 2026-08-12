@@ -84,10 +84,24 @@ public:
     std::uint32_t advance(double frame_delta_seconds);
     void reset() noexcept;
 
+    void set_debug_capture(PhysicsDebugCapture capture) noexcept;
+    PhysicsDebugCapture debug_capture() const noexcept;
+    const PhysicsDebugSnapshot& debug_snapshot() const noexcept;
+
     std::optional<CollisionQueryHit> raycast(
         const RayCastQuery& query) const override;
     std::optional<CollisionQueryHit> segment_cast(
         const SegmentCastQuery& query) const override;
+    void raycast_all(const RayCastQuery&,
+        std::vector<CollisionQueryHit>& out_hits) const override;
+    void segment_cast_all(const SegmentCastQuery&,
+        std::vector<CollisionQueryHit>& out_hits) const override;
+    void overlap_aabb(const AabbOverlapQuery&,
+        std::vector<CollisionOverlapQueryHit>& out_hits) const override;
+    void overlap_circle(const CircleOverlapQuery&,
+        std::vector<CollisionOverlapQueryHit>& out_hits) const override;
+    std::optional<CollisionQueryHit> sweep_aabb(
+        const AabbSweepQuery&) const override;
 };
 ```
 
@@ -95,7 +109,7 @@ public:
 
 - **调用者**：Scene 构造或成员初始化。
 - **职责**：校验并保存 config，初始化空注册表、无 Tile World、零 accumulator 和从 1 开始的 handle/Collider ID 计数器。
-- **校验**：fixed delta 有限且大于零；max steps 和 solver iterations 大于零；gravity 分量有限。
+- **校验**：fixed delta 有限且大于零；max steps、solver/CCD iterations 和 Tile 单次候选上限大于零；gravity 与全部数值容差有限且落在合法范围。
 - **失败**：无效配置抛 `std::invalid_argument`，不能静默修正，因为这属于开发期配置错误。
 - **测试**：默认构造、每个无效字段、初始空状态。
 
@@ -127,10 +141,10 @@ public:
 ### `unregister_object(handle)`（当前已实现）
 
 - **输入**：有效且属于当前 world 的 handle。
-- **步骤**：步外立即移除 collider/owner 索引，把 Provider 中全部 Collider ID 写回 invalid；步中当前拒绝；不删除 owner/provider。
+- **步骤**：步外立即移除 collider/owner 索引，把 Provider 中全部 Collider ID 写回 invalid；步中/回调中进入 pending queue；不删除 owner/provider。
 - **返回**：找到或成功排队 true；无效/未知 handle false。
 - **ID**：已释放 Collider ID 不复用，并强制把对象字段清零；对象只有在旧 World 注销后才能进入另一 World。
-- **事件**：当前没有 contact cache，因此注销不生成 End；world reset/Scene 退出同样静默。
+- **事件**：注销静默清相关 contact，不生成 End；world reset/Scene 退出同样静默。
 - **测试**：幂等性、旧 handle 不能控制新 entry、ID 清零与数值不复用。
 
 ### `set_tile_world(world)`（当前已实现）
@@ -148,36 +162,46 @@ public:
 - **事件**：正常运行期间清除可产生 Tile End；Scene reset/退出走静默 reset。
 - **生命周期**：adapter 销毁前必须成功 clear。
 
-### `advance(frame_delta_seconds)`（固定步骨架已实现）
+### `advance(frame_delta_seconds)`（当前已实现）
 
 - **调用者**：非暂停的 `Scene::on_update`，每渲染帧一次。
 - **职责**：可变帧时间转固定物理步。
-- **规则**：非有限或非正 delta 返回 0 且不改 accumulator；执行步数不超过配置；超额完整步丢弃并计诊断；保留不足一步余数。
-- **当前副作用**：只更新 accumulator 和 previous/current 快照；空系统不移动对象、不修改速度、不生成事件。
+- **规则**：非有限或非正 delta 返回 0 且不改 accumulator；执行步数不超过配置；每一步在进入 `fixed_step` 前先消费 accumulator；超额完整步丢弃并以饱和计数诊断；保留不足一步余数。
+- **副作用**：执行完整积分、检测、求解、缓存和事件流程；查询与 Debug Capture 开关不改变该结果。
 - **返回**：实际执行固定步数量。
 - **重入**：执行期间再次调用必须拒绝并记录错误。
 - **测试**：不足一步、恰好一步、多步、超过上限、NaN、负数、暂停时未调用。
 
-### `fixed_step(dt)`（当前流程骨架）
+### `fixed_step(dt)`（当前完整流程）
 
 - **调用者**：只由 advance。
 - **前置**：dt 等于配置 fixed delta；不允许重入。
-- **当前顺序**：跳过失效 owner → snapshot previous/current → 构造 body views → integrate → 写回 view origin → 构造 collider views → evaluate → 遍历空事件列表 → clear forces。后续再在 evaluate 与 World 中加入候选、检测、求解和缓存。
-- **失败策略**：单个无效 entry 记录诊断并跳过；核心容器分配异常可以传播，但必须解除 stepping guard。
+- **顺序**：应用安全边界操作 → snapshot previous/current → integrate（同时消费 force）→ 构造值语义 shape views → evaluate/solve → 提交 Transform/velocity → ContactCache 生成事件 → listener 批次分发 → 清理已完全分离的 drop-through。
+- **失败策略**：单个无效 entry 记录诊断并跳过；核心容器分配异常或 listener 异常可以传播，但必须解除 stepping/dispatch guard。listener 不得抛异常，物理层不回滚已提交状态；Application update boundary 负责记录 `UnhandledException` 并 FaultExit。
 - **测试**：使用 fake system/listener 验证调用顺序。
 
 ### `reset()`（当前已实现）
 
 - **职责**：静默清除 entries、indices、pending、cache、frame buffers、Tile 借用和 accumulator；保留 config 与已安装策略。
+- **时机**：步外立即执行；advance 或事件回调期间仅设置 pending reset。当前整批 listener 快照完成后优先执行 reset，并停止本次 advance 的后续固定步；其他 pending 操作被一并清除。
 - **不得做**：向 Gameplay 分发 End、删除 owner、调用 Scene API。
 - **ID**：计数器不回绕；reset 后可以从 1 重启仅因为所有旧 handles 已随 world 生命周期失效。若同一 world 对外 handle 可能残留，则继续递增更安全，首版采用继续递增。
 
-### `raycast(query)` / `segment_cast(query)`（接口已实现，算法未实现）
+### `set_debug_capture(capture)` / `debug_capture()` / `debug_snapshot()`（当前已实现）
+
+- **调用者**：Scene 调试适配或独立诊断工具；必须在 `advance` 前设置当前帧需要的分类。
+- **职责**：裁剪未知位、保存 Shapes/BroadPhase/Contacts/Velocities 掩码，并在掩码改变时立即清空旧快照。
+- **默认**：`None`；不请求采集时 `CollisionSystem` 收到空输出，不创建或复制任何调试 vector 数据。
+- **隔离**：capture 不改变积分、候选、窄检、求解、事件或 `PhysicsStepStats`；快照只用于诊断。
+- **生命周期**：返回的快照引用归 World 所有，下一固定步、capture 修改或 reset 都可能改变内容。
+- **测试**：默认空、逐分类采集、分类切换清空、关闭清空，以及开启/关闭前后物理统计和 contact 一致。
+
+### `raycast(query)` / `segment_cast(query)`（当前已实现）
 
 - **调用者**：Gameplay、AI、调试工具。
-- **当前行为**：安全返回 `std::nullopt`，不声称查询可用。后续职责是查询已提交的 enabled Collider 与活动 Tile World，返回最近合法命中。
+- **行为**：复用对应 all-hits 函数并返回第一个元素；无合法命中返回 `std::nullopt`。
 - **过滤**：使用 query filter 与目标 filter 的双向规则；Ignore response 仍由项目决定是否可查询，首版 Ignore 不命中，Overlap/Block 均可命中。
-- **平局**：fraction 相同（epsilon 内）时按 CollisionTarget 稳定顺序。
+- **排序**：all-hits 按 distance、target 排序并按 target 去重；最近查询严格等于第一项。
 - **副作用**：无；不能修改 contact cache、accumulator 或事件。
 - **测试**：见 §11。
 
@@ -241,7 +265,7 @@ void integrate(std::span<PhysicsObjectState> entries,
 
 ### `ICollisionDetectionStrategy::detect`（当前接口）
 
-- **输入**：first/second 已规范化且有效；dt 为固定步。
+- **输入**：first/second 已规范化且有效；`CollisionDetectionContext` 携带 fixed dt 和 World 统一 epsilon。
 - **返回**：几何命中返回 CollisionHit，否则 nullopt。
 - **法线**：严格 first → second。
 - **不得做**：修改 Collider/owner、检查 Team、分发事件。
@@ -272,15 +296,18 @@ void integrate(std::span<PhysicsObjectState> entries,
 - **Tile**：只查询移动包围盒覆盖的格子，不遍历全图。
 - **输出**：按 target pair 排序；同 pair 多 hit 保留最早 TOI，离散平局保留更深/稳定法线的结果。
 
-### `solve_contacts(entries, contacts, iterations, dt)`（目标）
+### CollisionSystem 内部 velocity/position solve（当前已实现）
 
-- **职责**：只处理 Block；按逆质量修正 position 和 closing normal velocity；每次迭代按稳定 pair 顺序。
+- **当前职责**：只处理 Block；按逆质量修正 position，并以稳定 pair 顺序执行法向与切向顺序冲量。
+- **材质**：摩擦取双方几何平均，弹性取较大值；低于 restitution threshold 的接触强制零弹性。
+- **静摩擦**：完全抵消所需切向冲量未超过 `static_friction * normal_impulse` 时采用所需值；否则按 dynamic friction 截断。
+- **Kinematic**：逆质量为零但速度参与相对速度，因此可通过摩擦携带 Dynamic。
 - **零总逆质量**：不修正，仍保留 contact。
 - **Overlap**：绝不改状态。
 - **Tile**：Tile 逆质量始终为零。
 - **输出后处理**：若迭代改变位置，需要更新后续算法使用的 current world shape。
 
-### `build_events(contacts, cache, out_events)`（目标）
+### `ContactCache::update(contacts, out_events)`（当前已实现）
 
 - **职责**：把本步 contacts 提交给 cache，生成 Begin/Stay/End，稳定排序。
 - **同一步重复 contact**：合并后再进入 cache。
@@ -288,7 +315,7 @@ void integrate(std::span<PhysicsObjectState> entries,
 
 ### `CollisionSystem::evaluate(...)`（当前已实现）
 
-入口接收 mutable `PhysicsObjectState`、只读 `CollisionShapeView`、Tile World、临时忽略对、config、fixed dt、输出 frame、stats 和 debug snapshot。它同步索引、收集候选、执行检测/分类/CCD/迭代求解并稳定输出 contact。跨步事件仍由 PhysicsWorld 的 ContactCache 构造。
+入口接收 mutable `PhysicsObjectState`、只读 `CollisionShapeView`、Tile World、临时忽略对、config、fixed dt、输出 frame、stats、`PhysicsDebugCapture` 和可空 debug snapshot。它同步索引、收集候选、执行检测/分类/CCD/迭代求解并稳定输出 contact；debug 输出为空或分类未请求时不得复制、排序或去重诊断数据。跨步事件仍由 PhysicsWorld 的 ContactCache 构造。
 
 ## 7. 默认策略构造函数
 
@@ -336,22 +363,24 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 - noexcept，不记录每格日志；
 - 不暴露项目 Tile 引用，避免借用失效。
 
-### `TileCollisionResolver::world_to_tile(world, point)`（目标）
+### checked Tile coordinate/range helpers（当前已实现）
 
 - 使用 `floor((point-origin)/tile_size)` 分轴计算；
 - 返回有符号坐标；
 - 不能用向零截断；
-- world 配置无效时返回 nullopt。
+- world 配置无效、结果超出 `int` 可表示范围时返回 nullopt；
+- 候选数乘法先做溢出检查，再与 `max_tile_candidates_per_operation` 比较；超过上限整段拒绝并计入 `rejected_tile_candidate_ranges`；
+- 模拟候选使用半开最大边，overlap/sweep 查询使用包含边界相切目标的闭合模式。
 
 ### `tile_rect(world, coordinate)`（目标）
 
 返回 `origin + coordinate * size` 的世界 AABB。允许传越界坐标以构造虚拟边界格。
 
-### `candidate_range(world, swept_bounds)`（目标）
+### `candidate_range(world, swept_bounds)`（当前已实现）
 
 - 最小边使用 floor；最大边使用 `floor((max-origin-epsilon)/size)`，保持半开边界；
 - Empty 越界策略可裁剪到地图范围；Block 策略保留实际覆盖的越界坐标，但必须限制为 swept bounds 覆盖的有限范围；
-- 空/非有限 bounds 返回空 range。
+- 空/非有限 bounds、不可表示坐标、候选数量溢出或超过配置上限返回空 range；不得截断执行。
 
 ### `collect_contacts(...)`（目标）
 
@@ -384,6 +413,28 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 - 返回 fraction 相对 `[start,end]`；
 - 其他语义与 raycast 一致。
 
+### `raycast_all` / `segment_cast_all`
+
+- 进入函数先清空输出 vector；无效输入保持空；
+- Collider 使用 AABB slab/Circle 二次方程，Tile 使用完整距离 DDA；
+- Ignore 不命中，Overlap/Block 均返回；
+- 统一按 distance、target 排序，同一 target 只保留最近命中；
+- 不写 ContactCache、事件、stats 或 Debug Snapshot。
+
+### `overlap_aabb` / `overlap_circle`
+
+- 查询当前已提交世界形状，支持 AABB、Circle 与 Tile；
+- manifold normal 始终从 query 指向 target；
+- Tile 候选使用 floor、包含相切目标的闭合最大边、非零 origin、负坐标和非方形格；
+- 结果按 target 排序去重；输出前总是清空。
+
+### `sweep_aabb`
+
+- 使用 start AABB 与 displacement 构造 swept bounds，复用 Swept AABB；
+- 只检测 AABB Collider 和 Tile，明确跳过 Circle；
+- 初始重叠为 TOI 0；零位移仍走 AABB-only sweep/initial-overlap 路径，并选 target 最小者，Circle 目标仍被排除；
+- 返回最近 fraction，平局按 target。
+
 ## 10. Gameplay runtime 与 Service 函数
 
 ### `GameplayCollisionService::attach_runtime(runtime)`（当前已实现）
@@ -404,17 +455,17 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 
 返回指针是否非空；不验证借用对象是否仍存活，因此生命周期必须由 Scene 保证。
 
-### `bind_actor` / `bind_collider` / `bind_hit_box` / `unbind_collider`（当前转发）
+### `bind_actor` / `bind_collider` / `bind_hit_box` / `unbind_actor` / `unbind_collider`（当前转发）
 
 - 使用 `runtime_or_log` 获取 active runtime；
 - 无 runtime 返回 false；
 - 有 runtime 时原样转发并返回结果；
 - Service 不重复业务校验，具体 runtime 负责完整一致性。
 
-### `request_drop_through(request)`（当前部分实现）
+### `request_drop_through(request)`（当前已实现）
 
 - Service 先拒绝无效、相同 actor/target ID；
-- 目标设计把 target 升级为 `CollisionTarget`，允许普通单向 Collider 或 Tile；
+- target 使用 `CollisionTarget`，允许普通单向 Collider 或 Tile；
 - runtime 再验证 actor 是已绑定 Body、target 当前是有效支撑面、规则允许穿透；
 - 成功后只忽略这一对，不得禁用 actor 对所有平台的碰撞。
 
@@ -424,28 +475,30 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 - 无 runtime 记录 collision ERROR，消息包含 operation，返回 nullptr；
 - noexcept，不抛异常。
 
-### `IGameplayCollisionRuntime` 五个当前纯虚函数
+### `IGameplayCollisionRuntime` 当前生命周期函数
 
-- `bind_actor`：原子验证并提交 rig，同时创建所有反向索引；失败不保留部分 binding。
-- `bind_collider`：验证 Collider 已在 PhysicsWorld 注册、ID 未绑定、Actor/Team/Role 有效。
-- `bind_hit_box`：先验证普通 binding role=HitBox，再验证 instigator 与 attack IDs，原子提交。
+- `bind_actor`：拒绝 invalid owner/team、空 rig、重复 Collider 和 role 冲突；异常安全地提交 rig 与全部反向索引，失败不保留部分 binding。
+- `bind_collider`：验证 Collider 已在 PhysicsWorld 注册、ID 未绑定、Actor/Team/Role 有效；拒绝 HitBox，HitBox 必须走专用入口。
+- `bind_hit_box`：验证 role=HitBox、instigator 与全部 attack ID，原子提交普通/HitBox 两个索引。
+- `unbind_actor`：一次删除 Actor rig、该 owner 的全部普通/HitBox binding，以及以该 Actor 为 hurt owner 的命中历史；其他 Actor 和 attack instance 保持不变。
 - `unbind_collider`：移除普通/HitBox binding、从 rig 集合和命中缓存清除引用；未知 ID 返回 false。
 - `request_drop_through`：验证当前支撑关系并增加临时忽略 key。
 
-### `GameplayCollisionRuntime::add_listener(listener)` / `remove_listener(listener)`（目标）
+### `GameplayCollisionRuntime::add_listener(listener)` / `remove_listener(listener)`（当前已实现）
 
 - listener 非 owning；重复 add 幂等；未知 remove 返回 false；
 - 分发期间修改进入 pending listener queue；
 - 稳定使用注册顺序分发；
 - listener 析构前必须 remove。
 
-### `on_collision_event(event)`（目标）
+### `on_collision_event(event)`（当前已实现）
 
 - **调用者**：PhysicsWorld 核心事件分发。
-- **职责**：查询双方 binding，按 role 规范化方向，检查 team/attack 去重，然后构造相应 Gameplay event。
-- **Begin**：Body、PushBox、Hit 均可路由；Hit 只在 Begin 尝试新增命中。
-- **Stay**：Body/PushBox 路由；Hit 默认不重复。
-- **End**：Body/PushBox 路由并清支撑/drop-through；Hit 用于清瞬时状态但不撤销伤害。
+- **职责**：先复制双方 binding、HitBox、instigator rig Team，并把当前核心事件能产生的全部语义事件构造成值列表；随后使用当前 listener 快照分发。回调内 unbind Actor/Collider、clear runtime 或 end attack 不得使当前事件迭代器失效。
+- **Begin**：Body、PushBox、Sensor 均可路由；Hit 只在 Begin 尝试新增命中。
+- **Stay/End**：Body、PushBox、Sensor 路由；Hit 默认不重复。
+- **Sensor**：仅 Sensor↔Body 且物理 response=Overlap；字段始终按 sensor、body 排列，Team 与攻击去重不参与。
+- **Hit Team**：使用 instigator 对应 Actor rig 的 Team；找不到有效 rig 时拒绝命中，不信任 HitBox collider 自带 Team。
 - **不得做**：直接调用伤害系统；只通知 listener。
 
 ### `end_attack_instance(id)`（目标）
@@ -456,11 +509,12 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 
 每固定步事件处理后检查忽略 pair。只要 actor 仍与目标几何相交或尚未完全越过平台容差就保留；完全离开后删除。对象/Tile World 注销时立即清理。
 
-### `GameplayCollisionListener` 三个当前回调
+### `GameplayCollisionListener` 四个当前回调
 
 - `on_body_contact`：接收规范化 Body 为主体的接触；默认无操作。
 - `on_push_box_overlap`：接收稳定排序但语义对称的两个 PushBox；默认无操作。
 - `on_hit_overlap`：始终 hit_box 为攻击方、hurt_box 为受击方；默认无操作。
+- `on_sensor_overlap`：始终 sensor 在前、body 在后；Begin/Stay/End 均转发。
 
 目标事件增加 phase。回调允许请求对象销毁/解绑，但实际 registry 修改延迟到分发结束。
 
@@ -482,8 +536,9 @@ virtual TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept = 0;
 | collect/detect/solve | 稳定 pair、三形状组合、Block/Overlap、零逆质量 |
 | contact cache | Begin→Stay→End、disable、unregister、Tile clear |
 | tile helpers | 负坐标、非零 origin、半开边界、非正方形格子、越界策略 |
-| ray/segment | AABB、Circle、Tile、inside、平局、过滤、无效输入 |
+| ray/segment | nearest/all-hits、AABB、Circle、Tile、inside、格角、排序、过滤、无效输入 |
+| overlap/sweep | AABB/Circle/Tile、相切、零位移、初始重叠、Circle sweep 跳过、只读性 |
 | gameplay binding | 原子提交、冲突、解绑清理、role 规范化 |
-| gameplay event | Body/PushBox/Hit、phase、team、命中去重、回调期间注销 |
+| gameplay event | Body/PushBox/Hit/Sensor、phase、team、命中去重、回调期间注销 |
 
 下一篇：[碰撞算法与数值约定](05-collision-algorithms.md)

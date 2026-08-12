@@ -1,10 +1,12 @@
 #include "physics_world.h"
 
 #include "collision/default_collision_strategies.h"
+#include "tile/tile_coordinate_range.h"
 #include "collision/world_shape.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <stdexcept>
@@ -20,6 +22,7 @@ namespace
         && config.max_steps_per_advance > 0
         && config.solver_iterations > 0
         && config.max_ccd_iterations > 0
+        && config.max_tile_candidates_per_operation > 0
         && finite_vector(config.gravity)
         && std::isfinite(config.collision_epsilon)
         && config.collision_epsilon > 0.0f
@@ -30,7 +33,9 @@ namespace
         && config.position_correction_percent <= 1.0f
         && std::isfinite(config.contact_normal_threshold)
         && config.contact_normal_threshold >= 0.0f
-        && config.contact_normal_threshold <= 1.0f;
+        && config.contact_normal_threshold <= 1.0f
+        && std::isfinite(config.restitution_velocity_threshold)
+        && config.restitution_velocity_threshold >= 0.0f;
 }
 
 [[nodiscard]] bool valid_tile_world(const ITileCollisionWorld& world) noexcept
@@ -154,6 +159,22 @@ struct RayShapeHit
     const CollisionFilter& target) noexcept
 {
     return collision_filters_allow(query, target);
+}
+
+[[nodiscard]] bool finite_rect(const elysia::core::Rect& rect) noexcept
+{
+    return finite_vector(rect.position())
+        && finite_vector(rect.size());
+}
+
+[[nodiscard]] CollisionResponse tile_response(
+    const TileCollisionCell& cell) noexcept
+{
+    if (cell.type == TileCollisionType::Empty)
+        return CollisionResponse::Ignore;
+    return cell.type == TileCollisionType::Overlap
+        ? CollisionResponse::Overlap
+        : CollisionResponse::Block;
 }
 }
 
@@ -533,8 +554,47 @@ bool PhysicsWorld::request_pass_through(ColliderId actor, CollisionTarget suppor
     }
     const CollisionPair requested = normalized_collision_pair(actor_target, support);
     const auto current = _contact_cache.contacts();
-    if (std::ranges::find(current, requested, &CollisionContact::pair) == current.end())
+    const auto requested_contact = std::ranges::find(
+        current, requested, &CollisionContact::pair);
+    if (requested_contact == current.end()
+        || requested_contact->response != CollisionResponse::Block)
         return false;
+
+    const auto target_bounds = [&](CollisionTarget target)
+        -> std::optional<elysia::core::Rect>
+    {
+        if (target.kind == CollisionTargetKind::Tile && _tile_world)
+            return tile_rect(*_tile_world, target.tile);
+        if (target.kind != CollisionTargetKind::Collider)
+            return std::nullopt;
+        const auto collider = _collider_index.find(target.collider);
+        const Registration* registration = find_registration(target.collider);
+        if (collider == _collider_index.end() || !collider->second || !registration)
+            return std::nullopt;
+        const auto shape = make_world_shape(
+            collider->second->shape, registration->current_owner_origin);
+        return shape ? std::optional<elysia::core::Rect>{shape_bounds(*shape)}
+            : std::nullopt;
+    };
+    const auto actor_normal = [&](const CollisionContact& contact)
+    {
+        return contact.pair.first == actor_target
+            ? contact.manifold.normal : -contact.manifold.normal;
+    };
+    const auto requested_one_way = one_way_for_target(support);
+    const auto requested_bounds = target_bounds(support);
+    if (!requested_one_way || !requested_bounds)
+        return false;
+    const auto requested_normal = actor_normal(*requested_contact);
+    const auto support_plane = [](const elysia::core::Rect& bounds,
+                                  elysia::core::Vector2 normal) noexcept
+    {
+        if (std::fabs(normal.x) >= std::fabs(normal.y))
+            return normal.x >= 0.0f ? bounds.left() : bounds.right();
+        return normal.y >= 0.0f ? bounds.top() : bounds.bottom();
+    };
+    const float requested_plane = support_plane(*requested_bounds, requested_normal);
+    bool inserted = false;
     for (const CollisionContact& contact : current)
     {
         if (contact.response != CollisionResponse::Block)
@@ -546,14 +606,36 @@ bool PhysicsWorld::request_pass_through(ColliderId actor, CollisionTarget suppor
             other = contact.pair.first;
         else
             continue;
-        if (one_way_for_target(other))
-            _transient_ignored_pairs.push_back(normalized_collision_pair(actor_target, other));
+        const auto other_one_way = one_way_for_target(other);
+        const auto other_bounds = target_bounds(other);
+        if (!other_one_way || !other_bounds
+            || other_one_way->pass_through != requested_one_way->pass_through)
+            continue;
+        const auto normal = actor_normal(contact);
+        if (normal.dot(requested_normal) < 1.0f - _config.collision_epsilon)
+            continue;
+        const float tolerance = std::max({
+            requested_one_way->tolerance,
+            other_one_way->tolerance,
+            _config.collision_epsilon});
+        if (std::fabs(support_plane(*other_bounds, normal) - requested_plane) > tolerance)
+            continue;
+        const bool adjacent = std::fabs(normal.x) >= std::fabs(normal.y)
+            ? other_bounds->bottom() >= requested_bounds->top() - tolerance
+                && other_bounds->top() <= requested_bounds->bottom() + tolerance
+            : other_bounds->right() >= requested_bounds->left() - tolerance
+                && other_bounds->left() <= requested_bounds->right() + tolerance;
+        if (!adjacent)
+            continue;
+        _transient_ignored_pairs.push_back(
+            normalized_collision_pair(actor_target, other));
+        inserted = true;
     }
     std::ranges::sort(_transient_ignored_pairs);
     _transient_ignored_pairs.erase(
         std::unique(_transient_ignored_pairs.begin(), _transient_ignored_pairs.end()),
         _transient_ignored_pairs.end());
-    return true;
+    return inserted;
 }
 
 void PhysicsWorld::collect_contacts(
@@ -610,20 +692,26 @@ std::uint32_t PhysicsWorld::advance(double frame_delta_seconds)
                 >= _config.fixed_delta_seconds
             && steps < _config.max_steps_per_advance)
         {
-            fixed_step(_config.fixed_delta_seconds);
             _accumulator_seconds -= _config.fixed_delta_seconds;
             ++steps;
+            if (fixed_step(_config.fixed_delta_seconds))
+                break;
         }
         if (_accumulator_seconds >= _config.fixed_delta_seconds)
         {
-            const auto dropped = static_cast<std::uint64_t>(
-                std::floor(_accumulator_seconds / _config.fixed_delta_seconds));
+            const double dropped_value = std::floor(
+                _accumulator_seconds / _config.fixed_delta_seconds);
+            const auto available = std::numeric_limits<std::uint64_t>::max()
+                - _dropped_fixed_steps;
+            const auto dropped = dropped_value >= static_cast<double>(available)
+                ? available
+                : static_cast<std::uint64_t>(dropped_value);
             _dropped_fixed_steps += dropped;
             _accumulator_seconds = std::fmod(
                 _accumulator_seconds, _config.fixed_delta_seconds);
             _last_step_stats.dropped_fixed_steps = _dropped_fixed_steps;
         }
-        flush_pending_operations();
+        (void)flush_pending_operations();
     }
     catch (...)
     {
@@ -634,7 +722,7 @@ std::uint32_t PhysicsWorld::advance(double frame_delta_seconds)
     return steps;
 }
 
-void PhysicsWorld::fixed_step(double fixed_delta_seconds)
+bool PhysicsWorld::fixed_step(double fixed_delta_seconds)
 {
     std::vector<PhysicsObjectHandle> destroyed;
     for (const Registration& registration : _registrations)
@@ -681,7 +769,8 @@ void PhysicsWorld::fixed_step(double fixed_delta_seconds)
                 swept_shape_bounds(*previous, *current),
                 state.previous_owner_origin, state.current_owner_origin,
                 collider->filter, collider->response,
-                collider->detection_mode, collider->one_way
+                collider->detection_mode, collider->one_way,
+                collider->material
             });
         }
     }
@@ -691,14 +780,26 @@ void PhysicsWorld::fixed_step(double fixed_delta_seconds)
     _last_step_stats.registered_objects = _registrations.size();
     _last_step_stats.registered_colliders = _collider_index.size();
     _last_step_stats.dropped_fixed_steps = _dropped_fixed_steps;
+    PhysicsDebugSnapshot* debug_snapshot = _debug_capture != PhysicsDebugCapture::None
+        ? &_debug_snapshot
+        : nullptr;
     _collision_system.evaluate(
         states, views, _tile_world, _transient_ignored_pairs, _config,
-        fixed_delta_seconds, _collision_frame, _last_step_stats, _debug_snapshot);
+        fixed_delta_seconds, _collision_frame, _last_step_stats,
+        _debug_capture, debug_snapshot);
 
-    for (const PhysicsObjectState& state : states)
-        if (state.body && !state.body->velocity.is_zero(_config.collision_epsilon))
-            _debug_snapshot.velocities.push_back(
-                {state.object, state.current_owner_origin, state.body->velocity});
+    if (debug_snapshot
+        && captures_physics_debug(_debug_capture, PhysicsDebugCapture::Velocities))
+    {
+        for (const PhysicsObjectState& state : states)
+        {
+            if (state.body && !state.body->velocity.is_zero(_config.collision_epsilon))
+            {
+                debug_snapshot->velocities.push_back(
+                    {state.object, state.current_owner_origin, state.body->velocity});
+            }
+        }
+    }
 
     for (const PhysicsObjectState& state : states)
     {
@@ -726,14 +827,19 @@ void PhysicsWorld::fixed_step(double fixed_delta_seconds)
     }
     catch (...)
     {
-        flush_pending_operations();
+        (void)flush_pending_operations();
         throw;
     }
-    flush_pending_operations();
+    return flush_pending_operations();
 }
 
-void PhysicsWorld::flush_pending_operations()
+bool PhysicsWorld::flush_pending_operations()
 {
+    if (_pending_reset)
+    {
+        reset_immediate();
+        return true;
+    }
     for (PhysicsObjectHandle handle : _pending_unregistrations)
         (void)unregister_immediate(handle);
     _pending_unregistrations.clear();
@@ -779,6 +885,7 @@ void PhysicsWorld::flush_pending_operations()
     }
     _pending_tile_operation = PendingTileOperation::None;
     _pending_tile_world = nullptr;
+    return false;
 }
 
 void PhysicsWorld::remove_cached_target(CollisionTarget target) noexcept
@@ -789,6 +896,16 @@ void PhysicsWorld::remove_cached_target(CollisionTarget target) noexcept
 }
 
 void PhysicsWorld::reset() noexcept
+{
+    if (_advancing)
+    {
+        _pending_reset = true;
+        return;
+    }
+    reset_immediate();
+}
+
+void PhysicsWorld::reset_immediate() noexcept
 {
     for (Registration& registration : _registrations)
         for (Collider* collider : registration.colliders)
@@ -806,6 +923,7 @@ void PhysicsWorld::reset() noexcept
     _collision_frame.clear();
     _transient_ignored_pairs.clear();
     _debug_snapshot.clear();
+    _debug_capture = PhysicsDebugCapture::None;
     _last_step_stats = {};
     _pending_unregistrations.clear();
     _pending_listener_operations.clear();
@@ -813,40 +931,62 @@ void PhysicsWorld::reset() noexcept
     _pending_tile_operation = PendingTileOperation::None;
     _pending_tile_world = nullptr;
     _accumulator_seconds = 0.0;
+    _dropped_fixed_steps = 0;
+    _pending_reset = false;
 }
 
 const PhysicsWorldConfig& PhysicsWorld::config() const noexcept { return _config; }
 double PhysicsWorld::accumulator_seconds() const noexcept { return _accumulator_seconds; }
 const PhysicsStepStats& PhysicsWorld::last_step_stats() const noexcept { return _last_step_stats; }
+void PhysicsWorld::set_debug_capture(PhysicsDebugCapture capture) noexcept
+{
+    constexpr auto valid_bits = static_cast<std::uint8_t>(PhysicsDebugCapture::All);
+    capture = static_cast<PhysicsDebugCapture>(
+        static_cast<std::uint8_t>(capture) & valid_bits);
+    if (_debug_capture == capture)
+        return;
+    _debug_capture = capture;
+    _debug_snapshot.clear();
+}
+PhysicsDebugCapture PhysicsWorld::debug_capture() const noexcept { return _debug_capture; }
 const PhysicsDebugSnapshot& PhysicsWorld::debug_snapshot() const noexcept { return _debug_snapshot; }
 
 std::optional<CollisionQueryHit> PhysicsWorld::raycast(const RayCastQuery& query) const
 {
+    std::vector<CollisionQueryHit> hits;
+    raycast_all(query, hits);
+    return hits.empty() ? std::nullopt
+        : std::optional<CollisionQueryHit>{hits.front()};
+}
+
+void PhysicsWorld::raycast_all(
+    const RayCastQuery& query,
+    std::vector<CollisionQueryHit>& out_hits) const
+{
+    out_hits.clear();
     if (!finite_vector(query.origin) || !finite_vector(query.direction)
         || !std::isfinite(query.max_distance) || query.max_distance < 0.0f)
-    {
-        return std::nullopt;
-    }
+        return;
     const auto direction = query.direction.normalized(_config.collision_epsilon);
     if (direction.is_zero(_config.collision_epsilon))
-        return std::nullopt;
-    std::optional<CollisionQueryHit> best;
-    const auto consider = [&](CollisionTarget target, const RayShapeHit& hit)
+        return;
+    const auto consider = [&](CollisionTarget target,
+                              CollisionResponse response,
+                              const RayShapeHit& hit)
     {
-        if (hit.distance > query.max_distance + _config.collision_epsilon)
+        if (response == CollisionResponse::Ignore
+            || hit.distance > query.max_distance + _config.collision_epsilon)
             return;
-        if (!best || hit.distance + _config.collision_epsilon < best->distance
-            || (std::fabs(hit.distance - best->distance) <= _config.collision_epsilon
-                && target < best->target))
-        {
-            best = CollisionQueryHit{
-                target,
-                query.origin + direction * hit.distance,
-                hit.normal,
-                hit.distance,
-                query.max_distance > 0.0f ? hit.distance / query.max_distance : 0.0f
-            };
-        }
+        out_hits.push_back(CollisionQueryHit{
+            target,
+            query.origin + direction * hit.distance,
+            hit.normal,
+            hit.distance,
+            query.max_distance > 0.0f
+                ? hit.distance / query.max_distance
+                : 0.0f,
+            response
+        });
     };
     for (const Registration& registration : _registrations)
     {
@@ -858,7 +998,8 @@ std::optional<CollisionQueryHit> PhysicsWorld::raycast(const RayCastQuery& query
             if (!collider || !collider->enabled || collider->response == CollisionResponse::Ignore
                 || !query_filter_allows(query.filter, collider->filter))
                 continue;
-            const auto shape = make_world_shape(collider->shape, registration.owner->position());
+            const auto shape = make_world_shape(
+                collider->shape, registration.current_owner_origin);
             if (!shape)
                 continue;
             std::optional<RayShapeHit> hit;
@@ -868,45 +1009,100 @@ std::optional<CollisionQueryHit> PhysicsWorld::raycast(const RayCastQuery& query
                 hit = ray_circle(query.origin, direction, query.max_distance,
                     std::get<WorldCircle>(*shape), _config.collision_epsilon);
             if (hit)
-                consider(CollisionTarget::from_collider(collider->id), *hit);
+                consider(
+                    CollisionTarget::from_collider(collider->id),
+                    collider->response,
+                    *hit);
         }
     }
     if (_tile_world)
     {
         const auto map_origin = _tile_world->world_origin();
         const auto size = _tile_world->tile_size();
-        TileCoordinate coordinate{
-            static_cast<int>(std::floor((query.origin.x - map_origin.x) / size.x)),
-            static_cast<int>(std::floor((query.origin.y - map_origin.y) / size.y))
-        };
+        const auto initial_coordinate = checked_world_to_tile(
+            query.origin, map_origin, size);
+        if (!initial_coordinate)
+            goto finish_raycast;
+        TileCoordinate coordinate = *initial_coordinate;
         const int step_x = direction.x > 0.0f ? 1 : (direction.x < 0.0f ? -1 : 0);
         const int step_y = direction.y > 0.0f ? 1 : (direction.y < 0.0f ? -1 : 0);
         const float infinity = std::numeric_limits<float>::infinity();
+        const auto next_grid_line = [](float map_origin,
+                                       float tile_extent,
+                                       int coordinate_value,
+                                       bool positive_step) noexcept
+        {
+            const std::int64_t grid_index = static_cast<std::int64_t>(coordinate_value)
+                + (positive_step ? 1 : 0);
+            return static_cast<float>(
+                static_cast<double>(map_origin)
+                + static_cast<double>(grid_index) * static_cast<double>(tile_extent));
+        };
         float next_x = step_x == 0 ? infinity :
-            (map_origin.x + static_cast<float>(coordinate.x + (step_x > 0 ? 1 : 0)) * size.x
+            (next_grid_line(map_origin.x, size.x, coordinate.x, step_x > 0)
                 - query.origin.x) / direction.x;
         float next_y = step_y == 0 ? infinity :
-            (map_origin.y + static_cast<float>(coordinate.y + (step_y > 0 ? 1 : 0)) * size.y
+            (next_grid_line(map_origin.y, size.y, coordinate.y, step_y > 0)
                 - query.origin.y) / direction.y;
         const float delta_x = step_x == 0 ? infinity : size.x / std::fabs(direction.x);
         const float delta_y = step_y == 0 ? infinity : size.y / std::fabs(direction.y);
         float entered = 0.0f;
         elysia::core::Vector2 entered_normal = -direction;
-        while (entered <= query.max_distance + _config.collision_epsilon)
+        const auto visit_tile = [&](TileCoordinate value,
+                                    float distance,
+                                    elysia::core::Vector2 normal)
         {
-            const auto cell = tile_cell(*_tile_world, coordinate);
-            if (cell.type != TileCollisionType::Empty
-                && cell.type != TileCollisionType::Empty
+            const auto cell = tile_cell(*_tile_world, value);
+            const auto response = tile_response(cell);
+            if (response != CollisionResponse::Ignore
                 && query_filter_allows(query.filter, cell.filter))
             {
-                consider(CollisionTarget::from_tile(coordinate), {std::max(0.0f, entered), entered_normal});
-                if (best && best->distance <= entered + _config.collision_epsilon)
-                    break;
+                consider(
+                    CollisionTarget::from_tile(value),
+                    response,
+                    {std::max(0.0f, distance), normal});
             }
-            if (next_x < next_y)
+        };
+        std::uint32_t tile_iterations = 0;
+        while (entered <= query.max_distance + _config.collision_epsilon
+            && tile_iterations++ < _config.max_tile_candidates_per_operation)
+        {
+            visit_tile(coordinate, entered, entered_normal);
+            if (std::fabs(next_x - next_y) <= _config.collision_epsilon)
+            {
+                const float corner_distance = next_x;
+                if ((step_x > 0 && coordinate.x == std::numeric_limits<int>::max())
+                    || (step_x < 0 && coordinate.x == std::numeric_limits<int>::min())
+                    || (step_y > 0 && coordinate.y == std::numeric_limits<int>::max())
+                    || (step_y < 0 && coordinate.y == std::numeric_limits<int>::min()))
+                    break;
+                if (corner_distance <= query.max_distance + _config.collision_epsilon)
+                {
+                    if (step_x != 0)
+                        visit_tile(
+                            {coordinate.x + step_x, coordinate.y},
+                            corner_distance,
+                            {-static_cast<float>(step_x), 0.0f});
+                    if (step_y != 0)
+                        visit_tile(
+                            {coordinate.x, coordinate.y + step_y},
+                            corner_distance,
+                            {0.0f, -static_cast<float>(step_y)});
+                }
+                entered = corner_distance;
+                next_x += delta_x;
+                next_y += delta_y;
+                coordinate.x += step_x;
+                coordinate.y += step_y;
+                entered_normal = -direction;
+            }
+            else if (next_x < next_y)
             {
                 entered = next_x;
                 next_x += delta_x;
+                if ((step_x > 0 && coordinate.x == std::numeric_limits<int>::max())
+                    || (step_x < 0 && coordinate.x == std::numeric_limits<int>::min()))
+                    break;
                 coordinate.x += step_x;
                 entered_normal = {-static_cast<float>(step_x), 0.0f};
             }
@@ -914,6 +1110,9 @@ std::optional<CollisionQueryHit> PhysicsWorld::raycast(const RayCastQuery& query
             {
                 entered = next_y;
                 next_y += delta_y;
+                if ((step_y > 0 && coordinate.y == std::numeric_limits<int>::max())
+                    || (step_y < 0 && coordinate.y == std::numeric_limits<int>::min()))
+                    break;
                 coordinate.y += step_y;
                 entered_normal = {0.0f, -static_cast<float>(step_y)};
             }
@@ -921,16 +1120,277 @@ std::optional<CollisionQueryHit> PhysicsWorld::raycast(const RayCastQuery& query
                 break;
         }
     }
-    return best;
+
+finish_raycast:
+    std::ranges::stable_sort(out_hits, [](
+        const CollisionQueryHit& first,
+        const CollisionQueryHit& second)
+    {
+        if (first.distance != second.distance)
+            return first.distance < second.distance;
+        return first.target < second.target;
+    });
+    std::vector<CollisionQueryHit> unique;
+    unique.reserve(out_hits.size());
+    for (const CollisionQueryHit& hit : out_hits)
+    {
+        if (std::ranges::find(unique, hit.target, &CollisionQueryHit::target)
+            == unique.end())
+            unique.push_back(hit);
+    }
+    out_hits = std::move(unique);
 }
 
 std::optional<CollisionQueryHit> PhysicsWorld::segment_cast(const SegmentCastQuery& query) const
 {
+    std::vector<CollisionQueryHit> hits;
+    segment_cast_all(query, hits);
+    return hits.empty() ? std::nullopt
+        : std::optional<CollisionQueryHit>{hits.front()};
+}
+
+void PhysicsWorld::segment_cast_all(
+    const SegmentCastQuery& query,
+    std::vector<CollisionQueryHit>& out_hits) const
+{
+    out_hits.clear();
+    if (!finite_vector(query.start) || !finite_vector(query.end))
+        return;
     const auto delta = query.end - query.start;
     const float distance = delta.length();
     if (!std::isfinite(distance) || distance <= _config.collision_epsilon)
+        return;
+    raycast_all(
+        RayCastQuery{query.start, delta / distance, distance, query.filter},
+        out_hits);
+}
+
+void PhysicsWorld::overlap_aabb(
+    const AabbOverlapQuery& query,
+    std::vector<CollisionOverlapQueryHit>& out_hits) const
+{
+    out_hits.clear();
+    if (!finite_rect(query.bounds) || query.bounds.is_empty())
+        return;
+
+    const WorldColliderShape query_shape = WorldAabb{query.bounds};
+    const auto consider = [&](CollisionTarget target,
+                              CollisionResponse response,
+                              const CollisionFilter& filter,
+                              const WorldColliderShape& target_shape)
+    {
+        if (response == CollisionResponse::Ignore
+            || !query_filter_allows(query.filter, filter))
+            return;
+        if (const auto hit = detect_discrete_shapes(
+                query_shape, target_shape, _config.collision_epsilon))
+            out_hits.push_back({target, hit->manifold, response});
+    };
+    for (const Registration& registration : _registrations)
+    {
+        if (!registration.owner || registration.owner->is_destroyed()
+            || !registration.owner->is_active())
+            continue;
+        for (const Collider* collider : registration.colliders)
+        {
+            if (!collider || !collider->enabled)
+                continue;
+            const auto shape = make_world_shape(
+                collider->shape, registration.current_owner_origin);
+            if (shape)
+                consider(
+                    CollisionTarget::from_collider(collider->id),
+                    collider->response,
+                    collider->filter,
+                    *shape);
+        }
+    }
+    if (_tile_world)
+    {
+        const auto origin = _tile_world->world_origin();
+        const auto size = _tile_world->tile_size();
+        const auto range = checked_tile_range(
+            query.bounds, origin, size, TileRangeBoundary::InclusiveTouching,
+            _config.max_tile_candidates_per_operation);
+        if (range)
+            for (std::int64_t y = range->min_y; y <= range->max_y; ++y)
+                for (std::int64_t x = range->min_x; x <= range->max_x; ++x)
+                {
+                    const TileCoordinate coordinate{
+                        static_cast<int>(x), static_cast<int>(y)};
+                    const TileCollisionCell cell = tile_cell(*_tile_world, coordinate);
+                    consider(
+                        CollisionTarget::from_tile(coordinate),
+                        tile_response(cell),
+                        cell.filter,
+                        WorldAabb{tile_rect(*_tile_world, coordinate)});
+                }
+    }
+    std::ranges::stable_sort(out_hits, {}, &CollisionOverlapQueryHit::target);
+    out_hits.erase(
+        std::unique(out_hits.begin(), out_hits.end(), [](const auto& first, const auto& second)
+        { return first.target == second.target; }),
+        out_hits.end());
+}
+
+void PhysicsWorld::overlap_circle(
+    const CircleOverlapQuery& query,
+    std::vector<CollisionOverlapQueryHit>& out_hits) const
+{
+    out_hits.clear();
+    if (!finite_vector(query.center) || !std::isfinite(query.radius)
+        || query.radius <= 0.0f)
+        return;
+
+    const WorldColliderShape query_shape = WorldCircle{query.center, query.radius};
+    const auto consider = [&](CollisionTarget target,
+                              CollisionResponse response,
+                              const CollisionFilter& filter,
+                              const WorldColliderShape& target_shape)
+    {
+        if (response == CollisionResponse::Ignore
+            || !query_filter_allows(query.filter, filter))
+            return;
+        if (const auto hit = detect_discrete_shapes(
+                query_shape, target_shape, _config.collision_epsilon))
+            out_hits.push_back({target, hit->manifold, response});
+    };
+    for (const Registration& registration : _registrations)
+    {
+        if (!registration.owner || registration.owner->is_destroyed()
+            || !registration.owner->is_active())
+            continue;
+        for (const Collider* collider : registration.colliders)
+        {
+            if (!collider || !collider->enabled)
+                continue;
+            const auto shape = make_world_shape(
+                collider->shape, registration.current_owner_origin);
+            if (shape)
+                consider(
+                    CollisionTarget::from_collider(collider->id),
+                    collider->response,
+                    collider->filter,
+                    *shape);
+        }
+    }
+    if (_tile_world)
+    {
+        const auto origin = _tile_world->world_origin();
+        const auto size = _tile_world->tile_size();
+        const elysia::core::Rect bounds = elysia::core::Rect::from_center(
+            query.center, {query.radius * 2.0f, query.radius * 2.0f});
+        const auto range = checked_tile_range(
+            bounds, origin, size, TileRangeBoundary::InclusiveTouching,
+            _config.max_tile_candidates_per_operation);
+        if (range)
+            for (std::int64_t y = range->min_y; y <= range->max_y; ++y)
+                for (std::int64_t x = range->min_x; x <= range->max_x; ++x)
+                {
+                    const TileCoordinate coordinate{
+                        static_cast<int>(x), static_cast<int>(y)};
+                    const TileCollisionCell cell = tile_cell(*_tile_world, coordinate);
+                    consider(
+                        CollisionTarget::from_tile(coordinate),
+                        tile_response(cell),
+                        cell.filter,
+                        WorldAabb{tile_rect(*_tile_world, coordinate)});
+                }
+    }
+    std::ranges::stable_sort(out_hits, {}, &CollisionOverlapQueryHit::target);
+    out_hits.erase(
+        std::unique(out_hits.begin(), out_hits.end(), [](const auto& first, const auto& second)
+        { return first.target == second.target; }),
+        out_hits.end());
+}
+
+std::optional<CollisionQueryHit> PhysicsWorld::sweep_aabb(
+    const AabbSweepQuery& query) const
+{
+    if (!finite_rect(query.start_bounds) || query.start_bounds.is_empty()
+        || !finite_vector(query.displacement))
         return std::nullopt;
-    return raycast(RayCastQuery{query.start, delta / distance, distance, query.filter});
+    const WorldAabb previous{query.start_bounds};
+    const WorldAabb current{query.start_bounds.translated(query.displacement)};
+    const elysia::core::Rect swept_bounds = query.start_bounds.merged(current.rect);
+    const float travel_distance = query.displacement.length();
+    std::optional<CollisionQueryHit> best;
+    const auto consider = [&](CollisionTarget target,
+                              CollisionResponse response,
+                              const CollisionFilter& filter,
+                              const WorldAabb& target_box)
+    {
+        if (response == CollisionResponse::Ignore
+            || !query_filter_allows(query.filter, filter))
+            return;
+        const auto hit = detect_swept_aabbs(
+            previous, current, target_box, target_box, _config.collision_epsilon);
+        if (!hit)
+            return;
+        const float fraction = std::clamp(hit->time_of_impact, 0.0f, 1.0f);
+        CollisionQueryHit candidate{
+            target,
+            hit->manifold.contact_point_count > 0
+                ? hit->manifold.contact_points[0]
+                : query.start_bounds.center() + query.displacement * fraction,
+            hit->manifold.normal,
+            travel_distance * fraction,
+            fraction,
+            response
+        };
+        if (!best
+            || candidate.fraction + _config.collision_epsilon < best->fraction
+            || (std::fabs(candidate.fraction - best->fraction)
+                    <= _config.collision_epsilon
+                && candidate.target < best->target))
+            best = candidate;
+    };
+    for (const Registration& registration : _registrations)
+    {
+        if (!registration.owner || registration.owner->is_destroyed()
+            || !registration.owner->is_active())
+            continue;
+        for (const Collider* collider : registration.colliders)
+        {
+            if (!collider || !collider->enabled
+                || !query_filter_allows(query.filter, collider->filter))
+                continue;
+            const auto shape = make_world_shape(
+                collider->shape, registration.current_owner_origin);
+            if (!shape)
+                continue;
+            const auto* box = std::get_if<WorldAabb>(&*shape);
+            if (box)
+                consider(
+                    CollisionTarget::from_collider(collider->id),
+                    collider->response,
+                    collider->filter,
+                    *box);
+        }
+    }
+    if (_tile_world)
+    {
+        const auto origin = _tile_world->world_origin();
+        const auto size = _tile_world->tile_size();
+        const auto range = checked_tile_range(
+            swept_bounds, origin, size, TileRangeBoundary::InclusiveTouching,
+            _config.max_tile_candidates_per_operation);
+        if (!range)
+            return best;
+        for (std::int64_t y = range->min_y; y <= range->max_y; ++y)
+            for (std::int64_t x = range->min_x; x <= range->max_x; ++x)
+            {
+                const TileCoordinate coordinate{
+                    static_cast<int>(x), static_cast<int>(y)};
+                const TileCollisionCell cell = tile_cell(*_tile_world, coordinate);
+                consider(
+                    CollisionTarget::from_tile(coordinate),
+                    tile_response(cell),
+                    cell.filter,
+                    WorldAabb{tile_rect(*_tile_world, coordinate)});
+            }
+    }
+    return best;
 }
 
 PhysicsWorld::Registration* PhysicsWorld::find_registration(PhysicsObjectHandle handle) noexcept

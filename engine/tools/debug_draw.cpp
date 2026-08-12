@@ -43,6 +43,8 @@ namespace
 void DebugDraw::set_enabled(bool enabled) noexcept
 {
     _enabled = enabled;
+    if (!_enabled)
+        clear();
 }
 
 bool DebugDraw::enabled() const noexcept
@@ -52,9 +54,14 @@ bool DebugDraw::enabled() const noexcept
 
 void DebugDraw::set_enabled_categories(DebugDrawCategory categories) noexcept
 {
-    _enabled_categories = static_cast<DebugDrawCategory>(
+    const DebugDrawCategory sanitized = static_cast<DebugDrawCategory>(
         category_bits(categories) & category_bits(DebugDrawCategory::All)
     );
+    const DebugDrawCategory disabled = static_cast<DebugDrawCategory>(
+        category_bits(_enabled_categories) & ~category_bits(sanitized)
+    );
+    _enabled_categories = sanitized;
+    clear_categories(disabled);
 }
 
 DebugDrawCategory DebugDraw::enabled_categories() const noexcept
@@ -78,7 +85,8 @@ void DebugDraw::draw_rect(
     elysia::core::Color color,
     float thickness)
 {
-    if (!is_single_category(category)
+    if (!is_enabled(category)
+        || !is_single_category(category)
         || !is_finite(rect)
         || rect.is_empty()
         || !is_valid_thickness(thickness))
@@ -101,7 +109,8 @@ void DebugDraw::draw_circle(
     elysia::core::Color color,
     float thickness)
 {
-    if (!is_single_category(category)
+    if (!is_enabled(category)
+        || !is_single_category(category)
         || !is_finite(center)
         || !std::isfinite(radius)
         || radius <= 0.0f
@@ -125,7 +134,8 @@ void DebugDraw::draw_line(
     elysia::core::Color color,
     float thickness)
 {
-    if (!is_single_category(category)
+    if (!is_enabled(category)
+        || !is_single_category(category)
         || !is_finite(start)
         || !is_finite(end)
         || start == end
@@ -148,7 +158,8 @@ void DebugDraw::draw_point(
     float size,
     elysia::core::Color color)
 {
-    if (!is_single_category(category)
+    if (!is_enabled(category)
+        || !is_single_category(category)
         || !is_finite(position)
         || !std::isfinite(size)
         || size <= 0.0f)

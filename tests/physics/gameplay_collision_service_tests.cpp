@@ -57,6 +57,14 @@ public:
         return operation_result;
     }
 
+    [[nodiscard]] bool unbind_actor(
+        elysia::gameplay::collision::ActorId actor) override
+    {
+        ++unbind_actor_calls;
+        last_unbound_actor = actor;
+        return operation_result;
+    }
+
     [[nodiscard]] bool add_listener(
         elysia::gameplay::collision::GameplayCollisionListener& listener
     ) override
@@ -87,6 +95,7 @@ public:
     int bind_collider_calls = 0;
     int bind_hit_box_calls = 0;
     int unbind_collider_calls = 0;
+    int unbind_actor_calls = 0;
     int drop_through_calls = 0;
     int add_listener_calls = 0;
     int remove_listener_calls = 0;
@@ -95,6 +104,8 @@ public:
     elysia::gameplay::collision::ColliderBinding last_collider{};
     elysia::gameplay::collision::HitBoxBinding last_hit_box{};
     elysia::physics::ColliderId last_unbound_collider = elysia::physics::InvalidColliderId;
+    elysia::gameplay::collision::ActorId last_unbound_actor =
+        elysia::gameplay::collision::InvalidActorId;
     elysia::gameplay::collision::DropThroughRequest last_drop_through{};
     const elysia::gameplay::collision::GameplayCollisionListener* last_listener = nullptr;
     elysia::gameplay::collision::AttackInstanceId last_ended_attack =
@@ -173,6 +184,8 @@ int main()
         "Hit-box bindings must be forwarded to the active runtime");
     require(service->unbind_collider(104),
         "Collider unbinds must be forwarded to the active runtime");
+    require(service->unbind_actor(17),
+        "Actor unbinds must be forwarded to the active runtime");
     require(first_runtime.bind_actor_calls == 1
             && first_runtime.last_actor.owner == 17
             && first_runtime.bind_collider_calls == 1
@@ -182,6 +195,9 @@ int main()
             && first_runtime.unbind_collider_calls == 1
             && first_runtime.last_unbound_collider == 104,
         "The active runtime must receive exact binding and unbind data");
+    require(first_runtime.unbind_actor_calls == 1
+            && first_runtime.last_unbound_actor == 17,
+        "Actor unbind forwarding must preserve Actor identity");
     require(second_runtime.bind_actor_calls == 0,
         "A rejected runtime must not receive forwarded operations");
 

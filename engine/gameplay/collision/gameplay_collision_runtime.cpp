@@ -1,6 +1,7 @@
 #include "gameplay_collision_runtime.h"
 
 #include <algorithm>
+#include <optional>
 
 namespace elysia::gameplay::collision
 {
@@ -24,7 +25,30 @@ namespace
 {
     return binding.collider != elysia::physics::InvalidColliderId
         && binding.owner != InvalidActorId
+        && binding.team != InvalidTeamId
         && world.contains_collider(binding.collider);
+}
+
+[[nodiscard]] bool valid_role(ColliderRole role) noexcept
+{
+    switch (role)
+    {
+    case ColliderRole::Body:
+    case ColliderRole::PushBox:
+    case ColliderRole::HurtBox:
+    case ColliderRole::HitBox:
+    case ColliderRole::Sensor:
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool empty_rig(const ActorCollisionRig& rig) noexcept
+{
+    return rig.body == elysia::physics::InvalidColliderId
+        && rig.push_box == elysia::physics::InvalidColliderId
+        && rig.hurt_boxes.empty()
+        && rig.sensors.empty();
 }
 }
 
@@ -50,7 +74,8 @@ std::size_t GameplayCollisionRuntime::AttackHitKeyHash::operator()(
 
 bool GameplayCollisionRuntime::bind_actor(const ActorCollisionRig& rig)
 {
-    if (!_world || rig.owner == InvalidActorId || _rigs.contains(rig.owner))
+    if (!_world || rig.owner == InvalidActorId || rig.team == InvalidTeamId
+        || _rigs.contains(rig.owner))
         return false;
     std::vector<ColliderBinding> additions;
     const auto add = [&](elysia::physics::ColliderId id, ColliderRole role)
@@ -63,7 +88,8 @@ bool GameplayCollisionRuntime::bind_actor(const ActorCollisionRig& rig)
     for (const auto id : rig.hurt_boxes) add(id, ColliderRole::HurtBox);
     for (const auto id : rig.sensors) add(id, ColliderRole::Sensor);
     std::ranges::sort(additions, {}, &ColliderBinding::collider);
-    if (std::adjacent_find(additions.begin(), additions.end(),
+    if (additions.empty()
+        || std::adjacent_find(additions.begin(), additions.end(),
             [](const auto& a, const auto& b) { return a.collider == b.collider; })
         != additions.end())
     {
@@ -72,15 +98,41 @@ bool GameplayCollisionRuntime::bind_actor(const ActorCollisionRig& rig)
     for (const ColliderBinding& binding : additions)
         if (!valid_binding(binding, *_world) || _bindings.contains(binding.collider))
             return false;
-    _rigs.emplace(rig.owner, rig);
-    for (const ColliderBinding& binding : additions)
-        _bindings.emplace(binding.collider, binding);
+    bool rig_inserted = false;
+    std::vector<elysia::physics::ColliderId> inserted_bindings;
+    inserted_bindings.reserve(additions.size());
+    try
+    {
+        rig_inserted = _rigs.emplace(rig.owner, rig).second;
+        if (!rig_inserted)
+            return false;
+        for (const ColliderBinding& binding : additions)
+        {
+            if (!_bindings.emplace(binding.collider, binding).second)
+            {
+                for (const auto collider : inserted_bindings)
+                    _bindings.erase(collider);
+                _rigs.erase(rig.owner);
+                return false;
+            }
+            inserted_bindings.push_back(binding.collider);
+        }
+    }
+    catch (...)
+    {
+        for (const auto collider : inserted_bindings)
+            _bindings.erase(collider);
+        if (rig_inserted)
+            _rigs.erase(rig.owner);
+        throw;
+    }
     return true;
 }
 
 bool GameplayCollisionRuntime::bind_collider(const ColliderBinding& binding)
 {
-    if (!_world || !valid_binding(binding, *_world))
+    if (!_world || !valid_binding(binding, *_world)
+        || !valid_role(binding.role) || binding.role == ColliderRole::HitBox)
         return false;
     const auto found = _bindings.find(binding.collider);
     if (found != _bindings.end())
@@ -117,13 +169,55 @@ bool GameplayCollisionRuntime::bind_hit_box(const HitBoxBinding& binding)
     return true;
 }
 
+bool GameplayCollisionRuntime::unbind_actor(ActorId actor)
+{
+    if (actor == InvalidActorId)
+        return false;
+    const bool had_rig = _rigs.erase(actor) > 0;
+    bool removed_binding = false;
+    for (auto iterator = _bindings.begin(); iterator != _bindings.end();)
+    {
+        if (iterator->second.owner != actor)
+        {
+            ++iterator;
+            continue;
+        }
+        _hit_boxes.erase(iterator->first);
+        iterator = _bindings.erase(iterator);
+        removed_binding = true;
+    }
+    std::erase_if(_attack_hits, [actor](const AttackHitKey& key)
+    { return key.hurt_owner == actor; });
+    return had_rig || removed_binding;
+}
+
 bool GameplayCollisionRuntime::unbind_collider(elysia::physics::ColliderId collider)
 {
     if (collider == elysia::physics::InvalidColliderId)
         return false;
-    const bool removed = _bindings.erase(collider) > 0;
+    const auto binding = _bindings.find(collider);
+    if (binding == _bindings.end())
+        return false;
+    const ActorId owner = binding->second.owner;
+    _bindings.erase(binding);
     _hit_boxes.erase(collider);
-    return removed;
+    const auto rig = _rigs.find(owner);
+    if (rig != _rigs.end())
+    {
+        if (rig->second.body == collider)
+            rig->second.body = elysia::physics::InvalidColliderId;
+        if (rig->second.push_box == collider)
+            rig->second.push_box = elysia::physics::InvalidColliderId;
+        std::erase(rig->second.hurt_boxes, collider);
+        std::erase(rig->second.sensors, collider);
+        if (empty_rig(rig->second))
+        {
+            _rigs.erase(rig);
+            std::erase_if(_attack_hits, [owner](const AttackHitKey& key)
+            { return key.hurt_owner == owner; });
+        }
+    }
+    return true;
 }
 
 bool GameplayCollisionRuntime::request_drop_through(const DropThroughRequest& request)
@@ -183,6 +277,8 @@ void GameplayCollisionRuntime::set_team_relation_resolver(
 
 TeamRelation GameplayCollisionRuntime::team_relation(TeamId source, TeamId target) const noexcept
 {
+    if (source == InvalidTeamId || target == InvalidTeamId)
+        return TeamRelation::Neutral;
     return _team_resolver ? _team_resolver->relation(source, target)
         : default_relation(source, target);
 }
@@ -198,48 +294,59 @@ void GameplayCollisionRuntime::clear() noexcept
     _team_resolver = nullptr;
 }
 
-void GameplayCollisionRuntime::dispatch_body(
-    const ColliderBinding& body,
-    elysia::physics::CollisionTarget other,
-    const elysia::physics::CollisionEvent& event)
-{
-    BodyContactEvent routed{event.phase, body, other, event.contact};
-    for (GameplayCollisionListener* listener : _listeners)
-        if (listener) listener->on_body_contact(routed);
-}
-
 void GameplayCollisionRuntime::on_collision_event(
     const elysia::physics::CollisionEvent& event)
 {
     const auto first = event.contact.pair.first;
     const auto second = event.contact.pair.second;
-    const auto first_binding = first.kind == elysia::physics::CollisionTargetKind::Collider
-        ? _bindings.find(first.collider) : _bindings.end();
-    const auto second_binding = second.kind == elysia::physics::CollisionTargetKind::Collider
-        ? _bindings.find(second.collider) : _bindings.end();
-    _dispatching = true;
-    try
+    const auto binding_value = [&](elysia::physics::CollisionTarget target)
+        -> std::optional<ColliderBinding>
     {
+        if (target.kind != elysia::physics::CollisionTargetKind::Collider)
+            return std::nullopt;
+        const auto found = _bindings.find(target.collider);
+        return found == _bindings.end()
+            ? std::nullopt : std::optional<ColliderBinding>{found->second};
+    };
+    const auto first_binding = binding_value(first);
+    const auto second_binding = binding_value(second);
 
-    if (first_binding != _bindings.end() && first_binding->second.role == ColliderRole::Body)
-        dispatch_body(first_binding->second, second, event);
-    if (second_binding != _bindings.end() && second_binding->second.role == ColliderRole::Body)
-        dispatch_body(second_binding->second, first, event);
+    std::vector<BodyContactEvent> body_events;
+    std::vector<PushBoxOverlapEvent> push_events;
+    std::vector<SensorOverlapEvent> sensor_events;
+    std::vector<HitOverlapEvent> hit_events;
 
-    if (first_binding != _bindings.end() && second_binding != _bindings.end()
-        && first_binding->second.role == ColliderRole::PushBox
-        && second_binding->second.role == ColliderRole::PushBox)
+    if (first_binding && first_binding->role == ColliderRole::Body)
+        body_events.push_back({event.phase, *first_binding, second, event.contact});
+    if (second_binding && second_binding->role == ColliderRole::Body)
+        body_events.push_back({event.phase, *second_binding, first, event.contact});
+
+    if (first_binding && second_binding
+        && first_binding->role == ColliderRole::PushBox
+        && second_binding->role == ColliderRole::PushBox)
     {
-        PushBoxOverlapEvent routed{
-            event.phase, first_binding->second, second_binding->second,
-            {event.contact.pair, event.contact.manifold}
+        push_events.push_back({
+            event.phase, *first_binding, *second_binding,
+            {event.contact.pair, event.contact.manifold}});
+    }
+
+    if (event.contact.response == elysia::physics::CollisionResponse::Overlap
+        && first_binding && second_binding)
+    {
+        const auto route_sensor = [&](const ColliderBinding& sensor,
+                                      const ColliderBinding& body)
+        {
+            if (sensor.role == ColliderRole::Sensor && body.role == ColliderRole::Body)
+                sensor_events.push_back({
+                    event.phase, sensor, body,
+                    {event.contact.pair, event.contact.manifold}});
         };
-        for (GameplayCollisionListener* listener : _listeners)
-            if (listener) listener->on_push_box_overlap(routed);
+        route_sensor(*first_binding, *second_binding);
+        route_sensor(*second_binding, *first_binding);
     }
 
     if (event.phase == elysia::physics::CollisionEventPhase::Begin
-        && first_binding != _bindings.end() && second_binding != _bindings.end())
+        && first_binding && second_binding)
     {
         const auto route_hit = [&](const ColliderBinding& hit_binding,
                                    const ColliderBinding& hurt_binding)
@@ -248,24 +355,41 @@ void GameplayCollisionRuntime::on_collision_event(
                 || hurt_binding.role != ColliderRole::HurtBox)
                 return;
             const auto hit = _hit_boxes.find(hit_binding.collider);
-            if (hit == _hit_boxes.end()
-                || team_relation(hit->second.collider.team, hurt_binding.team)
+            if (hit == _hit_boxes.end())
+                return;
+            const HitBoxBinding hit_value = hit->second;
+            const auto instigator = _rigs.find(hit_value.instigator);
+            if (instigator == _rigs.end() || instigator->second.team == InvalidTeamId
+                || team_relation(instigator->second.team, hurt_binding.team)
                     != TeamRelation::Hostile)
                 return;
-            const AttackHitKey key{hit->second.attack_instance, hurt_binding.owner};
+            const AttackHitKey key{hit_value.attack_instance, hurt_binding.owner};
             if (!_attack_hits.insert(key).second)
                 return;
-            HitOverlapEvent routed{
-                event.phase, hit->second, hurt_binding,
-                {event.contact.pair, event.contact.manifold}
-            };
-            for (GameplayCollisionListener* listener : _listeners)
-                if (listener) listener->on_hit_overlap(routed);
+            hit_events.push_back({
+                event.phase, hit_value, hurt_binding,
+                {event.contact.pair, event.contact.manifold}});
         };
-        route_hit(first_binding->second, second_binding->second);
-        route_hit(second_binding->second, first_binding->second);
+        route_hit(*first_binding, *second_binding);
+        route_hit(*second_binding, *first_binding);
     }
 
+    const auto listener_snapshot = _listeners;
+    _dispatching = true;
+    try
+    {
+        for (const BodyContactEvent& routed : body_events)
+            for (GameplayCollisionListener* listener : listener_snapshot)
+                if (listener) listener->on_body_contact(routed);
+        for (const PushBoxOverlapEvent& routed : push_events)
+            for (GameplayCollisionListener* listener : listener_snapshot)
+                if (listener) listener->on_push_box_overlap(routed);
+        for (const SensorOverlapEvent& routed : sensor_events)
+            for (GameplayCollisionListener* listener : listener_snapshot)
+                if (listener) listener->on_sensor_overlap(routed);
+        for (const HitOverlapEvent& routed : hit_events)
+            for (GameplayCollisionListener* listener : listener_snapshot)
+                if (listener) listener->on_hit_overlap(routed);
     }
     catch (...)
     {
