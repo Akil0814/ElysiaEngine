@@ -104,12 +104,6 @@ void PhysicsDemoSceneBase::on_update(double delta)
     }
 }
 
-void PhysicsDemoSceneBase::on_render(SDL_Renderer* renderer)
-{
-    (void)_solid_texture.ensure(renderer);
-    elysia::gameplay::GameplayScene::on_render(renderer);
-}
-
 void PhysicsDemoSceneBase::on_input(
     const elysia::input::RawInputFrame& input,
     const std::vector<elysia::input::RawInputEvent>& events)

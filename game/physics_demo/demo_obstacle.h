@@ -1,7 +1,7 @@
 #pragma once
 
 #include "demo_collision_layers.h"
-#include "solid_color_render.h"
+#include "colored_block_object.h"
 
 #include "../../engine/core/interface/updatable.h"
 #include "../../engine/physics/contracts/collider_provider.h"
@@ -25,7 +25,9 @@ class StaticBlockObstacle final
     , public elysia::physics::ColliderProvider
 {
 public:
-    StaticBlockObstacle(SolidColorTexture& texture, ObstacleConfig config);
+    explicit StaticBlockObstacle(ObstacleConfig config);
+    void submit_render_commands(
+        std::vector<elysia::core::RenderCommand>& out_commands) const override;
     [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }
     [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override { return {&_collider, 1}; }
 private:
@@ -39,9 +41,11 @@ class DynamicBlockObstacle final
     , public elysia::physics::PhysicsBodyProvider
 {
 public:
-    DynamicBlockObstacle(SolidColorTexture& texture, ObstacleConfig config,
+    explicit DynamicBlockObstacle(ObstacleConfig config,
         elysia::core::Vector2 velocity = {});
     void update(double delta) override { update_visual(delta); }
+    void submit_render_commands(
+        std::vector<elysia::core::RenderCommand>& out_commands) const override;
     [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }
     [[nodiscard]] const elysia::physics::PhysicsBody* physics_body() const noexcept override { return &_body; }
     [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }
@@ -59,12 +63,13 @@ class KinematicMovingPlatform final
 {
 public:
     KinematicMovingPlatform(
-        SolidColorTexture& texture,
         ObstacleConfig config,
         float left,
         float right,
         float speed);
     void update(double delta) override;
+    void submit_render_commands(
+        std::vector<elysia::core::RenderCommand>& out_commands) const override;
     [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }
     [[nodiscard]] const elysia::physics::PhysicsBody* physics_body() const noexcept override { return &_body; }
     [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }

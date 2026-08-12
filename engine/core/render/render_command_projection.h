@@ -14,8 +14,17 @@ namespace elysia::core
 ) noexcept
 {
     ScreenRenderCommand projected_command;
+
+    projected_command.type = render_command.type;
     projected_command.texture = render_command.texture;
     projected_command.screen_rect = camera.world_to_screen(render_command.command_rect);
+    projected_command.color = render_command.color;
+    projected_command.stroke_width =
+        normalize_world_stroke_width(render_command.stroke_width) * camera.zoom();
+    projected_command.line_start = camera.world_to_screen(render_command.line_start);
+    projected_command.line_end = camera.world_to_screen(render_command.line_end);
+    projected_command.circle_center = camera.world_to_screen(render_command.circle_center);
+    projected_command.circle_radius = render_command.circle_radius * camera.zoom();
     projected_command.alpha = render_command.alpha;
     projected_command.texture_color_modulation =
         render_command.texture_color_modulation;

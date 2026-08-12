@@ -2,7 +2,7 @@
 
 #include "demo_collision_layers.h"
 #include "demo_combat.h"
-#include "solid_color_render.h"
+#include "colored_block_object.h"
 
 #include "../../engine/core/interface/updatable.h"
 #include "../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
@@ -40,7 +40,7 @@ class BlockCombatActor
     , public IDamageableActor
 {
 public:
-    BlockCombatActor(SolidColorTexture& texture, ActorConfig config);
+    explicit BlockCombatActor(ActorConfig config);
     ~BlockCombatActor() override;
 
     void update(double delta) override;
@@ -112,8 +112,7 @@ class PlatformPlayerCharacter final
     , public elysia::gameplay::GameplayInputFrameReceiver
 {
 public:
-    PlatformPlayerCharacter(SolidColorTexture& texture,
-        const elysia::core::Rect& rect);
+    explicit PlatformPlayerCharacter(const elysia::core::Rect& rect);
     void update(double delta) override;
     void on_gameplay_input_frame(
         const elysia::gameplay::GameplayInputFrame& input) override;
@@ -128,8 +127,7 @@ class TopDownPlayerCharacter final
     , public elysia::gameplay::GameplayInputFrameReceiver
 {
 public:
-    TopDownPlayerCharacter(SolidColorTexture& texture,
-        const elysia::core::Rect& rect);
+    explicit TopDownPlayerCharacter(const elysia::core::Rect& rect);
     void update(double delta) override;
     void on_gameplay_input_frame(
         const elysia::gameplay::GameplayInputFrame& input) override;
@@ -140,8 +138,7 @@ private:
 class StationaryEnemy final : public BlockCombatActor
 {
 public:
-    StationaryEnemy(SolidColorTexture& texture,
-        const elysia::core::Rect& rect, BlockCombatActor& target);
+    StationaryEnemy(const elysia::core::Rect& rect, BlockCombatActor& target);
     void update(double delta) override;
 private:
     BlockCombatActor* _target = nullptr;
@@ -150,7 +147,7 @@ private:
 class PlatformPatrolEnemy final : public BlockCombatActor
 {
 public:
-    PlatformPatrolEnemy(SolidColorTexture& texture,
+    PlatformPatrolEnemy(
         const elysia::core::Rect& rect, BlockCombatActor& target,
         float patrol_left, float patrol_right);
     void update(double delta) override;
@@ -164,7 +161,7 @@ private:
 class TopDownChaseEnemy final : public BlockCombatActor
 {
 public:
-    TopDownChaseEnemy(SolidColorTexture& texture,
+    TopDownChaseEnemy(
         const elysia::core::Rect& rect, BlockCombatActor& target);
     void update(double delta) override;
 private:

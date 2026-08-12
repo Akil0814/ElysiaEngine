@@ -22,6 +22,16 @@ enum class SpriteFlip
     Both
 };
 
+enum class RenderCommandType
+{
+    Texture,
+    FillRect,
+    DrawRect,
+    FillCircle,
+    DrawCircle,
+    DrawLine
+};
+
 enum class UiRenderCommandType
 {
     Texture,
@@ -60,11 +70,21 @@ struct UiStrokeWidth
 
 struct RenderCommand
 {
+    RenderCommandType type = RenderCommandType::Texture;
+
     SDL_Texture* texture = nullptr;
 
     // Destination rectangle in world space.
     // This remains world-space until it is projected into a ScreenRenderCommand.
     Rect command_rect{};
+
+    // Used by world-space primitive commands.
+    Color color{};
+    float stroke_width = 1.0f;
+    Vector2 line_start{};
+    Vector2 line_end{};
+    Vector2 circle_center{};
+    float circle_radius = 0.0f;
 
     std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
@@ -86,10 +106,21 @@ struct RenderCommand
 
 struct ScreenRenderCommand
 {
+    RenderCommandType type = RenderCommandType::Texture;
+
     SDL_Texture* texture = nullptr;
 
     // Destination rectangle in screen space.
     Rect screen_rect{};
+
+    // Primitive geometry after camera projection. Stroke width and radius are
+    // expressed in logical screen units.
+    Color color{};
+    float stroke_width = 1.0f;
+    Vector2 line_start{};
+    Vector2 line_end{};
+    Vector2 circle_center{};
+    float circle_radius = 0.0f;
 
     std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
@@ -192,6 +223,85 @@ inline void set_ui_command_clip_rect(UiRenderCommand& command, const Rect& clip_
     }
 
     return UiStrokeWidth{};
+}
+
+[[nodiscard]] inline float normalize_world_stroke_width(float requested_width) noexcept
+{
+    return std::isfinite(requested_width) && requested_width > 0.0f
+        ? requested_width
+        : 1.0f;
+}
+
+[[nodiscard]] inline RenderCommand make_world_fill_rect_command(
+    const Rect& world_rect,
+    Color color
+) noexcept
+{
+    RenderCommand command;
+    command.type = RenderCommandType::FillRect;
+    command.command_rect = world_rect;
+    command.color = color;
+    return command;
+}
+
+[[nodiscard]] inline RenderCommand make_world_draw_rect_command(
+    const Rect& world_rect,
+    Color color,
+    float stroke_width = 1.0f
+) noexcept
+{
+    RenderCommand command;
+    command.type = RenderCommandType::DrawRect;
+    command.command_rect = world_rect;
+    command.color = color;
+    command.stroke_width = normalize_world_stroke_width(stroke_width);
+    return command;
+}
+
+[[nodiscard]] inline RenderCommand make_world_fill_circle_command(
+    const Vector2& center,
+    float radius,
+    Color color
+) noexcept
+{
+    RenderCommand command;
+    command.type = RenderCommandType::FillCircle;
+    command.circle_center = center;
+    command.circle_radius = radius;
+    command.color = color;
+    return command;
+}
+
+[[nodiscard]] inline RenderCommand make_world_draw_circle_command(
+    const Vector2& center,
+    float radius,
+    Color color,
+    float stroke_width = 1.0f
+) noexcept
+{
+    RenderCommand command;
+    command.type = RenderCommandType::DrawCircle;
+    command.circle_center = center;
+    command.circle_radius = radius;
+    command.color = color;
+    command.stroke_width = normalize_world_stroke_width(stroke_width);
+    return command;
+}
+
+[[nodiscard]] inline RenderCommand make_world_draw_line_command(
+    const Vector2& start,
+    const Vector2& end,
+    Color color,
+    float stroke_width = 1.0f
+) noexcept
+{
+    RenderCommand command;
+    command.type = RenderCommandType::DrawLine;
+    command.line_start = start;
+    command.line_end = end;
+    command.color = color;
+    command.stroke_width = normalize_world_stroke_width(stroke_width);
+    return command;
 }
 
 [[nodiscard]] inline UiRenderCommand make_ui_texture_command(

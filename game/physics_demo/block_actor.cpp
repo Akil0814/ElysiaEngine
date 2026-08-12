@@ -33,9 +33,8 @@ bool close_enough(const BlockCombatActor& first,
 }
 }
 
-BlockCombatActor::BlockCombatActor(
-    SolidColorTexture& texture, ActorConfig config)
-    : ColoredBlockObject(texture, elysia::core::DepthLayer::Character,
+BlockCombatActor::BlockCombatActor(ActorConfig config)
+    : ColoredBlockObject(elysia::core::DepthLayer::Character,
           config.rect, config.color),
       _health(config.maximum_health), _team(config.team),
       _move_speed(config.move_speed)
@@ -93,8 +92,7 @@ void BlockCombatActor::submit_render_commands(
     std::vector<elysia::core::RenderCommand>& out_commands) const
 {
     ColoredBlockObject::submit_render_commands(out_commands);
-    SDL_Texture* texture = color_texture().get();
-    if (!texture || health().maximum() <= 0)
+    if (health().maximum() <= 0)
         return;
 
     constexpr float bar_height = 4.0f;
@@ -103,17 +101,14 @@ void BlockCombatActor::submit_render_commands(
     const elysia::core::Rect background{
         world_rect().left(), world_rect().top() - 8.0f,
         world_rect().width(), bar_height};
-    elysia::core::RenderCommand back;
-    back.texture = texture;
-    back.command_rect = background;
-    back.texture_color_modulation = elysia::core::TextureColorModulation{40, 40, 40};
-    out_commands.push_back(back);
+    out_commands.push_back(elysia::core::make_world_fill_rect_command(
+        background, {40, 40, 40, 255}));
     if (ratio > 0.0f)
     {
-        elysia::core::RenderCommand fill = back;
-        fill.command_rect.set_width(background.width() * ratio);
-        fill.texture_color_modulation = elysia::core::TextureColorModulation{76, 175, 80};
-        out_commands.push_back(fill);
+        auto fill = background;
+        fill.set_width(background.width() * ratio);
+        out_commands.push_back(elysia::core::make_world_fill_rect_command(
+            fill, {76, 175, 80, 255}));
     }
 }
 
@@ -238,8 +233,8 @@ void BlockCombatActor::update_hit_box_shape() noexcept
 }
 
 PlatformPlayerCharacter::PlatformPlayerCharacter(
-    SolidColorTexture& texture, const elysia::core::Rect& rect)
-    : BlockCombatActor(texture, {rect, elysia::core::colors::blue_500,
+    const elysia::core::Rect& rect)
+    : BlockCombatActor({rect, elysia::core::colors::blue_500,
           elysia::gameplay::collision::teams::Player, 100, 220.0f, true})
 {
     set_attack_definition(PlayerAttack);
@@ -278,8 +273,8 @@ void PlatformPlayerCharacter::update(double delta)
 }
 
 TopDownPlayerCharacter::TopDownPlayerCharacter(
-    SolidColorTexture& texture, const elysia::core::Rect& rect)
-    : BlockCombatActor(texture, {rect, elysia::core::colors::blue_500,
+    const elysia::core::Rect& rect)
+    : BlockCombatActor({rect, elysia::core::colors::blue_500,
           elysia::gameplay::collision::teams::Player, 100, 200.0f, false})
 {
     set_attack_definition(PlayerAttack);
@@ -303,9 +298,9 @@ void TopDownPlayerCharacter::update(double delta)
     physics_body()->velocity = alive() ? _move * move_speed() : elysia::core::Vector2{};
 }
 
-StationaryEnemy::StationaryEnemy(SolidColorTexture& texture,
+StationaryEnemy::StationaryEnemy(
     const elysia::core::Rect& rect, BlockCombatActor& target)
-    : BlockCombatActor(texture, {rect, elysia::core::colors::red_500,
+    : BlockCombatActor({rect, elysia::core::colors::red_500,
           elysia::gameplay::collision::teams::Enemy, 50, 0.0f, true}),
       _target(&target)
 {
@@ -324,10 +319,10 @@ void StationaryEnemy::update(double delta)
         start_attack();
 }
 
-PlatformPatrolEnemy::PlatformPatrolEnemy(SolidColorTexture& texture,
+PlatformPatrolEnemy::PlatformPatrolEnemy(
     const elysia::core::Rect& rect, BlockCombatActor& target,
     float patrol_left, float patrol_right)
-    : BlockCombatActor(texture, {rect, elysia::core::colors::orange_500,
+    : BlockCombatActor({rect, elysia::core::colors::orange_500,
           elysia::gameplay::collision::teams::Enemy, 50, 85.0f, true}),
       _target(&target), _patrol_left(patrol_left), _patrol_right(patrol_right)
 {
@@ -357,9 +352,9 @@ void PlatformPatrolEnemy::update(double delta)
     set_facing(_direction < 0.0f ? Facing::Left : Facing::Right);
 }
 
-TopDownChaseEnemy::TopDownChaseEnemy(SolidColorTexture& texture,
+TopDownChaseEnemy::TopDownChaseEnemy(
     const elysia::core::Rect& rect, BlockCombatActor& target)
-    : BlockCombatActor(texture, {rect, elysia::core::colors::red_500,
+    : BlockCombatActor({rect, elysia::core::colors::red_500,
           elysia::gameplay::collision::teams::Enemy, 50, 105.0f, false}),
       _target(&target)
 {

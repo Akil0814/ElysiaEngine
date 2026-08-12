@@ -10,13 +10,12 @@
 namespace example::physics_demo
 {
 DemoTileMap::DemoTileMap(
-    SolidColorTexture& texture,
     elysia::core::Vector2 origin,
     elysia::core::Vector2 tile_size,
     int columns,
     int rows,
     elysia::physics::TileOutOfBoundsPolicy out_of_bounds)
-    : ColoredBlockObject(texture, elysia::core::DepthLayer::Terrain,
+    : ColoredBlockObject(elysia::core::DepthLayer::Terrain,
           {origin, {tile_size.x * columns, tile_size.y * rows}},
           elysia::core::colors::gray_700),
       _origin(origin), _tile_size(tile_size), _columns(columns), _rows(rows),
@@ -75,9 +74,6 @@ elysia::physics::TileCollisionCell DemoTileMap::cell_at(
 void DemoTileMap::submit_render_commands(
     std::vector<elysia::core::RenderCommand>& out_commands) const
 {
-    SDL_Texture* texture = color_texture().get();
-    if (!texture)
-        return;
     for (int y = 0; y < _rows; ++y)
     {
         for (int x = 0; x < _columns; ++x)
@@ -96,16 +92,12 @@ void DemoTileMap::submit_render_commands(
             default:
                 continue;
             }
-            elysia::core::RenderCommand command;
-            command.texture = texture;
-            command.command_rect = {
+            const elysia::core::Rect tile_rect{
                 _origin.x + x * _tile_size.x,
                 _origin.y + y * _tile_size.y,
                 _tile_size.x, _tile_size.y};
-            command.alpha = color.a;
-            command.texture_color_modulation = elysia::core::TextureColorModulation{
-                color.r, color.g, color.b};
-            out_commands.push_back(command);
+            out_commands.push_back(
+                elysia::core::make_world_fill_rect_command(tile_rect, color));
         }
     }
 }

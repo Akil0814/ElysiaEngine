@@ -88,8 +88,7 @@ void test_health_contract()
 void test_tile_adapter_contract()
 {
     using namespace example::physics_demo;
-    SolidColorTexture texture;
-    DemoTileMap map(texture, {-64, 24}, {16, 32}, 4, 3,
+    DemoTileMap map({-64, 24}, {16, 32}, 4, 3,
         elysia::physics::TileOutOfBoundsPolicy::Block);
     require(map.world_origin() == elysia::core::Vector2(-64, 24)
             && map.tile_size() == elysia::core::Vector2(16, 32),
@@ -105,14 +104,22 @@ void test_tile_adapter_contract()
     for (int x = 0; x < 4; ++x)
         require(map.cell_at({x, 2}).tag == "hazard",
             "Row filling must clip and retain stable hazard tags");
+
+    std::vector<elysia::core::RenderCommand> commands;
+    map.submit_render_commands(commands);
+    require(commands.size() == 5,
+        "Tile rendering must submit one command for each non-empty cell");
+    for (const auto& command : commands)
+        require(command.type == elysia::core::RenderCommandType::FillRect
+                && command.texture == nullptr,
+            "Tile rendering must use native world-space rectangles");
 }
 
 void test_actor_provider_and_damage_flow()
 {
     using namespace example::physics_demo;
-    SolidColorTexture texture;
-    PlatformPlayerCharacter player(texture, {0, 0, 34, 56});
-    StationaryEnemy enemy(texture, {40, 0, 38, 52}, player);
+    PlatformPlayerCharacter player({0, 0, 34, 56});
+    StationaryEnemy enemy({40, 0, 38, 52}, player);
     elysia::physics::PhysicsWorldConfig config;
     config.gravity = {};
     elysia::physics::PhysicsWorld world(config);
@@ -139,6 +146,15 @@ void test_actor_provider_and_damage_flow()
     require(player_span[0].material.static_friction == 0.0f
             && player_span[0].material.dynamic_friction == 0.0f,
         "Player Body material must avoid wall-sticking friction");
+
+    std::vector<elysia::core::RenderCommand> render_commands;
+    player.submit_render_commands(render_commands);
+    require(render_commands.size() == 3,
+        "A living actor must submit its body and two health-bar rectangles");
+    for (const auto& command : render_commands)
+        require(command.type == elysia::core::RenderCommandType::FillRect
+                && command.texture == nullptr,
+            "Actor rendering must not require a generated white texture");
 
     player.start_attack();
     player.update(0.10);
@@ -167,16 +183,15 @@ void test_actor_provider_and_damage_flow()
 void test_obstacle_material_and_kinematic_platform()
 {
     using namespace example::physics_demo;
-    SolidColorTexture texture;
     ObstacleConfig config;
     config.rect = {20, 30, 80, 12};
     config.shape = elysia::physics::AabbShape{{0, 0, 80, 12}};
     config.material = {1.0f, 0.8f, 0.25f};
-    DynamicBlockObstacle dynamic(texture, config);
+    DynamicBlockObstacle dynamic(config);
     require(dynamic.colliders().front().material == config.material,
         "Demo obstacles must forward configured contact material");
 
-    KinematicMovingPlatform platform(texture, config, 10, 40, 15);
+    KinematicMovingPlatform platform(config, 10, 40, 15);
     require(platform.physics_body()->type == elysia::physics::BodyType::Kinematic
             && platform.physics_body()->velocity.x == 15.0f
             && platform.colliders().front().material == config.material,
@@ -185,6 +200,57 @@ void test_obstacle_material_and_kinematic_platform()
     platform.update(0.0);
     require(platform.physics_body()->velocity.x == -15.0f,
         "Moving platform must reverse after reaching its authored bound");
+
+    std::vector<elysia::core::RenderCommand> commands;
+    dynamic.submit_render_commands(commands);
+    require(commands.size() == 1
+            && commands.front().type == elysia::core::RenderCommandType::FillRect
+            && commands.front().command_rect == elysia::core::Rect(20, 30, 80, 12)
+            && commands.front().texture == nullptr,
+        "An AABB obstacle must render its collider-aligned native rectangle");
+
+    ObstacleConfig circle_config;
+    circle_config.rect = {100, 200, 30, 30};
+    circle_config.color = {255, 100, 160, 210};
+    circle_config.shape = elysia::physics::CircleShape{{15, 11}, 9};
+    DynamicBlockObstacle circle(circle_config);
+    commands.clear();
+    circle.submit_render_commands(commands);
+    require(commands.size() == 1
+            && commands.front().type == elysia::core::RenderCommandType::FillCircle
+            && commands.front().circle_center == elysia::core::Vector2(115, 211)
+            && commands.front().circle_radius == 9.0f
+            && commands.front().color == circle_config.color
+            && commands.front().texture == nullptr,
+        "A Circle obstacle must render the same center and radius as its collider");
+}
+
+void test_colored_object_visual_states_use_primitive_color()
+{
+    using namespace example::physics_demo;
+    ColoredBlockObject object(
+        elysia::core::DepthLayer::Character, {3, 4, 20, 10}, {10, 20, 30, 200});
+    object.set_alpha(128);
+
+    std::vector<elysia::core::RenderCommand> commands;
+    object.submit_render_commands(commands);
+    require(commands.size() == 1
+            && commands.front().type == elysia::core::RenderCommandType::FillRect
+            && commands.front().color == elysia::core::Color(10, 20, 30, 100),
+        "Primitive object alpha must be folded into its native command color");
+
+    object.flash(1.0);
+    commands.clear();
+    object.submit_render_commands(commands);
+    require(commands.front().color == elysia::core::Color(255, 255, 255, 128),
+        "Damage flash must keep using white while preserving object alpha");
+
+    object.set_dead_visual(true);
+    commands.clear();
+    object.submit_render_commands(commands);
+    require(commands.front().color.a == 128
+            && commands.front().color != elysia::core::Color(255, 255, 255, 128),
+        "Death gray must replace flash color without losing alpha");
 }
 
 void test_scene_keys_are_unique()
@@ -406,6 +472,7 @@ int main()
     test_tile_adapter_contract();
     test_actor_provider_and_damage_flow();
     test_obstacle_material_and_kinematic_platform();
+    test_colored_object_visual_states_use_primitive_color();
     test_scene_keys_are_unique();
     test_game_module_registers_demo_scenes();
     test_physics_demo_layout_contract();

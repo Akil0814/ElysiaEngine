@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 
 namespace
@@ -85,6 +86,20 @@ public:
         Uint8 a = 0;
         SDL_GetRGBA(pixel,_format,&r,&g,&b,&a);
         return a != 0 && (r != 0 || g != 0 || b != 0);
+    }
+
+    [[nodiscard]] elysia::core::Color pixel_color(int x,int y) const noexcept
+    {
+        if (x < 0 || y < 0 || x >= _width || y >= _height)
+            return {};
+        const std::uint32_t pixel = _pixels[
+            static_cast<std::size_t>(y * _width + x)];
+        Uint8 r = 0;
+        Uint8 g = 0;
+        Uint8 b = 0;
+        Uint8 a = 0;
+        SDL_GetRGBA(pixel,_format,&r,&g,&b,&a);
+        return {r, g, b, a};
     }
 
     [[nodiscard]] elysia::core::Vector2 window_point(
@@ -322,6 +337,158 @@ void test_logical_stroke_scales_and_renderer_state_is_restored()
             && restored_clip.h == original_clip.h,
         "stroke rendering must preserve renderer clip state");
 }
+
+void test_world_primitives_render_and_restore_state()
+{
+    using namespace elysia::core;
+    SdlStrokeFixture fixture(1280,720);
+
+    ScreenRenderCommand fill_rect;
+    fill_rect.type = RenderCommandType::FillRect;
+    fill_rect.screen_rect = {20, 20, 40, 30};
+    fill_rect.color = {255, 0, 0, 128};
+    execute_render_command(fixture.renderer(), fill_rect);
+
+    ScreenRenderCommand draw_rect;
+    draw_rect.type = RenderCommandType::DrawRect;
+    draw_rect.screen_rect = {100, 20, 40, 30};
+    draw_rect.color = k_white;
+    draw_rect.stroke_width = 3.0f;
+    execute_render_command(fixture.renderer(), draw_rect);
+
+    ScreenRenderCommand fill_circle;
+    fill_circle.type = RenderCommandType::FillCircle;
+    fill_circle.circle_center = {200, 40};
+    fill_circle.circle_radius = 15.0f;
+    fill_circle.color = k_white;
+    execute_render_command(fixture.renderer(), fill_circle);
+
+    ScreenRenderCommand draw_circle;
+    draw_circle.type = RenderCommandType::DrawCircle;
+    draw_circle.circle_center = {260, 40};
+    draw_circle.circle_radius = 15.0f;
+    draw_circle.stroke_width = 2.0f;
+    draw_circle.color = k_white;
+    execute_render_command(fixture.renderer(), draw_circle);
+
+    ScreenRenderCommand line;
+    line.type = RenderCommandType::DrawLine;
+    line.line_start = {320, 20};
+    line.line_end = {350, 50};
+    line.stroke_width = 2.0f;
+    line.color = k_white;
+    execute_render_command(fixture.renderer(), line);
+    fixture.read_pixels();
+
+    require(fixture.visible(40, 35),
+        "World FillRect must rasterize with alpha blending enabled");
+    require(fixture.visible(100, 35),
+        "World DrawRect must rasterize its requested stroke");
+    require(fixture.visible(200, 40),
+        "World FillCircle must rasterize its center");
+    require(fixture.visible(260, 25),
+        "World DrawCircle must rasterize its circumference");
+    require(fixture.visible(335, 35),
+        "World DrawLine must rasterize between its endpoints");
+
+    SDL_SetRenderDrawColor(fixture.renderer(),11,22,33,44);
+    SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
+    const SDL_Rect original_clip{5, 6, 700, 500};
+    SDL_RenderSetClipRect(fixture.renderer(),&original_clip);
+    execute_render_command(fixture.renderer(), fill_circle);
+
+    Uint8 r = 0;
+    Uint8 g = 0;
+    Uint8 b = 0;
+    Uint8 a = 0;
+    SDL_GetRenderDrawColor(fixture.renderer(),&r,&g,&b,&a);
+    require(r == 11 && g == 22 && b == 33 && a == 44,
+        "World primitive rendering must preserve renderer draw color");
+    SDL_BlendMode blend_mode = SDL_BLENDMODE_NONE;
+    SDL_GetRenderDrawBlendMode(fixture.renderer(),&blend_mode);
+    require(blend_mode == SDL_BLENDMODE_ADD,
+        "World primitive rendering must preserve renderer blend mode");
+    SDL_Rect restored_clip{};
+    SDL_RenderGetClipRect(fixture.renderer(),&restored_clip);
+    require(restored_clip.x == original_clip.x
+            && restored_clip.y == original_clip.y
+            && restored_clip.w == original_clip.w
+            && restored_clip.h == original_clip.h,
+        "World primitive rendering must preserve renderer clip state");
+}
+
+void test_texture_and_world_primitive_submission_order()
+{
+    using namespace elysia::core;
+    SdlStrokeFixture fixture(1280,720);
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
+        0, 1, 1, 32, SDL_PIXELFORMAT_RGBA32);
+    require(surface != nullptr,
+        "Mixed world rendering test must create a source surface");
+    SDL_FillRect(surface, nullptr,
+        SDL_MapRGBA(surface->format, 0, 0, 255, 255));
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(
+        fixture.renderer(), surface);
+    SDL_FreeSurface(surface);
+    require(texture != nullptr,
+        "Mixed world rendering test must create a texture");
+
+    ScreenRenderCommand primitive;
+    primitive.type = RenderCommandType::FillRect;
+    primitive.screen_rect = {500, 100, 20, 20};
+    primitive.color = {255, 0, 0, 255};
+    ScreenRenderCommand textured;
+    textured.type = RenderCommandType::Texture;
+    textured.texture = texture;
+    textured.screen_rect = primitive.screen_rect;
+
+    execute_render_command(fixture.renderer(), primitive);
+    execute_render_command(fixture.renderer(), textured);
+    fixture.read_pixels();
+    const Color texture_last = fixture.pixel_color(510, 110);
+    require(texture_last.b > texture_last.r,
+        "A texture submitted after a primitive must remain on top");
+
+    fixture.clear();
+    execute_render_command(fixture.renderer(), textured);
+    execute_render_command(fixture.renderer(), primitive);
+    fixture.read_pixels();
+    const Color primitive_last = fixture.pixel_color(510, 110);
+    require(primitive_last.r > primitive_last.b,
+        "A primitive submitted after a texture must remain on top");
+    SDL_DestroyTexture(texture);
+}
+
+void test_invalid_world_primitive_geometry_is_skipped()
+{
+    using namespace elysia::core;
+    SdlStrokeFixture fixture(1280,720);
+
+    ScreenRenderCommand rect;
+    rect.type = RenderCommandType::FillRect;
+    rect.screen_rect = {
+        std::numeric_limits<float>::quiet_NaN(), 20, 10, 10};
+    rect.color = k_white;
+    execute_render_command(fixture.renderer(), rect);
+
+    ScreenRenderCommand circle;
+    circle.type = RenderCommandType::FillCircle;
+    circle.circle_center = {50, 50};
+    circle.circle_radius = 0.0f;
+    circle.color = k_white;
+    execute_render_command(fixture.renderer(), circle);
+
+    ScreenRenderCommand line;
+    line.type = RenderCommandType::DrawLine;
+    line.line_start = {80, 80};
+    line.line_end = line.line_start;
+    line.color = k_white;
+    execute_render_command(fixture.renderer(), line);
+    fixture.read_pixels();
+
+    require(!fixture.visible(50, 50) && !fixture.visible(80, 80),
+        "Invalid circles and zero-length lines must not emit pixels");
+}
 }
 
 int main()
@@ -340,5 +507,8 @@ int main()
             static_cast<int>(output.y));
     }
     test_logical_stroke_scales_and_renderer_state_is_restored();
+    test_world_primitives_render_and_restore_state();
+    test_texture_and_world_primitive_submission_order();
+    test_invalid_world_primitive_geometry_is_skipped();
     return EXIT_SUCCESS;
 }

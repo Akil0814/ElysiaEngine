@@ -1,5 +1,7 @@
 ﻿#include "engine/camera/camera.h"
 #include "tests/support/test_assertions.h"
+#define SDL_MAIN_HANDLED
+#include "engine/core/render/render_command_projection.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -81,6 +83,93 @@ void test_zoom_validation()
     require(camera.zoom() == Camera::k_default_zoom,
         "infinite zoom must fall back to the default");
 }
+
+void test_world_primitive_command_contracts()
+{
+    using namespace elysia::core;
+    require(RenderCommand{}.type == RenderCommandType::Texture,
+        "Default world render commands must remain texture commands");
+
+    constexpr Color color{12, 34, 56, 78};
+    const RenderCommand fill_rect = make_world_fill_rect_command(
+        Rect{1, 2, 3, 4}, color);
+    const RenderCommand draw_rect = make_world_draw_rect_command(
+        Rect{5, 6, 7, 8}, color, 2.5f);
+    const RenderCommand fill_circle = make_world_fill_circle_command(
+        Vector2{9, 10}, 11.0f, color);
+    const RenderCommand draw_circle = make_world_draw_circle_command(
+        Vector2{12, 13}, 14.0f, color,
+        std::numeric_limits<float>::quiet_NaN());
+    const RenderCommand line = make_world_draw_line_command(
+        Vector2{15, 16}, Vector2{17, 18}, color, -2.0f);
+
+    require(fill_rect.type == RenderCommandType::FillRect
+            && fill_rect.command_rect == Rect(1, 2, 3, 4)
+            && fill_rect.color == color,
+        "FillRect factory must preserve world geometry and color");
+    require(draw_rect.type == RenderCommandType::DrawRect
+            && draw_rect.command_rect == Rect(5, 6, 7, 8)
+            && draw_rect.stroke_width == 2.5f,
+        "DrawRect factory must preserve its normalized world-space stroke");
+    require(fill_circle.type == RenderCommandType::FillCircle
+            && fill_circle.circle_center == Vector2(9, 10)
+            && fill_circle.circle_radius == 11.0f,
+        "FillCircle factory must preserve center and radius");
+    require(draw_circle.type == RenderCommandType::DrawCircle
+            && draw_circle.stroke_width == 1.0f,
+        "DrawCircle must normalize a non-finite stroke width");
+    require(line.type == RenderCommandType::DrawLine
+            && line.line_start == Vector2(15, 16)
+            && line.line_end == Vector2(17, 18)
+            && line.stroke_width == 1.0f,
+        "DrawLine must preserve endpoints and normalize a non-positive stroke");
+}
+
+void test_world_primitive_projection()
+{
+    using namespace elysia::core;
+    constexpr Color color{120, 80, 40, 160};
+
+    for (const float zoom : {0.5f, 1.0f, 2.0f})
+    {
+        const Camera camera(
+            Vector2{100, 50}, Vector2{200, 100}, zoom);
+
+        const RenderCommand rect = make_world_draw_rect_command(
+            Rect{90, 45, 20, 10}, color, 3.0f);
+        const ScreenRenderCommand projected_rect =
+            project_render_command_to_screen(rect, camera);
+        require(projected_rect.type == RenderCommandType::DrawRect
+                && projected_rect.screen_rect
+                    == camera.world_to_screen(rect.command_rect)
+                && projected_rect.color == color
+                && projected_rect.stroke_width == 3.0f * zoom,
+            "World rectangles and strokes must project with camera zoom");
+
+        const RenderCommand circle = make_world_draw_circle_command(
+            Vector2{105, 55}, 7.0f, color, 2.0f);
+        const ScreenRenderCommand projected_circle =
+            project_render_command_to_screen(circle, camera);
+        require(projected_circle.type == RenderCommandType::DrawCircle
+                && projected_circle.circle_center
+                    == camera.world_to_screen(circle.circle_center)
+                && projected_circle.circle_radius == 7.0f * zoom
+                && projected_circle.stroke_width == 2.0f * zoom,
+            "World circle center, radius and stroke must project consistently");
+
+        const RenderCommand line = make_world_draw_line_command(
+            Vector2{90, 40}, Vector2{120, 70}, color, 4.0f);
+        const ScreenRenderCommand projected_line =
+            project_render_command_to_screen(line, camera);
+        require(projected_line.type == RenderCommandType::DrawLine
+                && projected_line.line_start
+                    == camera.world_to_screen(line.line_start)
+                && projected_line.line_end
+                    == camera.world_to_screen(line.line_end)
+                && projected_line.stroke_width == 4.0f * zoom,
+            "World line endpoints and width must project with the camera");
+    }
+}
 }
 
 int main()
@@ -88,6 +177,8 @@ int main()
     test_zoomed_projection_and_inverse();
     test_zoom_levels_and_zero_viewport();
     test_zoom_validation();
+    test_world_primitive_command_contracts();
+    test_world_primitive_projection();
     std::cout << "camera projection tests passed\n";
     return EXIT_SUCCESS;
 }

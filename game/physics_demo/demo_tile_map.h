@@ -1,6 +1,6 @@
 #pragma once
 
-#include "solid_color_render.h"
+#include "colored_block_object.h"
 
 #include "../../engine/physics/tile/tile_collision_world.h"
 
@@ -14,7 +14,6 @@ class DemoTileMap final
 {
 public:
     DemoTileMap(
-        SolidColorTexture& texture,
         elysia::core::Vector2 origin,
         elysia::core::Vector2 tile_size,
         int columns,

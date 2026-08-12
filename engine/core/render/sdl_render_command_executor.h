@@ -115,20 +115,89 @@ inline void execute_textured_render_command(
     SDL_SetTextureAlphaMod(texture, previous_alpha);
 }
 
+inline void execute_render_command(
+    SDL_Renderer* renderer,
+    const UiRenderCommand& render_command) noexcept;
+
+[[nodiscard]] inline bool finite_render_vector(const Vector2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+[[nodiscard]] inline bool valid_render_rect(const Rect& rect) noexcept
+{
+    return finite_render_vector(rect.position())
+        && finite_render_vector(rect.size())
+        && !rect.is_empty();
+}
+
 inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCommand& render_command) noexcept
 {
-    execute_textured_render_command(
-        renderer,
-        render_command.texture,
-        render_command.screen_rect,
-        render_command.alpha,
-        render_command.texture_color_modulation,
-        render_command.use_src_rect,
-        render_command.src_rect,
-        render_command.rotation_degrees,
-        render_command.rotation_origin,
-        render_command.flip
-    );
+    if (render_command.type == RenderCommandType::Texture)
+    {
+        execute_textured_render_command(
+            renderer,
+            render_command.texture,
+            render_command.screen_rect,
+            render_command.alpha,
+            render_command.texture_color_modulation,
+            render_command.use_src_rect,
+            render_command.src_rect,
+            render_command.rotation_degrees,
+            render_command.rotation_origin,
+            render_command.flip
+        );
+        return;
+    }
+
+    UiRenderCommand primitive;
+    primitive.color = render_command.color;
+    primitive.stroke_width = {
+        UiStrokeWidthMode::Logical,
+        normalize_world_stroke_width(render_command.stroke_width)};
+    switch (render_command.type)
+    {
+    case RenderCommandType::FillRect:
+    case RenderCommandType::DrawRect:
+        if (!valid_render_rect(render_command.screen_rect))
+            return;
+        primitive.type = render_command.type == RenderCommandType::FillRect
+            ? UiRenderCommandType::FillRect
+            : UiRenderCommandType::DrawRect;
+        primitive.screen_rect = render_command.screen_rect;
+        break;
+
+    case RenderCommandType::FillCircle:
+    case RenderCommandType::DrawCircle:
+        if (!finite_render_vector(render_command.circle_center)
+            || !std::isfinite(render_command.circle_radius)
+            || render_command.circle_radius <= 0.0f)
+        {
+            return;
+        }
+        primitive.type = render_command.type == RenderCommandType::FillCircle
+            ? UiRenderCommandType::FillCircle
+            : UiRenderCommandType::DrawCircle;
+        primitive.circle_center = render_command.circle_center;
+        primitive.circle_radius = render_command.circle_radius;
+        break;
+
+    case RenderCommandType::DrawLine:
+        if (!finite_render_vector(render_command.line_start)
+            || !finite_render_vector(render_command.line_end)
+            || (render_command.line_end - render_command.line_start).is_zero())
+        {
+            return;
+        }
+        primitive.type = UiRenderCommandType::DrawLine;
+        primitive.line_start = render_command.line_start;
+        primitive.line_end = render_command.line_end;
+        break;
+
+    case RenderCommandType::Texture:
+        return;
+    }
+    execute_render_command(renderer, primitive);
 }
 
 inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand& render_command) noexcept
@@ -149,6 +218,24 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
     else if (had_clip_rect)
     {
         SDL_RenderSetClipRect(renderer, nullptr);
+    }
+
+    const bool primitive_command = render_command.type != UiRenderCommandType::Texture;
+    SDL_BlendMode previous_blend_mode = SDL_BLENDMODE_NONE;
+    std::uint8_t previous_red = 0;
+    std::uint8_t previous_green = 0;
+    std::uint8_t previous_blue = 0;
+    std::uint8_t previous_alpha = 0;
+    if (primitive_command)
+    {
+        SDL_GetRenderDrawBlendMode(renderer, &previous_blend_mode);
+        SDL_GetRenderDrawColor(
+            renderer,
+            &previous_red,
+            &previous_green,
+            &previous_blue,
+            &previous_alpha);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     }
 
     switch (render_command.type)
@@ -176,12 +263,6 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
         SDL_Rect rect = to_sdl_rect(render_command.screen_rect);
         const SDL_Color color = to_sdl_color(render_command.color);
 
-        std::uint8_t old_r = 0;
-        std::uint8_t old_g = 0;
-        std::uint8_t old_b = 0;
-        std::uint8_t old_a = 0;
-        SDL_GetRenderDrawColor(renderer, &old_r, &old_g, &old_b, &old_a);
-
         SDL_SetRenderDrawColor(
             renderer,
             color.r,
@@ -191,8 +272,6 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
         );
 
         SDL_RenderFillRect(renderer, &rect);
-
-        SDL_SetRenderDrawColor(renderer, old_r, old_g, old_b, old_a);
         break;
     }
 
@@ -247,6 +326,17 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
     case UiRenderCommandType::DrawCircle:
         detail::render_ui_circle_stroke(renderer,render_command);
         break;
+    }
+
+    if (primitive_command)
+    {
+        SDL_SetRenderDrawColor(
+            renderer,
+            previous_red,
+            previous_green,
+            previous_blue,
+            previous_alpha);
+        SDL_SetRenderDrawBlendMode(renderer, previous_blend_mode);
     }
 
     if (had_clip_rect)

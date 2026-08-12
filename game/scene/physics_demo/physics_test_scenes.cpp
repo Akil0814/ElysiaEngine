@@ -90,25 +90,25 @@ void PhysicsCollisionTestScene::build_demo()
 {
     using namespace example::physics_demo;
     set_demo_camera_center({640.0f, 360.0f});
-    create_and_add_object<StaticBlockObstacle>(solid_texture(),
+    create_and_add_object<StaticBlockObstacle>(
         aabb_obstacle({0, 650, 1280, 70}, elysia::core::colors::gray_700));
-    create_and_add_object<StaticBlockObstacle>(solid_texture(),
+    create_and_add_object<StaticBlockObstacle>(
         aabb_obstacle({0, 0, 28, 720}, elysia::core::colors::gray_700));
-    create_and_add_object<StaticBlockObstacle>(solid_texture(),
+    create_and_add_object<StaticBlockObstacle>(
         aabb_obstacle({1252, 0, 28, 720}, elysia::core::colors::gray_700));
-    create_and_add_object<StaticBlockObstacle>(solid_texture(),
+    create_and_add_object<StaticBlockObstacle>(
         aabb_obstacle({900, 500, 28, 150}, elysia::core::colors::gray_700));
 
     auto platform = aabb_obstacle({350, 520, 240, 18},
         elysia::core::colors::yellow_700);
     platform.one_way = elysia::physics::OneWayCollision{
         elysia::physics::PassThroughDirection::Up, 0.02f};
-    create_and_add_object<StaticBlockObstacle>(solid_texture(), platform);
+    create_and_add_object<StaticBlockObstacle>(platform);
 
     auto trigger = aabb_obstacle({620, 570, 100, 80},
         elysia::core::Color{0, 188, 212, 120});
     trigger.response = elysia::physics::CollisionResponse::Overlap;
-    create_and_add_object<StaticBlockObstacle>(solid_texture(), trigger);
+    create_and_add_object<StaticBlockObstacle>(trigger);
 
     auto* player = add_actor<PlatformPlayerCharacter>(
         elysia::core::Rect{120, 580, 34, 56});
@@ -122,26 +122,26 @@ void PhysicsCollisionTestScene::build_demo()
 
     auto box = aabb_obstacle({470, 430, 38, 38}, elysia::core::colors::purple_500);
     box.material = {1.1f, 0.8f, 0.0f};
-    create_and_add_object<DynamicBlockObstacle>(solid_texture(), box);
+    create_and_add_object<DynamicBlockObstacle>(box);
     auto circle = aabb_obstacle({540, 420, 36, 36}, elysia::core::colors::pink_500);
     circle.shape = elysia::physics::CircleShape{{18, 18}, 18};
     circle.material = {0.2f, 0.1f, 0.65f};
-    create_and_add_object<DynamicBlockObstacle>(solid_texture(), circle);
+    create_and_add_object<DynamicBlockObstacle>(circle);
 
     auto moving_platform = aabb_obstacle(
         {670, 430, 180, 18}, elysia::core::colors::purple_700);
     moving_platform.material = {1.0f, 0.8f, 0.0f};
     create_and_add_object<KinematicMovingPlatform>(
-        solid_texture(), moving_platform, 650.0f, 850.0f, 90.0f);
+        moving_platform, 650.0f, 850.0f, 90.0f);
     auto passenger = aabb_obstacle(
         {735, 390, 34, 38}, elysia::core::colors::orange_500);
     passenger.material = {1.0f, 0.8f, 0.0f};
-    create_and_add_object<DynamicBlockObstacle>(solid_texture(), passenger);
+    create_and_add_object<DynamicBlockObstacle>(passenger);
 
     auto ccd = aabb_obstacle({70, 210, 24, 24}, elysia::core::colors::cyan_500);
     ccd.detection = elysia::physics::CollisionDetectionMode::Continuous;
     auto* fast = create_and_add_object<DynamicBlockObstacle>(
-        solid_texture(), ccd, elysia::core::Vector2{1500, 0});
+        ccd, elysia::core::Vector2{1500, 0});
     if (fast)
         fast->physics_body()->gravity_scale = 0.0f;
 
@@ -160,7 +160,7 @@ void PlatformTilePhysicsTestScene::build_demo()
 {
     using namespace example::physics_demo;
     set_demo_camera_center({320.0f, 360.0f});
-    auto* map = create_and_add_object<DemoTileMap>(solid_texture(),
+    auto* map = create_and_add_object<DemoTileMap>(
         elysia::core::Vector2{-320, 40}, elysia::core::Vector2{32, 32},
         40, 20, elysia::physics::TileOutOfBoundsPolicy::Block);
     if (!map)
@@ -199,7 +199,7 @@ void TopDownTilePhysicsTestScene::build_demo()
 {
     using namespace example::physics_demo;
     set_demo_camera_center({576.0f, 344.0f});
-    auto* map = create_and_add_object<DemoTileMap>(solid_texture(),
+    auto* map = create_and_add_object<DemoTileMap>(
         elysia::core::Vector2{-64, 80}, elysia::core::Vector2{32, 24},
         40, 22, elysia::physics::TileOutOfBoundsPolicy::Block);
     if (!map)
