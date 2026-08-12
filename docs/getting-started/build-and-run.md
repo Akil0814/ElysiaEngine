@@ -34,6 +34,18 @@ ctest --test-dir build -C Debug -L input --output-on-failure
 ctest --test-dir build -C Debug -L ui --output-on-failure
 ```
 
+## 可选 Dear ImGui 开发覆盖层
+
+默认构建使用 `ELYSIA_ENABLE_IMGUI=OFF`，不会编译或链接 Dear ImGui。需要在 Demo Gallery 的三个 Physics Demo 中使用 F2 Inspector 时，使用独立构建目录显式开启：
+
+```powershell
+cmake -S . -B build-imgui -A x64 -DELYSIA_ENABLE_IMGUI=ON
+cmake --build build-imgui --config Debug
+ctest --test-dir build-imgui -C Debug -L tools --output-on-failure
+```
+
+具体生命周期、输入捕获和面板注册契约见 [Development Overlay](../subsystems/development-overlay.md)。
+
 ## macOS
 
 macOS 配置会在 `/opt/homebrew` 和 `/usr/local` 中查找 SDL2、SDL2_image、SDL2_net、SDL2_mixer 和 SDL2_ttf。安装依赖后可使用单配置构建：

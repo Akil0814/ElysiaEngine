@@ -18,6 +18,11 @@ namespace elysia::typography
 class FontResolver;
 }
 
+namespace elysia::tools
+{
+class IDevelopmentPanelRegistry;
+}
+
 namespace elysia::scene
 {
 class SceneRuntimeContext
@@ -30,7 +35,8 @@ public:
         int logical_height,
         const elysia::builtin::BuiltinAssetCache* builtin_asset_cache = nullptr,
         elysia::typography::FontResolver* font_resolver = nullptr,
-        const elysia::builtin::BuiltinAudioPlayer* builtin_audio_player = nullptr
+        const elysia::builtin::BuiltinAudioPlayer* builtin_audio_player = nullptr,
+        elysia::tools::IDevelopmentPanelRegistry* development_panels = nullptr
     ) noexcept;
 
     [[nodiscard]] SDL_Renderer* renderer() const noexcept;
@@ -41,6 +47,8 @@ public:
     [[nodiscard]] elysia::typography::FontResolver* font_resolver() const noexcept;
     [[nodiscard]] const elysia::builtin::BuiltinAudioPlayer*
         builtin_audio_player() const noexcept;
+    [[nodiscard]] elysia::tools::IDevelopmentPanelRegistry*
+        development_panels() const noexcept;
 
 private:
     SDL_Renderer* _renderer = nullptr;
@@ -50,5 +58,6 @@ private:
     const elysia::builtin::BuiltinAssetCache* _builtin_asset_cache = nullptr;
     elysia::typography::FontResolver* _font_resolver = nullptr;
     const elysia::builtin::BuiltinAudioPlayer* _builtin_audio_player = nullptr;
+    elysia::tools::IDevelopmentPanelRegistry* _development_panels = nullptr;
 };
 }

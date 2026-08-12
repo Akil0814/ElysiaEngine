@@ -11,7 +11,8 @@ SceneRuntimeContext::SceneRuntimeContext(
     int logical_height,
     const elysia::builtin::BuiltinAssetCache* builtin_asset_cache,
     elysia::typography::FontResolver* font_resolver,
-    const elysia::builtin::BuiltinAudioPlayer* builtin_audio_player
+    const elysia::builtin::BuiltinAudioPlayer* builtin_audio_player,
+    elysia::tools::IDevelopmentPanelRegistry* development_panels
 ) noexcept
     : _renderer(renderer)
     , _content_registry(&content_registry)
@@ -20,6 +21,7 @@ SceneRuntimeContext::SceneRuntimeContext(
     , _builtin_asset_cache(builtin_asset_cache)
     , _font_resolver(font_resolver)
     , _builtin_audio_player(builtin_audio_player)
+    , _development_panels(development_panels)
 {
 }
 
@@ -57,5 +59,11 @@ const elysia::builtin::BuiltinAudioPlayer*
 SceneRuntimeContext::builtin_audio_player() const noexcept
 {
     return _builtin_audio_player;
+}
+
+elysia::tools::IDevelopmentPanelRegistry*
+SceneRuntimeContext::development_panels() const noexcept
+{
+    return _development_panels;
 }
 }

@@ -31,6 +31,38 @@ void InputSystem::shutdown()
     _initialized = false;
 }
 
+void InputSystem::set_development_input_capture(
+    DevelopmentInputCapture capture) noexcept
+{
+    const DevelopmentInputCapture previous = _development_input_capture;
+    _development_input_capture = capture;
+
+    if (captures_development_input(capture, DevelopmentInputCapture::Keyboard)
+        && !captures_development_input(previous, DevelopmentInputCapture::Keyboard))
+    {
+        _state.clear_keyboard();
+    }
+    if (captures_development_input(capture, DevelopmentInputCapture::Pointer)
+        && !captures_development_input(previous, DevelopmentInputCapture::Pointer))
+    {
+        _state.clear_pointer();
+        _mouse_delta_x = 0;
+        _mouse_delta_y = 0;
+    }
+    if (captures_development_input(capture, DevelopmentInputCapture::Gamepad)
+        && !captures_development_input(previous, DevelopmentInputCapture::Gamepad))
+    {
+        _state.clear_gamepad();
+        _gamepad_translator.reset();
+    }
+
+    if (!captures_development_input(capture, DevelopmentInputCapture::Pointer)
+        && captures_development_input(previous, DevelopmentInputCapture::Pointer))
+    {
+        refresh_mouse_position();
+    }
+}
+
 void InputSystem::begin_frame()
 {
     _state.begin_frame();
@@ -77,6 +109,9 @@ void InputSystem::process_event(const SDL_Event& event)
         return;
     }
 
+    if (is_event_captured(event))
+        return;
+
     const InputDevice previous_device = _device_tracker.current_device();
     const InputDeviceUpdateResult device_update = _device_tracker.process_event(event);
     if (device_update.should_clear_state)
@@ -97,6 +132,38 @@ void InputSystem::process_event(const SDL_Event& event)
     }
 
     translate_event(event, device_update.event_device);
+}
+
+bool InputSystem::is_event_captured(const SDL_Event& event) const noexcept
+{
+    const auto captures = [this](DevelopmentInputCapture requested)
+    {
+        return captures_development_input(
+            _development_input_capture, requested);
+    };
+
+    switch (event.type)
+    {
+    case SDL_KEYDOWN:
+    case SDL_KEYUP:
+    case SDL_TEXTINPUT:
+    case SDL_TEXTEDITING:
+        return captures(DevelopmentInputCapture::Keyboard);
+
+    case SDL_MOUSEMOTION:
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+    case SDL_MOUSEWHEEL:
+        return captures(DevelopmentInputCapture::Pointer);
+
+    case SDL_CONTROLLERBUTTONDOWN:
+    case SDL_CONTROLLERBUTTONUP:
+    case SDL_CONTROLLERAXISMOTION:
+        return captures(DevelopmentInputCapture::Gamepad);
+
+    default:
+        return false;
+    }
 }
 
 RawInputFrame InputSystem::frame() const
@@ -401,6 +468,7 @@ void InputSystem::reset_input_lifecycle()
     _mouse_delta_x = 0;
     _mouse_delta_y = 0;
     _has_mouse_position = false;
+    _development_input_capture = DevelopmentInputCapture::None;
 }
 
 bool InputSystem::should_clear_state_for_event(const SDL_Event& event) const

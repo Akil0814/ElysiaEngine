@@ -81,6 +81,7 @@ target_compile_definitions(engine_character_tests
 )
 
 foreach(INPUT_TEST_TARGET IN ITEMS
+    development_input_capture_tests
     input_action_mapping_tests
     input_system_controller_lifecycle_tests
     input_system_pointer_coordinates_tests
@@ -324,6 +325,22 @@ add_elysia_test(logging_tests
     LIBRARIES ${SDL2_LIBRARIES}
     SDL
 )
+
+add_elysia_test(development_overlay_tests
+    LABEL tools
+    SOURCES tools/development_overlay_tests.cpp
+    LIBRARIES ${SDL2_LIBRARIES}
+    SDL
+)
+
+if(ELYSIA_ENABLE_IMGUI)
+    add_elysia_test(imgui_development_overlay_tests
+        LABEL tools
+        SOURCES tools/imgui_development_overlay_tests.cpp
+        LIBRARIES ${SDL2_LIBRARIES}
+        SDL
+    )
+endif()
 
 add_elysia_test(gameplay_collision_runtime_tests
     LABEL physics

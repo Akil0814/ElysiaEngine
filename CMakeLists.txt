@@ -3,6 +3,7 @@ project(ElysiaEngine LANGUAGES C CXX)
 
 include(CTest)
 option(ELYSIA_ENABLE_ASAN "Enable AddressSanitizer for project targets" OFF)
+option(ELYSIA_ENABLE_IMGUI "Build the optional Dear ImGui development overlay" ON)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -126,6 +127,10 @@ elseif(APPLE)
         ${SDL2_TTF_LIBRARY}
     )
 
+endif()
+
+if(ELYSIA_ENABLE_IMGUI)
+    add_subdirectory(thirdparty/imgui)
 endif()
 
 add_subdirectory(engine)

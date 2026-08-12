@@ -14,6 +14,7 @@
 #include "../scene/scene_manager_observer.h"
 #include "../scene/runtime/scene_runtime_context.h"
 #include "../tools/singleton.h"
+#include "../tools/development_overlay_host.h"
 #include "../typography/font_resolver.h"
 
 #include <SDL.h>
@@ -89,6 +90,9 @@ private:
     SDL_Renderer* _renderer = nullptr;
 
     elysia::input::InputSystem _input_system;
+#if ELYSIA_ENABLE_IMGUI
+    elysia::tools::DevelopmentOverlayHost _development_overlay_host;
+#endif
     elysia::scene::SceneManager _scene_manager;
     elysia::io::ContentRegistry _content_registry;
     elysia::builtin::BuiltinAssetCache _builtin_asset_cache;

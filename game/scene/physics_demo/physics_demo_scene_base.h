@@ -5,6 +5,7 @@
 #include "../demo/demo_scene_payload.h"
 #include "../../../engine/gameplay/scene/gameplay_scene.h"
 #include "../../../engine/tools/debug_draw.h"
+#include "../../../engine/tools/development_overlay.h"
 
 #include <string>
 #include <vector>
@@ -57,6 +58,11 @@ protected:
     [[nodiscard]] example::physics_demo::DemoCombatSession& combat() noexcept { return _combat; }
 
 private:
+    void register_physics_inspector();
+    void unregister_physics_inspector() noexcept;
+#if ELYSIA_ENABLE_IMGUI
+    void draw_physics_inspector();
+#endif
     void build_hud();
     void configure_fixed_camera();
     void update_hud();
@@ -81,6 +87,8 @@ private:
     double _restart_remaining = -1.0;
     bool _built = false;
     bool _restart_requested = false;
+    elysia::tools::IDevelopmentPanelRegistry* _development_panels = nullptr;
+    elysia::tools::DevelopmentPanelHandle _physics_inspector_panel{};
     bool _previous_debug_enabled = false;
     elysia::tools::DebugDrawCategory _previous_debug_categories =
         elysia::tools::DebugDrawCategory::All;

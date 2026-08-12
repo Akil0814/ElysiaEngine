@@ -11,6 +11,7 @@
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
+#include "engine/tools/development_overlay.h"
 #include "tests/support/test_assertions.h"
 
 #include <array>
@@ -49,6 +50,47 @@ public:
 
     static inline int marker = 0;
 };
+
+#if ELYSIA_ENABLE_IMGUI
+class PanelRegistryProbe final
+    : public elysia::tools::IDevelopmentPanelRegistry
+{
+public:
+    elysia::tools::DevelopmentPanelHandle register_panel(
+        std::string stable_id,
+        DrawCallback draw) override
+    {
+        require(stable_id == "physics_demo.inspector" && static_cast<bool>(draw),
+            "Physics demos must register the shared Inspector callback");
+        require(!_active.is_valid(),
+            "A Physics demo must not leave a previous Inspector registered");
+        ++registrations;
+        _active = {static_cast<std::uint64_t>(registrations)};
+        return _active;
+    }
+
+    bool unregister_panel(
+        elysia::tools::DevelopmentPanelHandle handle) override
+    {
+        if (!_active.is_valid() || handle != _active)
+            return false;
+        ++unregistrations;
+        _active = {};
+        return true;
+    }
+
+    [[nodiscard]] bool has_active_panel() const noexcept
+    {
+        return _active.is_valid();
+    }
+
+    int registrations = 0;
+    int unregistrations = 0;
+
+private:
+    elysia::tools::DevelopmentPanelHandle _active{};
+};
+#endif
 
 void press_and_release_key(
     elysia::scene::SceneManager& scene_manager,
@@ -374,6 +416,39 @@ void test_physics_demo_fixed_cameras()
         ExampleSceneKeys::TopDownTilePhysicsTest, {576.0f, 344.0f});
 }
 
+#if ELYSIA_ENABLE_IMGUI
+void test_each_physics_demo_owns_one_inspector_panel()
+{
+    constexpr std::array scene_keys{
+        ExampleSceneKeys::PhysicsCollisionTest,
+        ExampleSceneKeys::PlatformTilePhysicsTest,
+        ExampleSceneKeys::TopDownTilePhysicsTest};
+    for (const auto scene_key : scene_keys)
+    {
+        elysia::io::ContentRegistry registry;
+        PanelRegistryProbe panels;
+        elysia::scene::SceneRuntimeContext context(
+            nullptr, registry, 1280, 720, nullptr, nullptr, nullptr, &panels);
+        elysia::scene::SceneManager scene_manager;
+        example::application::GameModule{}.register_scenes(scene_manager);
+        scene_manager.set_runtime_context(context);
+        scene_manager.start({
+            .target = scene_key,
+            .payload = example::scene::DemoScenePayload{
+                .return_route = {
+                    .target = ExampleSceneKeys::PhysicsDemoMenu,
+                    .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
+            .reload_mode = elysia::scene::SceneReloadMode::Recreate});
+        scene_manager.on_update(0.0);
+        require(panels.registrations == 1 && panels.has_active_panel(),
+            "Each Physics demo must register exactly one Inspector on entry");
+        scene_manager.shutdown();
+        require(panels.unregistrations == 1 && !panels.has_active_panel(),
+            "Each Physics demo must unregister its Inspector before destruction");
+    }
+}
+#endif
+
 void test_physics_demo_navigation_and_recreate_route()
 {
     elysia::io::ContentRegistry registry;
@@ -477,6 +552,9 @@ int main()
     test_game_module_registers_demo_scenes();
     test_physics_demo_layout_contract();
     test_physics_demo_fixed_cameras();
+#if ELYSIA_ENABLE_IMGUI
+    test_each_physics_demo_owns_one_inspector_panel();
+#endif
     test_physics_demo_navigation_and_recreate_route();
     test_animation_preview_returns_complete_caller_route();
     test_main_menu_uses_gallery_as_its_primary_demo_entry();

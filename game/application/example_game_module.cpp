@@ -12,6 +12,9 @@
 #include "../../engine/builtin/builtin_scene_keys.h"
 #include "../../engine/builtin/scenes/startup_loading_scene.h"
 #include "../../engine/scene/scene_manager.h"
+#if ELYSIA_ENABLE_IMGUI
+#include "../../engine/tools/imgui/imgui_development_overlay.h"
+#endif
 
 namespace example::application
 {
@@ -73,5 +76,15 @@ void GameModule::register_scenes(elysia::scene::SceneManager& scene_manager) con
         ExampleSceneKeys::UiTest);
     scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(
         ExampleSceneKeys::EngineFeatureTest);
+}
+
+std::unique_ptr<elysia::tools::IDevelopmentOverlay>
+GameModule::create_development_overlay() const
+{
+#if ELYSIA_ENABLE_IMGUI
+    return std::make_unique<elysia::tools::ImGuiDevelopmentOverlay>();
+#else
+    return {};
+#endif
 }
 }

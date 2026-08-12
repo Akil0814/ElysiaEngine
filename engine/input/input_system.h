@@ -1,6 +1,7 @@
 #pragma once
 
 #include "raw_input_frame.h"
+#include "development_input_capture.h"
 #include "input_device_tracker.h"
 #include "controller_manager.h"
 
@@ -23,6 +24,12 @@ public:
     void begin_frame();
     void end_frame();
     void process_event(const SDL_Event& event);
+    void set_development_input_capture(
+        DevelopmentInputCapture capture) noexcept;
+    [[nodiscard]] DevelopmentInputCapture development_input_capture() const noexcept
+    {
+        return _development_input_capture;
+    }
     RawInputFrame frame() const;
     const std::vector<RawInputEvent>& events() const;
     InputDevice current_device() const;
@@ -44,6 +51,7 @@ private:
     void reset_input_lifecycle();
     bool should_clear_state_for_event(const SDL_Event& event) const;
     bool is_window_size_changed_event(const SDL_Event& event) const;
+    [[nodiscard]] bool is_event_captured(const SDL_Event& event) const noexcept;
 
 private:
     RawInputState _state;
@@ -60,6 +68,8 @@ private:
     bool _has_mouse_position = false;
     std::optional<SDL_JoystickID> _active_controller_id;
     bool _initialized = false;
+    DevelopmentInputCapture _development_input_capture =
+        DevelopmentInputCapture::None;
 };
 
 }

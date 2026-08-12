@@ -41,6 +41,8 @@
 
 `DebugDraw::draw_*` 只接受当前已启用的单一分类；全局或分类关闭时不会创建命令。关闭全局开关会清空全部命令，移除分类会清空该分类命令，重新启用不会恢复旧请求。
 
+当构建启用 `ELYSIA_ENABLE_IMGUI` 时，三个 Physics Demo 还会通过共同基类注册同一个 Physics Inspector。它只读取 `last_step_stats()`、`debug_snapshot()` 和 `PhysicsWorldConfig`，调试复选框直接修改既有 `DebugDraw` 分类；下一次 Scene update 仍由上述映射决定 `PhysicsDebugCapture`，Inspector 不参与物理模拟。生命周期和发布成本见 [Development Overlay](../development-overlay.md)。
+
 `PhysicsWorld::last_step_stats()` 返回注册数、proxy、候选、窄检、contact、Tile sample、被拒绝的 Tile 候选范围、CCD hit/iteration、solver iteration 和累计 dropped fixed steps。统计与物理事件不受 Debug Capture 开关影响。
 
 ## Tile 适配最小骨架

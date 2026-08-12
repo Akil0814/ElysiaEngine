@@ -11,6 +11,11 @@
 #include "../../../engine/ui/widgets/label/ui_label.h"
 #include "../../../engine/ui/widgets/ui_bar.h"
 #include "../../../engine/ui/window/ui_window.h"
+#include "../../../engine/scene/runtime/scene_runtime_context.h"
+
+#if ELYSIA_ENABLE_IMGUI
+#include <imgui.h>
+#endif
 
 #include <algorithm>
 #include <sstream>
@@ -33,7 +38,10 @@ PhysicsDemoSceneBase::PhysicsDemoSceneBase(
         [this](auto& actor) { handle_actor_death(actor); });
 }
 
-PhysicsDemoSceneBase::~PhysicsDemoSceneBase() = default;
+PhysicsDemoSceneBase::~PhysicsDemoSceneBase()
+{
+    unregister_physics_inspector();
+}
 
 void PhysicsDemoSceneBase::on_enter(
     const elysia::scene::ScenePayload& payload)
@@ -71,10 +79,12 @@ void PhysicsDemoSceneBase::on_enter(
     configure_fixed_camera();
     if (_tile_map && physics_world().tile_world() != _tile_map)
         (void)physics_world().set_tile_world(*_tile_map);
+    register_physics_inspector();
 }
 
 void PhysicsDemoSceneBase::on_exit()
 {
+    unregister_physics_inspector();
     if (_tile_map && physics_world().tile_world() == _tile_map)
         (void)physics_world().clear_tile_world(*_tile_map);
     auto* debug = elysia::tools::DebugDraw::instance();
@@ -85,6 +95,7 @@ void PhysicsDemoSceneBase::on_exit()
 
 void PhysicsDemoSceneBase::reset()
 {
+    unregister_physics_inspector();
     _restart_remaining = -1.0;
     _restart_requested = false;
 }
@@ -156,6 +167,137 @@ void PhysicsDemoSceneBase::bind_tile_map(
     (void)physics_world().set_tile_world(tile_map);
 }
 
+void PhysicsDemoSceneBase::register_physics_inspector()
+{
+#if ELYSIA_ENABLE_IMGUI
+    if (_physics_inspector_panel.is_valid())
+        return;
+    _development_panels = runtime_context().development_panels();
+    if (!_development_panels)
+        return;
+    _physics_inspector_panel = _development_panels->register_panel(
+        "physics_demo.inspector",
+        [this]() { draw_physics_inspector(); });
+    if (!_physics_inspector_panel.is_valid())
+        _development_panels = nullptr;
+#endif
+}
+
+void PhysicsDemoSceneBase::unregister_physics_inspector() noexcept
+{
+    if (_development_panels && _physics_inspector_panel.is_valid())
+        (void)_development_panels->unregister_panel(_physics_inspector_panel);
+    _development_panels = nullptr;
+    _physics_inspector_panel = {};
+}
+
+#if ELYSIA_ENABLE_IMGUI
+void PhysicsDemoSceneBase::draw_physics_inspector()
+{
+    if (!ImGui::Begin("Physics Inspector###physics_demo.inspector"))
+    {
+        ImGui::End();
+        return;
+    }
+
+    const ImGuiIO& io = ImGui::GetIO();
+    ImGui::TextUnformatted(_scene_name.c_str());
+    ImGui::Text("Frame %.3f ms (%.1f FPS)",
+        io.DeltaTime * 1000.0f, io.Framerate);
+
+    const auto& config = physics_world().config();
+    if (ImGui::CollapsingHeader(
+            "World Configuration", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text("Fixed step: %.6f s", config.fixed_delta_seconds);
+        ImGui::Text("Gravity: (%.2f, %.2f)",
+            config.gravity.x, config.gravity.y);
+        ImGui::Text("Max catch-up steps: %u",
+            config.max_steps_per_advance);
+        ImGui::Text("Solver iterations: %u", config.solver_iterations);
+    }
+
+    const auto& stats = physics_world().last_step_stats();
+    if (ImGui::CollapsingHeader(
+            "Last Fixed Step", ImGuiTreeNodeFlags_DefaultOpen)
+        && ImGui::BeginTable("physics_step_stats", 2,
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+    {
+        const auto row = [](const char* label, unsigned long long value)
+        {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextUnformatted(label);
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%llu", value);
+        };
+        row("Registered objects", stats.registered_objects);
+        row("Registered colliders", stats.registered_colliders);
+        row("Broad-phase proxies", stats.broad_phase_proxies);
+        row("Broad-phase pairs", stats.broad_phase_pairs);
+        row("Narrow-phase tests", stats.narrow_phase_tests);
+        row("Contacts", stats.contacts);
+        row("Tile samples", stats.tile_samples);
+        row("Rejected tile ranges", stats.rejected_tile_candidate_ranges);
+        row("CCD hits", stats.ccd_hits);
+        row("CCD iterations", stats.ccd_iterations);
+        row("Solver iterations", stats.solver_iterations);
+        row("Dropped fixed steps", stats.dropped_fixed_steps);
+        ImGui::EndTable();
+    }
+
+    const auto& snapshot = physics_world().debug_snapshot();
+    if (ImGui::CollapsingHeader("Debug Snapshot"))
+    {
+        ImGui::Text("Shapes: %zu", snapshot.shapes.size());
+        ImGui::Text("Pairs: %zu", snapshot.broad_phase_pairs.size());
+        ImGui::Text("Tile candidates: %zu", snapshot.tile_candidates.size());
+        ImGui::Text("Contacts: %zu", snapshot.contacts.size());
+        ImGui::Text("Velocities: %zu", snapshot.velocities.size());
+    }
+
+    if (ImGui::CollapsingHeader(
+            "Debug Draw", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        auto* debug_draw = elysia::tools::DebugDraw::instance();
+        bool enabled = debug_draw->enabled();
+        if (ImGui::Checkbox("Enabled", &enabled))
+            debug_draw->set_enabled(enabled);
+
+        const auto category_checkbox = [debug_draw](
+            const char* label,
+            elysia::tools::DebugDrawCategory category)
+        {
+            bool selected = debug_draw->is_enabled(category);
+            if (!ImGui::Checkbox(label, &selected))
+                return;
+            auto categories = debug_draw->enabled_categories();
+            const auto bits = static_cast<std::uint32_t>(categories);
+            const auto category_bits = static_cast<std::uint32_t>(category);
+            categories = static_cast<elysia::tools::DebugDrawCategory>(
+                selected ? bits | category_bits : bits & ~category_bits);
+            debug_draw->set_enabled_categories(categories);
+        };
+        category_checkbox("Collider",
+            elysia::tools::DebugDrawCategory::PhysicsCollider);
+        category_checkbox("Contact",
+            elysia::tools::DebugDrawCategory::PhysicsContact);
+        category_checkbox("Contact normal",
+            elysia::tools::DebugDrawCategory::PhysicsContactNormal);
+        category_checkbox("Broad phase",
+            elysia::tools::DebugDrawCategory::PhysicsBroadPhase);
+        category_checkbox("CCD",
+            elysia::tools::DebugDrawCategory::PhysicsCcd);
+        category_checkbox("Velocity",
+            elysia::tools::DebugDrawCategory::PhysicsVelocity);
+        category_checkbox("Gameplay",
+            elysia::tools::DebugDrawCategory::Gameplay);
+    }
+
+    ImGui::End();
+}
+#endif
+
 void PhysicsDemoSceneBase::build_hud()
 {
     const PhysicsDemoLayout layout = make_physics_demo_layout(
@@ -190,7 +332,12 @@ void PhysicsDemoSceneBase::build_hud()
 
     auto controls = std::make_unique<elysia::ui::UiLabel>(
         layout.controls, 0,
-        elysia::ui::ui_raw_text(_controls + " | R Reset | F1 Debug | Esc Back"));
+        elysia::ui::ui_raw_text(
+#if ELYSIA_ENABLE_IMGUI
+            _controls + " | R Reset | F1 Debug | F2 Inspector | Esc Back"));
+#else
+            _controls + " | R Reset | F1 Debug | Esc Back"));
+#endif
     _hud->add_child(
         std::move(controls), physics_demo_layout_options(layout.controls));
 

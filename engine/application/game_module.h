@@ -1,6 +1,9 @@
 #pragma once
 #include "application_presentation_settings.h"
 #include "../scene/routing/scene_route.h"
+#include "../tools/development_overlay.h"
+
+#include <memory>
 
 namespace elysia::scene
 {
@@ -24,5 +27,10 @@ public:
 
     [[nodiscard]] virtual ApplicationDescriptor descriptor() const = 0;
     virtual void register_scenes(elysia::scene::SceneManager& scene_manager) const = 0;
+    [[nodiscard]] virtual std::unique_ptr<elysia::tools::IDevelopmentOverlay>
+        create_development_overlay() const
+    {
+        return {};
+    }
 };
 }
