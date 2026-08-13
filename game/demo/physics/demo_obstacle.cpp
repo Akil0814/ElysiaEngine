@@ -1,12 +1,12 @@
 #include "demo_obstacle.h"
 
-#include "../../engine/core/render/render_command.h"
+#include "../../../engine/core/render/render_command.h"
 
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 namespace
 {

@@ -2,7 +2,7 @@
 
 #include "../../../engine/scene/scene.h"
 #include "../../../engine/tools/debug_draw.h"
-#include "../../scene/demo/demo_scene_payload.h"
+#include "demo_scene_payload.h"
 
 #include <cstddef>
 
@@ -17,10 +17,10 @@ namespace elysia::builtin
 class EngineCharacter;
 }
 
-namespace example::testbed
+namespace example::scene
 {
 // Project-owned playground for runtime engine features such as animation.
-class EngineFeatureTestScene final : public elysia::scene::Scene
+class EngineFeatureLabScene final : public elysia::scene::Scene
 {
     enum class FloatingNumberPreset
     {

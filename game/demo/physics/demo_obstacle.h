@@ -3,11 +3,11 @@
 #include "demo_collision_layers.h"
 #include "colored_block_object.h"
 
-#include "../../engine/core/interface/updatable.h"
-#include "../../engine/physics/contracts/collider_provider.h"
-#include "../../engine/physics/contracts/physics_body_provider.h"
+#include "../../../engine/core/interface/updatable.h"
+#include "../../../engine/physics/contracts/collider_provider.h"
+#include "../../../engine/physics/contracts/physics_body_provider.h"
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 struct ObstacleConfig
 {

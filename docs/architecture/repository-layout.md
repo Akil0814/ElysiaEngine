@@ -15,14 +15,14 @@ ElysiaEngine/
 
 ## `engine/`
 
-按职责拆分为 application、bootstrap、scene、input、resources、loading、config、audio、camera、ui、physics、save、effects 等模块。生产子系统之间应通过明确的类型或服务边界协作，不得反向依赖 `game/` 或 Testbed 专用代码。
+按职责拆分为 application、bootstrap、scene、input、resources、loading、config、audio、camera、ui、physics、save、effects 等模块。生产子系统之间应通过明确的类型或服务边界协作，不得反向依赖 `game/` 或 Development Demo 专用代码。
 
 ## `game/`
 
 这里不是独立后的旧游戏项目，而是可运行的示例集成层：
 
 - `application/` 实现 `IGameModule`；
-- `scene/` 提供示例场景和 `ExampleSceneKeys`；
+- `scene/` 提供示例场景和 `example::scene_keys`；
 - `game_lib` 公开依赖 `engine_lib`。
 
 真实项目可以替换这一层，而不修改引擎核心。

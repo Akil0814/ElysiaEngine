@@ -3,11 +3,13 @@
 #include "../scene/main_menu_scene.h"
 #include "../scene/demo/animation_preview_scene.h"
 #include "../scene/demo/demo_gallery_scene.h"
+#include "../scene/demo/engine_feature_lab_scene.h"
+#include "../scene/demo/ui_component_gallery_scene.h"
+#include "../scene/demo/physics/collider_combat_demo_scene.h"
+#include "../scene/demo/physics/physics_combat_gallery_scene.h"
+#include "../scene/demo/physics/platform_tile_combat_demo_scene.h"
+#include "../scene/demo/physics/top_down_tile_combat_demo_scene.h"
 #include "../scene/example_scene_keys.h"
-#include "../scene/physics_demo/physics_demo_menu_scene.h"
-#include "../scene/physics_demo/physics_test_scenes.h"
-#include "../testbed/scene/engine_feature_test_scene.h"
-#include "../testbed/scene/ui_test_scene.h"
 
 #include "../../engine/builtin/builtin_scene_keys.h"
 #include "../../engine/builtin/scenes/startup_loading_scene.h"
@@ -41,7 +43,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
         .target = elysia::builtin::SceneKeys::StartupLoading,
         .payload = StartupLoadingScenePayload{
             .success_route = SceneRoute{
-                .target = ExampleSceneKeys::MainMenu,
+                .target = example::scene_keys::MainMenu,
                 .payload = example::scene::MainMenuEnterPayload{
                     .replay_theme_music = true
                 },
@@ -59,23 +61,23 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
 void GameModule::register_scenes(elysia::scene::SceneManager& scene_manager) const
 {
     scene_manager.register_game_scene<example::scene::MainMenuScene>(
-        ExampleSceneKeys::MainMenu);
+        example::scene_keys::MainMenu);
     scene_manager.register_game_scene<example::scene::AnimationPreviewScene>(
-        ExampleSceneKeys::AnimationPreview);
-    scene_manager.register_game_scene<example::scene::PhysicsDemoMenuScene>(
-        ExampleSceneKeys::PhysicsDemoMenu);
-    scene_manager.register_game_scene<example::scene::PhysicsCollisionTestScene>(
-        ExampleSceneKeys::PhysicsCollisionTest);
-    scene_manager.register_game_scene<example::scene::PlatformTilePhysicsTestScene>(
-        ExampleSceneKeys::PlatformTilePhysicsTest);
-    scene_manager.register_game_scene<example::scene::TopDownTilePhysicsTestScene>(
-        ExampleSceneKeys::TopDownTilePhysicsTest);
+        example::scene_keys::AnimationPreview);
+    scene_manager.register_game_scene<example::scene::PhysicsCombatGalleryScene>(
+        example::scene_keys::PhysicsCombatGallery);
+    scene_manager.register_game_scene<example::scene::ColliderCombatDemoScene>(
+        example::scene_keys::ColliderCombatDemo);
+    scene_manager.register_game_scene<example::scene::PlatformTileCombatDemoScene>(
+        example::scene_keys::PlatformTileCombatDemo);
+    scene_manager.register_game_scene<example::scene::TopDownTileCombatDemoScene>(
+        example::scene_keys::TopDownTileCombatDemo);
     scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
-        ExampleSceneKeys::DemoGallery);
-    scene_manager.register_game_scene<example::testbed::UiTestScene>(
-        ExampleSceneKeys::UiTest);
-    scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(
-        ExampleSceneKeys::EngineFeatureTest);
+        example::scene_keys::DemoGallery);
+    scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(
+        example::scene_keys::UiComponentGallery);
+    scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
+        example::scene_keys::EngineFeatureLab);
 }
 
 std::unique_ptr<elysia::tools::IDevelopmentOverlay>

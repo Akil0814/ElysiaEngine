@@ -1,13 +1,13 @@
-#include "physics_demo_menu_scene.h"
-#include "physics_demo_layout.h"
+#include "physics_combat_gallery_scene.h"
+#include "physics_combat_layout.h"
 
-#include "../example_scene_keys.h"
-#include "../../../engine/input/raw_input_types.h"
-#include "../../../engine/ui/containers/ui_list_container.h"
-#include "../../../engine/ui/text/ui_text_content.h"
-#include "../../../engine/ui/widgets/label/ui_label.h"
-#include "../../../engine/ui/widgets/ui_button.h"
-#include "../../../engine/ui/window/ui_window.h"
+#include "../../example_scene_keys.h"
+#include "../../../../engine/input/raw_input_types.h"
+#include "../../../../engine/ui/containers/ui_list_container.h"
+#include "../../../../engine/ui/text/ui_text_content.h"
+#include "../../../../engine/ui/widgets/label/ui_label.h"
+#include "../../../../engine/ui/widgets/ui_button.h"
+#include "../../../../engine/ui/window/ui_window.h"
 
 #include <memory>
 #include <stdexcept>
@@ -28,7 +28,7 @@ std::unique_ptr<elysia::ui::UiButton> button(const char* text_key)
 }
 }
 
-void PhysicsDemoMenuScene::on_enter(
+void PhysicsCombatGalleryScene::on_enter(
     const elysia::scene::ScenePayload& payload)
 {
     const DemoScenePayload* demo_payload =
@@ -38,7 +38,7 @@ void PhysicsDemoMenuScene::on_enter(
             demo_payload->return_route.target))
     {
         throw std::logic_error(
-            "PhysicsDemoMenuScene requires DemoScenePayload with a valid return route.");
+            "PhysicsCombatGalleryScene requires DemoScenePayload with a valid return route.");
     }
     _return_route = demo_payload->return_route;
     if (!_window || _window->is_destroyed())
@@ -51,7 +51,7 @@ void PhysicsDemoMenuScene::on_enter(
     }
 }
 
-void PhysicsDemoMenuScene::on_exit()
+void PhysicsCombatGalleryScene::on_exit()
 {
     if (_window)
     {
@@ -60,7 +60,7 @@ void PhysicsDemoMenuScene::on_exit()
     }
 }
 
-void PhysicsDemoMenuScene::reset()
+void PhysicsCombatGalleryScene::reset()
 {
     if (_window)
         _window->destroy();
@@ -68,7 +68,7 @@ void PhysicsDemoMenuScene::reset()
     _return_route = {};
 }
 
-void PhysicsDemoMenuScene::on_input(
+void PhysicsCombatGalleryScene::on_input(
     const elysia::input::RawInputFrame& input,
     const std::vector<elysia::input::RawInputEvent>& events)
 {
@@ -82,9 +82,9 @@ void PhysicsDemoMenuScene::on_input(
     elysia::scene::Scene::on_input(input, events);
 }
 
-void PhysicsDemoMenuScene::build_ui()
+void PhysicsCombatGalleryScene::build_ui()
 {
-    const PhysicsDemoLayout layout = make_physics_demo_layout(
+    const PhysicsCombatLayout layout = make_physics_combat_layout(
         static_cast<float>(runtime_context().logical_width()),
         static_cast<float>(runtime_context().logical_height()));
     _window = create_and_add_object<elysia::ui::UiWindow>(
@@ -97,52 +97,52 @@ void PhysicsDemoMenuScene::build_ui()
     list->set_item_spacing(18.0f);
     auto title = std::make_unique<elysia::ui::UiLabel>(
         elysia::core::Rect{0, 0, 420, 72}, 0,
-        elysia::ui::ui_text_key("physics_demo_menu.title"));
+        elysia::ui::ui_text_key("physics_combat_gallery.title"));
     title->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
     title->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
     list->add_back(std::move(title));
 
-    auto collider = button("physics_demo_menu.collider");
+    auto collider = button("physics_combat_gallery.collider");
     collider->set_on_click([this] {
         request_scene_switch(
-            ExampleSceneKeys::PhysicsCollisionTest,
+            example::scene_keys::ColliderCombatDemo,
             DemoScenePayload{.return_route = make_menu_route()},
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(collider));
-    auto platform = button("physics_demo_menu.platform_tile");
+    auto platform = button("physics_combat_gallery.platform_tile");
     platform->set_on_click([this] {
         request_scene_switch(
-            ExampleSceneKeys::PlatformTilePhysicsTest,
+            example::scene_keys::PlatformTileCombatDemo,
             DemoScenePayload{.return_route = make_menu_route()},
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(platform));
-    auto top_down = button("physics_demo_menu.top_down_tile");
+    auto top_down = button("physics_combat_gallery.top_down_tile");
     top_down->set_on_click([this] {
         request_scene_switch(
-            ExampleSceneKeys::TopDownTilePhysicsTest,
+            example::scene_keys::TopDownTileCombatDemo,
             DemoScenePayload{.return_route = make_menu_route()},
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(top_down));
-    auto back = button("physics_demo_menu.back");
+    auto back = button("physics_combat_gallery.back");
     back->set_on_click([this] { return_to_caller(); });
     list->add_back(std::move(back));
 
     auto* list_ptr = list.get();
     _window->add_child(
-        std::move(list), physics_demo_layout_options(layout.menu_list));
+        std::move(list), physics_combat_layout_options(layout.menu_list));
     _window->register_focus_scope(*list_ptr);
 }
 
-void PhysicsDemoMenuScene::return_to_caller()
+void PhysicsCombatGalleryScene::return_to_caller()
 {
     if (elysia::scene::SceneKeys::is_supported(_return_route.target))
         request_scene_switch(_return_route);
 }
 
-elysia::scene::SceneRoute PhysicsDemoMenuScene::make_menu_route() const
+elysia::scene::SceneRoute PhysicsCombatGalleryScene::make_menu_route() const
 {
     return elysia::scene::SceneRoute{
-        .target = ExampleSceneKeys::PhysicsDemoMenu,
+        .target = example::scene_keys::PhysicsCombatGallery,
         .payload = DemoScenePayload{.return_route = _return_route},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse};
 }

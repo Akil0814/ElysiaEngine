@@ -4,14 +4,14 @@
 #include "demo_combat.h"
 #include "colored_block_object.h"
 
-#include "../../engine/core/interface/updatable.h"
-#include "../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
-#include "../../engine/physics/contracts/collider_provider.h"
-#include "../../engine/physics/contracts/physics_body_provider.h"
+#include "../../../engine/core/interface/updatable.h"
+#include "../../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
+#include "../../../engine/physics/contracts/collider_provider.h"
+#include "../../../engine/physics/contracts/physics_body_provider.h"
 
 #include <array>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 enum class Facing
 {

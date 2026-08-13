@@ -110,10 +110,10 @@ void MainMenuScene::build_menu_buttons()
     ui_button->set_sounds(menu_button_sounds);
     ui_button->set_on_click([this] {
         Scene::request_scene_switch(
-            ExampleSceneKeys::DemoGallery,
+            example::scene_keys::DemoGallery,
             DemoScenePayload{
                 .return_route = {
-                    .target = ExampleSceneKeys::MainMenu,
+                    .target = example::scene_keys::MainMenu,
                     .payload = MainMenuEnterPayload{
                         .replay_theme_music = false},
                     .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
@@ -130,7 +130,7 @@ void MainMenuScene::build_menu_buttons()
             elysia::builtin::SceneKeys::Settings,
             elysia::builtin::SettingsScenePayload{
                 .return_route = elysia::scene::SceneRoute{
-                    .target = ExampleSceneKeys::MainMenu,
+                    .target = example::scene_keys::MainMenu,
                     .payload = MainMenuEnterPayload{ .replay_theme_music = false },
                     .reload_mode = elysia::scene::SceneReloadMode::Reuse
                 }

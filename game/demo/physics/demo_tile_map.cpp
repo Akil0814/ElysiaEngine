@@ -1,13 +1,13 @@
 #include "demo_tile_map.h"
 
 #include "demo_collision_layers.h"
-#include "../../engine/core/render/colors.h"
-#include "../../engine/core/render/render_command.h"
+#include "../../../engine/core/render/colors.h"
+#include "../../../engine/core/render/render_command.h"
 
 #include <algorithm>
 #include <stdexcept>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 DemoTileMap::DemoTileMap(
     elysia::core::Vector2 origin,

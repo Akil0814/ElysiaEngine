@@ -175,7 +175,7 @@ void DemoGalleryScene::build_ui()
     auto physics = make_button("demo_gallery.physics");
     physics->set_on_click([this]() {
         request_scene_switch(
-            ExampleSceneKeys::PhysicsDemoMenu,
+            example::scene_keys::PhysicsCombatGallery,
             DemoScenePayload{.return_route = make_gallery_route()},
             elysia::scene::SceneReloadMode::Reuse);
     });
@@ -184,7 +184,7 @@ void DemoGalleryScene::build_ui()
     auto animation = make_button("demo_gallery.animation_preview");
     animation->set_on_click([this]() {
         request_scene_switch(
-            ExampleSceneKeys::AnimationPreview,
+            example::scene_keys::AnimationPreview,
             DemoScenePayload{.return_route = make_gallery_route()},
             elysia::scene::SceneReloadMode::Reuse);
     });
@@ -193,7 +193,7 @@ void DemoGalleryScene::build_ui()
     auto ui_gallery = make_button("demo_gallery.ui_gallery");
     ui_gallery->set_on_click([this]() {
         request_scene_switch(
-            ExampleSceneKeys::UiTest,
+            example::scene_keys::UiComponentGallery,
             DemoScenePayload{.return_route = make_gallery_route()},
             elysia::scene::SceneReloadMode::Reuse);
     });
@@ -202,7 +202,7 @@ void DemoGalleryScene::build_ui()
     auto engine_features = make_button("demo_gallery.engine_features");
     engine_features->set_on_click([this]() {
         request_scene_switch(
-            ExampleSceneKeys::EngineFeatureTest,
+            example::scene_keys::EngineFeatureLab,
             DemoScenePayload{.return_route = make_gallery_route()},
             elysia::scene::SceneReloadMode::Reuse);
     });
@@ -262,7 +262,7 @@ void DemoGalleryScene::return_to_caller()
 elysia::scene::SceneRoute DemoGalleryScene::make_gallery_route() const
 {
     return elysia::scene::SceneRoute{
-        .target = ExampleSceneKeys::DemoGallery,
+        .target = example::scene_keys::DemoGallery,
         .payload = DemoScenePayload{.return_route = _return_route},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse};
 }

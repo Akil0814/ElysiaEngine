@@ -212,7 +212,7 @@ int main()
             require(key.find("character_select_scene") == std::string::npos,
                     "engine locale must not contain character select copy");
             require(key.find("ui_test") == std::string::npos,
-                "engine locale must not contain Testbed UI copy");
+                "engine locale must not contain project demo UI copy");
             require(key.find("theme") == std::string::npos, "engine locale must not contain theme copy");
         }
     }

@@ -1,17 +1,17 @@
-#include "physics_demo_scene_base.h"
-#include "physics_demo_layout.h"
+#include "physics_combat_demo_scene_base.h"
+#include "physics_combat_layout.h"
 
-#include "../../../engine/camera/camera_manager.h"
-#include "../../../engine/core/render/colors.h"
-#include "../../../engine/input/raw_input_types.h"
-#include "../../../engine/tools/debug_draw.h"
-#include "../../../engine/ui/style/ui_visual_styles.h"
-#include "../../../engine/ui/containers/ui_panel.h"
-#include "../../../engine/ui/text/ui_text_content.h"
-#include "../../../engine/ui/widgets/label/ui_label.h"
-#include "../../../engine/ui/widgets/ui_bar.h"
-#include "../../../engine/ui/window/ui_window.h"
-#include "../../../engine/scene/runtime/scene_runtime_context.h"
+#include "../../../../engine/camera/camera_manager.h"
+#include "../../../../engine/core/render/colors.h"
+#include "../../../../engine/input/raw_input_types.h"
+#include "../../../../engine/tools/debug_draw.h"
+#include "../../../../engine/ui/style/ui_visual_styles.h"
+#include "../../../../engine/ui/containers/ui_panel.h"
+#include "../../../../engine/ui/text/ui_text_content.h"
+#include "../../../../engine/ui/widgets/label/ui_label.h"
+#include "../../../../engine/ui/widgets/ui_bar.h"
+#include "../../../../engine/ui/window/ui_window.h"
+#include "../../../../engine/scene/runtime/scene_runtime_context.h"
 
 #if ELYSIA_ENABLE_IMGUI
 #include <imgui.h>
@@ -23,7 +23,7 @@
 
 namespace example::scene
 {
-PhysicsDemoSceneBase::PhysicsDemoSceneBase(
+PhysicsCombatDemoSceneBase::PhysicsCombatDemoSceneBase(
     elysia::scene::SceneKey own_key,
     std::string scene_name,
     elysia::physics::PhysicsWorldConfig config,
@@ -38,12 +38,12 @@ PhysicsDemoSceneBase::PhysicsDemoSceneBase(
         [this](auto& actor) { handle_actor_death(actor); });
 }
 
-PhysicsDemoSceneBase::~PhysicsDemoSceneBase()
+PhysicsCombatDemoSceneBase::~PhysicsCombatDemoSceneBase()
 {
     unregister_physics_inspector();
 }
 
-void PhysicsDemoSceneBase::on_enter(
+void PhysicsCombatDemoSceneBase::on_enter(
     const elysia::scene::ScenePayload& payload)
 {
     const DemoScenePayload* demo_payload =
@@ -82,7 +82,7 @@ void PhysicsDemoSceneBase::on_enter(
     register_physics_inspector();
 }
 
-void PhysicsDemoSceneBase::on_exit()
+void PhysicsCombatDemoSceneBase::on_exit()
 {
     unregister_physics_inspector();
     if (_tile_map && physics_world().tile_world() == _tile_map)
@@ -93,14 +93,14 @@ void PhysicsDemoSceneBase::on_exit()
     debug->set_enabled(_previous_debug_enabled);
 }
 
-void PhysicsDemoSceneBase::reset()
+void PhysicsCombatDemoSceneBase::reset()
 {
     unregister_physics_inspector();
     _restart_remaining = -1.0;
     _restart_requested = false;
 }
 
-void PhysicsDemoSceneBase::on_update(double delta)
+void PhysicsCombatDemoSceneBase::on_update(double delta)
 {
     _combat.update(delta);
     elysia::gameplay::GameplayScene::on_update(delta);
@@ -115,7 +115,7 @@ void PhysicsDemoSceneBase::on_update(double delta)
     }
 }
 
-void PhysicsDemoSceneBase::on_input(
+void PhysicsCombatDemoSceneBase::on_input(
     const elysia::input::RawInputFrame& input,
     const std::vector<elysia::input::RawInputEvent>& events)
 {
@@ -143,31 +143,31 @@ void PhysicsDemoSceneBase::on_input(
 }
 
 std::optional<elysia::core::Rect>
-PhysicsDemoSceneBase::resolve_camera_focus_rect() const
+PhysicsCombatDemoSceneBase::resolve_camera_focus_rect() const
 {
     return std::nullopt;
 }
 
-void PhysicsDemoSceneBase::set_player(
-    example::physics_demo::BlockCombatActor& player) noexcept
+void PhysicsCombatDemoSceneBase::set_player(
+    example::demo::physics::BlockCombatActor& player) noexcept
 {
     _player = &player;
 }
 
-void PhysicsDemoSceneBase::set_demo_camera_center(
+void PhysicsCombatDemoSceneBase::set_demo_camera_center(
     const elysia::core::Vector2& center) noexcept
 {
     _demo_camera_center = center;
 }
 
-void PhysicsDemoSceneBase::bind_tile_map(
-    example::physics_demo::DemoTileMap& tile_map)
+void PhysicsCombatDemoSceneBase::bind_tile_map(
+    example::demo::physics::DemoTileMap& tile_map)
 {
     _tile_map = &tile_map;
     (void)physics_world().set_tile_world(tile_map);
 }
 
-void PhysicsDemoSceneBase::register_physics_inspector()
+void PhysicsCombatDemoSceneBase::register_physics_inspector()
 {
 #if ELYSIA_ENABLE_IMGUI
     if (_physics_inspector_panel.is_valid())
@@ -183,7 +183,7 @@ void PhysicsDemoSceneBase::register_physics_inspector()
 #endif
 }
 
-void PhysicsDemoSceneBase::unregister_physics_inspector() noexcept
+void PhysicsCombatDemoSceneBase::unregister_physics_inspector() noexcept
 {
     if (_development_panels && _physics_inspector_panel.is_valid())
         (void)_development_panels->unregister_panel(_physics_inspector_panel);
@@ -192,7 +192,7 @@ void PhysicsDemoSceneBase::unregister_physics_inspector() noexcept
 }
 
 #if ELYSIA_ENABLE_IMGUI
-void PhysicsDemoSceneBase::draw_physics_inspector()
+void PhysicsCombatDemoSceneBase::draw_physics_inspector()
 {
     if (!ImGui::Begin("Physics Inspector###physics_demo.inspector"))
     {
@@ -298,9 +298,9 @@ void PhysicsDemoSceneBase::draw_physics_inspector()
 }
 #endif
 
-void PhysicsDemoSceneBase::build_hud()
+void PhysicsCombatDemoSceneBase::build_hud()
 {
-    const PhysicsDemoLayout layout = make_physics_demo_layout(
+    const PhysicsCombatLayout layout = make_physics_combat_layout(
         static_cast<float>(runtime_context().logical_width()),
         static_cast<float>(runtime_context().logical_height()));
     _hud = create_and_add_object<elysia::ui::UiWindow>(
@@ -321,14 +321,14 @@ void PhysicsDemoSceneBase::build_hud()
     panel_style.border = elysia::core::colors::steel_blue;
     panel->set_style_overrides(panel_style);
     _hud->add_child(
-        std::move(panel), physics_demo_layout_options(layout.hud_panel));
+        std::move(panel), physics_combat_layout_options(layout.hud_panel));
 
     auto title = std::make_unique<elysia::ui::UiLabel>(
         layout.title, 0,
         elysia::ui::ui_raw_text(_title));
     title->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
     _hud->add_child(
-        std::move(title), physics_demo_layout_options(layout.title));
+        std::move(title), physics_combat_layout_options(layout.title));
 
     auto controls = std::make_unique<elysia::ui::UiLabel>(
         layout.controls, 0,
@@ -339,7 +339,7 @@ void PhysicsDemoSceneBase::build_hud()
             _controls + " | R Reset | F1 Debug | Esc Back"));
 #endif
     _hud->add_child(
-        std::move(controls), physics_demo_layout_options(layout.controls));
+        std::move(controls), physics_combat_layout_options(layout.controls));
 
     auto health = std::make_unique<elysia::ui::UiBar>(
         layout.health);
@@ -347,13 +347,13 @@ void PhysicsDemoSceneBase::build_hud()
     health->set_value(100);
     _health_bar = health.get();
     _hud->add_child(
-        std::move(health), physics_demo_layout_options(layout.health));
+        std::move(health), physics_combat_layout_options(layout.health));
 
     auto stats = std::make_unique<elysia::ui::UiLabel>(
         layout.stats);
     _stats_label = stats.get();
     _hud->add_child(
-        std::move(stats), physics_demo_layout_options(layout.stats));
+        std::move(stats), physics_combat_layout_options(layout.stats));
 
     auto status = std::make_unique<elysia::ui::UiLabel>(
         layout.status);
@@ -361,10 +361,10 @@ void PhysicsDemoSceneBase::build_hud()
     status->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
     _status_label = status.get();
     _hud->add_child(
-        std::move(status), physics_demo_layout_options(layout.status));
+        std::move(status), physics_combat_layout_options(layout.status));
 }
 
-void PhysicsDemoSceneBase::configure_fixed_camera()
+void PhysicsCombatDemoSceneBase::configure_fixed_camera()
 {
     if (!_demo_camera_center)
         return;
@@ -378,7 +378,7 @@ void PhysicsDemoSceneBase::configure_fixed_camera()
     cameras->set_center(slot, *_demo_camera_center);
 }
 
-void PhysicsDemoSceneBase::update_hud()
+void PhysicsCombatDemoSceneBase::update_hud()
 {
     if (_health_bar && _player)
     {
@@ -404,8 +404,8 @@ void PhysicsDemoSceneBase::update_hud()
     }
 }
 
-void PhysicsDemoSceneBase::handle_actor_death(
-    example::physics_demo::BlockCombatActor& actor)
+void PhysicsCombatDemoSceneBase::handle_actor_death(
+    example::demo::physics::BlockCombatActor& actor)
 {
     if (&actor == _player)
     {
@@ -420,7 +420,7 @@ void PhysicsDemoSceneBase::handle_actor_death(
     actor.destroy();
 }
 
-void PhysicsDemoSceneBase::request_restart()
+void PhysicsCombatDemoSceneBase::request_restart()
 {
     if (_restart_requested)
         return;
@@ -431,7 +431,7 @@ void PhysicsDemoSceneBase::request_restart()
         elysia::scene::SceneReloadMode::Recreate);
 }
 
-void PhysicsDemoSceneBase::return_to_caller()
+void PhysicsCombatDemoSceneBase::return_to_caller()
 {
     if (elysia::scene::SceneKeys::is_supported(_return_route.target))
         request_scene_switch(_return_route);

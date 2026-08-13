@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../../engine/core/game_object.h"
-#include "../../engine/core/render/color.h"
+#include "../../../engine/core/game_object.h"
+#include "../../../engine/core/render/color.h"
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 class ColoredBlockObject : public elysia::core::GameObject
 {

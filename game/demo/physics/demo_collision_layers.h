@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../engine/physics/collision/collider.h"
+#include "../../../engine/physics/collision/collider.h"
 
-namespace example::physics_demo::collision_layers
+namespace example::demo::physics::collision_layers
 {
 inline constexpr elysia::physics::CollisionBits World = 1u << 0;
 inline constexpr elysia::physics::CollisionBits Body = 1u << 1;

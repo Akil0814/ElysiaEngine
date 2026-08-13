@@ -1,10 +1,10 @@
-#include "physics_demo_layout.h"
+#include "physics_combat_layout.h"
 
 #include <algorithm>
 
 namespace example::scene
 {
-PhysicsDemoLayout make_physics_demo_layout(
+PhysicsCombatLayout make_physics_combat_layout(
     float logical_width,
     float logical_height) noexcept
 {
@@ -23,7 +23,7 @@ PhysicsDemoLayout make_physics_demo_layout(
     const float menu_width = std::min(420.0f, std::max(0.0f, width - 40.0f));
     const float menu_height = std::min(520.0f, std::max(0.0f, height - 40.0f));
 
-    return PhysicsDemoLayout{
+    return PhysicsCombatLayout{
         .viewport = {0.0f, 0.0f, width, height},
         .hud_panel = {
             10.0f,
@@ -42,7 +42,7 @@ PhysicsDemoLayout make_physics_demo_layout(
             {menu_width, menu_height})};
 }
 
-elysia::ui::UiLayoutChildOptions physics_demo_layout_options(
+elysia::ui::UiLayoutChildOptions physics_combat_layout_options(
     const elysia::core::Rect& rect) noexcept
 {
     elysia::ui::UiLayoutChildOptions options;

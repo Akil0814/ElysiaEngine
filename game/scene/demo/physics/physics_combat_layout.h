@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../../../engine/core/geometry/rect.h"
-#include "../../../engine/ui/layout/ui_layout_types.h"
+#include "../../../../engine/core/geometry/rect.h"
+#include "../../../../engine/ui/layout/ui_layout_types.h"
 
 namespace example::scene
 {
-// Screen-space geometry shared by the physics demo HUD and menu. Keeping the
+// Screen-space geometry shared by the physics combat HUD and gallery. Keeping the
 // calculation independent from UI objects makes the layout deterministic and
 // directly testable at every logical presentation size.
-struct PhysicsDemoLayout
+struct PhysicsCombatLayout
 {
     elysia::core::Rect viewport;
     elysia::core::Rect hud_panel;
@@ -20,13 +20,13 @@ struct PhysicsDemoLayout
     elysia::core::Rect menu_list;
 };
 
-[[nodiscard]] PhysicsDemoLayout make_physics_demo_layout(
+[[nodiscard]] PhysicsCombatLayout make_physics_combat_layout(
     float logical_width,
     float logical_height) noexcept;
 
 // Converts an absolute screen-space rect into explicit top-left window layout
 // metadata. UiWindow intentionally owns child placement and otherwise ignores
 // the initial x/y stored on the child.
-[[nodiscard]] elysia::ui::UiLayoutChildOptions physics_demo_layout_options(
+[[nodiscard]] elysia::ui::UiLayoutChildOptions physics_combat_layout_options(
     const elysia::core::Rect& rect) noexcept;
 }

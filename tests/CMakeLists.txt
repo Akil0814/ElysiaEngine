@@ -183,13 +183,13 @@ add_elysia_test(settings_scene_tests
     SDL
 )
 
-add_elysia_test(testbed_scene_tests
+add_elysia_test(demo_scene_tests
     LABEL scene
-    SOURCES game/testbed_scene_tests.cpp
+    SOURCES game/demo_scene_tests.cpp
     LIBRARIES game_lib ${SDL2_LIBRARIES}
     SDL
 )
-target_compile_definitions(testbed_scene_tests
+target_compile_definitions(demo_scene_tests
     PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
 

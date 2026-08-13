@@ -4,15 +4,15 @@
 
 ## 构建开关与发布成本
 
-该能力默认关闭：
+当前仓库开发构建默认开启。发布构建如需完全移除开发工具，应显式关闭：
 
 ```powershell
 cmake -S . -B build -DELYSIA_ENABLE_IMGUI=OFF
 ```
 
-关闭时不会创建 `imgui_lib`，不会编译 ImGui adapter 或 game 侧 Physics Inspector，也不会链接 ImGui 符号。`Application` 中事件、逐帧和渲染接入点同样由编译条件移除；`SceneRuntimeContext::development_panels()` 始终返回空。因此默认发布构建没有 ImGui Context、字体 Atlas、事件处理、统计采集或绘制成本。
+关闭时不会创建 `imgui_lib`，不会编译 ImGui adapter 或 game 侧 Physics Inspector，也不会链接 ImGui 符号。`Application` 中事件、逐帧和渲染接入点同样由编译条件移除；`SceneRuntimeContext::development_panels()` 始终返回空。因此显式关闭的发布构建没有 ImGui Context、字体 Atlas、事件处理、统计采集或绘制成本。
 
-开发构建可显式开启：
+也可以显式开启或修正已有 CMake 缓存：
 
 ```powershell
 cmake -S . -B build-imgui -DELYSIA_ENABLE_IMGUI=ON
@@ -20,6 +20,8 @@ cmake --build build-imgui --config Debug
 ```
 
 开启后使用仓库固定的 Dear ImGui 1.92.9、`imgui_impl_sdl2` 与 `imgui_impl_sdlrenderer2`。不编译 `imgui_demo.cpp`，不启用 docking、multi-viewport 或 gamepad navigation。Overlay 隐藏时仍保留已初始化的 Context 和默认字体内存，但不向 backend 发送事件，不调用 `NewFrame`、面板 callback 或渲染。
+
+修改 `option()` 的默认值不会覆盖已经存在的 `CMakeCache.txt`；旧构建目录需要重新配置并显式传入 `-DELYSIA_ENABLE_IMGUI=ON`。
 
 ## 分层与所有权
 
@@ -72,9 +74,9 @@ if (panels && _panel.is_valid())
 
 Panel callback 属于调用方代码，契约要求不得抛异常。若 callback 抛出，异常会传播到 Application render boundary，记录 `UnhandledException` 并进入 FaultExit；引擎不尝试回滚任意 ImGui 或 Scene 状态。
 
-## Physics Demo 示例
+## Physics Combat Demo 示例
 
-三个 Physics Demo 由 `PhysicsDemoSceneBase` 共同注册 `physics_demo.inspector`。F2 显示或隐藏 Overlay，F1 原有 DebugDraw 开关保持不变。Inspector 展示：
+三个 Physics Combat Demo 由 `PhysicsCombatDemoSceneBase` 共同注册 `physics_demo.inspector`。F2 显示或隐藏 Overlay，F1 原有 DebugDraw 开关保持不变。Inspector 展示：
 
 - frame delta、ImGui FPS 和场景名；
 - fixed step、gravity、追赶步数和 solver iterations；

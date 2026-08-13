@@ -1,4 +1,4 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/application/composition/application_scene_composition.h"
 #include "engine/io/loaders/asset_config_types.h"
@@ -139,16 +139,16 @@ int main()
     require(throws_logic_error_containing(
             [&scene_manager] { request_scene(scene_manager,99); },
             "unregistered game"),
-        "the Elysia module must no longer register the former game UiTest key");
-    for (const elysia::scene::SceneKey legacy_testbed_key : {
+        "the Elysia module must no longer register the former game UiComponentGallery key");
+    for (const elysia::scene::SceneKey legacy_demo_key : {
             0xFFFF0003u,0xFFFF0004u,0xFFFF0006u })
     {
         require(throws_logic_error_containing(
-                [&scene_manager,legacy_testbed_key] {
-                    request_scene(scene_manager,legacy_testbed_key);
+                [&scene_manager,legacy_demo_key] {
+                    request_scene(scene_manager,legacy_demo_key);
                 },
                 "unregistered engine-owned"),
-            "Application composition must not register legacy Engine Testbed keys");
+            "Application composition must not register legacy development-demo keys");
     }
     require(throws_logic_error_containing(
             [&scene_manager] { request_scene(

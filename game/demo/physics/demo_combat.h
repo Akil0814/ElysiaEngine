@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../../engine/gameplay/collision/gameplay_collision_listener.h"
-#include "../../engine/gameplay/collision/gameplay_collision_runtime.h"
-#include "../../engine/physics/physics_world.h"
+#include "../../../engine/gameplay/collision/gameplay_collision_listener.h"
+#include "../../../engine/gameplay/collision/gameplay_collision_runtime.h"
+#include "../../../engine/physics/physics_world.h"
 
 #include <functional>
 #include <unordered_map>
 #include <vector>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 class BlockCombatActor;
 

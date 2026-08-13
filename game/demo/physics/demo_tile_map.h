@@ -2,11 +2,11 @@
 
 #include "colored_block_object.h"
 
-#include "../../engine/physics/tile/tile_collision_world.h"
+#include "../../../engine/physics/tile/tile_collision_world.h"
 
 #include <vector>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 class DemoTileMap final
     : public ColoredBlockObject

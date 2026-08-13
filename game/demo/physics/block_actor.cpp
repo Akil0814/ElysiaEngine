@@ -1,12 +1,12 @@
 #include "block_actor.h"
 
-#include "../../engine/core/render/colors.h"
-#include "../../engine/core/render/render_command.h"
+#include "../../../engine/core/render/colors.h"
+#include "../../../engine/core/render/render_command.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 namespace
 {

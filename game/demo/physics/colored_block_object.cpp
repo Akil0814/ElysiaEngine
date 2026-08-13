@@ -1,11 +1,11 @@
 #include "colored_block_object.h"
 
-#include "../../engine/core/render/colors.h"
-#include "../../engine/core/render/render_command.h"
+#include "../../../engine/core/render/colors.h"
+#include "../../../engine/core/render/render_command.h"
 
 #include <algorithm>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 ColoredBlockObject::ColoredBlockObject(
     elysia::core::DepthLayer layer,

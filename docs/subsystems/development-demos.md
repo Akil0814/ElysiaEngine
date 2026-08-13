@@ -1,9 +1,10 @@
-# Demo Gallery and Project Testbed
+# Demo Gallery and Development Demos
 
 The project-owned `DemoGalleryScene` is the single runtime entry for showcases.
 It lives under `game/scene/demo/` together with `AnimationPreviewScene` and the
-shared `DemoScenePayload`. `game/testbed` continues to own the UI workbench and
-engine-feature experiments that may depend on multiple engine subsystems.
+shared `DemoScenePayload`. UI component and cross-subsystem experiments live in
+the same demo scene tree; domain helpers for physics demos live under
+`game/demo/physics/`.
 None of these files are compiled into or registered by `engine_lib`.
 
 The main menu links only to Demo Gallery, Settings, and Exit. Demo Gallery then
@@ -15,14 +16,13 @@ requires confirmation before it enters the terminating engine failure flow.
 
 - Put each camera, physics, effects, or other subsystem showcase in its own scene
   and register its entry through Demo Gallery.
-- Put Testbed-only runtime `GameObject` types in `game/testbed/objects/` when
-  they are introduced.
+- Put reusable runtime helpers for a demo domain under `game/demo/<domain>/`.
 - Keep automated unit and integration tests under `tests/`; that directory is
-  not runtime Testbed code.
+  not runtime demo code.
 - Do not place production startup, settings, or failure scenes here; they remain
   under `engine/builtin/scenes/`.
 
-## Engine Feature Test
+## Engine Feature Lab
 
 The animation comparison keeps the left sprite unmodified and applies a coverage
 mask color overlay to the right sprite. Press `Space` to cycle through no

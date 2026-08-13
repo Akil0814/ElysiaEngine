@@ -1,4 +1,4 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/builtin/resources/builtin_asset_cache.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
@@ -11,10 +11,10 @@
 #include "engine/resources/resource_service.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
-#include "game/testbed/scene/engine_feature_test_scene.h"
 #include "game/scene/demo/demo_gallery_scene.h"
 #include "game/scene/demo/demo_scene_payload.h"
-#include "game/testbed/scene/ui_test_scene.h"
+#include "game/scene/demo/engine_feature_lab_scene.h"
+#include "game/scene/demo/ui_component_gallery_scene.h"
 #include "game/scene/example_scene_keys.h"
 #include "engine/tools/debug_draw.h"
 #include "engine/typography/font_resolver.h"
@@ -28,7 +28,9 @@
 #include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -173,7 +175,7 @@ void click_mouse(
 
 void test_engine_feature_overlay_cycle()
 {
-    example::testbed::EngineFeatureTestScene scene;
+    example::scene::EngineFeatureLabScene scene;
     require(scene.color_overlay_index() == 2,
         "Engine feature test must start with the blue overlay");
 
@@ -205,21 +207,21 @@ void test_payload_contract_names_each_scene()
             "DemoGalleryScene"),
         "DemoGalleryScene must name itself when the demo payload is missing");
 
-    example::testbed::UiTestScene ui_test_scene;
+    example::scene::UiComponentGalleryScene ui_test_scene;
     require(throws_logic_error_containing(
             [&ui_test_scene] { ui_test_scene.on_enter({}); },
-            "UiTestScene"),
-        "UiTestScene must name itself when the Testbed payload is missing");
+            "UiComponentGalleryScene"),
+        "UiComponentGalleryScene must name itself when the demo payload is missing");
 
-    example::testbed::EngineFeatureTestScene feature_test_scene;
+    example::scene::EngineFeatureLabScene feature_test_scene;
     const elysia::scene::ScenePayload invalid_payload =
         example::scene::DemoScenePayload{
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
             [&feature_test_scene,&invalid_payload] { feature_test_scene.on_enter(invalid_payload); },
-            "EngineFeatureTestScene"),
-        "EngineFeatureTestScene must name itself when the return route is invalid");
+            "EngineFeatureLabScene"),
+        "EngineFeatureLabScene must name itself when the return route is invalid");
 }
 
 void test_escape_returns_the_full_caller_route()
@@ -255,11 +257,11 @@ void test_escape_returns_the_full_caller_route()
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
     scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
-        ExampleSceneKeys::DemoGallery);
-    scene_manager.register_game_scene<example::testbed::UiTestScene>(
-        ExampleSceneKeys::UiTest);
-    scene_manager.register_game_scene<example::testbed::EngineFeatureTestScene>(
-        ExampleSceneKeys::EngineFeatureTest);
+        example::scene_keys::DemoGallery);
+    scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(
+        example::scene_keys::UiComponentGallery);
+    scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
+        example::scene_keys::EngineFeatureLab);
     scene_manager.register_game_scene<FirstReturnScene>(1);
     scene_manager.register_game_scene<SecondReturnScene>(2);
     scene_manager.register_engine_scene<
@@ -267,7 +269,7 @@ void test_escape_returns_the_full_caller_route()
             elysia::builtin::SceneKeys::ApplicationFailure);
 
     scene_manager.start(elysia::scene::SceneRoute{
-        .target = ExampleSceneKeys::UiTest,
+        .target = example::scene_keys::UiComponentGallery,
         .payload = example::scene::DemoScenePayload{
             .return_route = elysia::scene::SceneRoute{
                 .target = 1,
@@ -278,7 +280,7 @@ void test_escape_returns_the_full_caller_route()
     });
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 17,
-        "UiTestScene Escape must return the caller key and payload");
+        "UiComponentGalleryScene Escape must return the caller key and payload");
 
     auto* debug_draw = elysia::tools::DebugDraw::instance();
     debug_draw->clear();
@@ -289,7 +291,7 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = ExampleSceneKeys::EngineFeatureTest,
+            .target = example::scene_keys::EngineFeatureLab,
             .payload = example::scene::DemoScenePayload{
                 .return_route = elysia::scene::SceneRoute{
                     .target = 2,
@@ -338,11 +340,11 @@ void test_escape_returns_the_full_caller_route()
         "Engine feature test must refresh one collider snapshot at the moved character position");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 2 && SecondReturnScene::marker == 29,
-        "EngineFeatureTestScene Escape must return the caller key and payload");
+        "EngineFeatureLabScene Escape must return the caller key and payload");
     require(!debug_draw->enabled()
             && debug_draw->enabled_categories()
                 == elysia::tools::DebugDrawCategory::Gameplay,
-        "leaving EngineFeatureTestScene must restore the previous DebugDraw settings");
+        "leaving EngineFeatureLabScene must restore the previous DebugDraw settings");
 
     const elysia::scene::SceneRoute original_caller{
         .target = 1,
@@ -352,7 +354,7 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = ExampleSceneKeys::DemoGallery,
+            .target = example::scene_keys::DemoGallery,
             .payload = example::scene::DemoScenePayload{
                 .return_route = original_caller
             }
@@ -363,10 +365,10 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = ExampleSceneKeys::UiTest,
+            .target = example::scene_keys::UiComponentGallery,
             .payload = example::scene::DemoScenePayload{
                 .return_route = elysia::scene::SceneRoute{
-                    .target = ExampleSceneKeys::DemoGallery,
+                    .target = example::scene_keys::DemoGallery,
                     .payload = example::scene::DemoScenePayload{
                         .return_route = original_caller
                     },
@@ -377,7 +379,7 @@ void test_escape_returns_the_full_caller_route()
     });
     scene_manager.on_update(0.0);
     send_escape(scene_manager);
-    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
         "Demo child Escape must return to DemoGalleryScene");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 41,
@@ -388,7 +390,7 @@ void test_escape_returns_the_full_caller_route()
         scene_manager.on_scene_request(elysia::scene::SceneRequest{
             .type = elysia::scene::SceneRequestType::Switch,
             .route = {
-                .target = ExampleSceneKeys::DemoGallery,
+                .target = example::scene_keys::DemoGallery,
                 .payload = example::scene::DemoScenePayload{
                     .return_route = original_caller},
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}});
@@ -397,11 +399,11 @@ void test_escape_returns_the_full_caller_route()
 
     open_gallery();
     click_mouse(scene_manager, 640, 502);
-    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
         "Failure Test must open a confirmation without immediately leaving Gallery");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
-    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
         "Canceling the Failure confirmation must remain in Gallery");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
@@ -424,6 +426,43 @@ void test_escape_returns_the_full_caller_route()
     font_resolver.shutdown();
     cache.shutdown();
 }
+
+void test_runtime_demo_sources_do_not_retain_legacy_names()
+{
+    const std::filesystem::path game_root =
+        std::filesystem::path(ELYSIA_SOURCE_DIR) / "game";
+    const std::array forbidden_tokens{
+        std::string{"example::"} + "testbed",
+        std::string{"example::"} + "physics_demo",
+        std::string{"ExampleScene"} + "Keys",
+        std::string{"Ui"} + "TestScene",
+        std::string{"EngineFeature"} + "TestScene",
+        std::string{"PhysicsDemo"} + "MenuScene",
+        std::string{"PhysicsDemo"} + "SceneBase",
+        std::string{"PhysicsCollision"} + "TestScene",
+        std::string{"PlatformTilePhysics"} + "TestScene",
+        std::string{"TopDownTilePhysics"} + "TestScene",
+        std::string{"physics_"} + "test_scenes"};
+
+    for (const auto& entry :
+        std::filesystem::recursive_directory_iterator(game_root))
+    {
+        if (!entry.is_regular_file())
+            continue;
+        const std::filesystem::path path = entry.path();
+        const std::string extension = path.extension().string();
+        if (extension != ".h" && extension != ".cpp")
+            continue;
+
+        std::ifstream input(path, std::ios::binary);
+        const std::string source{
+            std::istreambuf_iterator<char>(input),
+            std::istreambuf_iterator<char>()};
+        for (const std::string& token : forbidden_tokens)
+            require(source.find(token) == std::string::npos,
+                "Runtime demo sources must not retain legacy scene names");
+    }
+}
 }
 
 int main()
@@ -431,5 +470,6 @@ int main()
     test_engine_feature_overlay_cycle();
     test_payload_contract_names_each_scene();
     test_escape_returns_the_full_caller_route();
+    test_runtime_demo_sources_do_not_retain_legacy_names();
     return EXIT_SUCCESS;
 }

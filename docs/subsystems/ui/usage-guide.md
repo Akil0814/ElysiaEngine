@@ -20,10 +20,10 @@ auto* start = window->create_child<elysia::ui::UiButton>(
     elysia::ui::UiButtonConfig{.content = elysia::ui::ui_text_key("menu_scene.demo_gallery")});
 start->set_on_click([this] {
     request_scene_switch(
-        ExampleSceneKeys::DemoGallery,
+        example::scene_keys::DemoGallery,
         example::scene::DemoScenePayload{
             .return_route = {
-                .target = ExampleSceneKeys::MainMenu,
+                .target = example::scene_keys::MainMenu,
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
         elysia::scene::SceneReloadMode::Reuse);
 });
@@ -33,7 +33,7 @@ settings->set_on_click([this] {
         elysia::builtin::SceneKeys::Settings,
         elysia::builtin::SettingsScenePayload{
             .return_route = elysia::scene::SceneRoute{
-                .target = ExampleSceneKeys::MainMenu,
+                .target = example::scene_keys::MainMenu,
                 .payload = example::scene::MainMenuEnterPayload{
                     .replay_theme_music = false
                 },

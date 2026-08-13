@@ -1,4 +1,4 @@
-﻿// Project-owned translation asset contract.
+// Project-owned translation asset contract.
 #include "engine/io/json/strict_json.h"
 #include "tests/support/test_assertions.h"
 
@@ -150,53 +150,53 @@ const std::set<std::string> expected_keys = {
     "menu_scene.exit_confirm.title",
     "menu_scene.project_name",
     "menu_scene.settings",
-    "physics_demo_menu.back",
-    "physics_demo_menu.collider",
-    "physics_demo_menu.platform_tile",
-    "physics_demo_menu.title",
-    "physics_demo_menu.top_down_tile",
-    "testbed.ui_test.typography.description",
-    "testbed.ui_test.typography.sample_10",
-    "testbed.ui_test.typography.sample_20",
-    "testbed.ui_test.typography.sample_30",
-    "testbed.ui_test.typography.sample_40",
-    "testbed.ui_test.typography.sample_50",
-    "testbed.ui_test.typography.sample_60",
-    "testbed.ui_test.typography.sample_70",
-    "testbed.ui_test.typography.tab",
-    "testbed.ui_test.typography.title",
-    "testbed.ui_test.status.ready",
-    "testbed.ui_test.status.interaction",
-    "testbed.ui_test.pages.overview",
-    "testbed.ui_test.pages.controls",
-    "testbed.ui_test.pages.media",
-    "testbed.ui_test.pages.containers",
-    "testbed.ui_test.pages.overlays",
-    "testbed.ui_test.pages.appearance",
-    "testbed.ui_test.sections.overview",
-    "testbed.ui_test.sections.controls",
-    "testbed.ui_test.sections.media",
-    "testbed.ui_test.sections.containers",
-    "testbed.ui_test.sections.overlays",
-    "testbed.ui_test.sections.appearance",
-    "testbed.ui_test.actions.replay",
-    "testbed.ui_test.actions.reset",
-    "testbed.ui_test.controls.labeled_check",
-    "testbed.ui_test.controls.labeled_radio",
-    "testbed.ui_test.controls.placeholder",
-    "testbed.ui_test.media.long_text",
-    "testbed.ui_test.containers.chrome",
-    "testbed.ui_test.containers.nested_tab",
-    "testbed.ui_test.overlays.open_overlay",
-    "testbed.ui_test.overlays.open_dialog",
-    "testbed.ui_test.overlays.open_confirm",
-    "testbed.ui_test.overlays.tooltip",
-    "testbed.ui_test.overlays.tooltip_text",
-    "testbed.ui_test.dialog.title",
-    "testbed.ui_test.dialog.body",
-    "testbed.ui_test.confirm.title",
-    "testbed.ui_test.confirm.message",
-    "testbed.ui_test.appearance.note",
+    "physics_combat_gallery.back",
+    "physics_combat_gallery.collider",
+    "physics_combat_gallery.platform_tile",
+    "physics_combat_gallery.title",
+    "physics_combat_gallery.top_down_tile",
+    "ui_component_gallery.typography.description",
+    "ui_component_gallery.typography.sample_10",
+    "ui_component_gallery.typography.sample_20",
+    "ui_component_gallery.typography.sample_30",
+    "ui_component_gallery.typography.sample_40",
+    "ui_component_gallery.typography.sample_50",
+    "ui_component_gallery.typography.sample_60",
+    "ui_component_gallery.typography.sample_70",
+    "ui_component_gallery.typography.tab",
+    "ui_component_gallery.typography.title",
+    "ui_component_gallery.status.ready",
+    "ui_component_gallery.status.interaction",
+    "ui_component_gallery.pages.overview",
+    "ui_component_gallery.pages.controls",
+    "ui_component_gallery.pages.media",
+    "ui_component_gallery.pages.containers",
+    "ui_component_gallery.pages.overlays",
+    "ui_component_gallery.pages.appearance",
+    "ui_component_gallery.sections.overview",
+    "ui_component_gallery.sections.controls",
+    "ui_component_gallery.sections.media",
+    "ui_component_gallery.sections.containers",
+    "ui_component_gallery.sections.overlays",
+    "ui_component_gallery.sections.appearance",
+    "ui_component_gallery.actions.replay",
+    "ui_component_gallery.actions.reset",
+    "ui_component_gallery.controls.labeled_check",
+    "ui_component_gallery.controls.labeled_radio",
+    "ui_component_gallery.controls.placeholder",
+    "ui_component_gallery.media.long_text",
+    "ui_component_gallery.containers.chrome",
+    "ui_component_gallery.containers.nested_tab",
+    "ui_component_gallery.overlays.open_overlay",
+    "ui_component_gallery.overlays.open_dialog",
+    "ui_component_gallery.overlays.open_confirm",
+    "ui_component_gallery.overlays.tooltip",
+    "ui_component_gallery.overlays.tooltip_text",
+    "ui_component_gallery.dialog.title",
+    "ui_component_gallery.dialog.body",
+    "ui_component_gallery.confirm.title",
+    "ui_component_gallery.confirm.message",
+    "ui_component_gallery.appearance.note",
 };
 }
 
@@ -236,6 +236,16 @@ int main()
         const std::string raw_content{
             std::istreambuf_iterator<char>(input),std::istreambuf_iterator<char>()};
         require(is_valid_utf8(raw_content), "project locale file must be valid UTF-8");
+        const std::string legacy_physics_key =
+            std::string{"physics_demo"} + "_menu";
+        const std::string legacy_ui_key =
+            std::string{"testbed"} + ".ui_test";
+        const std::string legacy_root =
+            std::string{"\""} + "testbed" + "\"";
+        require(raw_content.find(legacy_physics_key) == std::string::npos
+                && raw_content.find(legacy_ui_key) == std::string::npos
+                && raw_content.find(legacy_root) == std::string::npos,
+            "project locale files must not retain legacy demo key prefixes");
 
         const auto document = elysia::io::load_strict_json(file_path);
         require(document.has_value() && document->is_object(),

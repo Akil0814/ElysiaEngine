@@ -1,4 +1,4 @@
-#include "engine_feature_test_scene.h"
+#include "engine_feature_lab_scene.h"
 
 #include "../../../engine/builtin/resources/builtin_asset_cache.h"
 #include "../../../engine/builtin/resources/builtin_asset_keys.h"
@@ -17,7 +17,7 @@
 #include <array>
 #include <optional>
 
-namespace example::testbed
+namespace example::scene
 {
 namespace
 {
@@ -47,13 +47,13 @@ std::unique_ptr<elysia::ui::UiButton> make_control_button(const char* label)
 }
 }
 
-void EngineFeatureTestScene::on_update(double delta)
+void EngineFeatureLabScene::on_update(double delta)
 {
     elysia::scene::Scene::on_update(delta);
     refresh_character_debug_draw();
 }
 
-void EngineFeatureTestScene::on_input(
+void EngineFeatureLabScene::on_input(
     const elysia::input::RawInputFrame& input,
     const std::vector<elysia::input::RawInputEvent>& events)
 {
@@ -76,19 +76,19 @@ void EngineFeatureTestScene::on_input(
     }
 }
 
-void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload)
+void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
     const example::scene::DemoScenePayload* test_payload =
         elysia::scene::try_scene_payload<
             example::scene::DemoScenePayload>(payload);
     if (!test_payload || !is_valid_return_route(test_payload->return_route))
-        throw std::logic_error("EngineFeatureTestScene requires DemoScenePayload with a valid return route.");
+        throw std::logic_error("EngineFeatureLabScene requires DemoScenePayload with a valid return route.");
 
     _return_route = test_payload->return_route;
     _paused = false;
     const auto* cache = runtime_context().builtin_asset_cache();
     if (!cache || !cache->is_initialized())
-        throw std::logic_error("EngineFeatureTestScene requires an initialized BuiltinAssetCache.");
+        throw std::logic_error("EngineFeatureLabScene requires an initialized BuiltinAssetCache.");
     if (!_character || _character->is_destroyed())
     {
         _character = create_and_add_object<elysia::builtin::EngineCharacter>(
@@ -96,7 +96,7 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
         if (!_character)
         {
             throw std::runtime_error(
-                "EngineFeatureTestScene could not create EngineCharacter.");
+                "EngineFeatureLabScene could not create EngineCharacter.");
         }
         _character->set_center(elysia::core::Vector2::zero());
     }
@@ -121,7 +121,7 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
                 elysia::builtin::asset_keys::EngineCharacterMoveAnimation))
         {
             throw std::logic_error(
-                "EngineFeatureTestScene could not bind the character move animation.");
+                "EngineFeatureLabScene could not bind the character move animation.");
         }
     }
     if (!_secondary_animation)
@@ -133,7 +133,7 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
                 elysia::builtin::asset_keys::EngineCharacterMoveAnimation))
         {
             throw std::logic_error(
-                "EngineFeatureTestScene could not bind the character move animation.");
+                "EngineFeatureLabScene could not bind the character move animation.");
         }
     }
     _primary_animation->play();
@@ -150,7 +150,7 @@ void EngineFeatureTestScene::on_enter(const elysia::scene::ScenePayload& payload
     refresh_character_debug_draw();
 }
 
-void EngineFeatureTestScene::on_exit()
+void EngineFeatureLabScene::on_exit()
 {
     _paused = false;
     if (_character)
@@ -169,7 +169,7 @@ void EngineFeatureTestScene::on_exit()
     restore_character_debug_draw();
 }
 
-void EngineFeatureTestScene::reset()
+void EngineFeatureLabScene::reset()
 {
     _paused = false;
     _return_route = {};
@@ -189,12 +189,12 @@ void EngineFeatureTestScene::reset()
     restore_character_debug_draw();
 }
 
-std::size_t EngineFeatureTestScene::color_overlay_index() const noexcept
+std::size_t EngineFeatureLabScene::color_overlay_index() const noexcept
 {
     return _color_overlay_index;
 }
 
-void EngineFeatureTestScene::apply_secondary_color_overlay()
+void EngineFeatureLabScene::apply_secondary_color_overlay()
 {
     if (_secondary_animation)
     {
@@ -203,14 +203,14 @@ void EngineFeatureTestScene::apply_secondary_color_overlay()
     }
 }
 
-void EngineFeatureTestScene::build_feature_controls()
+void EngineFeatureLabScene::build_feature_controls()
 {
     _controls_window = create_and_add_object<elysia::ui::UiWindow>(
         elysia::core::Rect{ 390.0f,540.0f,500.0f,124.0f },100);
     if (!_controls_window)
     {
         throw std::runtime_error(
-            "EngineFeatureTestScene could not create its feature control window.");
+            "EngineFeatureLabScene could not create its feature control window.");
     }
 
     auto number_scroll = std::make_unique<elysia::ui::UiScrollContainer>(
@@ -252,14 +252,14 @@ void EngineFeatureTestScene::build_feature_controls()
     _controls_window->register_focus_scope(*number_scroll_ptr);
 }
 
-void EngineFeatureTestScene::destroy_feature_controls() noexcept
+void EngineFeatureLabScene::destroy_feature_controls() noexcept
 {
     if (_controls_window)
         _controls_window->destroy();
     _controls_window = nullptr;
 }
 
-void EngineFeatureTestScene::spawn_floating_number_effect(
+void EngineFeatureLabScene::spawn_floating_number_effect(
     FloatingNumberPreset preset)
 {
     if (!_character || _character->is_destroyed())
@@ -367,7 +367,7 @@ void EngineFeatureTestScene::spawn_floating_number_effect(
     (void)ELYSIA_EFFECTS->request_floating_number_effect(request);
 }
 
-void EngineFeatureTestScene::enable_character_debug_draw()
+void EngineFeatureLabScene::enable_character_debug_draw()
 {
     elysia::tools::DebugDraw* debug_draw =
         elysia::tools::DebugDraw::instance();
@@ -384,7 +384,7 @@ void EngineFeatureTestScene::enable_character_debug_draw()
         | elysia::tools::DebugDrawCategory::PhysicsCollider);
 }
 
-void EngineFeatureTestScene::restore_character_debug_draw() noexcept
+void EngineFeatureLabScene::restore_character_debug_draw() noexcept
 {
     if (!_debug_draw_state_captured)
         return;
@@ -396,7 +396,7 @@ void EngineFeatureTestScene::restore_character_debug_draw() noexcept
     _debug_draw_state_captured = false;
 }
 
-void EngineFeatureTestScene::refresh_character_debug_draw()
+void EngineFeatureLabScene::refresh_character_debug_draw()
 {
     elysia::tools::DebugDraw* debug_draw =
         elysia::tools::DebugDraw::instance();
@@ -406,7 +406,7 @@ void EngineFeatureTestScene::refresh_character_debug_draw()
         _character->submit_debug_draw();
 }
 
-void EngineFeatureTestScene::return_to_caller()
+void EngineFeatureLabScene::return_to_caller()
 {
     if (is_valid_return_route(_return_route))
         request_scene_switch(_return_route);

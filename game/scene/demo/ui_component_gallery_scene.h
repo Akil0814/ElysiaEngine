@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../../engine/scene/scene.h"
-#include "../../scene/demo/demo_scene_payload.h"
+#include "demo_scene_payload.h"
 #include "../../../engine/ui/style/ui_theme_manager.h"
 
 #include <array>
@@ -14,9 +14,9 @@ class UiLabel;
 class UiWindow;
 }
 
-namespace example::testbed
+namespace example::scene
 {
-class UiTestScene final : public elysia::scene::Scene
+class UiComponentGalleryScene final : public elysia::scene::Scene
 {
 public:
     void on_input(

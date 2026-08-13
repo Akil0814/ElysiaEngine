@@ -1,12 +1,12 @@
 #define SDL_MAIN_HANDLED
 
-#include "game/physics_demo/block_actor.h"
-#include "game/physics_demo/demo_tile_map.h"
-#include "game/physics_demo/demo_obstacle.h"
+#include "game/demo/physics/block_actor.h"
+#include "game/demo/physics/demo_tile_map.h"
+#include "game/demo/physics/demo_obstacle.h"
 #include "game/application/example_game_module.h"
 #include "game/scene/example_scene_keys.h"
 #include "game/scene/demo/demo_scene_payload.h"
-#include "game/scene/physics_demo/physics_demo_layout.h"
+#include "game/scene/demo/physics/physics_combat_layout.h"
 #include "engine/camera/camera_manager.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
@@ -111,7 +111,7 @@ void press_and_release_key(
 
 void test_health_contract()
 {
-    example::physics_demo::Health health(50);
+    example::demo::physics::Health health(50);
     require(health.maximum() == 50 && health.current() == 50 && health.alive(),
         "Health must start at its configured maximum");
     require(health.apply_damage(0) == 0 && health.apply_damage(-3) == 0,
@@ -129,7 +129,7 @@ void test_health_contract()
 
 void test_tile_adapter_contract()
 {
-    using namespace example::physics_demo;
+    using namespace example::demo::physics;
     DemoTileMap map({-64, 24}, {16, 32}, 4, 3,
         elysia::physics::TileOutOfBoundsPolicy::Block);
     require(map.world_origin() == elysia::core::Vector2(-64, 24)
@@ -159,7 +159,7 @@ void test_tile_adapter_contract()
 
 void test_actor_provider_and_damage_flow()
 {
-    using namespace example::physics_demo;
+    using namespace example::demo::physics;
     PlatformPlayerCharacter player({0, 0, 34, 56});
     StationaryEnemy enemy({40, 0, 38, 52}, player);
     elysia::physics::PhysicsWorldConfig config;
@@ -224,7 +224,7 @@ void test_actor_provider_and_damage_flow()
 
 void test_obstacle_material_and_kinematic_platform()
 {
-    using namespace example::physics_demo;
+    using namespace example::demo::physics;
     ObstacleConfig config;
     config.rect = {20, 30, 80, 12};
     config.shape = elysia::physics::AabbShape{{0, 0, 80, 12}};
@@ -269,7 +269,7 @@ void test_obstacle_material_and_kinematic_platform()
 
 void test_colored_object_visual_states_use_primitive_color()
 {
-    using namespace example::physics_demo;
+    using namespace example::demo::physics;
     ColoredBlockObject object(
         elysia::core::DepthLayer::Character, {3, 4, 20, 10}, {10, 20, 30, 200});
     object.set_alpha(128);
@@ -297,16 +297,27 @@ void test_colored_object_visual_states_use_primitive_color()
 
 void test_scene_keys_are_unique()
 {
+    require(example::scene_keys::MainMenu == 2
+            && example::scene_keys::AnimationPreview == 4
+            && example::scene_keys::PhysicsCombatGallery == 5
+            && example::scene_keys::ColliderCombatDemo == 6
+            && example::scene_keys::PlatformTileCombatDemo == 7
+            && example::scene_keys::TopDownTileCombatDemo == 8
+            && example::scene_keys::DemoGallery == 9
+            && example::scene_keys::UiComponentGallery == 10
+            && example::scene_keys::EngineFeatureLab == 11,
+        "Renamed game scene keys must retain their persisted numeric values");
+
     constexpr std::array keys{
-        ExampleSceneKeys::MainMenu,
-        ExampleSceneKeys::AnimationPreview,
-        ExampleSceneKeys::PhysicsDemoMenu,
-        ExampleSceneKeys::PhysicsCollisionTest,
-        ExampleSceneKeys::PlatformTilePhysicsTest,
-        ExampleSceneKeys::TopDownTilePhysicsTest,
-        ExampleSceneKeys::DemoGallery,
-        ExampleSceneKeys::UiTest,
-        ExampleSceneKeys::EngineFeatureTest};
+        example::scene_keys::MainMenu,
+        example::scene_keys::AnimationPreview,
+        example::scene_keys::PhysicsCombatGallery,
+        example::scene_keys::ColliderCombatDemo,
+        example::scene_keys::PlatformTileCombatDemo,
+        example::scene_keys::TopDownTileCombatDemo,
+        example::scene_keys::DemoGallery,
+        example::scene_keys::UiComponentGallery,
+        example::scene_keys::EngineFeatureLab};
     for (std::size_t i = 0; i < keys.size(); ++i)
         for (std::size_t j = i + 1; j < keys.size(); ++j)
             require(keys[i] != keys[j], "Game scene keys must be unique");
@@ -318,10 +329,10 @@ void test_game_module_registers_demo_scenes()
     example::application::GameModule{}.register_scenes(scene_manager);
 
     for (const elysia::scene::SceneKey key : {
-            ExampleSceneKeys::DemoGallery,
-            ExampleSceneKeys::AnimationPreview,
-            ExampleSceneKeys::UiTest,
-            ExampleSceneKeys::EngineFeatureTest })
+            example::scene_keys::DemoGallery,
+            example::scene_keys::AnimationPreview,
+            example::scene_keys::UiComponentGallery,
+            example::scene_keys::EngineFeatureLab })
     {
         bool duplicate_rejected = false;
         try
@@ -339,14 +350,14 @@ void test_game_module_registers_demo_scenes()
     }
 }
 
-void test_physics_demo_layout_contract()
+void test_physics_combat_layout_contract()
 {
     for (const auto logical_size : {
             elysia::core::Vector2{1280.0f, 720.0f},
             elysia::core::Vector2{960.0f, 540.0f}})
     {
-        const example::scene::PhysicsDemoLayout layout =
-            example::scene::make_physics_demo_layout(
+        const example::scene::PhysicsCombatLayout layout =
+            example::scene::make_physics_combat_layout(
                 logical_size.x, logical_size.y);
         require(layout.viewport.contains(layout.hud_panel)
                 && layout.viewport.contains(layout.title)
@@ -366,7 +377,7 @@ void test_physics_demo_layout_contract()
             "Physics demo status and menu must remain centered");
 
         const auto options =
-            example::scene::physics_demo_layout_options(layout.stats);
+            example::scene::physics_combat_layout_options(layout.stats);
         require(options._anchor == elysia::ui::UiLayoutAnchor::TopLeft
                 && options._use_size_override
                 && options._margin.left == layout.stats.x()
@@ -389,7 +400,7 @@ void require_demo_camera(
         .target = scene_key,
         .payload = example::scene::DemoScenePayload{
             .return_route = {
-                .target = ExampleSceneKeys::MainMenu,
+                .target = example::scene_keys::MainMenu,
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
         .reload_mode = elysia::scene::SceneReloadMode::Recreate});
     scene_manager.on_update(0.0);
@@ -409,20 +420,20 @@ void require_demo_camera(
 void test_physics_demo_fixed_cameras()
 {
     require_demo_camera(
-        ExampleSceneKeys::PhysicsCollisionTest, {640.0f, 360.0f});
+        example::scene_keys::ColliderCombatDemo, {640.0f, 360.0f});
     require_demo_camera(
-        ExampleSceneKeys::PlatformTilePhysicsTest, {320.0f, 360.0f});
+        example::scene_keys::PlatformTileCombatDemo, {320.0f, 360.0f});
     require_demo_camera(
-        ExampleSceneKeys::TopDownTilePhysicsTest, {576.0f, 344.0f});
+        example::scene_keys::TopDownTileCombatDemo, {576.0f, 344.0f});
 }
 
 #if ELYSIA_ENABLE_IMGUI
 void test_each_physics_demo_owns_one_inspector_panel()
 {
     constexpr std::array scene_keys{
-        ExampleSceneKeys::PhysicsCollisionTest,
-        ExampleSceneKeys::PlatformTilePhysicsTest,
-        ExampleSceneKeys::TopDownTilePhysicsTest};
+        example::scene_keys::ColliderCombatDemo,
+        example::scene_keys::PlatformTileCombatDemo,
+        example::scene_keys::TopDownTileCombatDemo};
     for (const auto scene_key : scene_keys)
     {
         elysia::io::ContentRegistry registry;
@@ -436,7 +447,7 @@ void test_each_physics_demo_owns_one_inspector_panel()
             .target = scene_key,
             .payload = example::scene::DemoScenePayload{
                 .return_route = {
-                    .target = ExampleSceneKeys::PhysicsDemoMenu,
+                    .target = example::scene_keys::PhysicsCombatGallery,
                     .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
             .reload_mode = elysia::scene::SceneReloadMode::Recreate});
         scene_manager.on_update(0.0);
@@ -463,7 +474,7 @@ void test_physics_demo_navigation_and_recreate_route()
         .payload = DemoReturnPayload{.marker = 73},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse};
     scene_manager.start({
-        .target = ExampleSceneKeys::PhysicsDemoMenu,
+        .target = example::scene_keys::PhysicsCombatGallery,
         .payload = example::scene::DemoScenePayload{
             .return_route = caller},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse});
@@ -471,18 +482,18 @@ void test_physics_demo_navigation_and_recreate_route()
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEnter);
     require(scene_manager.current_scene_key()
-            == ExampleSceneKeys::PhysicsCollisionTest,
+            == example::scene_keys::ColliderCombatDemo,
         "The first Physics menu entry must open Collider Combat");
 
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyR);
     require(scene_manager.current_scene_key()
-            == ExampleSceneKeys::PhysicsCollisionTest,
+            == example::scene_keys::ColliderCombatDemo,
         "Recreating a Physics demo must keep the active scene route");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
     require(scene_manager.current_scene_key()
-            == ExampleSceneKeys::PhysicsDemoMenu,
+            == example::scene_keys::PhysicsCombatGallery,
         "A recreated Physics demo must retain its Physics menu return route");
 
     press_and_release_key(
@@ -502,7 +513,7 @@ void test_animation_preview_returns_complete_caller_route()
     scene_manager.register_game_scene<DemoReturnScene>(1);
     scene_manager.set_runtime_context(context);
     scene_manager.start({
-        .target = ExampleSceneKeys::AnimationPreview,
+        .target = example::scene_keys::AnimationPreview,
         .payload = example::scene::DemoScenePayload{
             .return_route = {
                 .target = 1,
@@ -526,16 +537,16 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
     example::application::GameModule{}.register_scenes(scene_manager);
     scene_manager.set_runtime_context(context);
     scene_manager.start({
-        .target = ExampleSceneKeys::MainMenu,
+        .target = example::scene_keys::MainMenu,
         .reload_mode = elysia::scene::SceneReloadMode::Reuse});
 
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEnter);
-    require(scene_manager.current_scene_key() == ExampleSceneKeys::DemoGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
         "The first Main Menu action must open the unified Demo Gallery");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
-    require(scene_manager.current_scene_key() == ExampleSceneKeys::MainMenu,
+    require(scene_manager.current_scene_key() == example::scene_keys::MainMenu,
         "Demo Gallery must return to the Main Menu caller route");
     scene_manager.shutdown();
 }
@@ -550,7 +561,7 @@ int main()
     test_colored_object_visual_states_use_primitive_color();
     test_scene_keys_are_unique();
     test_game_module_registers_demo_scenes();
-    test_physics_demo_layout_contract();
+    test_physics_combat_layout_contract();
     test_physics_demo_fixed_cameras();
 #if ELYSIA_ENABLE_IMGUI
     test_each_physics_demo_owns_one_inspector_panel();

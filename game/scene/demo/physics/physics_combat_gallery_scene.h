@@ -1,13 +1,13 @@
 #pragma once
 
-#include "../../../engine/scene/scene.h"
-#include "../demo/demo_scene_payload.h"
+#include "../../../../engine/scene/scene.h"
+#include "../demo_scene_payload.h"
 
 namespace elysia::ui { class UiWindow; }
 
 namespace example::scene
 {
-class PhysicsDemoMenuScene final : public elysia::scene::Scene
+class PhysicsCombatGalleryScene final : public elysia::scene::Scene
 {
 public:
     void on_enter(const elysia::scene::ScenePayload& payload) override;

@@ -11,7 +11,7 @@
 
 - [架构总览](architecture/overview.md)：模块边界、依赖方向和运行时生命周期。
 - [仓库结构](architecture/repository-layout.md)：源码、资源、测试和示例层的职责。
-- [子系统索引](subsystems/README.md)：UI、Input、资源加载、配置、音频、相机、存档、Physics、Development Overlay 与 Testbed。
+- [子系统索引](subsystems/README.md)：UI、Input、资源加载、配置、音频、相机、存档、Physics、Development Overlay 与 Development Demos。
 
 ## 参与维护
 

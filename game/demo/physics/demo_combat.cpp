@@ -1,13 +1,13 @@
 #include "demo_combat.h"
 
 #include "block_actor.h"
-#include "../../engine/effects/effect_service.h"
-#include "../../engine/effects/effect_types.h"
+#include "../../../engine/effects/effect_service.h"
+#include "../../../engine/effects/effect_types.h"
 
 #include <algorithm>
 #include <string>
 
-namespace example::physics_demo
+namespace example::demo::physics
 {
 Health::Health(int maximum) noexcept
     : _maximum(std::max(1, maximum)), _current(_maximum)

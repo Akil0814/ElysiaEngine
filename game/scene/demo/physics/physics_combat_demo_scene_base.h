@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../../physics_demo/block_actor.h"
-#include "../../physics_demo/demo_tile_map.h"
-#include "../demo/demo_scene_payload.h"
-#include "../../../engine/gameplay/scene/gameplay_scene.h"
-#include "../../../engine/tools/debug_draw.h"
-#include "../../../engine/tools/development_overlay.h"
+#include "../../../demo/physics/block_actor.h"
+#include "../../../demo/physics/demo_tile_map.h"
+#include "../demo_scene_payload.h"
+#include "../../../../engine/gameplay/scene/gameplay_scene.h"
+#include "../../../../engine/tools/debug_draw.h"
+#include "../../../../engine/tools/development_overlay.h"
 
 #include <string>
 #include <vector>
@@ -19,16 +19,16 @@ class UiWindow;
 
 namespace example::scene
 {
-class PhysicsDemoSceneBase : public elysia::gameplay::GameplayScene
+class PhysicsCombatDemoSceneBase : public elysia::gameplay::GameplayScene
 {
 public:
-    PhysicsDemoSceneBase(
+    PhysicsCombatDemoSceneBase(
         elysia::scene::SceneKey own_key,
         std::string scene_name,
         elysia::physics::PhysicsWorldConfig config,
         std::string title,
         std::string controls);
-    ~PhysicsDemoSceneBase() override;
+    ~PhysicsCombatDemoSceneBase() override;
 
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
@@ -52,10 +52,10 @@ protected:
         return actor;
     }
 
-    void set_player(example::physics_demo::BlockCombatActor& player) noexcept;
+    void set_player(example::demo::physics::BlockCombatActor& player) noexcept;
     void set_demo_camera_center(const elysia::core::Vector2& center) noexcept;
-    void bind_tile_map(example::physics_demo::DemoTileMap& tile_map);
-    [[nodiscard]] example::physics_demo::DemoCombatSession& combat() noexcept { return _combat; }
+    void bind_tile_map(example::demo::physics::DemoTileMap& tile_map);
+    [[nodiscard]] example::demo::physics::DemoCombatSession& combat() noexcept { return _combat; }
 
 private:
     void register_physics_inspector();
@@ -66,7 +66,7 @@ private:
     void build_hud();
     void configure_fixed_camera();
     void update_hud();
-    void handle_actor_death(example::physics_demo::BlockCombatActor& actor);
+    void handle_actor_death(example::demo::physics::BlockCombatActor& actor);
     void request_restart();
     void return_to_caller();
 
@@ -75,11 +75,11 @@ private:
     std::string _scene_name;
     std::string _title;
     std::string _controls;
-    example::physics_demo::DemoCombatSession _combat;
-    example::physics_demo::BlockCombatActor* _player = nullptr;
+    example::demo::physics::DemoCombatSession _combat;
+    example::demo::physics::BlockCombatActor* _player = nullptr;
     std::optional<elysia::core::Vector2> _demo_camera_center;
-    example::physics_demo::DemoTileMap* _tile_map = nullptr;
-    std::vector<example::physics_demo::BlockCombatActor*> _actors;
+    example::demo::physics::DemoTileMap* _tile_map = nullptr;
+    std::vector<example::demo::physics::BlockCombatActor*> _actors;
     elysia::ui::UiWindow* _hud = nullptr;
     elysia::ui::UiLabel* _stats_label = nullptr;
     elysia::ui::UiLabel* _status_label = nullptr;
