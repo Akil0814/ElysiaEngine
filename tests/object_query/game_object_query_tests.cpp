@@ -304,6 +304,91 @@ void test_query_algorithms_and_filters()
         "scene shutdown must unbind the object query runtime");
 }
 
+void test_depth_layer_masks()
+{
+    using elysia::core::DepthLayer;
+    using elysia::core::DepthLayerMask;
+
+    constexpr DepthLayerMask three_layers =
+        DepthLayer::Background | DepthLayer::Item | DepthLayer::Character;
+    static_assert(three_layers.contains(DepthLayer::Background));
+    static_assert(three_layers.contains(DepthLayer::Item));
+    static_assert(three_layers.contains(DepthLayer::Character));
+    static_assert(!three_layers.contains(DepthLayer::Terrain));
+    static_assert(!DepthLayerMask::all().contains(DepthLayer::Count));
+
+    constexpr elysia::scene::SceneKey first_key = 306;
+    reset_scene_state();
+
+    elysia::scene::SceneManager scene_manager;
+    scene_manager.register_game_scene<FirstQueryScene>(first_key);
+    scene_manager.start({ .target = first_key });
+
+    const std::vector<QueryProbe*> character =
+        ELYSIA_OBJECT_QUERY->find_objects<QueryProbe>(DepthLayer::Character);
+    require(character.size() == 1 && character[0]->id() == 3,
+        "single-layer queries must only visit the selected layer and retain invisible objects");
+
+    const std::vector<QueryProbe*> selected =
+        ELYSIA_OBJECT_QUERY->find_objects<QueryProbe>(three_layers);
+    require(selected.size() == 3
+        && selected[0]->id() == 1
+        && selected[1]->id() == 2
+        && selected[2]->id() == 3,
+        "multi-layer queries must preserve scene layer traversal order");
+
+    require(ELYSIA_OBJECT_QUERY
+            ->find_objects<QueryProbe>(DepthLayerMask::all()).size() == 3,
+        "the all-layer mask must match the legacy full-scene query");
+    require(ELYSIA_OBJECT_QUERY
+            ->find_objects<QueryProbe>(DepthLayerMask::none()).empty(),
+        "an empty layer mask must not visit any objects");
+    require(ELYSIA_OBJECT_QUERY
+            ->find_object<QueryProbe>(DepthLayerMask::none()) == nullptr,
+        "single-object queries with an empty mask must return null");
+    require(ELYSIA_OBJECT_QUERY
+            ->find_objects<QueryProbe>(DepthLayer::Foreground).empty(),
+        "layer-restricted queries must continue to exclude destroyed objects");
+
+    QueryProbe* filtered = ELYSIA_OBJECT_QUERY->find_object<QueryProbe>(
+        DepthLayer::Item | DepthLayer::Character,
+        [](const QueryProbe& probe) { return probe.id() == 3; });
+    require(filtered && filtered->id() == 3,
+        "layer masks and predicates must be applied together");
+
+    const elysia::core::Vector2 origin = elysia::core::Vector2::zero();
+    QueryProbe* nearest = ELYSIA_OBJECT_QUERY->find_nearest_object<QueryProbe>(
+        origin,
+        DepthLayer::Item | DepthLayer::Character,
+        [](const QueryProbe& probe) { return probe.id() >= 2; });
+    require(nearest && nearest->id() == 2,
+        "nearest queries must score only candidates from selected layers");
+
+    QueryProbe* farthest = ELYSIA_OBJECT_QUERY->find_farthest_object<QueryProbe>(
+        origin,DepthLayer::Background | DepthLayer::Item);
+    require(farthest && farthest->id() == 2,
+        "farthest queries must score only candidates from selected layers");
+
+    QueryProbe* best = ELYSIA_OBJECT_QUERY->find_best_object<QueryProbe>(
+        DepthLayer::Item | DepthLayer::Character,
+        [](const QueryProbe& probe) { return probe.id() == 3; },
+        [](const QueryProbe& probe) { return probe.score(); },
+        std::less<int>{});
+    require(best && best->id() == 3,
+        "best-object queries must combine masks, predicates, and projections");
+
+    const std::vector<QueryProbe*> in_radius =
+        ELYSIA_OBJECT_QUERY->find_objects_in_radius<QueryProbe>(
+            origin,
+            5.0f,
+            DepthLayer::Item | DepthLayer::Character,
+            [](const QueryProbe& probe) { return probe.id() >= 2; });
+    require(in_radius.size() == 1 && in_radius[0]->id() == 2,
+        "radius queries must combine their boundary, layer mask, and predicate");
+
+    scene_manager.shutdown();
+}
+
 void request_switch(
     elysia::scene::SceneManager& manager,
     elysia::scene::SceneKey target,
@@ -366,6 +451,7 @@ int main()
 {
     test_empty_results_without_active_runtime();
     test_query_algorithms_and_filters();
+    test_depth_layer_masks();
     test_scene_lifecycle_rebinding();
     return 0;
 }

@@ -133,6 +133,7 @@ private:
     void clear_runtime_context() noexcept;
     void register_scene_object_interfaces(elysia::core::SceneObject* object);
     void visit_game_objects(
+        elysia::core::DepthLayerMask layers,
         const elysia::object_query::GameObjectVisitor& visitor) const override;
     void dispatch_ui_frame(const elysia::ui::UiInputFrame& input);
     void dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent>& events);

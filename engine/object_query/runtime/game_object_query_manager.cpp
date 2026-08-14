@@ -23,6 +23,7 @@ bool GameObjectQueryManager::is_available() const noexcept
 }
 
 void GameObjectQueryManager::visit_game_objects(
+    elysia::core::DepthLayerMask layers,
     const GameObjectVisitor& visitor) const
 {
     if (!_active_runtime)
@@ -34,6 +35,6 @@ void GameObjectQueryManager::visit_game_objects(
         return;
     }
 
-    _active_runtime->visit_game_objects(visitor);
+    _active_runtime->visit_game_objects(layers,visitor);
 }
 }

@@ -25,7 +25,9 @@ private:
     void bind_active_runtime(IGameObjectQueryRuntime& runtime) noexcept;
     void unbind_active_runtime(const IGameObjectQueryRuntime& runtime) noexcept;
     [[nodiscard]] bool is_available() const noexcept;
-    void visit_game_objects(const GameObjectVisitor& visitor) const;
+    void visit_game_objects(
+        elysia::core::DepthLayerMask layers,
+        const GameObjectVisitor& visitor) const;
 
     IGameObjectQueryRuntime* _active_runtime = nullptr;
 };

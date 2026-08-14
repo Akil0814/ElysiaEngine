@@ -5,6 +5,7 @@
 #include "../core/geometry/vector2.h"
 #include "../tools/singleton.h"
 
+#include <concepts>
 #include <functional>
 #include <optional>
 #include <type_traits>
@@ -40,16 +41,37 @@ public:
     template <typename T = elysia::core::GameObject>
     [[nodiscard]] T* find_object() const
     {
-        return find_object<T>(detail::AcceptAllGameObjects{});
+        return find_object<T>(
+            elysia::core::DepthLayerMask::all(),
+            detail::AcceptAllGameObjects{});
+    }
+
+    template <typename T = elysia::core::GameObject>
+    [[nodiscard]] T* find_object(
+        elysia::core::DepthLayerMask layers) const
+    {
+        return find_object<T>(layers,detail::AcceptAllGameObjects{});
     }
 
     template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
     [[nodiscard]] T* find_object(Predicate&& predicate) const
+    {
+        return find_object<T>(
+            elysia::core::DepthLayerMask::all(),
+            std::forward<Predicate>(predicate));
+    }
+
+    template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] T* find_object(
+        elysia::core::DepthLayerMask layers,
+        Predicate&& predicate) const
     {
         assert_game_object_type<T>();
 
         T* result = nullptr;
-        visit_game_objects([&](elysia::core::GameObject& object)
+        visit_game_objects(layers,[&](elysia::core::GameObject& object)
         {
             if (object.is_destroyed())
                 return true;
@@ -70,16 +92,37 @@ public:
     template <typename T = elysia::core::GameObject>
     [[nodiscard]] std::vector<T*> find_objects() const
     {
-        return find_objects<T>(detail::AcceptAllGameObjects{});
+        return find_objects<T>(
+            elysia::core::DepthLayerMask::all(),
+            detail::AcceptAllGameObjects{});
+    }
+
+    template <typename T = elysia::core::GameObject>
+    [[nodiscard]] std::vector<T*> find_objects(
+        elysia::core::DepthLayerMask layers) const
+    {
+        return find_objects<T>(layers,detail::AcceptAllGameObjects{});
     }
 
     template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
     [[nodiscard]] std::vector<T*> find_objects(Predicate&& predicate) const
+    {
+        return find_objects<T>(
+            elysia::core::DepthLayerMask::all(),
+            std::forward<Predicate>(predicate));
+    }
+
+    template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] std::vector<T*> find_objects(
+        elysia::core::DepthLayerMask layers,
+        Predicate&& predicate) const
     {
         assert_game_object_type<T>();
 
         std::vector<T*> results;
-        visit_game_objects([&](elysia::core::GameObject& object)
+        visit_game_objects(layers,[&](elysia::core::GameObject& object)
         {
             if (object.is_destroyed())
                 return true;
@@ -104,6 +147,23 @@ public:
         Compare&& compare) const
     {
         return find_best_object<T>(
+            elysia::core::DepthLayerMask::all(),
+            detail::AcceptAllGameObjects{},
+            std::forward<Projection>(projection),
+            std::forward<Compare>(compare)
+        );
+    }
+
+    template <typename T = elysia::core::GameObject,
+        typename Projection,
+        typename Compare>
+    [[nodiscard]] T* find_best_object(
+        elysia::core::DepthLayerMask layers,
+        Projection&& projection,
+        Compare&& compare) const
+    {
+        return find_best_object<T>(
+            layers,
             detail::AcceptAllGameObjects{},
             std::forward<Projection>(projection),
             std::forward<Compare>(compare)
@@ -114,7 +174,26 @@ public:
         typename Predicate,
         typename Projection,
         typename Compare>
+        requires std::predicate<Predicate&,const T&>
     [[nodiscard]] T* find_best_object(
+        Predicate&& predicate,
+        Projection&& projection,
+        Compare&& compare) const
+    {
+        return find_best_object<T>(
+            elysia::core::DepthLayerMask::all(),
+            std::forward<Predicate>(predicate),
+            std::forward<Projection>(projection),
+            std::forward<Compare>(compare));
+    }
+
+    template <typename T = elysia::core::GameObject,
+        typename Predicate,
+        typename Projection,
+        typename Compare>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] T* find_best_object(
+        elysia::core::DepthLayerMask layers,
         Predicate&& predicate,
         Projection&& projection,
         Compare&& compare) const
@@ -126,7 +205,7 @@ public:
 
         T* result = nullptr;
         std::optional<Score> best_score;
-        visit_game_objects([&](elysia::core::GameObject& object)
+        visit_game_objects(layers,[&](elysia::core::GameObject& object)
         {
             if (object.is_destroyed())
                 return true;
@@ -155,15 +234,42 @@ public:
     [[nodiscard]] T* find_nearest_object(
         const elysia::core::Vector2& origin) const
     {
-        return find_nearest_object<T>(origin, detail::AcceptAllGameObjects{});
+        return find_nearest_object<T>(
+            origin,
+            elysia::core::DepthLayerMask::all(),
+            detail::AcceptAllGameObjects{});
+    }
+
+    template <typename T = elysia::core::GameObject>
+    [[nodiscard]] T* find_nearest_object(
+        const elysia::core::Vector2& origin,
+        elysia::core::DepthLayerMask layers) const
+    {
+        return find_nearest_object<T>(
+            origin,layers,detail::AcceptAllGameObjects{});
     }
 
     template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
     [[nodiscard]] T* find_nearest_object(
         const elysia::core::Vector2& origin,
         Predicate&& predicate) const
     {
+        return find_nearest_object<T>(
+            origin,
+            elysia::core::DepthLayerMask::all(),
+            std::forward<Predicate>(predicate));
+    }
+
+    template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] T* find_nearest_object(
+        const elysia::core::Vector2& origin,
+        elysia::core::DepthLayerMask layers,
+        Predicate&& predicate) const
+    {
         return find_best_object<T>(
+            layers,
             std::forward<Predicate>(predicate),
             [&origin](const T& object)
             {
@@ -177,15 +283,42 @@ public:
     [[nodiscard]] T* find_farthest_object(
         const elysia::core::Vector2& origin) const
     {
-        return find_farthest_object<T>(origin, detail::AcceptAllGameObjects{});
+        return find_farthest_object<T>(
+            origin,
+            elysia::core::DepthLayerMask::all(),
+            detail::AcceptAllGameObjects{});
+    }
+
+    template <typename T = elysia::core::GameObject>
+    [[nodiscard]] T* find_farthest_object(
+        const elysia::core::Vector2& origin,
+        elysia::core::DepthLayerMask layers) const
+    {
+        return find_farthest_object<T>(
+            origin,layers,detail::AcceptAllGameObjects{});
     }
 
     template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
     [[nodiscard]] T* find_farthest_object(
         const elysia::core::Vector2& origin,
         Predicate&& predicate) const
     {
+        return find_farthest_object<T>(
+            origin,
+            elysia::core::DepthLayerMask::all(),
+            std::forward<Predicate>(predicate));
+    }
+
+    template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] T* find_farthest_object(
+        const elysia::core::Vector2& origin,
+        elysia::core::DepthLayerMask layers,
+        Predicate&& predicate) const
+    {
         return find_best_object<T>(
+            layers,
             std::forward<Predicate>(predicate),
             [&origin](const T& object)
             {
@@ -203,14 +336,41 @@ public:
         return find_objects_in_radius<T>(
             origin,
             radius,
+            elysia::core::DepthLayerMask::all(),
             detail::AcceptAllGameObjects{}
         );
     }
 
-    template <typename T = elysia::core::GameObject, typename Predicate>
+    template <typename T = elysia::core::GameObject>
     [[nodiscard]] std::vector<T*> find_objects_in_radius(
         const elysia::core::Vector2& origin,
         float radius,
+        elysia::core::DepthLayerMask layers) const
+    {
+        return find_objects_in_radius<T>(
+            origin,radius,layers,detail::AcceptAllGameObjects{});
+    }
+
+    template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] std::vector<T*> find_objects_in_radius(
+        const elysia::core::Vector2& origin,
+        float radius,
+        Predicate&& predicate) const
+    {
+        return find_objects_in_radius<T>(
+            origin,
+            radius,
+            elysia::core::DepthLayerMask::all(),
+            std::forward<Predicate>(predicate));
+    }
+
+    template <typename T = elysia::core::GameObject, typename Predicate>
+        requires std::predicate<Predicate&,const T&>
+    [[nodiscard]] std::vector<T*> find_objects_in_radius(
+        const elysia::core::Vector2& origin,
+        float radius,
+        elysia::core::DepthLayerMask layers,
         Predicate&& predicate) const
     {
         assert_game_object_type<T>();
@@ -220,6 +380,7 @@ public:
 
         const float radius_squared = radius * radius;
         return find_objects<T>(
+            layers,
             [&](const T& object)
             {
                 return origin.distance_squared_to(object.center()) <= radius_squared
@@ -240,6 +401,8 @@ private:
         );
     }
 
-    void visit_game_objects(const GameObjectVisitor& visitor) const;
+    void visit_game_objects(
+        elysia::core::DepthLayerMask layers,
+        const GameObjectVisitor& visitor) const;
 };
 }

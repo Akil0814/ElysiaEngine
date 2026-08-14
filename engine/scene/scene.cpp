@@ -283,10 +283,16 @@ void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
 }
 
 void Scene::visit_game_objects(
+    elysia::core::DepthLayerMask layers,
     const elysia::object_query::GameObjectVisitor& visitor) const
 {
-    for (const auto& layer : _object_layers)
+    for (std::size_t layer_index = 0; layer_index < _object_layers.size(); ++layer_index)
     {
+        const auto depth_layer = static_cast<elysia::core::DepthLayer>(layer_index);
+        if (!layers.contains(depth_layer))
+            continue;
+
+        const auto& layer = _object_layers[layer_index];
         for (const std::unique_ptr<elysia::core::GameObject>& object : layer)
         {
             if (object && !visitor(*object))
