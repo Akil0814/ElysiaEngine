@@ -10,6 +10,7 @@
 #include "engine/ui/presets/settings_panel.h"
 #include "engine/ui/widgets/ui_button.h"
 #include "engine/ui/widgets/ui_radio_button.h"
+#include "engine/ui/widgets/ui_slider.h"
 #include "engine/ui/widgets/label/ui_label.h"
 #include "engine/ui/window/ui_window.h"
 #include "tests/support/test_assertions.h"
@@ -283,13 +284,18 @@ void test_settings_panel_single_page_draft_and_actions()
         *content,"engine.settings.fields.vsync");
     auto* language_dropdown = field_control<ui::UiDropdown>(
         *content,"engine.settings.fields.language");
-    require(window_dropdown && fps_dropdown && vsync && language_dropdown,
+    auto* master_volume = field_control<ui::UiSlider>(
+        *content,"engine.settings.fields.master_volume");
+    require(window_dropdown && fps_dropdown && vsync && language_dropdown
+            && master_volume,
         "all-visible settings must construct every interactive field");
     require(window_dropdown->options().size() == 4
             && fps_dropdown->options().size() == 3
             && language_dropdown->options().size() == 2
             && !vsync->is_checked(),
         "control state must mirror normalized options and the complete draft");
+    require(master_volume->value_target_height() == 20.0f,
+        "settings volume sliders must use a compact percentage readout");
 
     ui::UiWindow popup_window(core::Rect{ 0,0,800,600 });
     panel.register_with_window(popup_window);

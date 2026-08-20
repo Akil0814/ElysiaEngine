@@ -17,7 +17,7 @@ using elysia::typography::UiTypographyRole;
 namespace
 {
 constexpr float kValueChangeEpsilon = 0.0001f;
-constexpr float kHorizontalTrackEdgePadding = 6.0f;
+constexpr float kTrackEdgePadding = 6.0f;
 
 [[nodiscard]] bool nearly_equal(float a,float b) noexcept
 {
@@ -73,7 +73,7 @@ constexpr float kHorizontalTrackEdgePadding = 6.0f;
     if (orientation == UiSliderOrientation::Horizontal)
     {
         const float horizontal_inset = std::min(
-            std::max(6.0f + kHorizontalTrackEdgePadding,handle_size.x * 0.5f + kHorizontalTrackEdgePadding),
+            std::max(6.0f + kTrackEdgePadding,handle_size.x * 0.5f + kTrackEdgePadding),
             std::max(0.0f,rect.width() * 0.5f));
         inset.set_x(rect.x() + horizontal_inset);
         inset.set_width(std::max(0.0f,rect.width() - horizontal_inset * 2.0f));
@@ -81,7 +81,7 @@ constexpr float kHorizontalTrackEdgePadding = 6.0f;
     else
     {
         const float vertical_inset = std::min(
-            std::max(6.0f,handle_size.y * 0.5f),
+            std::max(6.0f + kTrackEdgePadding,handle_size.y * 0.5f + kTrackEdgePadding),
             std::max(0.0f,rect.height() * 0.5f));
         inset.set_y(rect.y() + vertical_inset);
         inset.set_height(std::max(0.0f,rect.height() - vertical_inset * 2.0f));

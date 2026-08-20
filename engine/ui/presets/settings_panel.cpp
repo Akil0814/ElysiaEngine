@@ -40,6 +40,7 @@ constexpr float kHorizontalPadding = 40.0f;
 constexpr float kVerticalPadding = 24.0f;
 constexpr float kFieldSpacing = 20.0f;
 constexpr float kButtonWidth = 160.0f;
+constexpr float kCompactSliderValueHeight = 20.0f;
 constexpr std::size_t kNotFound = std::numeric_limits<std::size_t>::max();
 
 std::unique_ptr<UiLabel> make_label(UiTextContent content,float width,float height = kRowHeight,UiTypographyRole role = UiTypographyRole::Label)
@@ -83,12 +84,15 @@ std::unique_ptr<UiListContainer> make_hint_row(
 
 std::unique_ptr<UiSlider> make_volume_slider(float width)
 {
+    // Settings rows use a compact numeric readout so the percentage remains subordinate
+    // to the field label and keeps clear space inside the slider's trailing edge.
     UiSliderConfig config{};
     config.min_value = 0.0f;
     config.max_value = 100.0f;
     config.value = 100.0f;
     config.step = 1.0f;
     config.value_display = UiSliderValueDisplay::Percent;
+    config.value_target_height = kCompactSliderValueHeight;
     return std::make_unique<UiSlider>(elysia::core::Rect{ 0,0,width,kRowHeight },config);
 }
 

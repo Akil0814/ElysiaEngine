@@ -518,6 +518,43 @@ void test_slider_adjustment_mode()
     }
 }
 
+void test_slider_preserves_endpoint_clearance()
+{
+    using namespace elysia;
+    constexpr float edge_clearance = 6.0f;
+
+    ui::UiSlider vertical(core::Rect{ 10,20,40,180 });
+    vertical.set_orientation(ui::UiSliderOrientation::Vertical);
+    vertical.set_range(0.0f,10.0f);
+
+    ui::UiSliderStyleOverrides overrides{};
+    overrides.chrome.draw_background = false;
+    overrides.chrome.draw_border = false;
+    overrides.handle.size = core::Vector2{ 18.0f,18.0f };
+    vertical.set_style_overrides(overrides);
+
+    const auto handle_rect = [&vertical]()
+    {
+        std::vector<core::UiRenderCommand> commands;
+        vertical.submit_ui_render_commands(commands);
+        const auto command = std::find_if(commands.begin(),commands.end(),[](const core::UiRenderCommand& candidate)
+        {
+            return std::fabs(candidate.screen_rect.width() - 18.0f) < 0.001f
+                && std::fabs(candidate.screen_rect.height() - 18.0f) < 0.001f;
+        });
+        require(command != commands.end(),"vertical slider must render its configured handle");
+        return command->screen_rect;
+    };
+
+    vertical.set_value(0.0f);
+    require(vertical.screen_rect().bottom() - handle_rect().bottom() >= edge_clearance - 0.001f,
+        "vertical slider minimum must leave clearance below its handle");
+
+    vertical.set_value(10.0f);
+    require(handle_rect().y() - vertical.screen_rect().y() >= edge_clearance - 0.001f,
+        "vertical slider maximum must leave clearance above its handle");
+}
+
 void require_command_color(
     const std::vector<elysia::core::UiRenderCommand>& commands,
     elysia::core::UiRenderCommandType type,
@@ -1802,6 +1839,7 @@ int main()
     test_chrome_uses_single_rounded_outer_frame();
     test_field_level_style_cascade();
     test_slider_adjustment_mode();
+    test_slider_preserves_endpoint_clearance();
     test_button_interactive_border_colors();
     test_textured_button_border();
     test_other_chrome_active_borders();
