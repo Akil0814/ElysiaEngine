@@ -1070,86 +1070,86 @@ template<class Enum>
     UiTheme theme;
 
     const UiEnabledDisabledColors text = make_text_colors(
-        elysia::core::colors::black,
-        elysia::core::colors::gray_500);
+        elysia::core::colors::quiet_slate_white,
+        elysia::core::colors::quiet_slate_gray);
     const UiEnabledDisabledColors secondary_text = make_text_colors(
-        elysia::core::colors::gray_700,
-        elysia::core::colors::gray_500);
+        elysia::core::colors::quiet_slate_silver,
+        elysia::core::colors::quiet_slate_gray);
     const UiEnabledDisabledColors placeholder_text = make_text_colors(
-        elysia::core::colors::gray_500,
-        elysia::core::colors::gray_300);
+        elysia::core::colors::quiet_slate_silver,
+        elysia::core::colors::quiet_slate_gray);
     const UiInteractiveColors border = UiInteractiveColors{
-        elysia::core::colors::gray_700,
-        elysia::core::colors::gray_900,
-        elysia::core::colors::black,
-        elysia::core::colors::gray_500
+        elysia::core::colors::quiet_slate_silver,
+        elysia::core::colors::quiet_slate_white,
+        elysia::core::colors::quiet_slate_gray,
+        elysia::core::colors::quiet_slate_gray
     };
     const UiInteractiveColors interactive_surface = make_surface_colors(
-        elysia::core::colors::gray_100,
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_100);
+        elysia::core::colors::quiet_slate_charcoal,
+        elysia::core::colors::quiet_slate_steel,
+        elysia::core::colors::quiet_slate_ink,
+        elysia::core::colors::quiet_slate_ink);
     const UiChromeThemeColors interactive_chrome = make_chrome(interactive_surface,border);
 
     theme.label_styles[to_index(UiLabelVisualRole::Default)] = UiLabelThemeColors{
-        elysia::core::colors::gray_900,
+        elysia::core::colors::quiet_slate_white,
         elysia::core::colors::transparent
     };
     theme.label_styles[to_index(UiLabelVisualRole::Title)] = UiLabelThemeColors{
-        elysia::core::colors::black,
+        elysia::core::colors::quiet_slate_white,
         elysia::core::colors::transparent
     };
     theme.label_styles[to_index(UiLabelVisualRole::Subtitle)] = UiLabelThemeColors{
-        elysia::core::colors::gray_700,
+        elysia::core::colors::quiet_slate_silver,
         elysia::core::colors::transparent
     };
     theme.label_styles[to_index(UiLabelVisualRole::Muted)] = UiLabelThemeColors{
-        elysia::core::colors::gray_500,
+        elysia::core::colors::quiet_slate_silver,
         elysia::core::colors::transparent
     };
 
     theme.number_style = UiNumberThemeColors{
-        elysia::core::colors::black,
+        elysia::core::colors::quiet_slate_white,
         elysia::core::colors::transparent
     };
 
     theme.bar_styles[to_index(UiBarVisualRole::Default)] = UiBarThemeColors{
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_500,
-        elysia::core::colors::gray_700
+        elysia::core::colors::quiet_slate_ink,
+        elysia::core::colors::quiet_slate_silver,
+        elysia::core::colors::quiet_slate_gray
     };
     theme.bar_styles[to_index(UiBarVisualRole::Progress)] = UiBarThemeColors{
-        elysia::core::colors::gray_300,
-        elysia::core::colors::black,
-        elysia::core::colors::gray_700
+        elysia::core::colors::quiet_slate_ink,
+        elysia::core::colors::quiet_slate_white,
+        elysia::core::colors::quiet_slate_silver
     };
 
     theme.panel_styles[to_index(UiPanelVisualRole::Default)] = UiPanelThemeColors{
-        elysia::core::colors::gray_100,
-        elysia::core::colors::gray_700
+        elysia::core::colors::quiet_slate_charcoal,
+        elysia::core::colors::quiet_slate_silver
     };
     theme.panel_styles[to_index(UiPanelVisualRole::Screen)] = UiPanelThemeColors{
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_500
+        elysia::core::colors::quiet_slate_ink,
+        elysia::core::colors::quiet_slate_gray
     };
     theme.panel_styles[to_index(UiPanelVisualRole::Dialog)] = UiPanelThemeColors{
-        elysia::core::colors::gray_100,
-        elysia::core::colors::gray_700
+        elysia::core::colors::quiet_slate_charcoal,
+        elysia::core::colors::quiet_slate_white
     };
     theme.panel_styles[to_index(UiPanelVisualRole::List)] = UiPanelThemeColors{
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_700
+        elysia::core::colors::quiet_slate_charcoal,
+        elysia::core::colors::quiet_slate_silver
     };
 
     theme.window_style = UiWindowThemeColors{
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_700
+        elysia::core::colors::quiet_slate_ink,
+        elysia::core::colors::quiet_slate_gray
     };
 
     theme.chrome_container_style = UiChromeContainerThemeColors{
-        elysia::core::colors::gray_100,
-        elysia::core::colors::gray_700,
-        elysia::core::colors::gray_300
+        elysia::core::colors::quiet_slate_charcoal,
+        elysia::core::colors::quiet_slate_silver,
+        elysia::core::colors::quiet_slate_ink
     };
 
     theme.button_styles[to_index(UiButtonVisualRole::Default)] = UiButtonThemeColors{
@@ -1159,40 +1159,46 @@ template<class Enum>
     theme.button_styles[to_index(UiButtonVisualRole::Primary)] = UiButtonThemeColors{
         make_chrome(
             make_surface_colors(
-                elysia::core::colors::gray_300,
-                elysia::core::colors::gray_500,
-                elysia::core::colors::gray_700,
-                elysia::core::colors::gray_100),
+                elysia::core::colors::quiet_slate_mist,
+                elysia::core::colors::quiet_slate_white,
+                elysia::core::colors::quiet_slate_silver,
+                elysia::core::colors::quiet_slate_charcoal),
             UiInteractiveColors{
-                elysia::core::colors::black,
-                elysia::core::colors::gray_900,
-                elysia::core::colors::white,
-                elysia::core::colors::gray_500 }),
-        make_text_colors(elysia::core::colors::white,elysia::core::colors::gray_300)
+                elysia::core::colors::quiet_slate_gray,
+                elysia::core::colors::quiet_slate_charcoal,
+                elysia::core::colors::quiet_slate_ink,
+                elysia::core::colors::quiet_slate_gray }),
+        make_text_colors(
+            elysia::core::colors::quiet_slate_ink,
+            elysia::core::colors::quiet_slate_gray)
     };
     theme.button_styles[to_index(UiButtonVisualRole::Danger)] = UiButtonThemeColors{
         make_chrome(
             make_surface_colors(
-                elysia::core::colors::gray_500,
-                elysia::core::colors::gray_700,
-                elysia::core::colors::black,
-                elysia::core::colors::gray_100),
+                elysia::core::colors::quiet_slate_danger,
+                elysia::core::colors::quiet_slate_danger_focus,
+                elysia::core::colors::quiet_slate_danger_active,
+                elysia::core::colors::quiet_slate_ink),
             UiInteractiveColors{
-                elysia::core::colors::black,
-                elysia::core::colors::white,
-                elysia::core::colors::gray_500,
-                elysia::core::colors::gray_500 }),
-        make_text_colors(elysia::core::colors::white,elysia::core::colors::gray_300)
+                elysia::core::colors::quiet_slate_silver,
+                elysia::core::colors::quiet_slate_white,
+                elysia::core::colors::quiet_slate_silver,
+                elysia::core::colors::quiet_slate_gray }),
+        text
     };
 
     theme.checkbox_style = UiCheckboxThemeColors{
         interactive_chrome,
-        UiEnabledDisabledColors{ elysia::core::colors::black,elysia::core::colors::gray_500 }
+        UiEnabledDisabledColors{
+            elysia::core::colors::quiet_slate_white,
+            elysia::core::colors::quiet_slate_gray }
     };
 
     theme.radio_button_style = UiRadioButtonThemeColors{
         interactive_chrome,
-        UiEnabledDisabledColors{ elysia::core::colors::black,elysia::core::colors::gray_500 }
+        UiEnabledDisabledColors{
+            elysia::core::colors::quiet_slate_white,
+            elysia::core::colors::quiet_slate_gray }
     };
 
     theme.drag_handle_style = UiDragHandleThemeColors{
@@ -1201,7 +1207,9 @@ template<class Enum>
 
     theme.slider_style = UiSliderThemeColors{
         make_chrome(interactive_surface,border),
-        UiEnabledDisabledColors{ elysia::core::colors::black,elysia::core::colors::gray_500 },
+        UiEnabledDisabledColors{
+            elysia::core::colors::quiet_slate_white,
+            elysia::core::colors::quiet_slate_gray },
         text,
         theme.drag_handle_style
     };
@@ -1210,21 +1218,21 @@ template<class Enum>
         interactive_chrome,
         secondary_text,
         placeholder_text,
-        elysia::core::colors::black
+        elysia::core::colors::quiet_slate_white
     };
 
     theme.scroll_container_style = UiScrollContainerThemeColors{
         make_scrollbar_colors(
-            elysia::core::colors::gray_300,
-            elysia::core::colors::gray_100,
-            elysia::core::colors::gray_300,
-            elysia::core::colors::gray_500,
-            elysia::core::colors::gray_700,
-            elysia::core::colors::black,
-            elysia::core::colors::gray_100,
-            elysia::core::colors::gray_700),
-        elysia::core::colors::gray_300,
-        elysia::core::colors::gray_700
+            elysia::core::colors::quiet_slate_ink,
+            elysia::core::colors::quiet_slate_charcoal,
+            elysia::core::colors::quiet_slate_steel,
+            elysia::core::colors::quiet_slate_ink,
+            elysia::core::colors::quiet_slate_silver,
+            elysia::core::colors::quiet_slate_white,
+            elysia::core::colors::quiet_slate_white,
+            elysia::core::colors::quiet_slate_gray),
+        elysia::core::colors::quiet_slate_ink,
+        elysia::core::colors::quiet_slate_gray
     };
 
     return finalize_dialog_theme(std::move(theme));

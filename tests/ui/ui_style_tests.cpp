@@ -21,6 +21,9 @@
 #include "engine/ui/window/ui_window.h"
 #include "tests/support/test_assertions.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -78,6 +81,59 @@ public:
 namespace
 {
 using elysia::tests::require;
+
+double linear_srgb_channel(std::uint8_t channel)
+{
+    const double value = static_cast<double>(channel) / 255.0;
+    return value <= 0.04045
+        ? value / 12.92
+        : std::pow((value + 0.055) / 1.055,2.4);
+}
+
+double relative_luminance(const elysia::core::Color& color)
+{
+    return 0.2126 * linear_srgb_channel(color.r)
+        + 0.7152 * linear_srgb_channel(color.g)
+        + 0.0722 * linear_srgb_channel(color.b);
+}
+
+double contrast_ratio(
+    const elysia::core::Color& first,
+    const elysia::core::Color& second)
+{
+    const double first_luminance = relative_luminance(first);
+    const double second_luminance = relative_luminance(second);
+    const double lighter = std::max(first_luminance,second_luminance);
+    const double darker = std::min(first_luminance,second_luminance);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+bool meets_contrast(
+    const elysia::core::Color& foreground,
+    const elysia::core::Color& background,
+    double minimum)
+{
+    return contrast_ratio(foreground,background) >= minimum;
+}
+
+bool meets_enabled_interactive_contrast(
+    const elysia::core::Color& foreground,
+    const elysia::ui::UiInteractiveColors& backgrounds,
+    double minimum)
+{
+    return meets_contrast(foreground,backgrounds.idle,minimum)
+        && meets_contrast(foreground,backgrounds.focused,minimum)
+        && meets_contrast(foreground,backgrounds.active,minimum);
+}
+
+bool meets_enabled_chrome_contrast(
+    const elysia::ui::UiChromeThemeColors& chrome,
+    double minimum)
+{
+    return meets_contrast(chrome.border.idle,chrome.background.idle,minimum)
+        && meets_contrast(chrome.border.focused,chrome.background.focused,minimum)
+        && meets_contrast(chrome.border.active,chrome.background.active,minimum);
+}
 
 const elysia::core::UiRenderCommand* find_command(
     const std::vector<elysia::core::UiRenderCommand>& commands,
@@ -576,6 +632,140 @@ void test_elysia_dark_bar_fill_contrast()
         "ElysiaDark progress bars should use the high-contrast pink fill");
 }
 
+void test_quiet_slate_palette_and_contrast()
+{
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+    using elysia::ui::UiPanelVisualRole;
+
+    const auto theme = elysia::ui::make_builtin_theme(
+        elysia::ui::UiBuiltinTheme::QuietSlate);
+    const auto& default_button = theme.button(UiButtonVisualRole::Default);
+    const auto& primary_button = theme.button(UiButtonVisualRole::Primary);
+    const auto& danger_button = theme.button(UiButtonVisualRole::Danger);
+
+    require(theme.window_style.background == elysia::core::colors::quiet_slate_ink,
+        "QuietSlate window must use the dedicated ink surface");
+    require(theme.panel(UiPanelVisualRole::Default).background
+            == elysia::core::colors::quiet_slate_charcoal,
+        "QuietSlate panels must use the dedicated charcoal surface");
+    require(default_button.chrome.background.focused
+            == elysia::core::colors::quiet_slate_steel,
+        "QuietSlate default focus must use the dedicated steel surface");
+    require(primary_button.chrome.background.idle
+            == elysia::core::colors::quiet_slate_mist,
+        "QuietSlate Primary must use the dedicated mist surface");
+    require(danger_button.chrome.background.idle
+            == elysia::core::colors::quiet_slate_danger,
+        "QuietSlate Danger must use the dedicated muted red surface");
+    require(theme.label(UiLabelVisualRole::Default).text
+            == elysia::core::colors::quiet_slate_white,
+        "QuietSlate body text must use the dedicated white token");
+    require(theme.label(UiLabelVisualRole::Muted).text
+            == elysia::core::colors::quiet_slate_silver,
+        "QuietSlate muted text must remain readable silver");
+
+    require(default_button.chrome.background.idle
+            != default_button.chrome.background.focused
+            && default_button.chrome.background.focused
+                != default_button.chrome.background.active
+            && default_button.chrome.background.idle
+                != default_button.chrome.background.active,
+        "QuietSlate Default surfaces must distinguish enabled interaction states");
+    require(primary_button.chrome.background.idle
+            != primary_button.chrome.background.focused
+            && primary_button.chrome.background.focused
+                != primary_button.chrome.background.active
+            && primary_button.chrome.background.idle
+                != primary_button.chrome.background.active,
+        "QuietSlate Primary surfaces must distinguish enabled interaction states");
+    require(danger_button.chrome.background.idle
+            != danger_button.chrome.background.focused
+            && danger_button.chrome.background.focused
+                != danger_button.chrome.background.active
+            && danger_button.chrome.background.idle
+                != danger_button.chrome.background.active,
+        "QuietSlate Danger surfaces must distinguish enabled interaction states");
+
+    require(meets_enabled_interactive_contrast(
+            default_button.text.enabled,default_button.chrome.background,4.5),
+        "QuietSlate Default button text must meet 4.5:1 in enabled states");
+    require(meets_enabled_interactive_contrast(
+            primary_button.text.enabled,primary_button.chrome.background,4.5),
+        "QuietSlate Primary button text must meet 4.5:1 in enabled states");
+    require(meets_enabled_interactive_contrast(
+            danger_button.text.enabled,danger_button.chrome.background,4.5),
+        "QuietSlate Danger button text must meet 4.5:1 in enabled states");
+    require(meets_enabled_interactive_contrast(
+            theme.text_input_style.text.enabled,
+            theme.text_input_style.chrome.background,4.5),
+        "QuietSlate text input content must meet 4.5:1 in enabled states");
+    require(meets_enabled_interactive_contrast(
+            theme.text_input_style.placeholder.enabled,
+            theme.text_input_style.chrome.background,4.5),
+        "QuietSlate placeholder text must meet 4.5:1 in enabled states");
+    require(meets_contrast(
+            theme.label(UiLabelVisualRole::Muted).text,
+            theme.panel(UiPanelVisualRole::Default).background,4.5)
+            && meets_contrast(
+                theme.label(UiLabelVisualRole::Muted).text,
+                theme.window_style.background,4.5),
+        "QuietSlate muted text must meet 4.5:1 on standard surfaces");
+
+    require(meets_enabled_chrome_contrast(default_button.chrome,3.0),
+        "QuietSlate Default button chrome must meet 3:1 in enabled states");
+    require(meets_enabled_chrome_contrast(primary_button.chrome,3.0),
+        "QuietSlate Primary button chrome must meet 3:1 in enabled states");
+    require(meets_enabled_chrome_contrast(danger_button.chrome,3.0),
+        "QuietSlate Danger button chrome must meet 3:1 in enabled states");
+    require(meets_contrast(
+            theme.bar(elysia::ui::UiBarVisualRole::Default).fill,
+            theme.bar(elysia::ui::UiBarVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.bar(elysia::ui::UiBarVisualRole::Progress).fill,
+                theme.bar(elysia::ui::UiBarVisualRole::Progress).background,3.0),
+        "QuietSlate bar fills must meet 3:1 against their tracks");
+    require(meets_contrast(
+            theme.window_style.border,theme.window_style.background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Default).border,
+                theme.panel(UiPanelVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Screen).border,
+                theme.panel(UiPanelVisualRole::Screen).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Dialog).border,
+                theme.panel(UiPanelVisualRole::Dialog).background,3.0),
+        "QuietSlate standard container borders must meet 3:1");
+
+    const auto& scrollbar = theme.scroll_container_style.scrollbar;
+    require(meets_contrast(
+            scrollbar.thumb_idle_color,scrollbar.track_idle_color,3.0)
+            && meets_contrast(
+                scrollbar.thumb_focused_color,scrollbar.track_focused_color,3.0)
+            && meets_contrast(
+                scrollbar.thumb_dragging_color,scrollbar.track_dragging_color,3.0),
+        "QuietSlate scrollbar thumb must meet 3:1 in enabled states");
+
+    require(default_button.chrome.background.disabled
+            == elysia::core::colors::quiet_slate_ink
+            && default_button.chrome.border.disabled
+                == elysia::core::colors::quiet_slate_gray
+            && default_button.text.disabled
+                == elysia::core::colors::quiet_slate_gray,
+        "QuietSlate Default disabled colors must use ink and gray tokens");
+    require(primary_button.chrome.background.disabled
+            == elysia::core::colors::quiet_slate_charcoal
+            && primary_button.text.disabled
+                == elysia::core::colors::quiet_slate_gray,
+        "QuietSlate Primary disabled colors must use charcoal and gray tokens");
+    require(danger_button.chrome.background.disabled
+            == elysia::core::colors::quiet_slate_ink
+            && danger_button.text.disabled
+                == elysia::core::colors::quiet_slate_gray,
+        "QuietSlate Danger disabled colors must return to neutral ink and gray");
+}
+
 void test_container_driven_theme_tree()
 {
     elysia::ui::UiThemeManager manager;
@@ -781,6 +971,7 @@ int main()
     test_other_chrome_active_borders();
     test_builtin_theme_border_states();
     test_elysia_dark_bar_fill_contrast();
+    test_quiet_slate_palette_and_contrast();
     test_container_driven_theme_tree();
     test_labeled_control_text_follows_theme();
     test_labeled_controls_preserve_label_base_style();

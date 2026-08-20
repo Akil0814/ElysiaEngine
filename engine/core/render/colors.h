@@ -146,10 +146,15 @@ inline constexpr Color eva_unit02_muted_orange{ 197, 121, 68, 255 };   // #C5794
 
 // Reserved, low-saturation neutral set for understated gray UI themes.
 inline constexpr Color quiet_slate_white{ 236, 240, 244, 255 };        // #ECF0F4
+inline constexpr Color quiet_slate_mist{ 210, 217, 224, 255 };         // #D2D9E0
 inline constexpr Color quiet_slate_silver{ 179, 188, 198, 255 };       // #B3BCC6
 inline constexpr Color quiet_slate_gray{ 110, 122, 136, 255 };         // #6E7A88
+inline constexpr Color quiet_slate_steel{ 64, 75, 88, 255 };           // #404B58
 inline constexpr Color quiet_slate_charcoal{ 54, 63, 74, 255 };        // #363F4A
 inline constexpr Color quiet_slate_ink{ 32, 38, 46, 255 };             // #20262E
+inline constexpr Color quiet_slate_danger{ 127, 63, 70, 255 };         // #7F3F46
+inline constexpr Color quiet_slate_danger_focus{ 152, 74, 83, 255 };   // #984A53
+inline constexpr Color quiet_slate_danger_active{ 100, 47, 53, 255 };  // #642F35
 
 }
 
