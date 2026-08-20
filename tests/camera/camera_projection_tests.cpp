@@ -102,6 +102,8 @@ void test_world_primitive_command_contracts()
         std::numeric_limits<float>::quiet_NaN());
     const RenderCommand line = make_world_draw_line_command(
         Vector2{15, 16}, Vector2{17, 18}, color, -2.0f);
+    const RenderCommand triangle = make_world_fill_triangle_command(
+        Vector2{19, 20}, Vector2{21, 22}, Vector2{23, 24}, color);
 
     require(fill_rect.type == RenderCommandType::FillRect
             && fill_rect.command_rect == Rect(1, 2, 3, 4)
@@ -123,6 +125,12 @@ void test_world_primitive_command_contracts()
             && line.line_end == Vector2(17, 18)
             && line.stroke_width == 1.0f,
         "DrawLine must preserve endpoints and normalize a non-positive stroke");
+    require(triangle.type == RenderCommandType::FillTriangle
+            && triangle.triangle_vertices[0] == Vector2(19, 20)
+            && triangle.triangle_vertices[1] == Vector2(21, 22)
+            && triangle.triangle_vertices[2] == Vector2(23, 24)
+            && triangle.color == color,
+        "FillTriangle factory must preserve world vertices and color");
 }
 
 void test_world_primitive_projection()
@@ -168,6 +176,20 @@ void test_world_primitive_projection()
                     == camera.world_to_screen(line.line_end)
                 && projected_line.stroke_width == 4.0f * zoom,
             "World line endpoints and width must project with the camera");
+
+        const RenderCommand triangle = make_world_fill_triangle_command(
+            Vector2{90, 40}, Vector2{120, 50}, Vector2{100, 70}, color);
+        const ScreenRenderCommand projected_triangle =
+            project_render_command_to_screen(triangle,camera);
+        require(projected_triangle.type == RenderCommandType::FillTriangle
+                && projected_triangle.triangle_vertices[0]
+                    == camera.world_to_screen(triangle.triangle_vertices[0])
+                && projected_triangle.triangle_vertices[1]
+                    == camera.world_to_screen(triangle.triangle_vertices[1])
+                && projected_triangle.triangle_vertices[2]
+                    == camera.world_to_screen(triangle.triangle_vertices[2])
+                && projected_triangle.color == color,
+            "World triangle vertices must project independently through the camera");
     }
 }
 }

@@ -8,6 +8,7 @@
 #include "sdl_ui_stroke_renderer.h"
 
 #include <cmath>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <limits>
@@ -131,6 +132,60 @@ inline void execute_render_command(
         && !rect.is_empty();
 }
 
+[[nodiscard]] inline bool valid_render_triangle(
+    const std::array<Vector2,3>& vertices
+) noexcept
+{
+    if (!finite_render_vector(vertices[0])
+        || !finite_render_vector(vertices[1])
+        || !finite_render_vector(vertices[2]))
+    {
+        return false;
+    }
+
+    const float twice_signed_area =
+        (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]);
+    return std::isfinite(twice_signed_area)
+        && std::fabs(twice_signed_area) > Vector2::k_epsilon;
+}
+
+inline void execute_filled_triangle_render_command(
+    SDL_Renderer* renderer,
+    const ScreenRenderCommand& render_command
+) noexcept
+{
+    if (!renderer || !valid_render_triangle(render_command.triangle_vertices))
+        return;
+
+    SDL_Rect previous_clip_rect{};
+    const bool had_clip_rect = SDL_RenderIsClipEnabled(renderer) == SDL_TRUE;
+    if (had_clip_rect)
+    {
+        SDL_RenderGetClipRect(renderer,&previous_clip_rect);
+        SDL_RenderSetClipRect(renderer,nullptr);
+    }
+
+    SDL_BlendMode previous_blend_mode = SDL_BLENDMODE_NONE;
+    SDL_GetRenderDrawBlendMode(renderer,&previous_blend_mode);
+    SDL_SetRenderDrawBlendMode(renderer,SDL_BLENDMODE_BLEND);
+
+    const SDL_Color color = to_sdl_color(render_command.color);
+    const std::array<SDL_Vertex,3> vertices{
+        SDL_Vertex{ SDL_FPoint{ render_command.triangle_vertices[0].x,
+                                render_command.triangle_vertices[0].y },color,SDL_FPoint{} },
+        SDL_Vertex{ SDL_FPoint{ render_command.triangle_vertices[1].x,
+                                render_command.triangle_vertices[1].y },color,SDL_FPoint{} },
+        SDL_Vertex{ SDL_FPoint{ render_command.triangle_vertices[2].x,
+                                render_command.triangle_vertices[2].y },color,SDL_FPoint{} }
+    };
+    SDL_RenderGeometry(
+        renderer,nullptr,vertices.data(),static_cast<int>(vertices.size()),nullptr,0);
+
+    SDL_SetRenderDrawBlendMode(renderer,previous_blend_mode);
+    if (had_clip_rect)
+        SDL_RenderSetClipRect(renderer,&previous_clip_rect);
+}
+
 inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCommand& render_command) noexcept
 {
     if (render_command.type == RenderCommandType::Texture)
@@ -147,6 +202,12 @@ inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCom
             render_command.rotation_origin,
             render_command.flip
         );
+        return;
+    }
+
+    if (render_command.type == RenderCommandType::FillTriangle)
+    {
+        execute_filled_triangle_render_command(renderer,render_command);
         return;
     }
 
@@ -195,6 +256,7 @@ inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCom
         break;
 
     case RenderCommandType::Texture:
+    case RenderCommandType::FillTriangle:
         return;
     }
     execute_render_command(renderer, primitive);
