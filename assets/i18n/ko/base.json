@@ -67,16 +67,43 @@
       "sample_60": "60 px — 대화 상자 제목 예시",
       "sample_70": "70 px — 큰 제목 예시"
     },
-    "status": { "ready": "UI 작업대가 준비되었습니다", "interaction": "입력을 받았습니다" },
-    "pages": { "overview": "개요", "controls": "컨트롤", "media": "콘텐츠 및 미디어", "containers": "컨테이너", "overlays": "오버레이 및 포커스", "appearance": "모양 및 현지화" },
+    "status": { "ready": "UI 작업대가 준비되었습니다", "interaction": "입력을 받았습니다", "submitted": "텍스트를 제출했습니다", "overlay_opened": "오버레이를 열었습니다", "selection_changed": "선택이 변경되었습니다" },
+    "pages": { "overview": "개요", "states": "상태 및 변형", "controls": "컨트롤", "media": "콘텐츠 및 미디어", "containers": "컨테이너", "overlays": "오버레이 및 포커스", "appearance": "모양 및 현지화" },
     "sections": { "overview": "테마 인식 대시보드와 시각 역할 예시입니다.", "controls": "상호작용 컨트롤은 상태 줄을 갱신합니다.", "media": "텍스트, 숫자, 막대, 엔진 이미지와 애니메이션입니다.", "containers": "구성, 슬롯, 스크롤 및 중첩 탭입니다.", "overlays": "창이 관리하는 오버레이, 대화 상자 및 포커스 복구입니다.", "appearance": "내장 테마는 등록된 UI 트리를 즉시 갱신합니다." },
-    "actions": { "replay": "재생", "reset": "작업대 다시 만들기" },
-    "controls": { "labeled_check": "채워진 레이블 체크 상자", "labeled_radio": "레이블 라디오 항목", "placeholder": "최대 열여섯 글자 입력" },
-    "media": { "long_text": "이 현지화된 텍스트 블록은 줄바꿈, 글꼴 조판 및 테마 콘텐츠 렌더링을 검증합니다." },
-    "containers": { "chrome": "Chrome 슬롯", "nested_tab": "중첩 탭" },
-    "overlays": { "open_overlay": "비모달 오버레이 열기", "open_dialog": "읽기 대화 상자 열기", "open_confirm": "확인 대화 상자 열기", "tooltip": "가리켜 툴팁 보기", "tooltip_text": "툴팁 콘텐츠는 포커스와 포인터 상태를 따릅니다." },
+    "actions": { "replay": "재생", "reset": "작업대 다시 만들기", "replay_effects": "효과 다시 재생", "play": "재생", "pause": "일시 정지", "resume": "계속", "reset_animation": "애니메이션 초기화" },
+    "controls": { "labeled_check": "레이블 체크 상자", "labeled_radio": "레이블 라디오 항목", "labeled_radio_far": "가장자리 라디오 레이블", "placeholder": "최대 열여섯 글자 입력" },
+    "states": {
+      "buttons_title": "버튼 콘텐츠와 역할", "buttons_description": "콘텐츠는 렌더링 경로를, 의미 역할은 테마 색상을 선택합니다.",
+      "text_button": "텍스트", "role_button": "역할", "disabled": "비활성",
+      "selection_title": "선택 상태", "selection_description": "논리 상태, 표시 모양 및 비활성 렌더링을 나란히 보여 줍니다.",
+      "presentation_title": "표현 역할", "presentation_description": "텍스트 맞춤, 텍스트 역할 및 패널 표면은 레이아웃과 독립적입니다.",
+      "fit_sample": "의도적으로 긴 맞춤 예시", "text_block_sample": "텍스트 블록은 줄바꿈된 현지화 콘텐츠를 측정합니다.", "panel_sample": "패널",
+      "inputs_title": "텍스트 입력 상태", "inputs_description": "자리 표시자, 입력된 텍스트 및 비활성 텍스트가 별도로 렌더링됩니다."
+    },
+    "media": {
+      "long_text": "이 현지화된 텍스트 블록은 폭이 다른 문자에서 줄바꿈, 조판 및 테마 렌더링을 검증합니다.",
+      "text_title": "현지화 및 원시 텍스트", "text_description": "TextKey는 현재 언어를 해석하고 RawText는 식별자를 그대로 유지합니다.",
+      "number_title": "숫자와 막대", "number_description": "경계값 숫자 서식과 네 방향 채우기를 보여 줍니다.",
+      "effects_title": "불투명도 효과", "effects_description": "페이드, 깜박임 및 펄스는 이 탭이 활성화된 동안 갱신되며 다시 재생할 수 있습니다.",
+      "fade_in": "페이드 인", "fade_in_out": "페이드 인/아웃", "blink_visible": "표시부터 깜박임", "pulse_min": "최솟값부터 펄스",
+      "animation_title": "프레임 애니메이션", "animation_description": "UI 애니메이션은 캐시 프레임을 참조하며 독립적인 재생 컨트롤을 제공합니다."
+    },
+    "containers": {
+      "chrome": "Chrome 슬롯", "nested_tab": "중첩 탭", "nested_tab_two": "두 번째 탭",
+      "list_title": "선형 목록", "list_description": "목록 순서가 레이아웃, 렌더링 및 주축 포커스 이동을 결정합니다.",
+      "layout_title": "그리드, 패널, Chrome 및 탭", "layout_description": "구조화 컨테이너는 레이아웃 모델에서 포커스 관계를 만듭니다.",
+      "scroll_title": "스크롤 정책", "scroll_description": "자동, 항상 표시 및 숨김 스크롤바는 동일한 콘텐츠 클리핑 동작을 유지합니다."
+    },
+    "overlays": {
+      "open_overlay": "비모달 오버레이 열기", "open_dialog": "읽기 대화 상자 열기", "open_confirm": "확인 대화 상자 열기", "tooltip": "가리켜 툴팁 보기", "tooltip_text": "툴팁 콘텐츠는 포커스와 포인터 상태를 따릅니다.",
+      "placement_title": "오버레이 배치", "placement_description": "하나의 패널을 모든 배치, 전환 및 모달 정책으로 다시 엽니다.",
+      "open_center": "가운데(비모달)", "open_left": "왼쪽 서랍", "open_right": "오른쪽 서랍", "open_top": "위쪽 시트", "open_bottom": "아래쪽 시트",
+      "dialog_title": "모달 대화 상자", "dialog_description": "대화 상자는 포커스를 잡고 닫힐 때 이전 범위를 복원합니다.",
+      "popup_title": "팝업과 툴팁", "popup_description": "임시 팝업이 우선하며 툴팁은 수동적으로 유지됩니다.",
+      "option_four": "네 번째 옵션", "option_five": "다섯 번째 옵션", "option_six": "여섯 번째 옵션", "option_seven": "일곱 번째 옵션", "option_eight": "여덟 번째 옵션"
+    },
     "dialog": { "title": "작업대 읽기 대화 상자", "body": "이 대화 상자는 모달 배치, 포커스 복구 및 현지화된 긴 문구를 검증합니다." },
     "confirm": { "title": "작업대 작업 확인", "message": "이 확인 대화 상자는 오버레이 검증의 일부입니다." },
-    "appearance": { "note": "테마 이름은 안정적인 엔진 식별자입니다." }
+    "appearance": { "note": "테마 이름은 안정적인 엔진 식별자입니다.", "localized_sample": "현지화된 TextKey 예시" }
   }
 }

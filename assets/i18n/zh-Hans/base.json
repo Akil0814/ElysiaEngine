@@ -67,8 +67,8 @@
       "sample_60": "60 px — 对话框标题示例",
       "sample_70": "70 px — 主标题文字示例"
     },
-    "status": { "ready": "UI 工作台已就绪", "interaction": "已收到交互" },
-    "pages": { "overview": "概览", "controls": "控件", "media": "内容与媒体", "containers": "容器", "overlays": "弹层与焦点", "appearance": "外观与本地化" },
+    "status": { "ready": "UI 工作台已就绪", "interaction": "已收到交互", "submitted": "文本已提交", "overlay_opened": "弹层已打开", "selection_changed": "选项已更改" },
+    "pages": { "overview": "概览", "states": "状态与变体", "controls": "控件", "media": "内容与媒体", "containers": "容器", "overlays": "弹层与焦点", "appearance": "外观与本地化" },
     "sections": {
       "overview": "主题感知仪表板与视觉角色示例。",
       "controls": "交互控件会更新状态栏。",
@@ -77,13 +77,40 @@
       "overlays": "窗口管理的弹层、对话框与焦点恢复。",
       "appearance": "内建主题会立即更新已注册的 UI 树。"
     },
-    "actions": { "replay": "重播", "reset": "重建工作台" },
-    "controls": { "labeled_check": "填充式带标签复选框", "labeled_radio": "带标签单选项", "placeholder": "最多输入十六个字符" },
-    "media": { "long_text": "此本地化文本块用于验证换行、字体排版和主题化内容渲染。" },
-    "containers": { "chrome": "Chrome 插槽", "nested_tab": "嵌套标签页" },
-    "overlays": { "open_overlay": "打开非模态弹层", "open_dialog": "打开阅读对话框", "open_confirm": "打开确认对话框", "tooltip": "悬停查看提示", "tooltip_text": "提示内容会跟随焦点和指针状态。" },
+    "actions": { "replay": "重播", "reset": "重建工作台", "replay_effects": "重播效果", "play": "播放", "pause": "暂停", "resume": "继续", "reset_animation": "重置动画" },
+    "controls": { "labeled_check": "带标签复选框", "labeled_radio": "带标签单选项", "labeled_radio_far": "远端单选标签", "placeholder": "最多输入十六个字符" },
+    "states": {
+      "buttons_title": "按钮内容与角色", "buttons_description": "内容变体选择绘制路径，语义角色选择主题颜色。",
+      "text_button": "文本", "role_button": "角色", "disabled": "已禁用",
+      "selection_title": "选择状态", "selection_description": "并排展示逻辑状态、标记样式和禁用效果。",
+      "presentation_title": "展示角色", "presentation_description": "文本适配、文本角色和面板表面与布局相互独立。",
+      "fit_sample": "特意设置的长文本适配示例", "text_block_sample": "文本块会为父布局测量换行后的本地化内容。", "panel_sample": "面板",
+      "inputs_title": "文本输入状态", "inputs_description": "占位文本、已输入文本和禁用文本使用不同的展示路径。"
+    },
+    "media": {
+      "long_text": "此本地化文本块用于验证不同文字宽度下的换行、字体排版和主题化内容渲染。",
+      "text_title": "本地化文本与原始文本", "text_description": "TextKey 解析当前语言，RawText 原样保留稳定标识符。",
+      "number_title": "数字与进度条", "number_description": "展示边界数值格式和全部四种填充方向。",
+      "effects_title": "透明度效果", "effects_description": "淡入淡出、闪烁和脉冲仅在当前页激活时更新，并可重新播放。",
+      "fade_in": "淡入", "fade_in_out": "淡入淡出", "blink_visible": "从可见状态闪烁", "pulse_min": "从最低值脉冲",
+      "animation_title": "帧动画", "animation_description": "UI 动画借用缓存帧，并提供独立的播放控制。"
+    },
+    "containers": {
+      "chrome": "Chrome 插槽", "nested_tab": "嵌套标签页", "nested_tab_two": "第二个标签页",
+      "list_title": "线性列表", "list_description": "列表顺序同时决定布局、绘制和主轴焦点导航。",
+      "layout_title": "网格、面板、Chrome 与标签页", "layout_description": "结构化容器根据各自的布局模型推导焦点关系。",
+      "scroll_title": "滚动策略", "scroll_description": "自动、始终显示和隐藏滚动条都保持一致的内容裁剪行为。"
+    },
+    "overlays": {
+      "open_overlay": "打开非模态弹层", "open_dialog": "打开阅读对话框", "open_confirm": "打开确认对话框", "tooltip": "悬停查看提示", "tooltip_text": "提示内容会跟随焦点和指针状态。",
+      "placement_title": "弹层位置", "placement_description": "使用同一个面板演示全部位置、过渡和模态策略。",
+      "open_center": "居中（非模态）", "open_left": "左侧抽屉", "open_right": "右侧抽屉", "open_top": "顶部面板", "open_bottom": "底部面板",
+      "dialog_title": "模态对话框", "dialog_description": "对话框获取焦点，并在关闭后恢复此前的焦点范围。",
+      "popup_title": "弹出菜单与提示", "popup_description": "临时弹出菜单具有输入优先级，提示保持被动显示。",
+      "option_four": "第四项", "option_five": "第五项", "option_six": "第六项", "option_seven": "第七项", "option_eight": "第八项"
+    },
     "dialog": { "title": "工作台阅读对话框", "body": "此对话框用于验证模态位置、焦点恢复和本地化长文案。" },
     "confirm": { "title": "确认工作台操作", "message": "此确认对话框属于弹层覆盖的一部分。" },
-    "appearance": { "note": "主题名称是稳定的引擎标识。" }
+    "appearance": { "note": "主题名称是稳定的引擎标识。", "localized_sample": "本地化 TextKey 示例" }
   }
 }
