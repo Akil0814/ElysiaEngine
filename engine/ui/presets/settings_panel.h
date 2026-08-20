@@ -16,20 +16,12 @@ class UiLabeledCheckbox;
 class UiLabel;
 class UiScrollContainer;
 class UiSlider;
-class UiTabContainer;
 class UiWindow;
 
 enum class SettingsWindowMode
 {
     Windowed,
     BorderlessFullscreen
-};
-
-enum class SettingsPanelSection
-{
-    Display,
-    Audio,
-    General
 };
 
 struct SettingsWindowSize
@@ -61,6 +53,21 @@ struct SettingsPanelOptions
     std::vector<std::string> languages;
 };
 
+struct SettingsPanelVisibility
+{
+    bool window_mode = true;
+    bool target_fps = true;
+    bool vsync = true;
+    bool master_volume = true;
+    bool music_volume = true;
+    bool sound_volume = true;
+    bool language = true;
+
+    friend bool operator==(
+        const SettingsPanelVisibility&,
+        const SettingsPanelVisibility&) = default;
+};
+
 [[nodiscard]] std::vector<SettingsWindowSize>
 make_settings_window_size_options(
     std::optional<SettingsWindowSize> usable_size,
@@ -78,6 +85,10 @@ class SettingsPanel final : public UiListContainer
 {
 public:
     explicit SettingsPanel(const elysia::core::Rect& rect = elysia::core::Rect{ 0,0,700,680 },int order = 0);
+    SettingsPanel(
+        const elysia::core::Rect& rect,
+        SettingsPanelVisibility visibility,
+        int order = 0);
     ~SettingsPanel() override;
 
     void reset() noexcept override;
@@ -87,11 +98,11 @@ public:
 
     void set_draft(const SettingsPanelDraft& draft);
     [[nodiscard]] const SettingsPanelDraft& draft() const noexcept;
+    [[nodiscard]] const SettingsPanelVisibility& visibility() const noexcept;
 
     // Starts a fresh settings-page visit without disturbing draft state,
     // options, or callbacks.
     void reset_navigation_state();
-    [[nodiscard]] SettingsPanelSection selected_section() const noexcept;
 
     void set_on_save(SettingsPanelSaveCallback on_save);
     void set_on_back(SettingsPanelBackCallback on_back);
@@ -116,14 +127,12 @@ private:
     [[nodiscard]] std::size_t find_language_index(const std::string& language) const noexcept;
 
 private:
+    SettingsPanelVisibility _visibility;
     SettingsPanelOptions _options;
     SettingsPanelDraft _draft;
     SettingsPanelSaveCallback _on_save;
     SettingsPanelBackCallback _on_back;
-    UiTabContainer* _tab_container = nullptr;
-    UiScrollContainer* _display_scroll = nullptr;
-    UiScrollContainer* _audio_scroll = nullptr;
-    UiScrollContainer* _general_scroll = nullptr;
+    UiScrollContainer* _content_scroll = nullptr;
     UiDropdown* _window_option_dropdown = nullptr;
     UiDropdown* _target_fps_dropdown = nullptr;
     UiLabeledCheckbox* _vsync_checkbox = nullptr;

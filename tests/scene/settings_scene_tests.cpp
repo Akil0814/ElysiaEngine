@@ -42,12 +42,15 @@ public:
     void on_exit() override {}
     void reset() override {}
 
-    void open_settings(const elysia::scene::SceneRoute& return_route)
+    void open_settings(
+        const elysia::scene::SceneRoute& return_route,
+        elysia::ui::SettingsPanelVisibility visibility = {})
     {
         request_scene_switch(
             elysia::builtin::SceneKeys::Settings,
             elysia::builtin::SettingsScenePayload{
-                .return_route = return_route
+                .return_route = return_route,
+                .visibility = visibility
             });
     }
 
@@ -134,6 +137,21 @@ void activate_focused_control(elysia::scene::SceneManager& scene_manager)
         scene_manager,elysia::input::RawInputControl::KeyEnter);
     send_control(
         scene_manager,elysia::input::RawInputControl::KeyEnter,true);
+}
+
+elysia::ui::SettingsPanelVisibility settings_visibility(
+    bool target_fps,
+    bool vsync)
+{
+    return elysia::ui::SettingsPanelVisibility{
+        .window_mode = false,
+        .target_fps = target_fps,
+        .vsync = vsync,
+        .master_volume = false,
+        .music_volume = false,
+        .sound_volume = false,
+        .language = false
+    };
 }
 
 void test_settings_payload_contract_names_the_scene()
@@ -235,6 +253,9 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
     elysia::config::UserConfigData defaults;
     defaults.target_fps = 60.0;
     defaults.vsync = true;
+    defaults.audio.master_volume = 73;
+    defaults.audio.music_volume = 62;
+    defaults.audio.sound_volume = 51;
     defaults.language = "en";
     const std::filesystem::path config_path = directory / "user_config.json";
     auto* config_service = elysia::config::UserConfigService::instance();
@@ -256,12 +277,11 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
             .return_route = elysia::scene::SceneRoute{
                 .target = 1,
                 .payload = ReturnPayload{ .marker = 33 }
-            }
+            },
+            .visibility = settings_visibility(true,true)
         }
     });
 
-    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
-    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
     activate_focused_control(scene_manager);
     send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
     activate_focused_control(scene_manager);
@@ -272,6 +292,10 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
 
     require(config_service->user_config().target_fps() == 120.0
         && !config_service->user_config().vsync()
+        && config_service->user_config().master_volume() == 73
+        && config_service->user_config().music_volume() == 62
+        && config_service->user_config().sound_volume() == 51
+        && config_service->user_config().language() == "en"
         && config_service->user_config().restart_required()
         && !config_service->user_config().is_dirty()
         && handler.target_fps_values
@@ -287,6 +311,30 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
         && !config_service->user_config().restart_required()
         && !config_service->user_config().is_dirty(),
         "saving the startup VSync value again must clear the restart requirement");
+
+    send_cancel(scene_manager);
+    require(scene_manager.current_scene_key() == 1,
+        "leaving the customized SettingsScene must restore its caller");
+    FirstReturnScene::last_instance->open_settings(
+        elysia::scene::SceneRoute{
+            .target = 1,
+            .payload = ReturnPayload{ .marker = 44 }
+        },
+        settings_visibility(false,true));
+    scene_manager.on_update(0.0);
+    require(scene_manager.current_scene_key()
+            == elysia::builtin::SceneKeys::Settings,
+        "the cached SettingsScene must accept a different visibility profile");
+
+    activate_focused_control(scene_manager);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    activate_focused_control(scene_manager);
+    require(config_service->user_config().target_fps() == 120.0
+            && !config_service->user_config().vsync()
+            && config_service->user_config().master_volume() == 73
+            && config_service->user_config().music_volume() == 62
+            && config_service->user_config().sound_volume() == 51,
+        "rebuilding for a new visibility profile must preserve every hidden setting");
 
     scene_manager.shutdown();
     config_service->unregister_user_config_change_handler(handler);

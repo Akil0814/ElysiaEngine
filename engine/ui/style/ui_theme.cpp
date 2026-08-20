@@ -627,7 +627,7 @@ template<class Enum>
         elysia::core::colors::transparent
     };
     theme.label_styles[to_index(UiLabelVisualRole::Title)] = UiLabelThemeColors{
-        elysia::core::colors::eva_unit00_amber_ochre,
+        elysia::core::colors::eva_unit00_signal_orange,
         elysia::core::colors::transparent
     };
     theme.label_styles[to_index(UiLabelVisualRole::Subtitle)] = UiLabelThemeColors{
@@ -651,7 +651,7 @@ template<class Enum>
     };
     theme.bar_styles[to_index(UiBarVisualRole::Progress)] = UiBarThemeColors{
         elysia::core::colors::eva_unit00_rei_white,
-        elysia::core::colors::eva_unit00_amber_ochre,
+        elysia::core::colors::eva_unit00_signal_orange,
         elysia::core::colors::eva_unit00_deep_graphite
     };
 
@@ -696,7 +696,7 @@ template<class Enum>
                 elysia::core::colors::gray_300),
             UiInteractiveColors{
                 elysia::core::colors::eva_unit00_soft_graphite,
-                elysia::core::colors::eva_unit00_amber_ochre,
+                elysia::core::colors::eva_unit00_signal_orange,
                 elysia::core::colors::gray_900,
                 elysia::core::colors::gray_500 }),
         make_text_colors(elysia::core::colors::eva_unit00_deep_graphite,elysia::core::colors::gray_700)
@@ -704,26 +704,26 @@ template<class Enum>
     theme.button_styles[to_index(UiButtonVisualRole::Danger)] = UiButtonThemeColors{
         make_chrome(
             make_surface_colors(
-                elysia::core::colors::eva_unit00_danger_amber,
-                elysia::core::colors::eva_unit00_danger_amber_focus,
-                elysia::core::colors::eva_unit00_danger_amber_active,
+                elysia::core::colors::eva_unit00_alert_crimson,
+                elysia::core::colors::eva_unit00_alert_crimson_focus,
+                elysia::core::colors::eva_unit00_alert_crimson_active,
                 elysia::core::colors::gray_300),
             UiInteractiveColors{
-                elysia::core::colors::eva_unit00_warning_yellow,
-                elysia::core::colors::eva_unit00_caution_gold,
+                elysia::core::colors::eva_unit00_pale_blue,
                 elysia::core::colors::eva_unit00_rei_white,
+                elysia::core::colors::eva_unit00_frost_blue,
                 elysia::core::colors::gray_500 }),
         make_text_colors(elysia::core::colors::eva_unit00_rei_white,elysia::core::colors::gray_700)
     };
 
     theme.checkbox_style = UiCheckboxThemeColors{
         interactive_chrome,
-        UiEnabledDisabledColors{ elysia::core::colors::eva_unit00_amber_ochre,elysia::core::colors::gray_500 }
+        UiEnabledDisabledColors{ elysia::core::colors::eva_unit00_signal_orange,elysia::core::colors::gray_500 }
     };
 
     theme.radio_button_style = UiRadioButtonThemeColors{
         interactive_chrome,
-        UiEnabledDisabledColors{ elysia::core::colors::eva_unit00_amber_ochre,elysia::core::colors::gray_500 }
+        UiEnabledDisabledColors{ elysia::core::colors::eva_unit00_signal_orange,elysia::core::colors::gray_500 }
     };
 
     theme.drag_handle_style = UiDragHandleThemeColors{
@@ -732,7 +732,7 @@ template<class Enum>
 
     theme.slider_style = UiSliderThemeColors{
         make_chrome(interactive_surface,border),
-        UiEnabledDisabledColors{ elysia::core::colors::eva_unit00_amber_ochre,elysia::core::colors::gray_500 },
+        UiEnabledDisabledColors{ elysia::core::colors::eva_unit00_signal_orange,elysia::core::colors::gray_500 },
         text,
         theme.drag_handle_style
     };
@@ -741,7 +741,7 @@ template<class Enum>
         interactive_chrome,
         secondary_text,
         placeholder_text,
-        elysia::core::colors::eva_unit00_amber_ochre
+        elysia::core::colors::eva_unit00_signal_orange
     };
 
     theme.scroll_container_style = UiScrollContainerThemeColors{
@@ -751,7 +751,7 @@ template<class Enum>
             elysia::core::colors::eva_unit00_pale_blue,
             elysia::core::colors::gray_300,
             elysia::core::colors::eva_unit00_soft_graphite,
-            elysia::core::colors::eva_unit00_amber_ochre,
+            elysia::core::colors::eva_unit00_signal_orange,
             elysia::core::colors::eva_unit00_deep_graphite,
             elysia::core::colors::gray_500),
         elysia::core::colors::eva_unit00_rei_white,
@@ -1034,14 +1034,14 @@ template<class Enum>
     theme.button_styles[to_index(UiButtonVisualRole::Danger)] = UiButtonThemeColors{
         make_chrome(
             make_surface_colors(
-                elysia::core::colors::eva_unit02_deep_maroon,
-                elysia::core::colors::eva_unit02_crimson,
-                elysia::core::colors::eva_unit02_active_crimson,
+                elysia::core::colors::eva_unit02_danger_black_red,
+                elysia::core::colors::eva_unit02_danger_black_red_focus,
+                elysia::core::colors::eva_unit02_danger_black_red_active,
                 elysia::core::colors::gray_700),
             UiInteractiveColors{
                 elysia::core::colors::eva_unit02_glow_amber,
-                elysia::core::colors::eva_unit02_sun_yellow,
                 elysia::core::colors::eva_unit02_bone_white,
+                elysia::core::colors::eva_unit02_sun_yellow,
                 elysia::core::colors::gray_500 }),
         text
     };

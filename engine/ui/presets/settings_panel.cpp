@@ -2,7 +2,6 @@
 
 #include "../composites/ui_dropdown.h"
 #include "../composites/ui_labeled_checkbox.h"
-#include "../composites/ui_tab_container.h"
 #include "../containers/ui_scroll_container.h"
 #include "../layout/ui_layout_types.h"
 #include "../text/ui_text_content.h"
@@ -32,6 +31,7 @@ namespace
 {
 constexpr float kRowHeight = 48.0f;
 constexpr float kTitleHeight = 56.0f;
+constexpr float kSectionHeadingHeight = 40.0f;
 constexpr float kStatusHeight = 32.0f;
 constexpr float kActionHeight = 48.0f;
 constexpr float kHintHeight = 32.0f;
@@ -193,7 +193,16 @@ std::vector<double> make_settings_target_fps_options(double current_fps)
 }
 
 SettingsPanel::SettingsPanel(const elysia::core::Rect& rect,int order)
+    : SettingsPanel(rect,SettingsPanelVisibility{},order)
+{
+}
+
+SettingsPanel::SettingsPanel(
+    const elysia::core::Rect& rect,
+    SettingsPanelVisibility visibility,
+    int order)
     : UiListContainer(rect,order)
+    , _visibility(visibility)
 {
     reset();
 }
@@ -211,10 +220,7 @@ void SettingsPanel::reset() noexcept
     _draft = {};
     _on_save = {};
     _on_back = {};
-    _tab_container = nullptr;
-    _display_scroll = nullptr;
-    _audio_scroll = nullptr;
-    _general_scroll = nullptr;
+    _content_scroll = nullptr;
     _window_option_dropdown = nullptr;
     _target_fps_dropdown = nullptr;
     _vsync_checkbox = nullptr;
@@ -311,40 +317,15 @@ const SettingsPanelDraft& SettingsPanel::draft() const noexcept
     return _draft;
 }
 
-void SettingsPanel::reset_navigation_state()
+const SettingsPanelVisibility& SettingsPanel::visibility() const noexcept
 {
-    if (_tab_container)
-    {
-        constexpr std::size_t display_index =
-            static_cast<std::size_t>(SettingsPanelSection::Display);
-        (void)_tab_container->set_selected_index(display_index);
-        (void)_tab_container->set_focused_index(display_index);
-    }
-    if (_display_scroll)
-        _display_scroll->scroll_to_top();
-    if (_audio_scroll)
-        _audio_scroll->scroll_to_top();
-    if (_general_scroll)
-        _general_scroll->scroll_to_top();
+    return _visibility;
 }
 
-SettingsPanelSection SettingsPanel::selected_section() const noexcept
+void SettingsPanel::reset_navigation_state()
 {
-    if (!_tab_container)
-        return SettingsPanelSection::Display;
-    const auto selected = _tab_container->selected_index();
-    if (!selected)
-        return SettingsPanelSection::Display;
-
-    switch (*selected)
-    {
-    case 1:
-        return SettingsPanelSection::Audio;
-    case 2:
-        return SettingsPanelSection::General;
-    default:
-        return SettingsPanelSection::Display;
-    }
+    if (_content_scroll)
+        _content_scroll->scroll_to_top();
 }
 
 void SettingsPanel::set_on_save(SettingsPanelSaveCallback on_save)
@@ -443,173 +424,203 @@ void SettingsPanel::build_controls()
     title->set_visual_role(UiLabelVisualRole::Title);
     add_back(std::move(title));
 
-    auto tabs = std::make_unique<UiTabContainer>();
-    _tab_container = tabs.get();
+    auto content_scroll = std::make_unique<UiScrollContainer>();
+    _content_scroll = content_scroll.get();
+    _content_scroll->set_scroll_axis(UiScrollAxis::Vertical);
+    _content_scroll->set_scrollbar_visibility(UiScrollBarVisibility::Auto);
+    _content_scroll->set_scroll_step({ 0.0f,kRowHeight });
 
-    auto display_scroll = std::make_unique<UiScrollContainer>();
-    _display_scroll = display_scroll.get();
-    _display_scroll->set_scroll_axis(UiScrollAxis::Vertical);
-    _display_scroll->set_scrollbar_visibility(UiScrollBarVisibility::Auto);
-    _display_scroll->set_scroll_step({ 0.0f,kRowHeight });
-    auto display = std::make_unique<UiListContainer>(
+    auto content = std::make_unique<UiListContainer>(
         elysia::core::Rect{ 0,0,field_width,0 });
-    display->set_direction(UiListDirection::Vertical);
-    display->set_item_spacing(kItemSpacing);
-    display->set_padding({ page_padding,page_padding,page_padding,page_padding });
-    auto window_option = std::make_unique<UiDropdown>(
-        elysia::core::Rect{ 0,0,control_width,kRowHeight });
-    _window_option_dropdown = window_option.get();
-    _window_option_dropdown->set_on_selection_changed([this](std::size_t index)
-    {
-        if (_syncing_controls)
-            return;
+    content->set_direction(UiListDirection::Vertical);
+    content->set_item_spacing(kItemSpacing);
+    content->set_padding({ page_padding,page_padding,page_padding,page_padding });
 
-        if (index < _options.window_sizes.size())
-        {
-            _draft.window_mode = SettingsWindowMode::Windowed;
-            _draft.window_size = _options.window_sizes[index];
+    const bool has_display = _visibility.window_mode
+        || _visibility.target_fps || _visibility.vsync;
+    const bool has_audio = _visibility.master_volume
+        || _visibility.music_volume || _visibility.sound_volume;
+    const bool has_general = _visibility.language;
+    const int visible_section_count = static_cast<int>(has_display)
+        + static_cast<int>(has_audio) + static_cast<int>(has_general);
+    const auto add_section_heading = [&](std::string_view key)
+    {
+        if (visible_section_count <= 1)
             return;
+        auto heading = make_label(
+            ui_text_key(std::string(key)),
+            page_field_width,
+            kSectionHeadingHeight,
+            UiTypographyRole::Heading);
+        content->add_back(std::move(heading));
+    };
+
+    if (has_display)
+    {
+        add_section_heading("engine.settings.sections.display");
+
+        if (_visibility.window_mode)
+        {
+            auto window_option = std::make_unique<UiDropdown>(
+                elysia::core::Rect{ 0,0,control_width,kRowHeight });
+            _window_option_dropdown = window_option.get();
+            _window_option_dropdown->set_on_selection_changed(
+                [this](std::size_t index)
+            {
+                if (_syncing_controls)
+                    return;
+
+                if (index < _options.window_sizes.size())
+                {
+                    _draft.window_mode = SettingsWindowMode::Windowed;
+                    _draft.window_size = _options.window_sizes[index];
+                    return;
+                }
+
+                if (index == _options.window_sizes.size())
+                    _draft.window_mode =
+                        SettingsWindowMode::BorderlessFullscreen;
+            });
+            content->add_back(make_field_row(
+                ui_text_key("engine.settings.fields.window_mode"),
+                page_field_width,
+                label_width,
+                std::move(window_option)));
         }
 
-        if (index == _options.window_sizes.size())
-            _draft.window_mode = SettingsWindowMode::BorderlessFullscreen;
-    });
-    display->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.window_mode"),
-        page_field_width,
-        label_width,
-        std::move(window_option)));
-
-    auto target_fps = std::make_unique<UiDropdown>(
-        elysia::core::Rect{ 0,0,control_width,kRowHeight });
-    _target_fps_dropdown = target_fps.get();
-    _target_fps_dropdown->set_on_selection_changed(
-        [this](std::size_t index)
+        if (_visibility.target_fps)
         {
-            if (!_syncing_controls
-                && index < _options.target_fps_values.size())
+            auto target_fps = std::make_unique<UiDropdown>(
+                elysia::core::Rect{ 0,0,control_width,kRowHeight });
+            _target_fps_dropdown = target_fps.get();
+            _target_fps_dropdown->set_on_selection_changed(
+                [this](std::size_t index)
             {
-                _draft.target_fps = _options.target_fps_values[index];
-            }
+                if (!_syncing_controls
+                    && index < _options.target_fps_values.size())
+                {
+                    _draft.target_fps = _options.target_fps_values[index];
+                }
+            });
+            content->add_back(make_field_row(
+                ui_text_key("engine.settings.fields.target_fps"),
+                page_field_width,
+                label_width,
+                std::move(target_fps)));
+        }
+
+        if (_visibility.vsync)
+        {
+            auto vsync = std::make_unique<UiLabeledCheckbox>(
+                elysia::core::Rect{ 0,0,control_width,kRowHeight });
+            _vsync_checkbox = vsync.get();
+            _vsync_checkbox->set_on_toggled([this](UiCheckboxState state)
+            {
+                if (!_syncing_controls)
+                    _draft.vsync = state == UiCheckboxState::Checked;
+            });
+            content->add_back(make_field_row(
+                ui_text_key("engine.settings.fields.vsync"),
+                page_field_width,
+                label_width,
+                std::move(vsync)));
+            content->add_back(make_hint_row(
+                ui_text_key("engine.settings.hints.vsync_restart"),
+                page_field_width,
+                label_width));
+        }
+    }
+
+    if (has_audio)
+    {
+        add_section_heading("engine.settings.sections.audio");
+
+        if (_visibility.master_volume)
+        {
+            auto master = make_volume_slider(control_width);
+            _master_volume_slider = master.get();
+            _master_volume_slider->set_on_value_changed([this](float value)
+            {
+                if (!_syncing_controls)
+                {
+                    _draft.master_volume =
+                        static_cast<int>(std::lround(value));
+                }
+            });
+            content->add_back(make_field_row(
+                ui_text_key("engine.settings.fields.master_volume"),
+                page_field_width,
+                label_width,
+                std::move(master)));
+        }
+
+        if (_visibility.music_volume)
+        {
+            auto music = make_volume_slider(control_width);
+            _music_volume_slider = music.get();
+            _music_volume_slider->set_on_value_changed([this](float value)
+            {
+                if (!_syncing_controls)
+                {
+                    _draft.music_volume =
+                        static_cast<int>(std::lround(value));
+                }
+            });
+            content->add_back(make_field_row(
+                ui_text_key("engine.settings.fields.music_volume"),
+                page_field_width,
+                label_width,
+                std::move(music)));
+        }
+
+        if (_visibility.sound_volume)
+        {
+            auto sound = make_volume_slider(control_width);
+            _sound_volume_slider = sound.get();
+            _sound_volume_slider->set_on_value_changed([this](float value)
+            {
+                if (!_syncing_controls)
+                {
+                    _draft.sound_volume =
+                        static_cast<int>(std::lround(value));
+                }
+            });
+            content->add_back(make_field_row(
+                ui_text_key("engine.settings.fields.sound_volume"),
+                page_field_width,
+                label_width,
+                std::move(sound)));
+        }
+    }
+
+    if (has_general)
+    {
+        add_section_heading("engine.settings.sections.general");
+
+        auto language = std::make_unique<UiDropdown>(
+            elysia::core::Rect{ 0,0,control_width,kRowHeight });
+        _language_dropdown = language.get();
+        _language_dropdown->set_on_selection_changed(
+            [this](std::size_t index)
+        {
+            if (!_syncing_controls && index < _options.languages.size())
+                _draft.language = _options.languages[index];
         });
-    display->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.target_fps"),
-        page_field_width,
-        label_width,
-        std::move(target_fps)));
+        content->add_back(make_field_row(
+            ui_text_key("engine.settings.fields.language"),
+            page_field_width,
+            label_width,
+            std::move(language)));
+    }
 
-    auto vsync = std::make_unique<UiLabeledCheckbox>(
-        elysia::core::Rect{ 0,0,control_width,kRowHeight });
-    _vsync_checkbox = vsync.get();
-    _vsync_checkbox->set_on_toggled([this](UiCheckboxState state)
-    {
-        if (!_syncing_controls)
-            _draft.vsync = state == UiCheckboxState::Checked;
-    });
-    display->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.vsync"),
-        page_field_width,
-        label_width,
-        std::move(vsync)));
-    display->add_back(make_hint_row(
-        ui_text_key("engine.settings.hints.vsync_restart"),
-        page_field_width,
-        label_width));
-    _display_scroll->set_content(std::move(display));
+    _content_scroll->set_content(std::move(content));
 
-    auto audio_scroll = std::make_unique<UiScrollContainer>();
-    _audio_scroll = audio_scroll.get();
-    _audio_scroll->set_scroll_axis(UiScrollAxis::Vertical);
-    _audio_scroll->set_scrollbar_visibility(UiScrollBarVisibility::Auto);
-    _audio_scroll->set_scroll_step({ 0.0f,kRowHeight });
-    auto audio = std::make_unique<UiListContainer>(
-        elysia::core::Rect{ 0,0,field_width,0 });
-    audio->set_direction(UiListDirection::Vertical);
-    audio->set_item_spacing(kItemSpacing);
-    audio->set_padding({ page_padding,page_padding,page_padding,page_padding });
-
-    auto master = make_volume_slider(control_width);
-    _master_volume_slider = master.get();
-    _master_volume_slider->set_on_value_changed([this](float value)
-    {
-        if (!_syncing_controls)
-            _draft.master_volume = static_cast<int>(std::lround(value));
-    });
-    audio->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.master_volume"),
-        page_field_width,
-        label_width,
-        std::move(master)));
-
-    auto music = make_volume_slider(control_width);
-    _music_volume_slider = music.get();
-    _music_volume_slider->set_on_value_changed([this](float value)
-    {
-        if (!_syncing_controls)
-            _draft.music_volume = static_cast<int>(std::lround(value));
-    });
-    audio->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.music_volume"),
-        page_field_width,
-        label_width,
-        std::move(music)));
-
-    auto sound = make_volume_slider(control_width);
-    _sound_volume_slider = sound.get();
-    _sound_volume_slider->set_on_value_changed([this](float value)
-    {
-        if (!_syncing_controls)
-            _draft.sound_volume = static_cast<int>(std::lround(value));
-    });
-    audio->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.sound_volume"),
-        page_field_width,
-        label_width,
-        std::move(sound)));
-    _audio_scroll->set_content(std::move(audio));
-
-    auto general_scroll = std::make_unique<UiScrollContainer>();
-    _general_scroll = general_scroll.get();
-    _general_scroll->set_scroll_axis(UiScrollAxis::Vertical);
-    _general_scroll->set_scrollbar_visibility(UiScrollBarVisibility::Auto);
-    _general_scroll->set_scroll_step({ 0.0f,kRowHeight });
-    auto general = std::make_unique<UiListContainer>(
-        elysia::core::Rect{ 0,0,field_width,0 });
-    general->set_direction(UiListDirection::Vertical);
-    general->set_item_spacing(kItemSpacing);
-    general->set_padding({ page_padding,page_padding,page_padding,page_padding });
-
-    auto language = std::make_unique<UiDropdown>(
-        elysia::core::Rect{ 0,0,control_width,kRowHeight });
-    _language_dropdown = language.get();
-    _language_dropdown->set_on_selection_changed([this](std::size_t index)
-    {
-        if (!_syncing_controls && index < _options.languages.size())
-            _draft.language = _options.languages[index];
-    });
-    general->add_back(make_field_row(
-        ui_text_key("engine.settings.fields.language"),
-        page_field_width,
-        label_width,
-        std::move(language)));
-    _general_scroll->set_content(std::move(general));
-
-    (void)_tab_container->add_tab(
-        ui_text_key("engine.settings.sections.display"),
-        std::move(display_scroll));
-    (void)_tab_container->add_tab(
-        ui_text_key("engine.settings.sections.audio"),
-        std::move(audio_scroll));
-    (void)_tab_container->add_tab(
-        ui_text_key("engine.settings.sections.general"),
-        std::move(general_scroll));
-
-    const float tab_height = std::max(
+    const float content_height = std::max(
         80.0f,
         size().y - 2.0f * kVerticalPadding - kTitleHeight
             - kStatusHeight - kActionHeight - 3.0f * kItemSpacing);
-    add_child(std::move(tabs),UiLayoutChildOptions{
-        ._size_override = { field_width,tab_height },
+    add_child(std::move(content_scroll),UiLayoutChildOptions{
+        ._size_override = { field_width,content_height },
         ._use_size_override = true
     });
 

@@ -131,9 +131,13 @@ inline constexpr Color eva_unit00_border_blue{ 199, 215, 230, 255 };   // #C7D7E
 inline constexpr Color eva_unit00_mist_blue{ 134, 161, 191, 255 };     // #86A1BF
 inline constexpr Color eva_unit00_caution_gold{ 244, 208, 116, 255 };  // #F4D074
 inline constexpr Color eva_unit00_amber_ochre{ 131, 90, 27, 255 };     // #835A1B
+inline constexpr Color eva_unit00_signal_orange{ 166, 61, 33, 255 };   // #A63D21
 inline constexpr Color eva_unit00_danger_amber{ 118, 80, 27, 255 };    // #76501B
 inline constexpr Color eva_unit00_danger_amber_focus{ 138, 93, 28, 255 }; // #8A5D1C
 inline constexpr Color eva_unit00_danger_amber_active{ 86, 56, 18, 255 }; // #563812
+inline constexpr Color eva_unit00_alert_crimson{ 143, 47, 61, 255 };   // #8F2F3D
+inline constexpr Color eva_unit00_alert_crimson_focus{ 182, 59, 74, 255 }; // #B63B4A
+inline constexpr Color eva_unit00_alert_crimson_active{ 103, 30, 43, 255 }; // #671E2B
 
 inline constexpr Color eva_unit00_ivory = eva_unit00_rei_white;        // #F3F6FA
 inline constexpr Color eva_unit00_cerulean = eva_unit00_frost_blue;    // #DCEAF6
@@ -160,6 +164,9 @@ inline constexpr Color eva_unit02_bone_white{ 244, 240, 234, 255 };    // #F4F0E
 inline constexpr Color eva_unit02_deep_maroon{ 108, 24, 31, 255 };     // #6C181F
 inline constexpr Color eva_unit02_pressed_maroon{ 77, 17, 24, 255 };   // #4D1118
 inline constexpr Color eva_unit02_active_crimson{ 133, 28, 40, 255 };  // #851C28
+inline constexpr Color eva_unit02_danger_black_red{ 43, 10, 15, 255 }; // #2B0A0F
+inline constexpr Color eva_unit02_danger_black_red_focus{ 90, 16, 27, 255 }; // #5A101B
+inline constexpr Color eva_unit02_danger_black_red_active{ 22, 3, 7, 255 }; // #160307
 inline constexpr Color eva_unit02_glow_amber{ 251, 209, 99, 255 };     // #FBD163
 inline constexpr Color eva_unit02_muted_orange{ 197, 121, 68, 255 };   // #C57944
 inline constexpr Color eva_unit02_warm_mist{ 242, 207, 179, 255 };     // #F2CFB3

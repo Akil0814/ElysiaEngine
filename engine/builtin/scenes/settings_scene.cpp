@@ -107,6 +107,12 @@ void SettingsScene::on_enter(const ScenePayload& payload)
     _transitioning = false;
     _paused = false;
 
+    const bool visibility_changed =
+        _visibility != settings_payload->visibility;
+    if (visibility_changed && _window && !_window->is_destroyed())
+        destroy_ui();
+    _visibility = settings_payload->visibility;
+
     if (!_window || _window->is_destroyed())
         build_ui();
     restore_ui_state();
@@ -134,6 +140,7 @@ void SettingsScene::reset()
     destroy_ui();
     _return_route = {};
     _baseline_state = {};
+    _visibility = {};
 }
 
 void SettingsScene::build_ui()
@@ -150,7 +157,9 @@ void SettingsScene::build_ui()
     const float panel_width = std::min(700.0f,static_cast<float>(logical_width) - 32.0f);
     const float panel_height = std::min(680.0f,static_cast<float>(logical_height) - 32.0f);
 
-    auto panel = std::make_unique<elysia::ui::SettingsPanel>(elysia::core::Rect{ 0,0,panel_width,panel_height });
+    auto panel = std::make_unique<elysia::ui::SettingsPanel>(
+        elysia::core::Rect{ 0,0,panel_width,panel_height },
+        _visibility);
 
     _settings_panel = panel.get();
     _settings_panel->set_on_save([this](const elysia::ui::SettingsPanelDraft& draft){save_draft(draft);});

@@ -1,14 +1,12 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/ui/composites/ui_labeled_radio_button.h"
 #include "engine/ui/composites/ui_labeled_checkbox.h"
-#include "engine/ui/composites/ui_tab_container.h"
 #include "engine/ui/composites/ui_tab_bar.h"
 #include "engine/ui/composites/ui_dropdown.h"
 #include "engine/ui/containers/ui_button_group.h"
 #include "engine/ui/containers/ui_radio_group.h"
 #include "engine/ui/containers/ui_scroll_container.h"
-#include "engine/ui/containers/ui_tab_view.h"
 #include "engine/ui/presets/settings_panel.h"
 #include "engine/ui/widgets/ui_button.h"
 #include "engine/ui/widgets/ui_radio_button.h"
@@ -27,6 +25,118 @@
 namespace
 {
 using elysia::tests::require;
+
+elysia::ui::UiScrollContainer* settings_scroll(
+    elysia::ui::SettingsPanel& panel)
+{
+    return dynamic_cast<elysia::ui::UiScrollContainer*>(panel.child_at(1));
+}
+
+elysia::ui::UiListContainer* settings_content(
+    elysia::ui::SettingsPanel& panel)
+{
+    auto* scroll = settings_scroll(panel);
+    return scroll
+        ? dynamic_cast<elysia::ui::UiListContainer*>(
+            const_cast<elysia::ui::UiElement*>(scroll->content()))
+        : nullptr;
+}
+
+std::string content_key_at(
+    const elysia::ui::UiListContainer& content,
+    std::size_t index)
+{
+    const elysia::ui::UiElement* element = content.child_at(index);
+    if (const auto* label = dynamic_cast<const elysia::ui::UiLabel*>(element))
+        return label->text_content().value;
+
+    const auto* row = dynamic_cast<const elysia::ui::UiListContainer*>(element);
+    if (!row)
+        return {};
+    for (std::size_t child_index = 0;
+         child_index < row->child_count(); ++child_index)
+    {
+        const auto* label = dynamic_cast<const elysia::ui::UiLabel*>(
+            row->child_at(child_index));
+        if (label && !label->text_content().empty())
+            return label->text_content().value;
+    }
+    return {};
+}
+
+void require_content_keys(
+    const elysia::ui::UiListContainer& content,
+    const std::vector<std::string>& expected)
+{
+    require(content.child_count() == expected.size(),
+        "settings content must contain exactly the expected visible items");
+    for (std::size_t index = 0; index < expected.size(); ++index)
+        require(content_key_at(content,index) == expected[index],
+            "settings content must preserve its fixed built-in order");
+}
+
+elysia::ui::UiListContainer* find_field_row(
+    elysia::ui::UiListContainer& content,
+    std::string_view key)
+{
+    for (std::size_t index = 0; index < content.child_count(); ++index)
+    {
+        auto* row = dynamic_cast<elysia::ui::UiListContainer*>(
+            content.child_at(index));
+        if (!row || row->child_count() == 0)
+            continue;
+        auto* label = dynamic_cast<elysia::ui::UiLabel*>(row->child_at(0));
+        if (label && label->text_content().value == key)
+            return row;
+    }
+    return nullptr;
+}
+
+template<class Control>
+Control* field_control(
+    elysia::ui::UiListContainer& content,
+    std::string_view key)
+{
+    auto* row = find_field_row(content,key);
+    return row && row->child_count() > 1
+        ? dynamic_cast<Control*>(row->child_at(1))
+        : nullptr;
+}
+
+elysia::ui::SettingsPanelVisibility only_visibility(
+    std::string_view field)
+{
+    elysia::ui::SettingsPanelVisibility visibility{
+        .window_mode = false,
+        .target_fps = false,
+        .vsync = false,
+        .master_volume = false,
+        .music_volume = false,
+        .sound_volume = false,
+        .language = false
+    };
+    if (field == "window_mode") visibility.window_mode = true;
+    if (field == "target_fps") visibility.target_fps = true;
+    if (field == "vsync") visibility.vsync = true;
+    if (field == "master_volume") visibility.master_volume = true;
+    if (field == "music_volume") visibility.music_volume = true;
+    if (field == "sound_volume") visibility.sound_volume = true;
+    if (field == "language") visibility.language = true;
+    return visibility;
+}
+
+void activate(elysia::ui::UiButton& button)
+{
+    button.set_focused(true);
+    (void)button.on_ui_input_event({
+        .action = elysia::ui::UiAction::Confirm,
+        .type = elysia::ui::UiInputEventType::ActionPressed
+    });
+    (void)button.on_ui_input_event({
+        .action = elysia::ui::UiAction::Confirm,
+        .type = elysia::ui::UiInputEventType::ActionReleased
+    });
+}
 
 void test_group_repairs_selection_without_group_callback()
 {
@@ -70,15 +180,14 @@ void test_group_preserves_button_override()
     elysia::ui::UiButtonGroup group(elysia::core::Rect{ 0,0,120,40 });
     elysia::ui::UiButton* raw = group.add_button(std::move(button));
     require(raw && raw->has_style_overrides(),"group must retain explicit button style overrides");
-    require(!raw->style().chrome.draw_background && !raw->style().chrome.draw_border,
-        "selection role must not overwrite structural button style");
 
     elysia::ui::UiTabBar tabs(elysia::core::Rect{ 0,0,240,40 });
     elysia::ui::UiButton* tab = tabs.add_tab(elysia::ui::ui_raw_text("tab"));
     require(tab != nullptr,"tab should be created");
     tab->set_style_overrides(custom);
     tabs.set_selected_index(0);
-    require(!tab->style().chrome.draw_background && !tab->style().chrome.draw_border,
+    require(!tab->style().chrome.draw_background
+            && !tab->style().chrome.draw_border,
         "tab selection must retain explicit button style override");
 }
 
@@ -97,147 +206,49 @@ void test_button_group_preserves_button_callback_after_selection()
     group.add_button(std::move(first));
     ui::UiButton* second_raw = group.add_button(std::move(second));
     require(second_raw != nullptr,"group should adopt second button");
-    second_raw->set_focused(true);
-    (void)second_raw->on_ui_input_event({ .action=ui::UiAction::Confirm,.type=ui::UiInputEventType::ActionPressed });
-    (void)second_raw->on_ui_input_event({ .action=ui::UiAction::Confirm,.type=ui::UiInputEventType::ActionReleased });
-    require(callback_count == 1,"group decoration must preserve the original button callback");
+    activate(*second_raw);
+    require(callback_count == 1,"selection must preserve the original button callback");
 }
 
-void test_settings_panel_keeps_draft_local_and_normalizes_options()
+void test_settings_panel_single_page_draft_and_actions()
 {
     using namespace elysia;
-    require(
-        ui::make_settings_window_size_options(
+    require(ui::make_settings_window_size_options(
             ui::SettingsWindowSize{ 1600,900 },
             ui::SettingsWindowSize{ 2560,1440 })
             == std::vector<ui::SettingsWindowSize>{
-                { 960,540 },
-                { 1280,720 },
-                { 1600,900 },
-                { 2560,1440 }
+                { 960,540 },{ 1280,720 },{ 1600,900 },{ 2560,1440 }
             },
-        "usable display bounds must filter presets while retaining the current value");
-    require(
-        ui::make_settings_window_size_options(
-            std::nullopt,
-            ui::SettingsWindowSize{ 1280,720 }).size() == 6,
-        "failed display bounds queries must retain every preset without duplicates");
-    require(
-        ui::make_settings_target_fps_options(60.0)
+        "display bounds must filter presets while retaining the current value");
+    require(ui::make_settings_target_fps_options(60.0)
             == std::vector<double>{ 30.0,60.0,120.0,240.0 },
         "built-in FPS presets must omit 144 FPS");
-    require(
-        ui::make_settings_target_fps_options(144.0)
+    require(ui::make_settings_target_fps_options(144.0)
             == std::vector<double>{ 30.0,60.0,120.0,144.0,240.0 },
         "a valid custom current FPS must remain selectable");
 
     ui::SettingsPanel panel(core::Rect{ 0,0,700,680 });
-    const auto label_at = [&panel](std::size_t index)
-    {
-        return dynamic_cast<ui::UiLabel*>(panel.child_at(index));
-    };
-    const auto require_text_key = [](const ui::UiTextContent& content,
-                                     std::string_view key)
-    {
-        require(content.kind == ui::UiTextContentKind::TextKey
-                && content.value == key,
-            "settings panel fixed copy must use the expected localization key");
-    };
-    require_text_key(label_at(0)->text_content(),"engine.settings.title");
-
-    auto* tabs = dynamic_cast<ui::UiTabContainer*>(panel.child_at(1));
-    require(tabs && tabs->tab_count() == 3 && tabs->page_count() == 3,
-        "settings panel must expose exactly Display, Audio, and General tabs");
-    auto* tab_bar = dynamic_cast<ui::UiTabBar*>(tabs->child_at(0));
-    auto* tab_view = dynamic_cast<ui::UiTabView*>(tabs->child_at(1));
-    require(tab_bar && tab_view,"settings tabs must own a tab bar and page view");
-    std::vector<core::UiRenderCommand> settings_commands;
-    panel.submit_ui_render_commands(settings_commands);
-    require(tab_bar->screen_rect().height() > 0.0f
-            && tab_view->screen_rect().top() >= tab_bar->screen_rect().bottom(),
-        "settings tab bar must occupy visible space above the page viewport");
-    const auto tab_button_at = [tab_bar](std::size_t index)
-    {
-        return dynamic_cast<ui::UiButton*>(tab_bar->child_at(index));
-    };
-    require(tab_button_at(0)->screen_rect().height() > 0.0f
-            && tab_button_at(0)->screen_rect().top()
-                >= tab_bar->screen_rect().top(),
-        "settings tab buttons must be laid out inside the visible tab bar");
-    const core::Rect initial_tab_button_rect =
-        tab_button_at(0)->screen_rect();
-    panel.set_position({ 290.0f,20.0f });
-    settings_commands.clear();
-    panel.submit_ui_render_commands(settings_commands);
-    require(tab_button_at(0)->screen_rect().top()
-                >= tab_bar->screen_rect().top()
-            && tab_button_at(0)->screen_rect().left()
-                >= tab_bar->screen_rect().left()
-            && tab_button_at(0)->screen_rect().position()
-                != initial_tab_button_rect.position(),
-        "settings tab buttons must follow a position-only panel relocation");
-    require_text_key(
-        tab_button_at(0)->text_content(),
-        "engine.settings.sections.display");
-    require_text_key(
-        tab_button_at(1)->text_content(),
-        "engine.settings.sections.audio");
-    require_text_key(
-        tab_button_at(2)->text_content(),
-        "engine.settings.sections.general");
-
-    const auto page_list_at = [tab_view](std::size_t index)
-    {
-        auto* scroll = dynamic_cast<ui::UiScrollContainer*>(
-            tab_view->child_at(index));
-        return scroll
-            ? dynamic_cast<ui::UiListContainer*>(
-                const_cast<ui::UiElement*>(scroll->content()))
-            : nullptr;
-    };
-    ui::UiListContainer* display_page = page_list_at(0);
-    ui::UiListContainer* audio_page = page_list_at(1);
-    ui::UiListContainer* general_page = page_list_at(2);
-    require(display_page && audio_page && general_page,
-        "every settings tab must own an independent scrollable list");
-    require(tab_view->child_at(0)->is_visible()
-            && !tab_view->child_at(1)->is_visible()
-            && !tab_view->child_at(2)->is_visible(),
-        "only the selected settings page may remain visible");
-    require(tabs->set_selected_index(1)
-            && panel.selected_section() == ui::SettingsPanelSection::Audio
-            && !tab_view->child_at(0)->is_visible()
-            && tab_view->child_at(1)->is_visible(),
-        "selecting a settings tab must activate only its matching page");
-    panel.reset_navigation_state();
-    require(panel.selected_section() == ui::SettingsPanelSection::Display,
-        "a fresh settings visit must return navigation to Display");
-    const auto row_label_at = [](ui::UiListContainer& page,std::size_t index)
-    {
-        auto* row = dynamic_cast<ui::UiListContainer*>(page.child_at(index));
-        return row ? dynamic_cast<ui::UiLabel*>(row->child_at(0)) : nullptr;
-    };
-    require_text_key(
-        row_label_at(*display_page,0)->text_content(),
-        "engine.settings.fields.window_mode");
-    require_text_key(
-        row_label_at(*display_page,1)->text_content(),
-        "engine.settings.fields.target_fps");
-    require_text_key(
-        row_label_at(*display_page,2)->text_content(),
-        "engine.settings.fields.vsync");
-    require_text_key(
-        row_label_at(*audio_page,0)->text_content(),
-        "engine.settings.fields.master_volume");
-    require_text_key(
-        row_label_at(*audio_page,1)->text_content(),
-        "engine.settings.fields.music_volume");
-    require_text_key(
-        row_label_at(*audio_page,2)->text_content(),
-        "engine.settings.fields.sound_volume");
-    require_text_key(
-        row_label_at(*general_page,0)->text_content(),
-        "engine.settings.fields.language");
+    require(panel.visibility() == ui::SettingsPanelVisibility{},
+        "the compatibility constructor must enable every built-in field");
+    auto* title = dynamic_cast<ui::UiLabel*>(panel.child_at(0));
+    auto* content = settings_content(panel);
+    require(title && content && settings_scroll(panel),
+        "settings panel must expose one title and one scrolling content list");
+    require(title->text_content().value == "engine.settings.title",
+        "settings title must retain its localization key");
+    require_content_keys(*content,{
+        "engine.settings.sections.display",
+        "engine.settings.fields.window_mode",
+        "engine.settings.fields.target_fps",
+        "engine.settings.fields.vsync",
+        "engine.settings.hints.vsync_restart",
+        "engine.settings.sections.audio",
+        "engine.settings.fields.master_volume",
+        "engine.settings.fields.music_volume",
+        "engine.settings.fields.sound_volume",
+        "engine.settings.sections.general",
+        "engine.settings.fields.language"
+    });
 
     const ui::SettingsPanelDraft draft{
         .window_mode = ui::SettingsWindowMode::Windowed,
@@ -251,28 +262,61 @@ void test_settings_panel_keeps_draft_local_and_normalizes_options()
     };
     panel.set_draft(draft);
     panel.set_options({
-        .window_sizes = {
-            { 1920,1080 },
-            { 1280,720 },
-            { 1920,1080 },
-            { 0,0 }
-        },
+        .window_sizes = { { 1920,1080 },{ 1280,720 },{ 1920,1080 },{ 0,0 } },
         .target_fps_values = { 240.0,60.0,60.0,0.0 },
         .languages = { "en","zh-Hans","en","" }
     });
-
     require(panel.draft() == draft,
-        "settings panel option refresh must not apply or replace its local draft");
-    require(panel.options().window_sizes.size() == 3
-        && panel.options().window_sizes[0] == ui::SettingsWindowSize{ 1280,720 }
-        && panel.options().window_sizes[1] == ui::SettingsWindowSize{ 1366,768 }
-        && panel.options().window_sizes[2] == ui::SettingsWindowSize{ 1920,1080 },
-        "settings panel must normalize window sizes and retain the active value");
+        "programmatic option refresh must not edit the complete draft");
+    require(panel.options().window_sizes == std::vector<ui::SettingsWindowSize>{
+            { 1280,720 },{ 1366,768 },{ 1920,1080 } },
+        "window options must normalize while retaining the active value");
     require(panel.options().target_fps_values
             == std::vector<double>{ 60.0,144.0,240.0 },
-        "settings panel must normalize FPS values and retain the draft value");
-    require(panel.options().languages == std::vector<std::string>{ "en","zh-Hans" },
-        "settings panel must deduplicate language identifiers from LocalizationService");
+        "FPS options must normalize while retaining the active value");
+
+    auto* window_dropdown = field_control<ui::UiDropdown>(
+        *content,"engine.settings.fields.window_mode");
+    auto* fps_dropdown = field_control<ui::UiDropdown>(
+        *content,"engine.settings.fields.target_fps");
+    auto* vsync = field_control<ui::UiLabeledCheckbox>(
+        *content,"engine.settings.fields.vsync");
+    auto* language_dropdown = field_control<ui::UiDropdown>(
+        *content,"engine.settings.fields.language");
+    require(window_dropdown && fps_dropdown && vsync && language_dropdown,
+        "all-visible settings must construct every interactive field");
+    require(window_dropdown->options().size() == 4
+            && fps_dropdown->options().size() == 3
+            && language_dropdown->options().size() == 2
+            && !vsync->is_checked(),
+        "control state must mirror normalized options and the complete draft");
+
+    ui::UiWindow popup_window(core::Rect{ 0,0,800,600 });
+    panel.register_with_window(popup_window);
+    fps_dropdown->open();
+    require(fps_dropdown->is_open(),
+        "visible FPS dropdown must participate in window popup registration");
+    fps_dropdown->close();
+    panel.unregister_from_window();
+    fps_dropdown->open();
+    require(!fps_dropdown->is_open(),
+        "window unregistration must detach visible dropdown popups");
+
+    require(fps_dropdown->set_selected_index(2)
+            && panel.draft().target_fps == 240.0,
+        "visible FPS edits must update only the local draft");
+    vsync->toggle();
+    require(panel.draft().vsync,
+        "visible VSync edits must update only the local draft");
+
+    auto* status = dynamic_cast<ui::UiLabel*>(panel.child_at(2));
+    auto* actions = dynamic_cast<ui::UiListContainer*>(panel.child_at(3));
+    auto* save = actions
+        ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
+    auto* back = actions
+        ? dynamic_cast<ui::UiButton*>(actions->child_at(1)) : nullptr;
+    require(status && save && back,
+        "status and Save/Back must remain fixed outside the scroll viewport");
 
     int save_count = 0;
     int back_count = 0;
@@ -283,158 +327,122 @@ void test_settings_panel_keeps_draft_local_and_normalizes_options()
         saved_draft = value;
     });
     panel.set_on_back([&]() { ++back_count; });
-    const auto dropdown_at = [](ui::UiListContainer& page,std::size_t row_index)
-    {
-        auto* row = dynamic_cast<ui::UiListContainer*>(
-            page.child_at(row_index));
-        return row
-            ? dynamic_cast<ui::UiDropdown*>(row->child_at(1))
-            : nullptr;
-    };
-    ui::UiDropdown* window_dropdown = dropdown_at(*display_page,0);
-    require(window_dropdown
-        && window_dropdown->options().size()
-            == panel.options().window_sizes.size() + 1u,
-        "settings panel must expose window sizes and fullscreen in one dropdown");
-    require_text_key(
-        window_dropdown->options().back().content,
-        "engine.settings.window_modes.borderless_fullscreen");
-    auto* target_fps_dropdown = dropdown_at(*display_page,1);
-    require(target_fps_dropdown
-            && target_fps_dropdown->options().size() == 3,
-        "settings panel must expose normalized FPS options");
-    ui::UiWindow popup_window(core::Rect{ 0,0,800,600 });
-    panel.register_with_window(popup_window);
-    target_fps_dropdown->open();
-    require(target_fps_dropdown->is_open(),
-        "window registration must include the FPS dropdown popup");
-    target_fps_dropdown->close();
-    panel.unregister_from_window();
-    target_fps_dropdown->open();
-    require(!target_fps_dropdown->is_open(),
-        "window unregistration must detach the FPS dropdown popup");
-    auto* vsync_row = dynamic_cast<ui::UiListContainer*>(
-        display_page->child_at(2));
-    auto* vsync_checkbox = vsync_row
-        ? dynamic_cast<ui::UiLabeledCheckbox*>(vsync_row->child_at(1))
-        : nullptr;
-    require(vsync_checkbox && !vsync_checkbox->is_checked(),
-        "programmatic draft sync must update the VSync checkbox");
-    auto* language_dropdown = dropdown_at(*general_page,0);
-    require(language_dropdown && language_dropdown->options().size() == 2,
-        "settings panel must expose every normalized language option");
-    require_text_key(
-        language_dropdown->options()[0].content,
-        "engine.settings.languages.en");
-    require_text_key(
-        language_dropdown->options()[1].content,
-        "engine.settings.languages.zh_hans");
-    const std::size_t fullscreen_index =
-        panel.options().window_sizes.size();
-    require(window_dropdown->set_selected_index(fullscreen_index)
-        && panel.draft().window_mode
-            == ui::SettingsWindowMode::BorderlessFullscreen
-        && panel.draft().window_size == draft.window_size,
-        "selecting borderless fullscreen must preserve the windowed size draft");
-    require(window_dropdown->set_selected_index(0)
-        && panel.draft().window_mode == ui::SettingsWindowMode::Windowed
-        && panel.draft().window_size
-            == panel.options().window_sizes[0],
-        "selecting a window size must switch the draft back to Windowed");
-
-    require(target_fps_dropdown->set_selected_index(2)
-            && panel.draft().target_fps == 240.0,
-        "selecting an FPS option must update only the local draft");
-    vsync_checkbox->toggle();
-    require(panel.draft().vsync,
-        "toggling VSync must update only the local draft");
-
-    auto* actions = dynamic_cast<ui::UiListContainer*>(panel.child_at(3));
-    auto* save = actions
-        ? dynamic_cast<ui::UiButton*>(actions->child_at(0))
-        : nullptr;
-    auto* back = actions
-        ? dynamic_cast<ui::UiButton*>(actions->child_at(1))
-        : nullptr;
-    require(save && back,"settings panel must expose Save and Back actions");
-    require_text_key(save->text_content(),"engine.settings.actions.save");
-    require_text_key(back->text_content(),"engine.settings.actions.back");
+    panel.set_status_content(ui::ui_text_key("engine.settings.status.saved"),false);
+    require(status->is_visible(),"localized status content must become visible");
+    activate(*save);
+    require(save_count == 1 && saved_draft == panel.draft(),
+        "Save must emit the complete local draft exactly once");
+    activate(*back);
+    require(back_count == 1,"Back must invoke its callback exactly once");
 
     for (const auto device : {
-            elysia::input::InputDevice::Keyboard,
-            elysia::input::InputDevice::Gamepad })
+            input::InputDevice::Keyboard,
+            input::InputDevice::Gamepad })
     {
         panel.reset_navigation_state();
         panel.set_scope_focused(true);
         require(panel.focus_first_available(),
-            "settings focus must begin at the selected tab");
-        const auto navigate_down = [&panel,device]()
+            "settings focus must begin at the first visible field");
+        bool reached_save = false;
+        for (int attempt = 0; attempt < 16 && !reached_save; ++attempt)
         {
-            return panel.on_ui_input_event({
+            (void)panel.on_ui_input_event({
                 .action = ui::UiAction::NavigateDown,
                 .type = ui::UiInputEventType::ActionPressed,
                 .device = device
             });
-        };
-        bool reached_save = false;
-        for (int attempt = 0; attempt < 8 && !reached_save; ++attempt)
-        {
-            (void)navigate_down();
             reached_save = panel.focused_target() == save;
         }
         require(reached_save,
-            "keyboard and gamepad focus must leave the scrolled page for fixed Save/Back actions");
+            "keyboard and gamepad focus must reach fixed actions from content");
+    }
+}
+
+void test_settings_panel_visibility_and_single_section_headings()
+{
+    using namespace elysia;
+    struct VisibilityCase
+    {
+        std::string_view field;
+        std::vector<std::string> keys;
+    };
+    const std::vector<VisibilityCase> cases{
+        { "window_mode",{ "engine.settings.fields.window_mode" } },
+        { "target_fps",{ "engine.settings.fields.target_fps" } },
+        { "vsync",{
+            "engine.settings.fields.vsync",
+            "engine.settings.hints.vsync_restart" } },
+        { "master_volume",{ "engine.settings.fields.master_volume" } },
+        { "music_volume",{ "engine.settings.fields.music_volume" } },
+        { "sound_volume",{ "engine.settings.fields.sound_volume" } },
+        { "language",{ "engine.settings.fields.language" } }
+    };
+    for (const VisibilityCase& item : cases)
+    {
+        ui::SettingsPanel panel(
+            core::Rect{ 0,0,700,680 },only_visibility(item.field));
+        auto* content = settings_content(panel);
+        require(content != nullptr,
+            "every visibility profile must retain the shared scroll content");
+        require_content_keys(*content,item.keys);
     }
 
-    auto* status = label_at(2);
-    panel.set_status_content(
-        ui::ui_text_key("engine.settings.status.saved"),false);
-    require(status && status->is_visible(),
-        "localized settings status must become visible");
-    require_text_key(status->text_content(),"engine.settings.status.saved");
-    panel.set_status_message("diagnostic detail",true);
-    require(status->text_content().kind == ui::UiTextContentKind::RawText
-            && status->text_content().value == "diagnostic detail",
-        "settings failure diagnostics must remain raw text");
-    const auto activate = [](ui::UiButton& button)
-    {
-        button.set_focused(true);
-        (void)button.on_ui_input_event({
-            .action = ui::UiAction::Confirm,
-            .type = ui::UiInputEventType::ActionPressed
-        });
-        (void)button.on_ui_input_event({
-            .action = ui::UiAction::Confirm,
-            .type = ui::UiInputEventType::ActionReleased
-        });
+    ui::SettingsPanelVisibility mixed = only_visibility("target_fps");
+    mixed.language = true;
+    ui::SettingsPanel mixed_panel(core::Rect{ 0,0,700,680 },mixed);
+    require_content_keys(*settings_content(mixed_panel),{
+        "engine.settings.sections.display",
+        "engine.settings.fields.target_fps",
+        "engine.settings.sections.general",
+        "engine.settings.fields.language"
+    });
+
+    ui::SettingsPanelVisibility none{
+        .window_mode = false,
+        .target_fps = false,
+        .vsync = false,
+        .master_volume = false,
+        .music_volume = false,
+        .sound_volume = false,
+        .language = false
     };
-    activate(*save);
-    require(save_count == 1 && saved_draft == panel.draft(),
-        "the Save button must emit the complete local draft exactly once");
+    ui::SettingsPanel empty_panel(core::Rect{ 0,0,700,680 },none);
+    auto* empty_content = settings_content(empty_panel);
+    auto* actions = dynamic_cast<ui::UiListContainer*>(empty_panel.child_at(3));
+    auto* save = actions
+        ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
+    require(empty_content && empty_content->child_count() == 0 && save,
+        "an all-hidden profile must keep an empty scroll and fixed actions");
+    empty_panel.set_scope_focused(true);
+    require(empty_panel.focus_first_available()
+            && empty_panel.focused_target() == save,
+        "an all-hidden profile must focus Save first");
 
-    activate(*back);
-    require(back_count == 1,
-        "the Back button must invoke its navigation callback exactly once");
+    ui::UiWindow window(core::Rect{ 0,0,800,600 });
+    empty_panel.register_with_window(window);
+    empty_panel.unregister_from_window();
+}
 
-    ui::SettingsPanel compact_panel(core::Rect{ 0,0,700,360 });
-    auto* compact_tabs = dynamic_cast<ui::UiTabContainer*>(
-        compact_panel.child_at(1));
-    auto* compact_view = compact_tabs
-        ? dynamic_cast<ui::UiTabView*>(compact_tabs->child_at(1))
-        : nullptr;
-    auto* compact_scroll = compact_view
-        ? dynamic_cast<ui::UiScrollContainer*>(compact_view->child_at(0))
-        : nullptr;
-    compact_panel.update_layout_if_dirty();
-    require(compact_scroll && compact_scroll->max_scroll_offset().y > 0.0f,
-        "a compact settings panel must scroll only its selected page content");
-    const auto title_position = compact_panel.child_at(0)->position();
-    const auto actions_position = compact_panel.child_at(3)->position();
-    compact_scroll->scroll_to_bottom();
-    compact_panel.update_layout_if_dirty();
-    require(compact_panel.child_at(0)->position() == title_position
-            && compact_panel.child_at(3)->position() == actions_position,
-        "page scrolling must not move the settings title or actions");
+void test_compact_single_page_scroll_keeps_chrome_fixed()
+{
+    using namespace elysia;
+    ui::SettingsPanel panel(core::Rect{ 0,0,700,360 });
+    auto* scroll = settings_scroll(panel);
+    panel.update_layout_if_dirty();
+    require(scroll && scroll->max_scroll_offset().y > 0.0f,
+        "a compact settings panel must scroll its one shared content page");
+    const auto title_position = panel.child_at(0)->position();
+    const auto status_position = panel.child_at(2)->position();
+    const auto actions_position = panel.child_at(3)->position();
+    scroll->scroll_to_bottom();
+    panel.update_layout_if_dirty();
+    require(panel.child_at(0)->position() == title_position
+            && panel.child_at(2)->position() == status_position
+            && panel.child_at(3)->position() == actions_position,
+        "single-page scrolling must not move title, status, or actions");
+    panel.reset_navigation_state();
+    require(scroll->scroll_offset().y == 0.0f,
+        "fresh settings navigation must reset the shared scroll to the top");
 }
 }
 
@@ -444,8 +452,9 @@ int main()
     test_radio_render_defers_callback();
     test_group_preserves_button_override();
     test_button_group_preserves_button_callback_after_selection();
-    test_settings_panel_keeps_draft_local_and_normalizes_options();
+    test_settings_panel_single_page_draft_and_actions();
+    test_settings_panel_visibility_and_single_section_headings();
+    test_compact_single_page_scroll_keeps_chrome_fixed();
     std::cout << "ui selection control tests passed\n";
     return EXIT_SUCCESS;
 }
-

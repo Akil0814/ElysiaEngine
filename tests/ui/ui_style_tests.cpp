@@ -1161,26 +1161,26 @@ void test_evangelion_unit00_palette_and_contrast()
                 == elysia::core::Color{ 52,69,87,255 }
             && elysia::core::colors::eva_unit00_muted_ink
                 == elysia::core::Color{ 59,80,101,255 }
-            && elysia::core::colors::eva_unit00_amber_ochre
-                == elysia::core::Color{ 131,90,27,255 },
-        "Unit-00 must retain its readable cold-blue and ochre tokens");
-    require(elysia::core::colors::eva_unit00_danger_amber
-            == elysia::core::Color{ 118,80,27,255 }
-            && elysia::core::colors::eva_unit00_danger_amber_focus
-                == elysia::core::Color{ 138,93,28,255 }
-            && elysia::core::colors::eva_unit00_danger_amber_active
-                == elysia::core::Color{ 86,56,18,255 },
-        "Unit-00 must retain the dedicated dark warning sequence");
+            && elysia::core::colors::eva_unit00_signal_orange
+                == elysia::core::Color{ 166,61,33,255 },
+        "Unit-00 must retain readable cold-blue colors with clean signal orange");
+    require(elysia::core::colors::eva_unit00_alert_crimson
+            == elysia::core::Color{ 143,47,61,255 }
+            && elysia::core::colors::eva_unit00_alert_crimson_focus
+                == elysia::core::Color{ 182,59,74,255 }
+            && elysia::core::colors::eva_unit00_alert_crimson_active
+                == elysia::core::Color{ 103,30,43,255 },
+        "Unit-00 must define the dedicated NERV alert-crimson sequence");
 
     require(theme.label(UiLabelVisualRole::Default).text
             == elysia::core::colors::eva_unit00_deep_graphite
             && theme.label(UiLabelVisualRole::Title).text
-                == elysia::core::colors::eva_unit00_amber_ochre
+                == elysia::core::colors::eva_unit00_signal_orange
             && theme.label(UiLabelVisualRole::Subtitle).text
                 == elysia::core::colors::eva_unit00_muted_ink
             && theme.label(UiLabelVisualRole::Muted).text
                 == elysia::core::colors::eva_unit00_muted_ink,
-        "Unit-00 text roles must preserve Rei white, graphite, and warning gold semantics");
+        "Unit-00 text roles must preserve graphite, blue, and signal-orange semantics");
     require(default_button.chrome.background.idle
             == elysia::core::colors::eva_unit00_rei_white
             && default_button.chrome.background.focused
@@ -1196,18 +1196,31 @@ void test_evangelion_unit00_palette_and_contrast()
                 == elysia::core::colors::eva_unit00_caution_gold
             && primary_button.chrome.background.active
                 == elysia::core::colors::eva_unit00_warning_yellow
+            && primary_button.chrome.border.focused
+                == elysia::core::colors::eva_unit00_signal_orange
             && primary_button.text.enabled
                 == elysia::core::colors::eva_unit00_deep_graphite,
         "Unit-00 Primary must move from frost blue into signal yellow");
     require(danger_button.chrome.background.idle
-            == elysia::core::colors::eva_unit00_danger_amber
+            == elysia::core::colors::eva_unit00_alert_crimson
             && danger_button.chrome.background.focused
-                == elysia::core::colors::eva_unit00_danger_amber_focus
+                == elysia::core::colors::eva_unit00_alert_crimson_focus
             && danger_button.chrome.background.active
-                == elysia::core::colors::eva_unit00_danger_amber_active
+                == elysia::core::colors::eva_unit00_alert_crimson_active
+            && danger_button.chrome.border.idle
+                == elysia::core::colors::eva_unit00_pale_blue
+            && danger_button.chrome.border.focused
+                == elysia::core::colors::eva_unit00_rei_white
+            && danger_button.chrome.border.active
+                == elysia::core::colors::eva_unit00_frost_blue
             && danger_button.text.enabled
                 == elysia::core::colors::eva_unit00_rei_white,
-        "Unit-00 Danger must use dark amber surfaces with Rei-white text");
+        "Unit-00 Danger must use NERV crimson with cold-blue and Rei-white chrome");
+    require(danger_button.chrome.background.idle
+            != default_button.chrome.background.idle
+            && danger_button.chrome.background.focused
+                != default_button.chrome.background.focused,
+        "Unit-00 Danger idle and focus must remain distinct from Default");
 
     require_character_theme_contrast(theme,std::array{
         elysia::core::colors::eva_unit00_rei_white,
@@ -1217,19 +1230,19 @@ void test_evangelion_unit00_palette_and_contrast()
     });
 
     require(theme.checkbox_style.mark.enabled
-            == elysia::core::colors::eva_unit00_amber_ochre
+            == elysia::core::colors::eva_unit00_signal_orange
             && theme.radio_button_style.mark.enabled
-                == elysia::core::colors::eva_unit00_amber_ochre
+                == elysia::core::colors::eva_unit00_signal_orange
             && theme.slider_style.fill.enabled
-                == elysia::core::colors::eva_unit00_amber_ochre
+                == elysia::core::colors::eva_unit00_signal_orange
             && theme.text_input_style.caret
-                == elysia::core::colors::eva_unit00_amber_ochre,
-        "Unit-00 marks, slider fill, and caret must use readable warning ochre");
+                == elysia::core::colors::eva_unit00_signal_orange,
+        "Unit-00 marks, slider fill, and caret must use clean signal orange");
     require(theme.scroll_container_style.scrollbar.track_dragging_color
             == elysia::core::colors::eva_unit00_pale_blue
             && theme.scroll_container_style.scrollbar.thumb_focused_color
-                == elysia::core::colors::eva_unit00_amber_ochre,
-        "Unit-00 scrollbar must retain blue tracks and a warning-gold focus thumb");
+                == elysia::core::colors::eva_unit00_signal_orange,
+        "Unit-00 scrollbar must retain blue tracks and a signal-orange focus thumb");
     require(default_button.chrome.background.disabled
             == elysia::core::colors::gray_300
             && default_button.text.disabled == elysia::core::colors::gray_500
@@ -1353,11 +1366,16 @@ void test_evangelion_unit02_palette_and_contrast()
 
     require(elysia::core::colors::eva_unit02_pressed_maroon
             == elysia::core::Color{ 77,17,24,255 }
-            && elysia::core::colors::eva_unit02_active_crimson
-                == elysia::core::Color{ 133,28,40,255 }
             && elysia::core::colors::eva_unit02_warm_mist
                 == elysia::core::Color{ 242,207,179,255 },
         "Unit-02 must retain its pressed-red and warm readable tokens");
+    require(elysia::core::colors::eva_unit02_danger_black_red
+            == elysia::core::Color{ 43,10,15,255 }
+            && elysia::core::colors::eva_unit02_danger_black_red_focus
+                == elysia::core::Color{ 90,16,27,255 }
+            && elysia::core::colors::eva_unit02_danger_black_red_active
+                == elysia::core::Color{ 22,3,7,255 },
+        "Unit-02 must define the dedicated near-black blood-red sequence");
     require(theme.label(UiLabelVisualRole::Default).text
             == elysia::core::colors::eva_unit02_bone_white
             && theme.label(UiLabelVisualRole::Title).text
@@ -1393,14 +1411,25 @@ void test_evangelion_unit02_palette_and_contrast()
                 == elysia::core::colors::eva_unit02_deep_maroon,
         "Unit-02 Primary must use bright armor highlights with inverse maroon text");
     require(danger_button.chrome.background.idle
-            == elysia::core::colors::eva_unit02_deep_maroon
+            == elysia::core::colors::eva_unit02_danger_black_red
             && danger_button.chrome.background.focused
-                == elysia::core::colors::eva_unit02_crimson
+                == elysia::core::colors::eva_unit02_danger_black_red_focus
             && danger_button.chrome.background.active
-                == elysia::core::colors::eva_unit02_active_crimson
+                == elysia::core::colors::eva_unit02_danger_black_red_active
+            && danger_button.chrome.border.idle
+                == elysia::core::colors::eva_unit02_glow_amber
+            && danger_button.chrome.border.focused
+                == elysia::core::colors::eva_unit02_bone_white
+            && danger_button.chrome.border.active
+                == elysia::core::colors::eva_unit02_sun_yellow
             && danger_button.text.enabled
                 == elysia::core::colors::eva_unit02_bone_white,
-        "Unit-02 Danger must use the dedicated deep-crimson sequence");
+        "Unit-02 Danger must use near-black blood red with bright warning chrome");
+    require(danger_button.chrome.background.idle
+            != default_button.chrome.background.idle
+            && danger_button.chrome.background.focused
+                != default_button.chrome.background.focused,
+        "Unit-02 Danger idle and focus must remain distinct from Default");
 
     require_character_theme_contrast(theme,std::array{
         elysia::core::colors::eva_unit02_deep_maroon,

@@ -34,6 +34,7 @@ private:
 private:
     elysia::scene::SceneRoute _return_route;
     elysia::config::UserConfigRuntimeState _baseline_state;
+    elysia::ui::SettingsPanelVisibility _visibility;
     elysia::ui::UiWindow* _window = nullptr;
     elysia::ui::SettingsPanel* _settings_panel = nullptr;
     bool _transitioning = false;
