@@ -70,10 +70,16 @@ public:
     std::expected<void,elysia::config::UserConfigFailure>
         apply_language(std::string_view) override { return {}; }
     std::expected<void,elysia::config::UserConfigFailure>
-        apply_target_fps(double) override { return {}; }
+        apply_target_fps(double value) override
+    {
+        target_fps_values.push_back(value);
+        return {};
+    }
     std::expected<void,elysia::config::UserConfigFailure>
         apply_window_settings(
             const elysia::config::WindowSettings&) override { return {}; }
+
+    std::vector<double> target_fps_values;
 };
 
 bool throws_logic_error_containing(
@@ -102,6 +108,32 @@ void send_cancel(elysia::scene::SceneManager& scene_manager)
         }
     };
     scene_manager.on_input(frame,events);
+}
+
+void send_control(
+    elysia::scene::SceneManager& scene_manager,
+    elysia::input::RawInputControl control,
+    bool release = false)
+{
+    const elysia::input::RawInputFrame frame{};
+    const std::vector<elysia::input::RawInputEvent> events{
+        elysia::input::RawInputEvent{
+            .control = control,
+            .type = release
+                ? elysia::input::RawInputEventType::ControlReleased
+                : elysia::input::RawInputEventType::ControlPressed,
+            .device = elysia::input::InputDevice::Keyboard
+        }
+    };
+    scene_manager.on_input(frame,events);
+}
+
+void activate_focused_control(elysia::scene::SceneManager& scene_manager)
+{
+    send_control(
+        scene_manager,elysia::input::RawInputControl::KeyEnter);
+    send_control(
+        scene_manager,elysia::input::RawInputControl::KeyEnter,true);
 }
 
 void test_settings_payload_contract_names_the_scene()
@@ -191,11 +223,82 @@ void test_cancel_returns_to_each_callers_full_route()
     config_service->shutdown();
     std::filesystem::remove_all(directory);
 }
+
+void test_save_applies_fps_and_tracks_vsync_restart_state()
+{
+    const std::filesystem::path directory =
+        std::filesystem::temp_directory_path()
+        / "elysia_settings_scene_save_tests";
+    std::filesystem::remove_all(directory);
+    std::filesystem::create_directories(directory);
+
+    elysia::config::UserConfigData defaults;
+    defaults.target_fps = 60.0;
+    defaults.vsync = true;
+    defaults.language = "en";
+    const std::filesystem::path config_path = directory / "user_config.json";
+    auto* config_service = elysia::config::UserConfigService::instance();
+    require(config_service->initialize(defaults,config_path).has_value(),
+        "settings save test must initialize UserConfigService");
+    ConfigHandler handler;
+    config_service->register_user_config_change_handler(handler);
+
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr,registry,1280,720);
+    elysia::scene::SceneManager scene_manager;
+    scene_manager.set_runtime_context(context);
+    scene_manager.register_engine_scene<elysia::builtin::SettingsScene>(
+        elysia::builtin::SceneKeys::Settings);
+    scene_manager.register_game_scene<FirstReturnScene>(1);
+    scene_manager.start(elysia::scene::SceneRoute{
+        .target = elysia::builtin::SceneKeys::Settings,
+        .payload = elysia::builtin::SettingsScenePayload{
+            .return_route = elysia::scene::SceneRoute{
+                .target = 1,
+                .payload = ReturnPayload{ .marker = 33 }
+            }
+        }
+    });
+
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    activate_focused_control(scene_manager);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    activate_focused_control(scene_manager);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    activate_focused_control(scene_manager);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    activate_focused_control(scene_manager);
+
+    require(config_service->user_config().target_fps() == 120.0
+        && !config_service->user_config().vsync()
+        && config_service->user_config().restart_required()
+        && !config_service->user_config().is_dirty()
+        && handler.target_fps_values
+            == std::vector<double>{ 120.0 },
+        "SettingsScene Save must apply FPS immediately, persist VSync, and retain its restart requirement");
+
+    send_control(scene_manager,elysia::input::RawInputControl::KeyUp);
+    activate_focused_control(scene_manager);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    activate_focused_control(scene_manager);
+
+    require(config_service->user_config().vsync()
+        && !config_service->user_config().restart_required()
+        && !config_service->user_config().is_dirty(),
+        "saving the startup VSync value again must clear the restart requirement");
+
+    scene_manager.shutdown();
+    config_service->unregister_user_config_change_handler(handler);
+    config_service->shutdown();
+    std::filesystem::remove_all(directory);
+}
 }
 
 int main()
 {
     test_settings_payload_contract_names_the_scene();
     test_cancel_returns_to_each_callers_full_route();
+    test_save_applies_fps_and_tracks_vsync_restart_state();
     return EXIT_SUCCESS;
 }

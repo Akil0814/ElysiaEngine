@@ -137,10 +137,17 @@ std::expected<UserConfigApplyStatus,UserConfigFailure> UserConfig::set_target_fp
 
 std::expected<UserConfigApplyStatus,UserConfigFailure> UserConfig::set_vsync(bool value)
 {
-    if (value == _current_settings.vsync) return UserConfigApplyStatus::Applied;
+    if (value == _current_settings.vsync)
+    {
+        return _vsync_restart_pending
+            ? UserConfigApplyStatus::PendingRestart
+            : UserConfigApplyStatus::Applied;
+    }
     _current_settings.vsync = value;
-    _vsync_restart_pending = true;
-    return UserConfigApplyStatus::PendingRestart;
+    _vsync_restart_pending = _current_settings.vsync != _active_vsync;
+    return _vsync_restart_pending
+        ? UserConfigApplyStatus::PendingRestart
+        : UserConfigApplyStatus::Applied;
 }
 
 std::expected<UserConfigApplyStatus,UserConfigFailure> UserConfig::set_master_volume(int value)
@@ -193,9 +200,9 @@ UserConfigRuntimeState UserConfig::runtime_state() const
 }
 bool UserConfig::is_dirty() const noexcept { return _current_settings != _persisted_snapshot; }
 bool UserConfig::restart_required() const noexcept { return _vsync_restart_pending; }
-void UserConfig::initialize(const UserConfigData& settings) noexcept { _current_settings = settings; _persisted_snapshot = settings; _vsync_restart_pending = false; }
+void UserConfig::initialize(const UserConfigData& settings) noexcept { _current_settings = settings; _persisted_snapshot = settings; _active_vsync = settings.vsync; _vsync_restart_pending = false; }
 void UserConfig::mark_persisted() noexcept { _persisted_snapshot = _current_settings; }
-void UserConfig::reset() noexcept { _current_settings = {}; _persisted_snapshot = {}; _change_handler = nullptr; _vsync_restart_pending = false; }
+void UserConfig::reset() noexcept { _current_settings = {}; _persisted_snapshot = {}; _change_handler = nullptr; _active_vsync = true; _vsync_restart_pending = false; }
 void UserConfig::register_change_handler(IUserConfigChangeHandler& handler) noexcept { _change_handler = &handler; }
 void UserConfig::unregister_change_handler(IUserConfigChangeHandler& handler) noexcept { if (_change_handler == &handler) _change_handler = nullptr; }
 void UserConfig::restore_restart_required(bool restart_required) noexcept { _vsync_restart_pending = restart_required; }

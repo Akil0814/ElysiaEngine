@@ -4,6 +4,12 @@
 
 namespace elysia::ui
 {
+namespace
+{
+constexpr float tab_width = 120.0f;
+constexpr float tab_height = 40.0f;
+}
+
 UiTabBar::UiTabBar(const elysia::core::Rect& rect,int order) noexcept : UiListContainer(rect,order)
 {
     reset();
@@ -37,7 +43,8 @@ UiButton* UiTabBar::add_tab(UiTextContent content)
 {
     UiButtonConfig config{};
     config.content = std::move(content);
-    auto button = std::make_unique<UiButton>(elysia::core::Rect{ 0,0,120,40 },config,0);
+    auto button = std::make_unique<UiButton>(
+        elysia::core::Rect{ 0,0,tab_width,tab_height },config,0);
     UiButton* raw = button.get();
     raw->set_on_click([this,raw]()
     {
@@ -47,7 +54,10 @@ UiButton* UiTabBar::add_tab(UiTextContent content)
             (void)set_selected_index(*index);
         }
     });
-    if (!add_back(std::move(button)))
+    if (!add_child(std::move(button),UiLayoutChildOptions{
+            ._size_override = { tab_width,tab_height },
+            ._use_size_override = true
+        }))
         return nullptr;
     sync_state(false);
     return raw;

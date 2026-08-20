@@ -63,8 +63,10 @@ Bootstrap 不解析或发布 gameplay 配置。内容加载、资源组装或资
 内建 `SettingsScene` 使用草稿式提交：控件编辑不会立即修改运行时；Save 通过
 `UserConfigService::apply_and_save_user_config()` 批量应用并持久化。事务显式携带进入页面（或上次保存成功）时的
 `UserConfigRuntimeState` 作为回滚基线，因此应用失败或持久化失败不会回滚到点击 Save 前偶然变化的状态。
-回滚失败会作为独立错误返回，页面随后以 `UserConfig` 的实际运行时状态刷新。预设面板不编辑 target FPS 与
-VSync，但提交成功时会保留这两个字段在页面打开期间由其他 API 产生的有效变化。
+回滚失败会作为独立错误返回，页面随后以 `UserConfig` 的实际运行时状态刷新。FPS 上限会立即应用到软件限帧器，
+VSync 会保存为下一次启动使用的值并显示重启提示。
+如果 VSync 又切回本次启动实际采用的值，待重启状态会自动取消。设置表单按显示、音频和通用分页，每页内容
+独立滚动，标题、状态消息及 Save/Back 操作保持固定。
 
 ## 通用 gameplay 配置
 

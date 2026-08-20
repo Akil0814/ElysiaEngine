@@ -25,6 +25,11 @@ namespace elysia::core
     projected_command.line_end = camera.world_to_screen(render_command.line_end);
     projected_command.circle_center = camera.world_to_screen(render_command.circle_center);
     projected_command.circle_radius = render_command.circle_radius * camera.zoom();
+    for (std::size_t i = 0; i < render_command.triangle_vertices.size(); ++i)
+    {
+        projected_command.triangle_vertices[i] =
+            camera.world_to_screen(render_command.triangle_vertices[i]);
+    }
     projected_command.alpha = render_command.alpha;
     projected_command.texture_color_modulation =
         render_command.texture_color_modulation;

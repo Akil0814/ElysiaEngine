@@ -12,14 +12,24 @@ namespace elysia::ui
 {
 class UiButton;
 class UiDropdown;
+class UiLabeledCheckbox;
 class UiLabel;
+class UiScrollContainer;
 class UiSlider;
+class UiTabContainer;
 class UiWindow;
 
 enum class SettingsWindowMode
 {
     Windowed,
     BorderlessFullscreen
+};
+
+enum class SettingsPanelSection
+{
+    Display,
+    Audio,
+    General
 };
 
 struct SettingsWindowSize
@@ -34,6 +44,8 @@ struct SettingsPanelDraft
 {
     SettingsWindowMode window_mode = SettingsWindowMode::Windowed;
     SettingsWindowSize window_size{};
+    double target_fps = 60.0;
+    bool vsync = true;
     int master_volume = 100;
     int music_volume = 100;
     int sound_volume = 100;
@@ -45,6 +57,7 @@ struct SettingsPanelDraft
 struct SettingsPanelOptions
 {
     std::vector<SettingsWindowSize> window_sizes;
+    std::vector<double> target_fps_values;
     std::vector<std::string> languages;
 };
 
@@ -52,6 +65,9 @@ struct SettingsPanelOptions
 make_settings_window_size_options(
     std::optional<SettingsWindowSize> usable_size,
     SettingsWindowSize current_size);
+
+[[nodiscard]] std::vector<double>
+make_settings_target_fps_options(double current_fps);
 
 using SettingsPanelSaveCallback = std::function<void(const SettingsPanelDraft&)>;
 using SettingsPanelBackCallback = std::function<void()>;
@@ -72,6 +88,11 @@ public:
     void set_draft(const SettingsPanelDraft& draft);
     [[nodiscard]] const SettingsPanelDraft& draft() const noexcept;
 
+    // Starts a fresh settings-page visit without disturbing draft state,
+    // options, or callbacks.
+    void reset_navigation_state();
+    [[nodiscard]] SettingsPanelSection selected_section() const noexcept;
+
     void set_on_save(SettingsPanelSaveCallback on_save);
     void set_on_back(SettingsPanelBackCallback on_back);
 
@@ -87,9 +108,11 @@ public:
 private:
     void build_controls();
     void rebuild_window_options();
+    void rebuild_target_fps_options();
     void rebuild_language_options();
     void sync_controls_from_draft();
     [[nodiscard]] std::size_t find_window_size_index(const SettingsWindowSize& window_size) const noexcept;
+    [[nodiscard]] std::size_t find_target_fps_index(double target_fps) const noexcept;
     [[nodiscard]] std::size_t find_language_index(const std::string& language) const noexcept;
 
 private:
@@ -97,7 +120,13 @@ private:
     SettingsPanelDraft _draft;
     SettingsPanelSaveCallback _on_save;
     SettingsPanelBackCallback _on_back;
+    UiTabContainer* _tab_container = nullptr;
+    UiScrollContainer* _display_scroll = nullptr;
+    UiScrollContainer* _audio_scroll = nullptr;
+    UiScrollContainer* _general_scroll = nullptr;
     UiDropdown* _window_option_dropdown = nullptr;
+    UiDropdown* _target_fps_dropdown = nullptr;
+    UiLabeledCheckbox* _vsync_checkbox = nullptr;
     UiSlider* _master_volume_slider = nullptr;
     UiSlider* _music_volume_slider = nullptr;
     UiSlider* _sound_volume_slider = nullptr;

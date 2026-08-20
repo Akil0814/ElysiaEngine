@@ -54,6 +54,7 @@ private:
     UserConfigData _current_settings;
     UserConfigData _persisted_snapshot;
     IUserConfigChangeHandler* _change_handler = nullptr;
+    bool _active_vsync = true;
     bool _vsync_restart_pending = false;
 };
 }

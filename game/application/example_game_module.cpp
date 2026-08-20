@@ -32,7 +32,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
     descriptor.presentation.render.texture_filter =
         elysia::application::ApplicationTextureFilter::Nearest;
     descriptor.presentation.ui.default_theme =
-        elysia::ui::UiBuiltinTheme::BlueGlassMoon;
+        elysia::ui::UiBuiltinTheme::QuietSlate;
     descriptor.presentation.startup.engine_logo =
         elysia::application::ApplicationEngineLogoVariant::White;
     descriptor.presentation.fonts.ui.source =

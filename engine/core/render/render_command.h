@@ -7,6 +7,7 @@
 #include "../geometry/vector2.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cmath>
 #include <optional>
@@ -29,7 +30,8 @@ enum class RenderCommandType
     DrawRect,
     FillCircle,
     DrawCircle,
-    DrawLine
+    DrawLine,
+    FillTriangle
 };
 
 enum class UiRenderCommandType
@@ -85,6 +87,7 @@ struct RenderCommand
     Vector2 line_end{};
     Vector2 circle_center{};
     float circle_radius = 0.0f;
+    std::array<Vector2,3> triangle_vertices{};
 
     std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
@@ -121,6 +124,7 @@ struct ScreenRenderCommand
     Vector2 line_end{};
     Vector2 circle_center{};
     float circle_radius = 0.0f;
+    std::array<Vector2,3> triangle_vertices{};
 
     std::uint8_t alpha = 255;
     std::optional<TextureColorModulation> texture_color_modulation;
@@ -301,6 +305,20 @@ inline void set_ui_command_clip_rect(UiRenderCommand& command, const Rect& clip_
     command.line_end = end;
     command.color = color;
     command.stroke_width = normalize_world_stroke_width(stroke_width);
+    return command;
+}
+
+[[nodiscard]] inline RenderCommand make_world_fill_triangle_command(
+    const Vector2& a,
+    const Vector2& b,
+    const Vector2& c,
+    Color color
+) noexcept
+{
+    RenderCommand command;
+    command.type = RenderCommandType::FillTriangle;
+    command.triangle_vertices = { a,b,c };
+    command.color = color;
     return command;
 }
 

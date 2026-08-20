@@ -39,6 +39,8 @@ elysia::ui::SettingsPanelDraft make_draft(const elysia::config::UserConfigData& 
             ? elysia::ui::SettingsWindowMode::Windowed
             : elysia::ui::SettingsWindowMode::BorderlessFullscreen,
         .window_size = { settings.window.windowed_size.width,settings.window.windowed_size.height},
+        .target_fps = settings.target_fps,
+        .vsync = settings.vsync,
         .master_volume = settings.audio.master_volume,
         .music_volume = settings.audio.music_volume,
         .sound_volume = settings.audio.sound_volume,
@@ -68,6 +70,9 @@ elysia::ui::SettingsPanelOptions make_panel_options(const elysia::config::UserCo
         ELYSIA_LOCALIZATION->supported_languages();
     return elysia::ui::SettingsPanelOptions{
         .window_sizes = std::move(window_sizes),
+        .target_fps_values =
+            elysia::ui::make_settings_target_fps_options(
+                settings.target_fps),
         .languages = supported_languages
     };
 }
@@ -167,7 +172,17 @@ void SettingsScene::restore_ui_state()
 
     _settings_panel->set_draft(make_draft(_baseline_state.settings));
     _settings_panel->set_options(make_panel_options(_baseline_state.settings));
-    _settings_panel->clear_status_message();
+    _settings_panel->reset_navigation_state();
+    if (_baseline_state.restart_required)
+    {
+        _settings_panel->set_status_content(
+            elysia::ui::ui_text_key(
+                "engine.settings.status.restart_required"),false);
+    }
+    else
+    {
+        _settings_panel->clear_status_message();
+    }
     _settings_panel->register_with_window(*_window);
 
     _window->set_visible(true);
@@ -190,6 +205,8 @@ void SettingsScene::save_draft(const elysia::ui::SettingsPanelDraft& draft)
             draft.window_size.height
         }
     };
+    requested.target_fps = draft.target_fps;
+    requested.vsync = draft.vsync;
     requested.audio.master_volume = draft.master_volume;
     requested.audio.music_volume = draft.music_volume;
     requested.audio.sound_volume = draft.sound_volume;
@@ -202,7 +219,10 @@ void SettingsScene::save_draft(const elysia::ui::SettingsPanelDraft& draft)
         _baseline_state = config_service->user_config().runtime_state();
         _settings_panel->set_draft(make_draft(_baseline_state.settings));
         _settings_panel->set_status_content(
-            elysia::ui::ui_text_key("engine.settings.status.saved"),false);
+            elysia::ui::ui_text_key(
+                _baseline_state.restart_required
+                    ? "engine.settings.status.saved_restart_required"
+                    : "engine.settings.status.saved"),false);
         return;
     }
 

@@ -33,6 +33,15 @@ std::filesystem::path normalize_diagnostic_path(
     if (path.empty() || !path.is_absolute()) return path.lexically_normal();
     if (!project_root.empty())
     {
+        const auto lexical_relative = path.lexically_normal().lexically_relative(
+            project_root.lexically_normal());
+        if (!lexical_relative.empty())
+        {
+            const auto text = lexical_relative.generic_string();
+            if (text != ".." && !text.starts_with("../"))
+                return lexical_relative;
+        }
+
         std::error_code error;
         const auto relative = std::filesystem::relative(path,project_root,error);
         if (!error && !relative.empty())

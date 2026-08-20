@@ -14,6 +14,9 @@ inline constexpr SceneKey GameBegin = 1;
 inline constexpr SceneKey GameEnd = 999;
 
 inline constexpr SceneKey ElysiaRealm = 1111;
+// Compatibility name retained for game and test code that predates the
+// clearer realm-oriented scene name.
+inline constexpr SceneKey ElysiaEasterEgg = ElysiaRealm;
 
 // This value is a range marker, not a usable scene key. Engine-owned
 // scenes occupy the values strictly above it.

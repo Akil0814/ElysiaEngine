@@ -489,6 +489,70 @@ void test_ui_fill_rect_keeps_integer_rasterization()
         "World float rasterization must not change UI FillRect coverage");
 }
 
+void test_world_triangles_render_and_restore_state()
+{
+    using namespace elysia::core;
+    SdlStrokeFixture fixture(1280,720);
+
+    ScreenRenderCommand background;
+    background.type = RenderCommandType::FillRect;
+    background.screen_rect = {10, 10, 180, 80};
+    background.color = {0, 0, 255, 255};
+    execute_render_command(fixture.renderer(),background);
+
+    SDL_SetRenderDrawColor(fixture.renderer(),11,22,33,44);
+    SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
+    const SDL_Rect original_clip{0, 0, 5, 5};
+    SDL_RenderSetClipRect(fixture.renderer(),&original_clip);
+
+    ScreenRenderCommand clockwise;
+    clockwise.type = RenderCommandType::FillTriangle;
+    clockwise.triangle_vertices = {
+        Vector2{20, 20},Vector2{80, 20},Vector2{50, 80}
+    };
+    clockwise.color = {255, 0, 0, 128};
+    execute_render_command(fixture.renderer(),clockwise);
+
+    ScreenRenderCommand counter_clockwise;
+    counter_clockwise.type = RenderCommandType::FillTriangle;
+    counter_clockwise.triangle_vertices = {
+        Vector2{120, 20},Vector2{150, 80},Vector2{180, 20}
+    };
+    counter_clockwise.color = {0, 255, 0, 255};
+    execute_render_command(fixture.renderer(),counter_clockwise);
+    fixture.read_pixels();
+
+    const Color blended = fixture.pixel_color(50,40);
+    require(blended.r > 0 && blended.b > 0,
+        "FillTriangle must alpha-blend its uniform color over prior content");
+    const Color outside = fixture.pixel_color(20,75);
+    require(outside.r == 0 && outside.g == 0 && outside.b > 0,
+        "FillTriangle must not color pixels outside its edges");
+    const Color reverse_winding = fixture.pixel_color(150,40);
+    require(reverse_winding.g > reverse_winding.r
+            && reverse_winding.g > reverse_winding.b,
+        "FillTriangle must render both clockwise and counter-clockwise vertices");
+
+    Uint8 r = 0;
+    Uint8 g = 0;
+    Uint8 b = 0;
+    Uint8 a = 0;
+    SDL_GetRenderDrawColor(fixture.renderer(),&r,&g,&b,&a);
+    require(r == 11 && g == 22 && b == 33 && a == 44,
+        "FillTriangle must preserve renderer draw color");
+    SDL_BlendMode blend_mode = SDL_BLENDMODE_NONE;
+    SDL_GetRenderDrawBlendMode(fixture.renderer(),&blend_mode);
+    require(blend_mode == SDL_BLENDMODE_ADD,
+        "FillTriangle must preserve renderer blend mode");
+    SDL_Rect restored_clip{};
+    SDL_RenderGetClipRect(fixture.renderer(),&restored_clip);
+    require(restored_clip.x == original_clip.x
+            && restored_clip.y == original_clip.y
+            && restored_clip.w == original_clip.w
+            && restored_clip.h == original_clip.h,
+        "FillTriangle must restore renderer clip state after ignoring it");
+}
+
 void test_texture_and_world_primitive_submission_order()
 {
     using namespace elysia::core;
@@ -506,13 +570,15 @@ void test_texture_and_world_primitive_submission_order()
         "Mixed world rendering test must create a texture");
 
     ScreenRenderCommand primitive;
-    primitive.type = RenderCommandType::FillRect;
-    primitive.screen_rect = {500, 100, 20, 20};
+    primitive.type = RenderCommandType::FillTriangle;
+    primitive.triangle_vertices = {
+        Vector2{500, 100},Vector2{520, 100},Vector2{510, 120}
+    };
     primitive.color = {255, 0, 0, 255};
     ScreenRenderCommand textured;
     textured.type = RenderCommandType::Texture;
     textured.texture = texture;
-    textured.screen_rect = primitive.screen_rect;
+    textured.screen_rect = {500, 100, 20, 20};
 
     execute_render_command(fixture.renderer(), primitive);
     execute_render_command(fixture.renderer(), textured);
@@ -563,6 +629,42 @@ void test_invalid_world_primitive_geometry_is_skipped()
     line.line_end = line.line_start;
     line.color = k_white;
     execute_render_command(fixture.renderer(), line);
+
+    ScreenRenderCommand non_finite_triangle;
+    non_finite_triangle.type = RenderCommandType::FillTriangle;
+    non_finite_triangle.triangle_vertices = {
+        Vector2{100, 100},
+        Vector2{std::numeric_limits<float>::quiet_NaN(), 110},
+        Vector2{110, 120}
+    };
+    non_finite_triangle.color = k_white;
+    execute_render_command(fixture.renderer(),non_finite_triangle);
+
+    ScreenRenderCommand infinite_triangle;
+    infinite_triangle.type = RenderCommandType::FillTriangle;
+    infinite_triangle.triangle_vertices = {
+        Vector2{140, 100},
+        Vector2{150, std::numeric_limits<float>::infinity()},
+        Vector2{160, 120}
+    };
+    infinite_triangle.color = k_white;
+    execute_render_command(fixture.renderer(),infinite_triangle);
+
+    ScreenRenderCommand repeated_triangle;
+    repeated_triangle.type = RenderCommandType::FillTriangle;
+    repeated_triangle.triangle_vertices = {
+        Vector2{180, 100},Vector2{180, 100},Vector2{190, 120}
+    };
+    repeated_triangle.color = k_white;
+    execute_render_command(fixture.renderer(),repeated_triangle);
+
+    ScreenRenderCommand collinear_triangle;
+    collinear_triangle.type = RenderCommandType::FillTriangle;
+    collinear_triangle.triangle_vertices = {
+        Vector2{220, 100},Vector2{230, 110},Vector2{240, 120}
+    };
+    collinear_triangle.color = k_white;
+    execute_render_command(fixture.renderer(),collinear_triangle);
     fixture.read_pixels();
 
     require(!fixture.any_visible(),
@@ -590,6 +692,7 @@ int main()
     require_adjacent_world_fill_rects_are_seamless(1280,720);
     require_adjacent_world_fill_rects_are_seamless(1000,700);
     test_ui_fill_rect_keeps_integer_rasterization();
+    test_world_triangles_render_and_restore_state();
     test_texture_and_world_primitive_submission_order();
     test_invalid_world_primitive_geometry_is_skipped();
     return EXIT_SUCCESS;

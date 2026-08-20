@@ -175,6 +175,16 @@ int main()
     require(service->user_config().set_master_volume(50).has_value() && service->user_config().is_dirty(),"applied setting must mark UserConfig dirty");
     const auto vsync = service->user_config().set_vsync(false);
     require(vsync && *vsync == elysia::config::UserConfigApplyStatus::PendingRestart && service->user_config().restart_required(),"VSync change must retain restart semantics");
+    const auto reverted_vsync = service->user_config().set_vsync(true);
+    require(reverted_vsync
+        && *reverted_vsync == elysia::config::UserConfigApplyStatus::Applied
+        && !service->user_config().restart_required(),
+        "restoring the startup VSync value must cancel the pending restart");
+    const auto pending_vsync_again = service->user_config().set_vsync(false);
+    require(pending_vsync_again
+            && *pending_vsync_again
+                == elysia::config::UserConfigApplyStatus::PendingRestart,
+        "moving away from the startup VSync value must mark restart pending again");
     require(service->save_user_config().has_value() && !service->user_config().is_dirty(),"save must mark UserConfig persisted");
 
     Data committed = service->user_config().snapshot();
@@ -246,14 +256,16 @@ int main()
 
     Data persistence_failure = persistence_baseline;
     persistence_failure.audio.music_volume = 12;
+    persistence_failure.vsync = true;
     const auto persistence_failure_result =
         service->apply_and_save_user_config(persistence_failure);
     require(!persistence_failure_result
         && persistence_failure_result.error().cause.error
             == elysia::config::UserConfigError::SaveFailed
         && !persistence_failure_result.error().rollback_failure
-        && service->user_config().snapshot() == persistence_baseline,
-        "persistence failure must be visible and roll runtime settings back");
+        && service->user_config().snapshot() == persistence_baseline
+        && service->user_config().restart_required(),
+        "persistence failure must roll settings and restart state back to the transaction baseline");
     std::filesystem::remove_all(blocked_backup);
 
     service->unregister_user_config_change_handler(handler); service->shutdown();
