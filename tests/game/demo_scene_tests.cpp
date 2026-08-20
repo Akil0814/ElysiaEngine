@@ -278,6 +278,22 @@ void test_escape_returns_the_full_caller_route()
             }
         }
     });
+
+    // The gallery owns eight fixed-width tabs. Visit every page through the same
+    // keyboard focus path used at runtime, then update and render its active tree.
+    for (std::size_t page_index = 0; page_index < 8; ++page_index)
+    {
+        scene_manager.on_update(1.0 / 60.0);
+        scene_manager.on_render(fixture.renderer());
+        if (page_index + 1 < 8)
+        {
+            press_and_release_key(
+                scene_manager,elysia::input::RawInputControl::KeyRight);
+            press_and_release_key(
+                scene_manager,elysia::input::RawInputControl::KeyEnter);
+        }
+    }
+
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 17,
         "UiComponentGalleryScene Escape must return the caller key and payload");

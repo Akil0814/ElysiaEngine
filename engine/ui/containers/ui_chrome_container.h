@@ -73,6 +73,7 @@ public:
 
     void set_header_visible(bool visible) noexcept;
     [[nodiscard]] bool header_visible() const noexcept;
+    // Sets the minimum header height; intrinsic header content can expand it.
     void set_header_height(float height) noexcept;
     [[nodiscard]] float header_height() const noexcept;
     void set_header_padding(const UiLayoutPadding& padding) noexcept;
@@ -119,6 +120,8 @@ private:
     [[nodiscard]] bool event_targets_header(const UiInputEvent& event) const noexcept;
     // Detects events that should be delegated into the body focus scope.
     [[nodiscard]] bool event_targets_body_scope(const UiInputEvent& event) const noexcept;
+    // Resolves the minimum header size shared by desired measurement and placement.
+    [[nodiscard]] elysia::core::Vector2 desired_header_extent() const noexcept;
     // Returns the current header draw and hit-test rect.
     [[nodiscard]] elysia::core::Rect header_rect() const noexcept;
     // Returns the current body draw and hit-test rect.

@@ -288,21 +288,7 @@ void UiChromeContainer::submit_ui_render_commands(std::vector<elysia::core::UiRe
 elysia::core::Vector2 UiChromeContainer::content_extent() const noexcept
 {
     const elysia::core::Vector2 explicit_size = size();
-
-    float header_width = 0.0f;
-    float header_height = 0.0f;
-    if (_header_visible)
-    {
-        const elysia::core::Vector2 left_extent = _left_actions ? _left_actions->content_extent() : elysia::core::Vector2::zero();
-        const elysia::core::Vector2 title_extent = slot_intrinsic_extent(_title_slot);
-        const elysia::core::Vector2 right_extent = _right_actions ? _right_actions->content_extent() : elysia::core::Vector2::zero();
-
-        header_width = _header_padding.left + left_extent.x + title_extent.x + right_extent.x + _header_padding.right;
-        header_height = _header_padding.top
-            + std::max({ left_extent.y,title_extent.y,right_extent.y,0.0f })
-            + _header_padding.bottom;
-        header_height = std::max(_header_height,header_height);
-    }
+    const elysia::core::Vector2 header_extent = desired_header_extent();
 
     const UiElement* body_element = body_content();
     const elysia::core::Vector2 body_extent = body_element ? body_element->content_extent() : elysia::core::Vector2::zero();
@@ -310,8 +296,8 @@ elysia::core::Vector2 UiChromeContainer::content_extent() const noexcept
     const float body_height = _body_padding.top + body_extent.y + _body_padding.bottom;
 
     return elysia::core::Vector2(
-        std::max(explicit_size.x,std::max(header_width,body_width)),
-        std::max(explicit_size.y,header_height + body_height)
+        std::max(explicit_size.x,std::max(header_extent.x,body_width)),
+        std::max(explicit_size.y,header_extent.y + body_height)
     );
 }
 
@@ -822,12 +808,35 @@ bool UiChromeContainer::event_targets_body_scope(const UiInputEvent& event) cons
     return false;
 }
 
+elysia::core::Vector2 UiChromeContainer::desired_header_extent() const noexcept
+{
+    if (!_header_visible)
+        return elysia::core::Vector2::zero();
+
+    const elysia::core::Vector2 left_extent = _left_actions
+        ? _left_actions->content_extent()
+        : elysia::core::Vector2::zero();
+    const elysia::core::Vector2 title_extent = slot_intrinsic_extent(_title_slot);
+    const elysia::core::Vector2 right_extent = _right_actions
+        ? _right_actions->content_extent()
+        : elysia::core::Vector2::zero();
+
+    const float intrinsic_height = _header_padding.top
+        + std::max({ left_extent.y,title_extent.y,right_extent.y,0.0f })
+        + _header_padding.bottom;
+    return elysia::core::Vector2(
+        _header_padding.left + left_extent.x + title_extent.x + right_extent.x + _header_padding.right,
+        std::max(_header_height,intrinsic_height)
+    );
+}
+
 elysia::core::Rect UiChromeContainer::header_rect() const noexcept
 {
     if (!_header_visible)
         return elysia::core::Rect::zero();
     const elysia::core::Rect content = content_rect();
-    return elysia::core::Rect(content.left(),content.top(),content.width(),std::min(_header_height,content.height()));
+    const float header_height = std::min(desired_header_extent().y,content.height());
+    return elysia::core::Rect(content.left(),content.top(),content.width(),header_height);
 }
 
 elysia::core::Rect UiChromeContainer::body_rect() const noexcept
@@ -835,7 +844,7 @@ elysia::core::Rect UiChromeContainer::body_rect() const noexcept
     const elysia::core::Rect content = content_rect();
     if (!_header_visible)
         return content;
-    const float header_height = std::min(_header_height,content.height());
+    const float header_height = std::min(desired_header_extent().y,content.height());
     return elysia::core::Rect(
         content.left(),
         content.top() + header_height,

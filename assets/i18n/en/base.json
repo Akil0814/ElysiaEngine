@@ -69,10 +69,14 @@
     },
     "status": {
       "ready": "UI workbench ready",
-      "interaction": "Interaction received"
+      "interaction": "Interaction received",
+      "submitted": "Text submitted",
+      "overlay_opened": "Overlay opened",
+      "selection_changed": "Selection changed"
     },
     "pages": {
       "overview": "Overview",
+      "states": "States & Variants",
       "controls": "Controls",
       "media": "Content & Media",
       "containers": "Containers",
@@ -87,23 +91,91 @@
       "overlays": "Window-managed overlays, dialogs and focus recovery.",
       "appearance": "Built-in themes update the registered UI tree immediately."
     },
-    "actions": { "replay": "Replay", "reset": "Rebuild Workbench" },
+    "actions": {
+      "replay": "Replay",
+      "reset": "Rebuild Workbench",
+      "replay_effects": "Replay Effects",
+      "play": "Play",
+      "pause": "Pause",
+      "resume": "Resume",
+      "reset_animation": "Reset Animation"
+    },
     "controls": {
-      "labeled_check": "Filled labeled checkbox",
+      "labeled_check": "Labeled checkbox",
       "labeled_radio": "Labeled radio option",
+      "labeled_radio_far": "Far-edge radio label",
       "placeholder": "Type up to sixteen characters"
     },
-    "media": { "long_text": "This localized text block verifies wrapping, typography and themed content rendering." },
-    "containers": { "chrome": "Chrome slots", "nested_tab": "Nested tab" },
+    "states": {
+      "buttons_title": "Button Content and Roles",
+      "buttons_description": "Content variants choose a rendering path; semantic roles choose theme colors.",
+      "text_button": "Text",
+      "role_button": "Role",
+      "disabled": "Disabled",
+      "selection_title": "Selection States",
+      "selection_description": "Logical states, mark styles and disabled rendering are shown side by side.",
+      "presentation_title": "Presentation Roles",
+      "presentation_description": "Text fitting, text roles and panel surfaces remain independent from layout.",
+      "fit_sample": "A deliberately long fit sample",
+      "text_block_sample": "Text blocks measure wrapped localized content for their parent layout.",
+      "panel_sample": "Panel",
+      "inputs_title": "Text Input States",
+      "inputs_description": "Placeholder, committed and disabled text use distinct presentation paths."
+    },
+    "media": {
+      "long_text": "This localized text block verifies wrapping, typography and themed content rendering across narrow and wide scripts.",
+      "text_title": "Localized and Raw Text",
+      "text_description": "TextKey resolves the active locale; RawText preserves identifiers verbatim.",
+      "number_title": "Numbers and Bars",
+      "number_description": "Numeric formatting and all four bar fill directions are shown with boundary values.",
+      "effects_title": "Opacity Effects",
+      "effects_description": "Fade, blink and pulse modes update only while this tab is active and can be replayed.",
+      "fade_in": "Fade in",
+      "fade_in_out": "Fade in and out",
+      "blink_visible": "Blink visible first",
+      "pulse_min": "Pulse from minimum",
+      "animation_title": "Frame Animation",
+      "animation_description": "The UI animation borrows cached frames and exposes independent playback controls."
+    },
+    "containers": {
+      "chrome": "Chrome slots",
+      "nested_tab": "Nested tab",
+      "nested_tab_two": "Second tab",
+      "list_title": "Linear Lists",
+      "list_description": "List order drives layout, rendering and primary-axis focus navigation.",
+      "layout_title": "Grid, Panel, Chrome and Tabs",
+      "layout_description": "Structured containers derive focus relationships from their layout model.",
+      "scroll_title": "Scroll Policies",
+      "scroll_description": "Auto, always-visible and hidden scrollbars retain the same clipped content behavior."
+    },
     "overlays": {
       "open_overlay": "Open non-modal overlay",
       "open_dialog": "Open reading dialog",
       "open_confirm": "Open confirmation dialog",
       "tooltip": "Hover for tooltip",
-      "tooltip_text": "Tooltip content follows focus and pointer state."
+      "tooltip_text": "Tooltip content follows focus and pointer state.",
+      "placement_title": "Overlay Placement",
+      "placement_description": "One owned panel is reopened with every placement, transition and modality policy.",
+      "open_center": "Center (non-modal)",
+      "open_left": "Left drawer",
+      "open_right": "Right drawer",
+      "open_top": "Top sheet",
+      "open_bottom": "Bottom sheet",
+      "dialog_title": "Modal Dialogs",
+      "dialog_description": "Dialogs capture focus and restore the previous scope when they close.",
+      "popup_title": "Popups and Tooltips",
+      "popup_description": "Transient popups take priority while tooltips remain passive.",
+      "option_four": "Fourth option",
+      "option_five": "Fifth option",
+      "option_six": "Sixth option",
+      "option_seven": "Seventh option",
+      "option_eight": "Eighth option"
     },
     "dialog": { "title": "Workbench reading dialog", "body": "This dialog verifies modal placement, focus restoration and localized long-form copy." },
     "confirm": { "title": "Confirm workbench action", "message": "This confirmation dialog is part of the overlay coverage." },
-    "appearance": { "note": "Theme names are stable engine identifiers." }
+    "appearance": {
+      "note": "Theme names are stable engine identifiers.",
+      "localized_sample": "Localized TextKey sample"
+    }
   }
 }

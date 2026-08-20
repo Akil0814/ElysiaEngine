@@ -67,16 +67,58 @@
       "sample_60": "60 px — ダイアログ見出しの例",
       "sample_70": "70 px — タイトルの例"
     },
-    "status": { "ready": "UI ワークベンチの準備完了", "interaction": "操作を受け取りました" },
-    "pages": { "overview": "概要", "controls": "コントロール", "media": "コンテンツとメディア", "containers": "コンテナ", "overlays": "オーバーレイとフォーカス", "appearance": "外観とローカライズ" },
+    "status": { "ready": "UI ワークベンチの準備完了", "interaction": "操作を受け取りました", "submitted": "テキストを送信しました", "overlay_opened": "オーバーレイを開きました", "selection_changed": "選択を変更しました" },
+    "pages": { "overview": "概要", "states": "状態とバリエーション", "controls": "コントロール", "media": "コンテンツとメディア", "containers": "コンテナ", "overlays": "オーバーレイとフォーカス", "appearance": "外観とローカライズ" },
     "sections": { "overview": "テーマ対応ダッシュボードと視覚ロールの例。", "controls": "操作するとステータス行が更新されます。", "media": "テキスト、数値、バー、エンジン画像、アニメーション。", "containers": "合成、スロット、スクロール、ネストしたタブ。", "overlays": "ウィンドウ管理のオーバーレイ、ダイアログ、フォーカス復元。", "appearance": "組み込みテーマは登録済み UI ツリーを直ちに更新します。" },
-    "actions": { "replay": "再生", "reset": "ワークベンチを再構築" },
-    "controls": { "labeled_check": "ラベル付き塗りつぶしチェックボックス", "labeled_radio": "ラベル付きラジオ項目", "placeholder": "16 文字まで入力" },
-    "media": { "long_text": "このローカライズ済みテキストブロックは、折り返し、文字組み、テーマ対応コンテンツ描画を検証します。" },
-    "containers": { "chrome": "Chrome スロット", "nested_tab": "ネストしたタブ" },
-    "overlays": { "open_overlay": "非モーダルオーバーレイを開く", "open_dialog": "閲覧ダイアログを開く", "open_confirm": "確認ダイアログを開く", "tooltip": "ホバーでツールチップ", "tooltip_text": "ツールチップはフォーカスとポインターの状態に従います。" },
+    "actions": { "replay": "再生", "reset": "ワークベンチを再構築", "replay_effects": "エフェクトを再生", "play": "再生", "pause": "一時停止", "resume": "再開", "reset_animation": "アニメーションをリセット" },
+    "controls": { "labeled_check": "ラベル付きチェックボックス", "labeled_radio": "ラベル付きラジオ項目", "labeled_radio_far": "端寄せラジオラベル", "placeholder": "16 文字まで入力" },
+    "states": {
+      "buttons_title": "ボタンの内容とロール",
+      "buttons_description": "内容で描画方式を、意味ロールでテーマ色を選びます。",
+      "text_button": "テキスト",
+      "role_button": "ロール",
+      "disabled": "無効",
+      "selection_title": "選択状態",
+      "selection_description": "論理状態、マーク形式、無効表示を並べて確認します。",
+      "presentation_title": "表示ロール",
+      "presentation_description": "文字フィット、文字ロール、パネル表面はレイアウトから独立しています。",
+      "fit_sample": "意図的に長いフィット用サンプル",
+      "text_block_sample": "テキストブロックは折り返したローカライズ内容を測定します。",
+      "panel_sample": "パネル",
+      "inputs_title": "テキスト入力状態",
+      "inputs_description": "プレースホルダー、入力済み、無効テキストを別々に描画します。"
+    },
+    "media": {
+      "long_text": "このローカライズ済みテキストブロックは、幅の異なる文字体系で折り返し、文字組み、テーマ対応描画を検証します。",
+      "text_title": "ローカライズ文字と生文字列",
+      "text_description": "TextKey は現在の言語を解決し、RawText は識別子をそのまま保持します。",
+      "number_title": "数値とバー",
+      "number_description": "境界値の数値書式と4方向のバー表示を確認します。",
+      "effects_title": "透明度エフェクト",
+      "effects_description": "フェード、点滅、パルスはこのタブが有効な間だけ更新され、再生できます。",
+      "fade_in": "フェードイン",
+      "fade_in_out": "フェードイン・アウト",
+      "blink_visible": "表示から点滅",
+      "pulse_min": "最小値からパルス",
+      "animation_title": "フレームアニメーション",
+      "animation_description": "UI アニメーションはキャッシュ済みフレームを参照し、独立した再生操作を持ちます。"
+    },
+    "containers": {
+      "chrome": "Chrome スロット", "nested_tab": "ネストしたタブ", "nested_tab_two": "2番目のタブ",
+      "list_title": "リニアリスト", "list_description": "リスト順がレイアウト、描画、主軸のフォーカス移動を決めます。",
+      "layout_title": "グリッド、パネル、Chrome、タブ", "layout_description": "構造化コンテナはレイアウトモデルからフォーカス関係を作ります。",
+      "scroll_title": "スクロール方針", "scroll_description": "自動、常時表示、非表示のスクロールバーは同じクリップ動作を保ちます。"
+    },
+    "overlays": {
+      "open_overlay": "非モーダルオーバーレイを開く", "open_dialog": "閲覧ダイアログを開く", "open_confirm": "確認ダイアログを開く", "tooltip": "ホバーでツールチップ", "tooltip_text": "ツールチップはフォーカスとポインターの状態に従います。",
+      "placement_title": "オーバーレイ配置", "placement_description": "同じパネルを全配置、遷移、モーダル方針で開き直します。",
+      "open_center": "中央（非モーダル）", "open_left": "左ドロワー", "open_right": "右ドロワー", "open_top": "上部シート", "open_bottom": "下部シート",
+      "dialog_title": "モーダルダイアログ", "dialog_description": "ダイアログはフォーカスを取得し、閉じると以前のスコープへ戻します。",
+      "popup_title": "ポップアップとツールチップ", "popup_description": "一時ポップアップを優先し、ツールチップは受動的に表示します。",
+      "option_four": "4番目", "option_five": "5番目", "option_six": "6番目", "option_seven": "7番目", "option_eight": "8番目"
+    },
     "dialog": { "title": "ワークベンチ閲覧ダイアログ", "body": "このダイアログはモーダル配置、フォーカス復元、ローカライズ済み長文を検証します。" },
     "confirm": { "title": "ワークベンチ操作の確認", "message": "この確認ダイアログはオーバーレイ検証の一部です。" },
-    "appearance": { "note": "テーマ名は安定したエンジン識別子です。" }
+    "appearance": { "note": "テーマ名は安定したエンジン識別子です。", "localized_sample": "ローカライズ済み TextKey の例" }
   }
 }
