@@ -389,7 +389,8 @@ void test_physics_combat_layout_contract()
 
 void require_demo_camera(
     elysia::scene::SceneKey scene_key,
-    const elysia::core::Vector2& expected_center)
+    const elysia::core::Vector2& expected_room_center,
+    const elysia::core::Vector2& expected_player_center)
 {
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
@@ -403,28 +404,43 @@ void require_demo_camera(
                 .target = example::scene_keys::MainMenu,
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
         .reload_mode = elysia::scene::SceneReloadMode::Recreate});
-    scene_manager.on_update(0.0);
+    auto* cameras = elysia::camera::CameraManager::instance();
+    constexpr auto slot = elysia::camera::CameraSlot::Main;
+    require(cameras->camera(slot).center() == expected_room_center,
+        "Each physics demo must restore its configured camera center on entry");
+    require(cameras->camera(slot).zoom() == 2.0f,
+        "Physics demo cameras must use the configured zoom");
 
-    const auto& camera = elysia::camera::CameraManager::instance()->camera(
-        elysia::camera::CameraSlot::Main);
-    require(camera.center() == expected_center,
-        "Each physics demo must restore its fixed room camera on entry");
-    require(camera.zoom() == 1.0f,
-        "Physics demo fixed rooms must use unit zoom");
-    require(camera.world_to_screen(expected_center)
-            == elysia::core::Vector2(640.0f, 360.0f),
-        "The physics demo room center must project to the logical screen center");
+    scene_manager.on_update(0.0);
+    require(cameras->camera(slot).center() == expected_player_center,
+        "Physics demo cameras must initially snap to the player");
+
+    cameras->set_focus_rect(
+        slot,
+        elysia::core::Rect::from_center(
+            expected_player_center + elysia::core::Vector2{100.0f, 0.0f},
+            {1.0f, 1.0f}));
+    cameras->update(0.1);
+    require(cameras->camera(slot).center().nearly_equals(
+            expected_player_center + elysia::core::Vector2{30.0f, 0.0f}),
+        "Physics demo cameras must smoothly follow their focus at 300 units per second");
     scene_manager.shutdown();
 }
 
-void test_physics_demo_fixed_cameras()
+void test_physics_demo_follow_cameras()
 {
     require_demo_camera(
-        example::scene_keys::ColliderCombatDemo, {640.0f, 360.0f});
+        example::scene_keys::ColliderCombatDemo,
+        {640.0f, 360.0f},
+        {137.0f, 608.0f});
     require_demo_camera(
-        example::scene_keys::PlatformTileCombatDemo, {320.0f, 360.0f});
+        example::scene_keys::PlatformTileCombatDemo,
+        {320.0f, 360.0f},
+        {-163.0f, 548.0f});
     require_demo_camera(
-        example::scene_keys::TopDownTileCombatDemo, {576.0f, 344.0f});
+        example::scene_keys::TopDownTileCombatDemo,
+        {576.0f, 344.0f},
+        {57.0f, 150.0f});
 }
 
 #if ELYSIA_ENABLE_IMGUI
@@ -562,7 +578,7 @@ int main()
     test_scene_keys_are_unique();
     test_game_module_registers_demo_scenes();
     test_physics_combat_layout_contract();
-    test_physics_demo_fixed_cameras();
+    test_physics_demo_follow_cameras();
 #if ELYSIA_ENABLE_IMGUI
     test_each_physics_demo_owns_one_inspector_panel();
 #endif

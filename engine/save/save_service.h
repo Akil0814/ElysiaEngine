@@ -26,30 +26,23 @@ class SaveService final : public elysia::tools::Singleton<SaveService>
 public:
     ~SaveService();
 
-    [[nodiscard]] std::expected<void,SaveFailure> initialize(
-        const std::filesystem::path& save_directory);
+    [[nodiscard]] std::expected<void,SaveFailure> initialize(const std::filesystem::path& save_directory);
     void shutdown() noexcept;
     [[nodiscard]] bool is_initialized() const noexcept;
 
-    [[nodiscard]] std::expected<void,SaveFailure> create(
-        std::string_view save_name,
+    [[nodiscard]] std::expected<void,SaveFailure> create(std::string_view save_name,
         SaveCreateMode mode = SaveCreateMode::FailIfExists);
-    [[nodiscard]] std::expected<SaveOpenResult,SaveFailure> open(
-        std::string_view save_name);
+    [[nodiscard]] std::expected<SaveOpenResult,SaveFailure> open(std::string_view save_name);
 
     template<SaveValueCompatible T>
-    [[nodiscard]] std::expected<void,SaveFailure> set(
-        std::string_view save_name,
-        std::string key,
-        T&& value);
+    [[nodiscard]] std::expected<void,SaveFailure> set(std::string_view save_name,
+        std::string key,T&& value);
 
     template<SaveValueCompatible T>
-    [[nodiscard]] std::expected<std::remove_cvref_t<T>,SaveFailure> get(
-        std::string_view save_name,
+    [[nodiscard]] std::expected<std::remove_cvref_t<T>,SaveFailure> get(std::string_view save_name,
         std::string_view key) const;
 
-    [[nodiscard]] std::expected<bool,SaveFailure> contains(
-        std::string_view save_name,
+    [[nodiscard]] std::expected<bool,SaveFailure> contains(std::string_view save_name,
         std::string_view key) const;
     [[nodiscard]] std::expected<bool,SaveFailure> erase(
         std::string_view save_name,

@@ -211,7 +211,7 @@ void DemoGalleryScene::build_ui()
     auto elysia_realm = make_button("demo_gallery.elysia_realm");
     elysia_realm->set_on_click([this]() {
         request_scene_switch(
-            elysia::scene::SceneKeys::ElysiaEasterEgg,
+            elysia::scene::SceneKeys::ElysiaRealm,
             elysia::realm::ElysiaScenePayload{
                 .return_route = make_gallery_route()});
     });

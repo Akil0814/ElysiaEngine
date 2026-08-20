@@ -12,7 +12,8 @@ inline constexpr SceneKey Invalid = 0;
 
 inline constexpr SceneKey GameBegin = 1;
 inline constexpr SceneKey GameEnd = 999;
-inline constexpr SceneKey ElysiaEasterEgg = 1111;
+
+inline constexpr SceneKey ElysiaRealm = 1111;
 
 // This value is a range marker, not a usable scene key. Engine-owned
 // scenes occupy the values strictly above it.
@@ -31,7 +32,7 @@ inline constexpr SceneKey EngineBegin = EngineMarker + 1u;
 
 [[nodiscard]] constexpr bool is_easter_egg(SceneKey key) noexcept
 {
-    return key == ElysiaEasterEgg;
+    return key == ElysiaRealm;
 }
 
 [[nodiscard]] constexpr bool is_supported(SceneKey key) noexcept

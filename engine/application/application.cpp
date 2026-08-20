@@ -1,11 +1,11 @@
 #include "application.h"
 
-#include "lifecycle/application_event_boundary.h"
-#include "presentation/application_window_settings.h"
-#include "lifecycle/application_exit_policy.h"
 #include "composition/application_scene_composition.h"
-#include "presentation/application_sdl_presentation.h"
+#include "lifecycle/application_event_boundary.h"
+#include "lifecycle/application_exit_policy.h"
 #include "lifecycle/application_termination_logging.h"
+#include "presentation/application_sdl_presentation.h"
+#include "presentation/application_window_settings.h"
 
 #include "../builtin/resources/builtin_asset_catalog.h"
 #include "../audio/audio_service.h"
@@ -21,9 +21,11 @@
 #include "../tools/logger.h"
 #include "../ui/style/ui_theme_defaults.h"
 
+#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <limits>
 #include <utility>
 
 #include <SDL_image.h>
@@ -32,6 +34,33 @@
 
 namespace elysia::application
 {
+namespace
+{
+[[nodiscard]] std::uint32_t calculate_frame_delay_milliseconds(
+    double target_fps,
+    double elapsed_seconds) noexcept
+{
+    if (!std::isfinite(target_fps) || target_fps <= 0.0
+        || !std::isfinite(elapsed_seconds) || elapsed_seconds < 0.0)
+    {
+        return 0;
+    }
+
+    const double remaining_seconds = 1.0 / target_fps - elapsed_seconds;
+    if (remaining_seconds <= 0.0)
+        return 0;
+
+    const double delay_milliseconds =
+        std::ceil(remaining_seconds * 1000.0);
+    constexpr auto maximum_delay =
+        std::numeric_limits<std::uint32_t>::max();
+    if (delay_milliseconds >= static_cast<double>(maximum_delay))
+        return maximum_delay;
+
+    return static_cast<std::uint32_t>(delay_milliseconds);
+}
+}
+
 Application::~Application()
 {
     shutdown();
@@ -486,7 +515,7 @@ bool Application::enter_initial_scene(
 
 ApplicationRunResult Application::run()
 {
-    std::uint64_t last_counter = SDL_GetPerformanceCounter();
+    std::uint64_t last_frame_start = SDL_GetPerformanceCounter();
     const std::uint64_t counter_freq = SDL_GetPerformanceFrequency();
     elysia::core::Time::instance()->reset();
 
@@ -516,6 +545,12 @@ ApplicationRunResult Application::run()
 
     while (_active)
     {
+        const std::uint64_t frame_start = SDL_GetPerformanceCounter();
+        const double delta =
+            static_cast<double>(frame_start - last_frame_start) / counter_freq;
+        last_frame_start = frame_start;
+        elysia::core::Time::instance()->begin_frame(delta);
+
 #if ELYSIA_ENABLE_IMGUI
         _input_system.set_development_input_capture(
             _development_overlay_host.captured_input());
@@ -548,18 +583,6 @@ ApplicationRunResult Application::run()
         }
         if (resolve_exit())
             break;
-
-        const std::uint64_t current_counter = SDL_GetPerformanceCounter();
-        const double delta =
-            static_cast<double>(current_counter - last_counter) / counter_freq;
-        last_counter = current_counter;
-        elysia::core::Time::instance()->begin_frame(delta);
-
-        if (delta * 1000.0 < 1000.0 / _target_fps)
-        {
-            SDL_Delay(static_cast<std::uint32_t>(
-                1000.0 / _target_fps - delta * 1000.0));
-        }
 
         if (!run_event_boundary("update",[this]()
         {
@@ -597,6 +620,14 @@ ApplicationRunResult Application::run()
         SDL_RenderPresent(_renderer);
         if (resolve_exit())
             break;
+
+        const std::uint64_t frame_end = SDL_GetPerformanceCounter();
+        const double elapsed_seconds =
+            static_cast<double>(frame_end - frame_start) / counter_freq;
+        const std::uint32_t delay_milliseconds =
+            calculate_frame_delay_milliseconds(_target_fps,elapsed_seconds);
+        if (delay_milliseconds > 0)
+            SDL_Delay(delay_milliseconds);
     }
 
     shutdown();
@@ -731,8 +762,12 @@ Application::apply_language(std::string_view language)
 std::expected<void,elysia::config::UserConfigFailure>
 Application::apply_target_fps(double value)
 {
-    if (value <= 0.0)
-        return runtime_apply_failure("target_fps","Target FPS must be positive.");
+    if (!std::isfinite(value) || value <= 0.0)
+    {
+        return runtime_apply_failure(
+            "target_fps",
+            "Target FPS must be finite and positive.");
+    }
     _target_fps = value;
     return {};
 }

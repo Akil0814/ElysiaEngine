@@ -131,6 +131,59 @@ inline void execute_render_command(
         && !rect.is_empty();
 }
 
+namespace detail
+{
+inline void execute_world_fill_rect_command(
+    SDL_Renderer* renderer,
+    const ScreenRenderCommand& render_command) noexcept
+{
+    if (!renderer || !valid_render_rect(render_command.screen_rect))
+        return;
+
+    SDL_Rect previous_clip_rect{};
+    const bool had_clip_rect = SDL_RenderIsClipEnabled(renderer) == SDL_TRUE;
+    if (had_clip_rect)
+    {
+        SDL_RenderGetClipRect(renderer,&previous_clip_rect);
+        SDL_RenderSetClipRect(renderer,nullptr);
+    }
+
+    SDL_BlendMode previous_blend_mode = SDL_BLENDMODE_NONE;
+    std::uint8_t previous_red = 0;
+    std::uint8_t previous_green = 0;
+    std::uint8_t previous_blue = 0;
+    std::uint8_t previous_alpha = 0;
+    SDL_GetRenderDrawBlendMode(renderer,&previous_blend_mode);
+    SDL_GetRenderDrawColor(
+        renderer,
+        &previous_red,
+        &previous_green,
+        &previous_blue,
+        &previous_alpha);
+
+    const SDL_Color color = to_sdl_color(render_command.color);
+    SDL_FRect rect = to_sdl_frect(render_command.screen_rect);
+    constexpr float k_edge_bias = 0.001f;
+    // SDL's float fill path can still round nearly integral extents down.
+    // A subpixel overlap keeps shared world-cell boundaries covered.
+    rect.w += k_edge_bias;
+    rect.h += k_edge_bias;
+    SDL_SetRenderDrawBlendMode(renderer,SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer,color.r,color.g,color.b,color.a);
+    SDL_RenderFillRectF(renderer,&rect);
+
+    SDL_SetRenderDrawColor(
+        renderer,
+        previous_red,
+        previous_green,
+        previous_blue,
+        previous_alpha);
+    SDL_SetRenderDrawBlendMode(renderer,previous_blend_mode);
+    if (had_clip_rect)
+        SDL_RenderSetClipRect(renderer,&previous_clip_rect);
+}
+}
+
 inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCommand& render_command) noexcept
 {
     if (render_command.type == RenderCommandType::Texture)
@@ -158,12 +211,13 @@ inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCom
     switch (render_command.type)
     {
     case RenderCommandType::FillRect:
+        detail::execute_world_fill_rect_command(renderer,render_command);
+        return;
+
     case RenderCommandType::DrawRect:
         if (!valid_render_rect(render_command.screen_rect))
             return;
-        primitive.type = render_command.type == RenderCommandType::FillRect
-            ? UiRenderCommandType::FillRect
-            : UiRenderCommandType::DrawRect;
+        primitive.type = UiRenderCommandType::DrawRect;
         primitive.screen_rect = render_command.screen_rect;
         break;
 

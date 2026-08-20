@@ -52,5 +52,7 @@ void TopDownTileCombatDemoScene::build_demo()
         elysia::core::Rect{700, 250, 36, 42}, *player);
     (void)add_actor<TopDownChaseEnemy>(
         elysia::core::Rect{920, 500, 36, 42}, *player);
+
+
 }
 }

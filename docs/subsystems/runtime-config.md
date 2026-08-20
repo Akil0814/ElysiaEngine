@@ -54,6 +54,7 @@ Bootstrap 不解析或发布 gameplay 配置。内容加载、资源组装或资
 ```
 
 未知、缺失、重复或非法字段会使启动失败。窗口宽高和 FPS 必须为正，音量范围为 `0..100`，标题和语言不能为空。
+`render.fps` 是最大呈现帧率；VSync 等待和本帧更新、渲染耗时都会计入同一帧预算，只有剩余预算会由软件限帧器等待。
 
 `player_data/user_config.json` 保存完整的 window、render、audio 与 localization 快照，但不保存窗口标题。AppConfig 和 UserConfig 都只接受严格 v2；旧 v0/v1 UserConfig 会作为无效配置归档，并以 AppConfig 默认值重建。`.tmp`/`.bak` 恢复、损坏主文件归档和未来版本保护继续保留。
 

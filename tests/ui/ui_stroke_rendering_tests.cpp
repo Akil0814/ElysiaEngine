@@ -102,6 +102,19 @@ public:
         return {r, g, b, a};
     }
 
+    [[nodiscard]] bool any_visible() const noexcept
+    {
+        for (int y = 0; y < _height; ++y)
+        {
+            for (int x = 0; x < _width; ++x)
+            {
+                if (visible(x,y))
+                    return true;
+            }
+        }
+        return false;
+    }
+
     [[nodiscard]] elysia::core::Vector2 window_point(
         const elysia::core::Vector2& logical) const noexcept
     {
@@ -395,7 +408,7 @@ void test_world_primitives_render_and_restore_state()
     SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
     const SDL_Rect original_clip{5, 6, 700, 500};
     SDL_RenderSetClipRect(fixture.renderer(),&original_clip);
-    execute_render_command(fixture.renderer(), fill_circle);
+    execute_render_command(fixture.renderer(), fill_rect);
 
     Uint8 r = 0;
     Uint8 g = 0;
@@ -403,18 +416,77 @@ void test_world_primitives_render_and_restore_state()
     Uint8 a = 0;
     SDL_GetRenderDrawColor(fixture.renderer(),&r,&g,&b,&a);
     require(r == 11 && g == 22 && b == 33 && a == 44,
-        "World primitive rendering must preserve renderer draw color");
+        "World FillRect must preserve renderer draw color");
     SDL_BlendMode blend_mode = SDL_BLENDMODE_NONE;
     SDL_GetRenderDrawBlendMode(fixture.renderer(),&blend_mode);
     require(blend_mode == SDL_BLENDMODE_ADD,
-        "World primitive rendering must preserve renderer blend mode");
+        "World FillRect must preserve renderer blend mode");
     SDL_Rect restored_clip{};
     SDL_RenderGetClipRect(fixture.renderer(),&restored_clip);
     require(restored_clip.x == original_clip.x
             && restored_clip.y == original_clip.y
             && restored_clip.w == original_clip.w
             && restored_clip.h == original_clip.h,
-        "World primitive rendering must preserve renderer clip state");
+        "World FillRect must preserve renderer clip state");
+}
+
+void require_adjacent_world_fill_rects_are_seamless(
+    int output_width,
+    int output_height)
+{
+    using namespace elysia::core;
+    SdlStrokeFixture fixture(output_width,output_height);
+
+    constexpr Rect first{500.25f,340.25f,95.99998f,32.0f};
+    constexpr Rect second{
+        first.right(),
+        first.top(),
+        first.width(),
+        first.height()};
+
+    ScreenRenderCommand first_command;
+    first_command.type = RenderCommandType::FillRect;
+    first_command.screen_rect = first;
+    first_command.color = k_white;
+    execute_render_command(fixture.renderer(),first_command);
+
+    ScreenRenderCommand second_command = first_command;
+    second_command.screen_rect = second;
+    execute_render_command(fixture.renderer(),second_command);
+    fixture.read_pixels();
+
+    float scale_x = 1.0f;
+    float scale_y = 1.0f;
+    SDL_RenderGetScale(fixture.renderer(),&scale_x,&scale_y);
+    const int first_interior_x = static_cast<int>(
+        std::ceil(first.left() * scale_x));
+    const int last_interior_x = static_cast<int>(
+        std::floor(second.right() * scale_x)) - 1;
+    const int center_y = static_cast<int>(
+        std::floor(first.center().y * scale_y));
+
+    for (int x = first_interior_x; x <= last_interior_x; ++x)
+    {
+        require(fixture.visible(x,center_y),
+            "Adjacent world FillRects must not leave transparent pixels");
+    }
+}
+
+void test_ui_fill_rect_keeps_integer_rasterization()
+{
+    using namespace elysia::core;
+    SdlStrokeFixture fixture(1280,720);
+    execute_render_command(
+        fixture.renderer(),
+        make_ui_fill_rect_command(
+            {500.25f,340.25f,95.99998f,32.0f},
+            k_white));
+    fixture.read_pixels();
+
+    require(fixture.visible(594,350),
+        "UI FillRect must retain its existing integer coverage");
+    require(!fixture.visible(595,350),
+        "World float rasterization must not change UI FillRect coverage");
 }
 
 void test_texture_and_world_primitive_submission_order()
@@ -471,6 +543,13 @@ void test_invalid_world_primitive_geometry_is_skipped()
     rect.color = k_white;
     execute_render_command(fixture.renderer(), rect);
 
+    rect.screen_rect = {
+        20, 20, std::numeric_limits<float>::infinity(), 10};
+    execute_render_command(fixture.renderer(), rect);
+
+    rect.screen_rect = {40, 40, 0, 10};
+    execute_render_command(fixture.renderer(), rect);
+
     ScreenRenderCommand circle;
     circle.type = RenderCommandType::FillCircle;
     circle.circle_center = {50, 50};
@@ -486,8 +565,8 @@ void test_invalid_world_primitive_geometry_is_skipped()
     execute_render_command(fixture.renderer(), line);
     fixture.read_pixels();
 
-    require(!fixture.visible(50, 50) && !fixture.visible(80, 80),
-        "Invalid circles and zero-length lines must not emit pixels");
+    require(!fixture.any_visible(),
+        "Invalid world primitive geometry must not emit pixels");
 }
 }
 
@@ -508,6 +587,9 @@ int main()
     }
     test_logical_stroke_scales_and_renderer_state_is_restored();
     test_world_primitives_render_and_restore_state();
+    require_adjacent_world_fill_rects_are_seamless(1280,720);
+    require_adjacent_world_fill_rects_are_seamless(1000,700);
+    test_ui_fill_rect_keeps_integer_rasterization();
     test_texture_and_world_primitive_submission_order();
     test_invalid_world_primitive_geometry_is_skipped();
     return EXIT_SUCCESS;

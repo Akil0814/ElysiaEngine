@@ -2,8 +2,10 @@
 #include "engine/config/user_config_service.h"
 #include "tests/support/test_assertions.h"
 
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -32,7 +34,11 @@ public:
             return failure("language");
         return {};
     }
-    std::expected<void,elysia::config::UserConfigFailure> apply_target_fps(double) override { return {}; }
+    std::expected<void,elysia::config::UserConfigFailure> apply_target_fps(double value) override
+    {
+        target_fps_calls.push_back(value);
+        return {};
+    }
     std::expected<void,elysia::config::UserConfigFailure>
     apply_window_settings(
         const elysia::config::WindowSettings& settings) override
@@ -46,6 +52,7 @@ public:
     std::optional<int> fail_master_value;
     std::optional<elysia::config::WindowSettings> fail_window_settings;
     std::string fail_language;
+    std::vector<double> target_fps_calls;
     std::vector<elysia::config::WindowSettings> window_settings_calls;
 
 private:
@@ -148,6 +155,23 @@ int main()
     auto* service = elysia::config::UserConfigService::instance();
     require(service->initialize(defaults,path).has_value(),"UserConfigService must initialize from defaults");
     Handler handler; service->register_user_config_change_handler(handler);
+    const double initial_target_fps = service->user_config().target_fps();
+    const std::size_t initial_target_fps_calls = handler.target_fps_calls.size();
+    constexpr std::array invalid_target_fps_values{
+        0.0,
+        -1.0,
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::infinity(),
+        -std::numeric_limits<double>::infinity()
+    };
+    for (const double invalid_target_fps : invalid_target_fps_values)
+    {
+        require(
+            !service->user_config().set_target_fps(invalid_target_fps)
+                && service->user_config().target_fps() == initial_target_fps
+                && handler.target_fps_calls.size() == initial_target_fps_calls,
+            "non-positive and non-finite FPS values must be rejected before runtime apply");
+    }
     require(service->user_config().set_master_volume(50).has_value() && service->user_config().is_dirty(),"applied setting must mark UserConfig dirty");
     const auto vsync = service->user_config().set_vsync(false);
     require(vsync && *vsync == elysia::config::UserConfigApplyStatus::PendingRestart && service->user_config().restart_required(),"VSync change must retain restart semantics");

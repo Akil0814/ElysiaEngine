@@ -126,7 +126,8 @@ UserConfig::set_window_settings(
 
 std::expected<UserConfigApplyStatus,UserConfigFailure> UserConfig::set_target_fps(double value)
 {
-    if (value <= 0.0) return invalid("target_fps","Target FPS must be positive.");
+    if (!std::isfinite(value) || value <= 0.0)
+        return invalid("target_fps","Target FPS must be finite and positive.");
     if (value == _current_settings.target_fps) return UserConfigApplyStatus::Applied;
     if (const auto handler = require_handler("target_fps"); !handler) return std::unexpected(handler.error());
     if (const auto applied = _change_handler->apply_target_fps(value); !applied) return std::unexpected(applied.error());

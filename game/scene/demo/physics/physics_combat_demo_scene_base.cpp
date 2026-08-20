@@ -12,6 +12,7 @@
 #include "../../../../engine/ui/widgets/ui_bar.h"
 #include "../../../../engine/ui/window/ui_window.h"
 #include "../../../../engine/scene/runtime/scene_runtime_context.h"
+#include "../../../../engine/tools/logger.h"
 
 #if ELYSIA_ENABLE_IMGUI
 #include <imgui.h>
@@ -145,7 +146,10 @@ void PhysicsCombatDemoSceneBase::on_input(
 std::optional<elysia::core::Rect>
 PhysicsCombatDemoSceneBase::resolve_camera_focus_rect() const
 {
-    return std::nullopt;
+    if (!_player)
+        return std::nullopt;
+
+    return _player->render_rect();
 }
 
 void PhysicsCombatDemoSceneBase::set_player(
@@ -371,10 +375,11 @@ void PhysicsCombatDemoSceneBase::configure_fixed_camera()
 
     auto* cameras = elysia::camera::CameraManager::instance();
     constexpr auto slot = elysia::camera::CameraSlot::Main;
-    cameras->set_follow_strategy(slot, nullptr);
+    cameras->set_follow_strategy(
+        slot, std::make_unique<elysia::camera::HardFollowStrategy>());
     cameras->set_focus_rect(slot, std::nullopt);
     cameras->set_world_bounds(slot, std::nullopt);
-    cameras->set_zoom(slot, 1.0f);
+    cameras->set_zoom(slot, 3.0f);
     cameras->set_center(slot, *_demo_camera_center);
 }
 
