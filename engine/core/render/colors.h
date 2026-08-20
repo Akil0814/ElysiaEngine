@@ -91,33 +91,49 @@ inline constexpr Color elysia_hair_rose{ 220, 135, 183, 255 };   // #DC87B7
 inline constexpr Color elysia_crystal_lilac{ 206, 182, 228, 255 }; // #CEB6E4
 inline constexpr Color elysia_iris_mauve{ 170, 153, 220, 255 };  // #AA99DC
 inline constexpr Color elysia_lilac{ 204, 188, 243, 255 };       // #CCBCF3
-inline constexpr Color elysia_plum{ 111, 94, 156, 255 };         // #6F5E9C
-inline constexpr Color elysia_mist_blue{ 152, 173, 215, 255 };   // #98ADD7
-inline constexpr Color elysia_dusk_rose{ 214, 122, 171, 255 };   // #D67AAB
+inline constexpr Color elysia_plum{ 110, 88, 140, 255 };         // #6E588C
+inline constexpr Color elysia_mist_blue{ 156, 175, 216, 255 };   // #9CAFD8
+inline constexpr Color elysia_dusk_rose{ 184, 94, 145, 255 };    // #B85E91
 inline constexpr Color elysia_velvet_rose{ 171, 84, 132, 255 };  // #AB5484
 inline constexpr Color elysia_twilight_rose{ 100, 60, 115, 255 }; // #643C73
+inline constexpr Color elysia_muted_mauve{ 105, 93, 116, 255 };  // #695D74
 inline constexpr Color elysia_phantom_sea{ 26, 56, 104, 255 };   // #1A3868
 inline constexpr Color elysia_mirage_blue{ 44, 84, 143, 255 };   // #2C548F
 inline constexpr Color elysia_deep_sea{ 14, 30, 66, 255 };       // #0E1E42
 inline constexpr Color elysia_starsea_navy{ 20, 29, 76, 255 };   // #141D4C
 inline constexpr Color elysia_twilight_mist{ 46, 61, 124, 255 }; // #2E3D7C
+inline constexpr Color elysia_focus_blue{ 77, 96, 167, 255 };     // #4D60A7
 inline constexpr Color elysia_aurora_haze{ 86, 105, 181, 255 };  // #5669B5
 inline constexpr Color elysia_starlight_lilac{ 198, 206, 255, 255 }; // #C6CEFF
 inline constexpr Color elysia_moonlit_lavender{ 237, 231, 255, 255 }; // #EDE7FF
 inline constexpr Color elysia_crystal_orchid{ 233, 170, 255, 255 }; // #E9AAFF
 inline constexpr Color elysia_dream_rose{ 196, 123, 221, 255 };  // #C47BDD
 inline constexpr Color elysia_silver_mist{ 136, 145, 178, 255 }; // #8891B2
+inline constexpr Color elysia_corruption_blue{ 40, 93, 134, 255 }; // #285D86
+inline constexpr Color elysia_corruption_blue_focus{ 52, 121, 164, 255 }; // #3479A4
+inline constexpr Color elysia_corruption_blue_active{ 29, 72, 111, 255 }; // #1D486F
+inline constexpr Color elysia_corruption_glow{ 104, 185, 208, 255 }; // #68B9D0
+inline constexpr Color elysia_corruption_ice{ 184, 238, 255, 255 };  // #B8EEFF
+inline constexpr Color elysia_danger_crimson{ 122, 47, 72, 255 };   // #7A2F48
+inline constexpr Color elysia_danger_crimson_focus{ 150, 58, 87, 255 }; // #963A57
+inline constexpr Color elysia_danger_crimson_active{ 90, 35, 54, 255 }; // #5A2336
 
 // Evangelion-inspired palette tokens used by the built-in EVA themes.
 inline constexpr Color eva_unit00_rei_white{ 243, 246, 250, 255 };     // #F3F6FA
 inline constexpr Color eva_unit00_frost_blue{ 220, 234, 246, 255 };    // #DCEAF6
+inline constexpr Color eva_unit00_focus_blue{ 195, 220, 239, 255 };    // #C3DCEF
 inline constexpr Color eva_unit00_pale_blue{ 175, 200, 222, 255 };     // #AFC8DE
 inline constexpr Color eva_unit00_warning_yellow{ 232, 188, 82, 255 }; // #E8BC52
 inline constexpr Color eva_unit00_soft_graphite{ 104, 116, 132, 255 }; // #687484
+inline constexpr Color eva_unit00_deep_graphite{ 52, 69, 87, 255 };    // #344557
+inline constexpr Color eva_unit00_muted_ink{ 59, 80, 101, 255 };       // #3B5065
 inline constexpr Color eva_unit00_border_blue{ 199, 215, 230, 255 };   // #C7D7E6
 inline constexpr Color eva_unit00_mist_blue{ 134, 161, 191, 255 };     // #86A1BF
 inline constexpr Color eva_unit00_caution_gold{ 244, 208, 116, 255 };  // #F4D074
-inline constexpr Color eva_unit00_amber_ochre{ 188, 144, 78, 255 };    // #BC904E
+inline constexpr Color eva_unit00_amber_ochre{ 131, 90, 27, 255 };     // #835A1B
+inline constexpr Color eva_unit00_danger_amber{ 118, 80, 27, 255 };    // #76501B
+inline constexpr Color eva_unit00_danger_amber_focus{ 138, 93, 28, 255 }; // #8A5D1C
+inline constexpr Color eva_unit00_danger_amber_active{ 86, 56, 18, 255 }; // #563812
 
 inline constexpr Color eva_unit00_ivory = eva_unit00_rei_white;        // #F3F6FA
 inline constexpr Color eva_unit00_cerulean = eva_unit00_frost_blue;    // #DCEAF6
@@ -132,8 +148,9 @@ inline constexpr Color eva_unit01_lime_glow{ 176, 255, 92, 255 };      // #B0FF5
 inline constexpr Color eva_unit01_orange_core{ 230, 138, 54, 255 };    // #E68A36
 inline constexpr Color eva_unit01_void_purple{ 34, 22, 53, 255 };      // #221635
 inline constexpr Color eva_unit01_muted_lime{ 146, 182, 111, 255 };    // #92B66F
+inline constexpr Color eva_unit01_mist_lime{ 197, 217, 168, 255 };     // #C5D9A8
 inline constexpr Color eva_unit01_alert_amber{ 246, 179, 92, 255 };    // #F6B35C
-inline constexpr Color eva_unit01_burnt_orange{ 173, 93, 46, 255 };    // #AD5D2E
+inline constexpr Color eva_unit01_burnt_orange{ 208, 124, 52, 255 };   // #D07C34
 
 inline constexpr Color eva_unit02_crimson{ 176, 38, 48, 255 };         // #B02630
 inline constexpr Color eva_unit02_vermilion{ 214, 72, 48, 255 };       // #D64830
@@ -141,8 +158,11 @@ inline constexpr Color eva_unit02_orange{ 237, 142, 46, 255 };         // #ED8E2
 inline constexpr Color eva_unit02_sun_yellow{ 246, 196, 74, 255 };     // #F6C44A
 inline constexpr Color eva_unit02_bone_white{ 244, 240, 234, 255 };    // #F4F0EA
 inline constexpr Color eva_unit02_deep_maroon{ 108, 24, 31, 255 };     // #6C181F
+inline constexpr Color eva_unit02_pressed_maroon{ 77, 17, 24, 255 };   // #4D1118
+inline constexpr Color eva_unit02_active_crimson{ 133, 28, 40, 255 };  // #851C28
 inline constexpr Color eva_unit02_glow_amber{ 251, 209, 99, 255 };     // #FBD163
 inline constexpr Color eva_unit02_muted_orange{ 197, 121, 68, 255 };   // #C57944
+inline constexpr Color eva_unit02_warm_mist{ 242, 207, 179, 255 };     // #F2CFB3
 
 // Reserved, low-saturation neutral set for understated gray UI themes.
 inline constexpr Color quiet_slate_white{ 236, 240, 244, 255 };        // #ECF0F4

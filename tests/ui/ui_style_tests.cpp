@@ -22,6 +22,7 @@
 #include "tests/support/test_assertions.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -133,6 +134,129 @@ bool meets_enabled_chrome_contrast(
     return meets_contrast(chrome.border.idle,chrome.background.idle,minimum)
         && meets_contrast(chrome.border.focused,chrome.background.focused,minimum)
         && meets_contrast(chrome.border.active,chrome.background.active,minimum);
+}
+
+bool has_distinct_enabled_states(
+    const elysia::ui::UiInteractiveColors& colors)
+{
+    return colors.idle != colors.focused
+        && colors.focused != colors.active
+        && colors.idle != colors.active;
+}
+
+bool has_visible_focus_transition(
+    const elysia::ui::UiInteractiveColors& colors,
+    double minimum)
+{
+    return contrast_ratio(colors.idle,colors.focused) >= minimum;
+}
+
+bool meets_enabled_scrollbar_contrast(
+    const elysia::ui::UiScrollBarThemeColors& scrollbar,
+    double minimum)
+{
+    return meets_contrast(
+            scrollbar.thumb_idle_color,scrollbar.track_idle_color,minimum)
+        && meets_contrast(
+            scrollbar.thumb_focused_color,scrollbar.track_focused_color,minimum)
+        && meets_contrast(
+            scrollbar.thumb_dragging_color,scrollbar.track_dragging_color,minimum);
+}
+
+template<std::size_t SurfaceCount>
+void require_character_theme_contrast(
+    const elysia::ui::UiTheme& theme,
+    const std::array<elysia::core::Color,SurfaceCount>& standard_surfaces)
+{
+    using elysia::ui::UiBarVisualRole;
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+    using elysia::ui::UiPanelVisualRole;
+
+    constexpr std::array button_roles{
+        UiButtonVisualRole::Default,
+        UiButtonVisualRole::Primary,
+        UiButtonVisualRole::Danger
+    };
+    for (const auto role : button_roles)
+    {
+        const auto& button = theme.button(role);
+        require(has_distinct_enabled_states(button.chrome.background),
+            "character button surfaces must distinguish enabled states");
+        require(has_distinct_enabled_states(button.chrome.border),
+            "character button borders must distinguish enabled states");
+        require(has_visible_focus_transition(button.chrome.background,1.2),
+            "character button focus must visibly differ from idle");
+        require(meets_enabled_interactive_contrast(
+                button.text.enabled,button.chrome.background,4.5),
+            "character button text must meet 4.5:1 in enabled states");
+        require(meets_enabled_chrome_contrast(button.chrome,3.0),
+            "character button chrome must meet 3:1 in enabled states");
+    }
+
+    require(meets_enabled_interactive_contrast(
+            theme.text_input_style.text.enabled,
+            theme.text_input_style.chrome.background,4.5)
+            && meets_enabled_interactive_contrast(
+                theme.text_input_style.placeholder.enabled,
+                theme.text_input_style.chrome.background,4.5),
+        "character input text and placeholder must meet 4.5:1");
+
+    for (const auto& surface : standard_surfaces)
+    {
+        require(meets_contrast(
+                theme.label(UiLabelVisualRole::Default).text,surface,4.5)
+                && meets_contrast(theme.number_style.text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Subtitle).text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Muted).text,surface,4.5),
+            "character functional text must meet 4.5:1 on standard surfaces");
+        require(meets_contrast(
+                theme.label(UiLabelVisualRole::Title).text,surface,3.0),
+            "character decorative title must meet 3:1 on standard surfaces");
+    }
+
+    constexpr std::array panel_roles{
+        UiPanelVisualRole::Default,
+        UiPanelVisualRole::Screen,
+        UiPanelVisualRole::Dialog,
+        UiPanelVisualRole::List
+    };
+    for (const auto role : panel_roles)
+    {
+        require(meets_contrast(
+                theme.panel(role).border,theme.panel(role).background,3.0),
+            "character panel borders must meet 3:1");
+    }
+    require(meets_contrast(
+            theme.window_style.border,theme.window_style.background,3.0)
+            && meets_contrast(
+                theme.chrome_container_style.border,
+                theme.chrome_container_style.background,3.0)
+            && meets_contrast(
+                theme.chrome_container_style.border,
+                theme.chrome_container_style.header_background,3.0)
+            && meets_contrast(
+                theme.scroll_container_style.border_color,
+                theme.scroll_container_style.background_color,3.0),
+        "character window and container borders must meet 3:1");
+
+    constexpr std::array bar_roles{
+        UiBarVisualRole::Default,
+        UiBarVisualRole::Progress
+    };
+    for (const auto role : bar_roles)
+    {
+        require(meets_contrast(
+                theme.bar(role).fill,theme.bar(role).background,3.0)
+                && meets_contrast(
+                    theme.bar(role).border,theme.bar(role).background,3.0),
+            "character bar fills and borders must meet 3:1");
+    }
+    require(meets_enabled_scrollbar_contrast(
+            theme.scroll_container_style.scrollbar,3.0),
+        "character scrollbar thumbs must meet 3:1 in enabled states");
 }
 
 const elysia::core::UiRenderCommand* find_command(
@@ -618,18 +742,701 @@ void test_confirmation_dialog_applies_roles_and_wraps_messages()
         "confirmation dialog message area must fill the space above its action row");
 }
 
-void test_elysia_dark_bar_fill_contrast()
+void test_elysia_light_palette_and_contrast()
 {
+    using elysia::ui::UiBarVisualRole;
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+    using elysia::ui::UiPanelVisualRole;
+
+    const auto theme = elysia::ui::make_builtin_theme(
+        elysia::ui::UiBuiltinTheme::ElysiaLight);
+    const auto& default_button = theme.button(UiButtonVisualRole::Default);
+    const auto& primary_button = theme.button(UiButtonVisualRole::Primary);
+    const auto& danger_button = theme.button(UiButtonVisualRole::Danger);
+
+    require(elysia::core::colors::elysia_plum
+            == elysia::core::Color{ 110,88,140,255 }
+            && elysia::core::colors::elysia_dusk_rose
+                == elysia::core::Color{ 184,94,145,255 }
+            && elysia::core::colors::elysia_muted_mauve
+                == elysia::core::Color{ 105,93,116,255 },
+        "ElysiaLight must retain the adjusted plum, title, and muted tokens");
+    require(elysia::core::colors::elysia_corruption_blue
+            == elysia::core::Color{ 40,93,134,255 }
+            && elysia::core::colors::elysia_corruption_blue_focus
+                == elysia::core::Color{ 52,121,164,255 }
+            && elysia::core::colors::elysia_corruption_blue_active
+                == elysia::core::Color{ 29,72,111,255 },
+        "ElysiaLight must retain the brighter corruption-blue tokens");
+    require(theme.label(UiLabelVisualRole::Default).text
+            == elysia::core::colors::elysia_plum
+            && theme.label(UiLabelVisualRole::Title).text
+                == elysia::core::colors::elysia_dusk_rose
+            && theme.label(UiLabelVisualRole::Subtitle).text
+                == elysia::core::colors::elysia_twilight_rose
+            && theme.label(UiLabelVisualRole::Muted).text
+                == elysia::core::colors::elysia_muted_mauve,
+        "ElysiaLight labels must use the character-specific readable text roles");
+    require(theme.window_style.background
+            == elysia::core::colors::elysia_pearl_white
+            && theme.panel(UiPanelVisualRole::Screen).background
+                == elysia::core::colors::elysia_chiffon_pink
+            && theme.panel(UiPanelVisualRole::Dialog).background
+                == elysia::core::colors::elysia_silk_white
+            && theme.chrome_container_style.header_background
+                == elysia::core::colors::elysia_opal_lilac,
+        "ElysiaLight containers must use pearl, chiffon, silk, and opal surfaces");
+
+    require(default_button.chrome.background.idle
+            == elysia::core::colors::elysia_chiffon_pink
+            && default_button.chrome.background.focused
+                == elysia::core::colors::elysia_silk_white
+            && default_button.chrome.background.active
+                == elysia::core::colors::elysia_opal_lilac
+            && default_button.chrome.border.focused
+                == elysia::core::colors::elysia_deep_sea,
+        "ElysiaLight Default focus must use a white surface and deep-sea ring");
+    require(primary_button.chrome.background.idle
+            == elysia::core::colors::elysia_hair_rose
+            && primary_button.chrome.background.focused
+                == elysia::core::colors::elysia_rose_pink
+            && primary_button.chrome.background.active
+                == elysia::core::colors::elysia_glow_pink
+            && primary_button.text.enabled
+                == elysia::core::colors::elysia_deep_sea,
+        "ElysiaLight Primary must pair luminous pink surfaces with deep-sea text");
+    require(danger_button.chrome.background.idle
+            == elysia::core::colors::elysia_corruption_blue
+            && danger_button.chrome.background.focused
+                == elysia::core::colors::elysia_corruption_blue_focus
+            && danger_button.chrome.background.active
+                == elysia::core::colors::elysia_corruption_blue_active
+            && danger_button.chrome.border.idle
+                == elysia::core::colors::elysia_corruption_glow
+            && danger_button.chrome.border.focused
+                == elysia::core::colors::elysia_corruption_ice
+            && danger_button.chrome.border.active
+                == elysia::core::colors::elysia_silk_white
+            && danger_button.text.enabled
+                == elysia::core::colors::elysia_silk_white,
+        "ElysiaLight Danger must use the brighter corruption-blue sequence");
+    require(danger_button.chrome.background.idle
+            != default_button.chrome.background.idle
+            && danger_button.chrome.background.idle
+                != primary_button.chrome.background.idle,
+        "ElysiaLight Danger must remain distinct from Default and Primary");
+
+    for (const auto* button : { &default_button,&primary_button,&danger_button })
+    {
+        require(has_distinct_enabled_states(button->chrome.background),
+            "ElysiaLight button surfaces must distinguish all enabled states");
+        require(has_distinct_enabled_states(button->chrome.border),
+            "ElysiaLight button borders must distinguish all enabled states");
+        require(has_visible_focus_transition(button->chrome.background,1.2),
+            "ElysiaLight button focus surfaces must visibly differ from idle");
+        require(meets_enabled_interactive_contrast(
+                button->text.enabled,button->chrome.background,4.5),
+            "ElysiaLight button text must meet 4.5:1 in enabled states");
+        require(meets_enabled_chrome_contrast(button->chrome,3.0),
+            "ElysiaLight button chrome must meet 3:1 in enabled states");
+    }
+    require(meets_enabled_interactive_contrast(
+            theme.text_input_style.text.enabled,
+            theme.text_input_style.chrome.background,4.5)
+            && meets_enabled_interactive_contrast(
+                theme.text_input_style.placeholder.enabled,
+                theme.text_input_style.chrome.background,4.5),
+        "ElysiaLight input text and placeholder must meet 4.5:1");
+
+    const elysia::core::Color standard_surfaces[]{
+        elysia::core::colors::elysia_pearl_white,
+        elysia::core::colors::elysia_chiffon_pink,
+        elysia::core::colors::elysia_silk_white,
+        elysia::core::colors::elysia_opal_lilac
+    };
+    for (const auto& surface : standard_surfaces)
+    {
+        require(meets_contrast(
+                theme.label(UiLabelVisualRole::Default).text,surface,4.5)
+                && meets_contrast(theme.number_style.text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Subtitle).text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Muted).text,surface,4.5),
+            "ElysiaLight functional text must meet 4.5:1 on standard surfaces");
+        require(meets_contrast(
+                theme.label(UiLabelVisualRole::Title).text,surface,3.0),
+            "ElysiaLight decorative title must meet 3:1 on standard surfaces");
+    }
+
+    require(meets_contrast(
+            theme.window_style.border,theme.window_style.background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Default).border,
+                theme.panel(UiPanelVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Screen).border,
+                theme.panel(UiPanelVisualRole::Screen).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Dialog).border,
+                theme.panel(UiPanelVisualRole::Dialog).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::List).border,
+                theme.panel(UiPanelVisualRole::List).background,3.0)
+            && meets_contrast(
+                theme.chrome_container_style.border,
+                theme.chrome_container_style.background,3.0)
+            && meets_contrast(
+                theme.chrome_container_style.border,
+                theme.chrome_container_style.header_background,3.0)
+            && meets_contrast(
+                theme.scroll_container_style.border_color,
+                theme.scroll_container_style.background_color,3.0),
+        "ElysiaLight standard container borders must meet 3:1");
+    require(meets_contrast(
+            theme.bar(UiBarVisualRole::Default).fill,
+            theme.bar(UiBarVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Default).border,
+                theme.bar(UiBarVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Progress).fill,
+                theme.bar(UiBarVisualRole::Progress).background,3.0)
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Progress).border,
+                theme.bar(UiBarVisualRole::Progress).background,3.0),
+        "ElysiaLight bar fills and borders must meet 3:1");
+    require(meets_enabled_scrollbar_contrast(
+            theme.scroll_container_style.scrollbar,3.0),
+        "ElysiaLight scrollbar thumbs must meet 3:1 in enabled states");
+
+    require(theme.checkbox_style.mark.enabled
+            == elysia::core::colors::elysia_twilight_rose
+            && theme.radio_button_style.mark.enabled
+                == elysia::core::colors::elysia_twilight_rose
+            && theme.slider_style.fill.enabled
+                == elysia::core::colors::elysia_twilight_rose
+            && theme.text_input_style.caret
+                == elysia::core::colors::elysia_twilight_rose,
+        "ElysiaLight marks, slider fill, and caret must share twilight rose");
+    require(default_button.chrome.background.disabled
+            == elysia::core::colors::gray_300
+            && default_button.chrome.border.disabled
+                == elysia::core::colors::gray_500
+            && default_button.text.disabled
+                == elysia::core::colors::gray_500
+            && primary_button.chrome.background.disabled
+                == elysia::core::colors::gray_300
+            && primary_button.text.disabled
+                == elysia::core::colors::gray_100
+            && danger_button.chrome.background.disabled
+                == elysia::core::colors::gray_300
+            && danger_button.text.disabled
+                == elysia::core::colors::gray_100,
+        "ElysiaLight disabled buttons must fall back to neutral gray tokens");
+    require(theme.dialog_style.action_button.chrome.background.idle
+            == default_button.chrome.background.idle
+            && theme.dialog_style.action_button.text.enabled
+                == default_button.text.enabled,
+        "ElysiaLight dialog actions must continue inheriting Default");
+}
+
+void test_elysia_dark_palette_and_contrast()
+{
+    using elysia::ui::UiBarVisualRole;
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+    using elysia::ui::UiPanelVisualRole;
+
     const auto theme = elysia::ui::make_builtin_theme(
         elysia::ui::UiBuiltinTheme::ElysiaDark);
-    require(
-        theme.bar(elysia::ui::UiBarVisualRole::Default).fill
-            == elysia::core::colors::elysia_glow_pink,
-        "ElysiaDark default bars should use the high-contrast pink fill");
-    require(
-        theme.bar(elysia::ui::UiBarVisualRole::Progress).fill
-            == elysia::core::colors::elysia_glow_pink,
-        "ElysiaDark progress bars should use the high-contrast pink fill");
+    const auto& default_button = theme.button(UiButtonVisualRole::Default);
+    const auto& primary_button = theme.button(UiButtonVisualRole::Primary);
+    const auto& danger_button = theme.button(UiButtonVisualRole::Danger);
+
+    require(elysia::core::colors::elysia_mist_blue
+            == elysia::core::Color{ 156,175,216,255 }
+            && elysia::core::colors::elysia_focus_blue
+                == elysia::core::Color{ 77,96,167,255 }
+            && elysia::core::colors::elysia_danger_crimson
+                == elysia::core::Color{ 122,47,72,255 }
+            && elysia::core::colors::elysia_danger_crimson_focus
+                == elysia::core::Color{ 150,58,87,255 }
+            && elysia::core::colors::elysia_danger_crimson_active
+                == elysia::core::Color{ 90,35,54,255 },
+        "ElysiaDark must retain the focus, mist, and deep berry-crimson tokens");
+    require(theme.label(UiLabelVisualRole::Default).text
+            == elysia::core::colors::elysia_moonlit_lavender
+            && theme.label(UiLabelVisualRole::Title).text
+                == elysia::core::colors::elysia_crystal_orchid
+            && theme.label(UiLabelVisualRole::Subtitle).text
+                == elysia::core::colors::elysia_starlight_lilac
+            && theme.label(UiLabelVisualRole::Muted).text
+                == elysia::core::colors::elysia_mist_blue
+            && theme.text_input_style.placeholder.enabled
+                == elysia::core::colors::elysia_mist_blue,
+        "ElysiaDark text roles must use moonlight, crystal, starlight, and mist");
+    require(theme.window_style.background
+            == elysia::core::colors::elysia_starsea_navy
+            && theme.panel(UiPanelVisualRole::Default).background
+                == elysia::core::colors::elysia_twilight_mist
+            && theme.panel(UiPanelVisualRole::List).border
+                == elysia::core::colors::elysia_dream_rose
+            && theme.chrome_container_style.header_background
+                == elysia::core::colors::elysia_phantom_sea,
+        "ElysiaDark containers must preserve the starsea and crystal identity");
+
+    require(default_button.chrome.background.idle
+            == elysia::core::colors::elysia_twilight_mist
+            && default_button.chrome.background.focused
+                == elysia::core::colors::elysia_focus_blue
+            && default_button.chrome.background.active
+                == elysia::core::colors::elysia_deep_sea
+            && default_button.chrome.border.focused
+                == elysia::core::colors::elysia_crystal_orchid,
+        "ElysiaDark Default focus must use a brighter star-blue crystal state");
+    require(primary_button.chrome.background.idle
+            == elysia::core::colors::elysia_lilac
+            && primary_button.chrome.background.focused
+                == elysia::core::colors::elysia_hair_rose
+            && primary_button.chrome.background.active
+                == elysia::core::colors::elysia_glow_pink
+            && primary_button.text.enabled
+                == elysia::core::colors::elysia_deep_sea,
+        "ElysiaDark Primary must use bright Herrscher colors with inverse text");
+    require(danger_button.chrome.background.idle
+            == elysia::core::colors::elysia_danger_crimson
+            && danger_button.chrome.background.focused
+                == elysia::core::colors::elysia_danger_crimson_focus
+            && danger_button.chrome.background.active
+                == elysia::core::colors::elysia_danger_crimson_active
+            && danger_button.chrome.border.idle
+                == elysia::core::colors::elysia_hair_rose
+            && danger_button.chrome.border.focused
+                == elysia::core::colors::elysia_glow_pink
+            && danger_button.chrome.border.active
+                == elysia::core::colors::elysia_moonlit_lavender
+            && danger_button.text.enabled
+                == elysia::core::colors::elysia_moonlit_lavender,
+        "ElysiaDark Danger must use the deep berry-crimson sequence");
+    require(danger_button.chrome.background.idle
+            != default_button.chrome.background.idle
+            && danger_button.chrome.background.idle
+                != primary_button.chrome.background.idle,
+        "ElysiaDark Danger must remain distinct from Default and Primary");
+
+    for (const auto* button : { &default_button,&primary_button,&danger_button })
+    {
+        require(has_distinct_enabled_states(button->chrome.background),
+            "ElysiaDark button surfaces must distinguish all enabled states");
+        require(has_distinct_enabled_states(button->chrome.border),
+            "ElysiaDark button borders must distinguish all enabled states");
+        require(has_visible_focus_transition(button->chrome.background,1.2),
+            "ElysiaDark button focus surfaces must visibly differ from idle");
+        require(meets_enabled_interactive_contrast(
+                button->text.enabled,button->chrome.background,4.5),
+            "ElysiaDark button text must meet 4.5:1 in enabled states");
+        require(meets_enabled_chrome_contrast(button->chrome,3.0),
+            "ElysiaDark button chrome must meet 3:1 in enabled states");
+    }
+    require(meets_enabled_interactive_contrast(
+            theme.text_input_style.text.enabled,
+            theme.text_input_style.chrome.background,4.5)
+            && meets_enabled_interactive_contrast(
+                theme.text_input_style.placeholder.enabled,
+                theme.text_input_style.chrome.background,4.5),
+        "ElysiaDark input text and placeholder must meet 4.5:1");
+
+    const elysia::core::Color standard_surfaces[]{
+        elysia::core::colors::elysia_starsea_navy,
+        elysia::core::colors::elysia_twilight_mist,
+        elysia::core::colors::elysia_phantom_sea,
+        elysia::core::colors::elysia_deep_sea
+    };
+    for (const auto& surface : standard_surfaces)
+    {
+        require(meets_contrast(
+                theme.label(UiLabelVisualRole::Default).text,surface,4.5)
+                && meets_contrast(theme.number_style.text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Title).text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Subtitle).text,surface,4.5)
+                && meets_contrast(
+                    theme.label(UiLabelVisualRole::Muted).text,surface,4.5),
+            "ElysiaDark functional text must meet 4.5:1 on standard surfaces");
+    }
+
+    require(meets_contrast(
+            theme.window_style.border,theme.window_style.background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Default).border,
+                theme.panel(UiPanelVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Screen).border,
+                theme.panel(UiPanelVisualRole::Screen).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::Dialog).border,
+                theme.panel(UiPanelVisualRole::Dialog).background,3.0)
+            && meets_contrast(
+                theme.panel(UiPanelVisualRole::List).border,
+                theme.panel(UiPanelVisualRole::List).background,3.0)
+            && meets_contrast(
+                theme.chrome_container_style.border,
+                theme.chrome_container_style.background,3.0)
+            && meets_contrast(
+                theme.chrome_container_style.border,
+                theme.chrome_container_style.header_background,3.0)
+            && meets_contrast(
+                theme.scroll_container_style.border_color,
+                theme.scroll_container_style.background_color,3.0),
+        "ElysiaDark standard container borders must meet 3:1");
+    require(theme.bar(UiBarVisualRole::Default).fill
+            == elysia::core::colors::elysia_glow_pink
+            && theme.bar(UiBarVisualRole::Progress).fill
+                == elysia::core::colors::elysia_glow_pink
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Default).fill,
+                theme.bar(UiBarVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Default).border,
+                theme.bar(UiBarVisualRole::Default).background,3.0)
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Progress).fill,
+                theme.bar(UiBarVisualRole::Progress).background,3.0)
+            && meets_contrast(
+                theme.bar(UiBarVisualRole::Progress).border,
+                theme.bar(UiBarVisualRole::Progress).background,3.0),
+        "ElysiaDark bars must preserve the readable high-contrast pink scheme");
+    require(meets_enabled_scrollbar_contrast(
+            theme.scroll_container_style.scrollbar,3.0),
+        "ElysiaDark scrollbar thumbs must meet 3:1 in enabled states");
+
+    require(theme.checkbox_style.mark.enabled
+            == elysia::core::colors::elysia_crystal_orchid
+            && theme.radio_button_style.mark.enabled
+                == elysia::core::colors::elysia_crystal_orchid
+            && theme.slider_style.fill.enabled
+                == elysia::core::colors::elysia_crystal_orchid
+            && theme.text_input_style.caret
+                == elysia::core::colors::elysia_crystal_orchid,
+        "ElysiaDark marks, slider fill, and caret must retain crystal orchid");
+    require(default_button.chrome.background.disabled
+            == elysia::core::colors::elysia_deep_sea
+            && default_button.chrome.border.disabled
+                == elysia::core::colors::elysia_silver_mist
+            && default_button.text.disabled
+                == elysia::core::colors::elysia_silver_mist
+            && primary_button.chrome.background.disabled
+                == elysia::core::colors::elysia_phantom_sea
+            && primary_button.text.disabled
+                == elysia::core::colors::elysia_silver_mist
+            && danger_button.chrome.background.disabled
+                == elysia::core::colors::elysia_deep_sea
+            && danger_button.text.disabled
+                == elysia::core::colors::elysia_silver_mist,
+        "ElysiaDark disabled buttons must use the specified subdued tokens");
+    require(theme.dialog_style.action_button.chrome.background.idle
+            == default_button.chrome.background.idle
+            && theme.dialog_style.action_button.text.enabled
+                == default_button.text.enabled,
+        "ElysiaDark dialog actions must continue inheriting Default");
+}
+
+void test_evangelion_unit00_palette_and_contrast()
+{
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+
+    const auto theme = elysia::ui::make_builtin_theme(
+        elysia::ui::UiBuiltinTheme::EvangelionUnit00);
+    const auto& default_button = theme.button(UiButtonVisualRole::Default);
+    const auto& primary_button = theme.button(UiButtonVisualRole::Primary);
+    const auto& danger_button = theme.button(UiButtonVisualRole::Danger);
+
+    require(elysia::core::colors::eva_unit00_focus_blue
+            == elysia::core::Color{ 195,220,239,255 }
+            && elysia::core::colors::eva_unit00_deep_graphite
+                == elysia::core::Color{ 52,69,87,255 }
+            && elysia::core::colors::eva_unit00_muted_ink
+                == elysia::core::Color{ 59,80,101,255 }
+            && elysia::core::colors::eva_unit00_amber_ochre
+                == elysia::core::Color{ 131,90,27,255 },
+        "Unit-00 must retain its readable cold-blue and ochre tokens");
+    require(elysia::core::colors::eva_unit00_danger_amber
+            == elysia::core::Color{ 118,80,27,255 }
+            && elysia::core::colors::eva_unit00_danger_amber_focus
+                == elysia::core::Color{ 138,93,28,255 }
+            && elysia::core::colors::eva_unit00_danger_amber_active
+                == elysia::core::Color{ 86,56,18,255 },
+        "Unit-00 must retain the dedicated dark warning sequence");
+
+    require(theme.label(UiLabelVisualRole::Default).text
+            == elysia::core::colors::eva_unit00_deep_graphite
+            && theme.label(UiLabelVisualRole::Title).text
+                == elysia::core::colors::eva_unit00_amber_ochre
+            && theme.label(UiLabelVisualRole::Subtitle).text
+                == elysia::core::colors::eva_unit00_muted_ink
+            && theme.label(UiLabelVisualRole::Muted).text
+                == elysia::core::colors::eva_unit00_muted_ink,
+        "Unit-00 text roles must preserve Rei white, graphite, and warning gold semantics");
+    require(default_button.chrome.background.idle
+            == elysia::core::colors::eva_unit00_rei_white
+            && default_button.chrome.background.focused
+                == elysia::core::colors::eva_unit00_focus_blue
+            && default_button.chrome.background.active
+                == elysia::core::colors::eva_unit00_pale_blue
+            && default_button.text.enabled
+                == elysia::core::colors::eva_unit00_deep_graphite,
+        "Unit-00 Default must use the cold-white to blue sequence");
+    require(primary_button.chrome.background.idle
+            == elysia::core::colors::eva_unit00_frost_blue
+            && primary_button.chrome.background.focused
+                == elysia::core::colors::eva_unit00_caution_gold
+            && primary_button.chrome.background.active
+                == elysia::core::colors::eva_unit00_warning_yellow
+            && primary_button.text.enabled
+                == elysia::core::colors::eva_unit00_deep_graphite,
+        "Unit-00 Primary must move from frost blue into signal yellow");
+    require(danger_button.chrome.background.idle
+            == elysia::core::colors::eva_unit00_danger_amber
+            && danger_button.chrome.background.focused
+                == elysia::core::colors::eva_unit00_danger_amber_focus
+            && danger_button.chrome.background.active
+                == elysia::core::colors::eva_unit00_danger_amber_active
+            && danger_button.text.enabled
+                == elysia::core::colors::eva_unit00_rei_white,
+        "Unit-00 Danger must use dark amber surfaces with Rei-white text");
+
+    require_character_theme_contrast(theme,std::array{
+        elysia::core::colors::eva_unit00_rei_white,
+        elysia::core::colors::eva_unit00_frost_blue,
+        elysia::core::colors::eva_unit00_focus_blue,
+        elysia::core::colors::eva_unit00_pale_blue
+    });
+
+    require(theme.checkbox_style.mark.enabled
+            == elysia::core::colors::eva_unit00_amber_ochre
+            && theme.radio_button_style.mark.enabled
+                == elysia::core::colors::eva_unit00_amber_ochre
+            && theme.slider_style.fill.enabled
+                == elysia::core::colors::eva_unit00_amber_ochre
+            && theme.text_input_style.caret
+                == elysia::core::colors::eva_unit00_amber_ochre,
+        "Unit-00 marks, slider fill, and caret must use readable warning ochre");
+    require(theme.scroll_container_style.scrollbar.track_dragging_color
+            == elysia::core::colors::eva_unit00_pale_blue
+            && theme.scroll_container_style.scrollbar.thumb_focused_color
+                == elysia::core::colors::eva_unit00_amber_ochre,
+        "Unit-00 scrollbar must retain blue tracks and a warning-gold focus thumb");
+    require(default_button.chrome.background.disabled
+            == elysia::core::colors::gray_300
+            && default_button.text.disabled == elysia::core::colors::gray_500
+            && primary_button.chrome.background.disabled
+                == elysia::core::colors::gray_300
+            && primary_button.text.disabled == elysia::core::colors::gray_700
+            && danger_button.chrome.background.disabled
+                == elysia::core::colors::gray_300
+            && danger_button.text.disabled == elysia::core::colors::gray_700,
+        "Unit-00 disabled buttons must retain neutral fallback mappings");
+    require(theme.dialog_style.action_button.chrome.background.idle
+            == default_button.chrome.background.idle
+            && theme.dialog_style.action_button.text.enabled
+                == default_button.text.enabled,
+        "Unit-00 dialog actions must inherit Default");
+}
+
+void test_evangelion_unit01_palette_and_contrast()
+{
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+    using elysia::ui::UiPanelVisualRole;
+
+    const auto theme = elysia::ui::make_builtin_theme(
+        elysia::ui::UiBuiltinTheme::EvangelionUnit01);
+    const auto& default_button = theme.button(UiButtonVisualRole::Default);
+    const auto& primary_button = theme.button(UiButtonVisualRole::Primary);
+    const auto& danger_button = theme.button(UiButtonVisualRole::Danger);
+
+    require(elysia::core::colors::eva_unit01_mist_lime
+            == elysia::core::Color{ 197,217,168,255 }
+            && elysia::core::colors::eva_unit01_burnt_orange
+                == elysia::core::Color{ 208,124,52,255 },
+        "Unit-01 must retain readable mist-lime and alert-orange tokens");
+    require(theme.label(UiLabelVisualRole::Default).text
+            == elysia::core::colors::frosted_white
+            && theme.label(UiLabelVisualRole::Title).text
+                == elysia::core::colors::eva_unit01_toxic_green
+            && theme.label(UiLabelVisualRole::Subtitle).text
+                == elysia::core::colors::eva_unit01_lime_glow
+            && theme.label(UiLabelVisualRole::Muted).text
+                == elysia::core::colors::eva_unit01_mist_lime,
+        "Unit-01 text roles must preserve white, toxic-green, and lime semantics");
+    require(theme.window_style.background
+            == elysia::core::colors::eva_unit01_void_purple
+            && theme.panel(UiPanelVisualRole::Default).background
+                == elysia::core::colors::eva_unit01_deep_purple
+            && theme.panel(UiPanelVisualRole::List).background
+                == elysia::core::colors::eva_unit01_royal_purple,
+        "Unit-01 containers must preserve the void-to-royal purple hierarchy");
+    require(default_button.chrome.background.idle
+            == elysia::core::colors::eva_unit01_deep_purple
+            && default_button.chrome.background.focused
+                == elysia::core::colors::eva_unit01_royal_purple
+            && default_button.chrome.background.active
+                == elysia::core::colors::eva_unit01_void_purple
+            && default_button.text.enabled == elysia::core::colors::frosted_white,
+        "Unit-01 Default must remain purple with light text in every state");
+    require(primary_button.chrome.background.idle
+            == elysia::core::colors::eva_unit01_muted_lime
+            && primary_button.chrome.background.focused
+                == elysia::core::colors::eva_unit01_toxic_green
+            && primary_button.chrome.background.active
+                == elysia::core::colors::eva_unit01_lime_glow
+            && primary_button.text.enabled
+                == elysia::core::colors::eva_unit01_deep_purple,
+        "Unit-01 Primary must use luminous green with inverse purple text");
+    require(danger_button.chrome.background.idle
+            == elysia::core::colors::eva_unit01_burnt_orange
+            && danger_button.chrome.background.focused
+                == elysia::core::colors::eva_unit01_orange_core
+            && danger_button.chrome.background.active
+                == elysia::core::colors::eva_unit01_alert_amber
+            && danger_button.text.enabled
+                == elysia::core::colors::eva_unit01_deep_purple,
+        "Unit-01 Danger must use the orange core and alert-amber sequence");
+
+    require_character_theme_contrast(theme,std::array{
+        elysia::core::colors::eva_unit01_void_purple,
+        elysia::core::colors::eva_unit01_deep_purple,
+        elysia::core::colors::eva_unit01_royal_purple
+    });
+
+    require(theme.checkbox_style.mark.enabled
+            == elysia::core::colors::eva_unit01_toxic_green
+            && theme.radio_button_style.mark.enabled
+                == elysia::core::colors::eva_unit01_toxic_green
+            && theme.slider_style.fill.enabled
+                == elysia::core::colors::eva_unit01_toxic_green
+            && theme.text_input_style.caret
+                == elysia::core::colors::eva_unit01_toxic_green,
+        "Unit-01 interactive marks must retain toxic green");
+    require(default_button.chrome.background.disabled
+            == elysia::core::colors::gray_700
+            && default_button.text.disabled == elysia::core::colors::gray_500
+            && primary_button.chrome.background.disabled
+                == elysia::core::colors::gray_700
+            && primary_button.text.disabled == elysia::core::colors::gray_700
+            && danger_button.chrome.background.disabled
+                == elysia::core::colors::gray_700
+            && danger_button.text.disabled == elysia::core::colors::gray_700,
+        "Unit-01 disabled buttons must retain neutral fallback mappings");
+    require(theme.dialog_style.action_button.chrome.background.idle
+            == default_button.chrome.background.idle
+            && theme.dialog_style.action_button.text.enabled
+                == default_button.text.enabled,
+        "Unit-01 dialog actions must inherit Default");
+}
+
+void test_evangelion_unit02_palette_and_contrast()
+{
+    using elysia::ui::UiButtonVisualRole;
+    using elysia::ui::UiLabelVisualRole;
+    using elysia::ui::UiPanelVisualRole;
+
+    const auto theme = elysia::ui::make_builtin_theme(
+        elysia::ui::UiBuiltinTheme::EvangelionUnit02);
+    const auto& default_button = theme.button(UiButtonVisualRole::Default);
+    const auto& primary_button = theme.button(UiButtonVisualRole::Primary);
+    const auto& danger_button = theme.button(UiButtonVisualRole::Danger);
+
+    require(elysia::core::colors::eva_unit02_pressed_maroon
+            == elysia::core::Color{ 77,17,24,255 }
+            && elysia::core::colors::eva_unit02_active_crimson
+                == elysia::core::Color{ 133,28,40,255 }
+            && elysia::core::colors::eva_unit02_warm_mist
+                == elysia::core::Color{ 242,207,179,255 },
+        "Unit-02 must retain its pressed-red and warm readable tokens");
+    require(theme.label(UiLabelVisualRole::Default).text
+            == elysia::core::colors::eva_unit02_bone_white
+            && theme.label(UiLabelVisualRole::Title).text
+                == elysia::core::colors::eva_unit02_sun_yellow
+            && theme.label(UiLabelVisualRole::Subtitle).text
+                == elysia::core::colors::eva_unit02_glow_amber
+            && theme.label(UiLabelVisualRole::Muted).text
+                == elysia::core::colors::eva_unit02_warm_mist,
+        "Unit-02 text roles must preserve bone-white, yellow, and warm highlights");
+    require(theme.window_style.background
+            == elysia::core::colors::eva_unit02_deep_maroon
+            && theme.panel(UiPanelVisualRole::Default).background
+                == elysia::core::colors::eva_unit02_crimson
+            && theme.chrome_container_style.header_background
+                == elysia::core::colors::eva_unit02_deep_maroon,
+        "Unit-02 containers must stay within the deep-red armor hierarchy");
+    require(default_button.chrome.background.idle
+            == elysia::core::colors::eva_unit02_deep_maroon
+            && default_button.chrome.background.focused
+                == elysia::core::colors::eva_unit02_crimson
+            && default_button.chrome.background.active
+                == elysia::core::colors::eva_unit02_pressed_maroon
+            && default_button.text.enabled
+                == elysia::core::colors::eva_unit02_bone_white,
+        "Unit-02 Default must remain dark red with bone-white text");
+    require(primary_button.chrome.background.idle
+            == elysia::core::colors::eva_unit02_orange
+            && primary_button.chrome.background.focused
+                == elysia::core::colors::eva_unit02_sun_yellow
+            && primary_button.chrome.background.active
+                == elysia::core::colors::eva_unit02_glow_amber
+            && primary_button.text.enabled
+                == elysia::core::colors::eva_unit02_deep_maroon,
+        "Unit-02 Primary must use bright armor highlights with inverse maroon text");
+    require(danger_button.chrome.background.idle
+            == elysia::core::colors::eva_unit02_deep_maroon
+            && danger_button.chrome.background.focused
+                == elysia::core::colors::eva_unit02_crimson
+            && danger_button.chrome.background.active
+                == elysia::core::colors::eva_unit02_active_crimson
+            && danger_button.text.enabled
+                == elysia::core::colors::eva_unit02_bone_white,
+        "Unit-02 Danger must use the dedicated deep-crimson sequence");
+
+    require_character_theme_contrast(theme,std::array{
+        elysia::core::colors::eva_unit02_deep_maroon,
+        elysia::core::colors::eva_unit02_crimson,
+        elysia::core::colors::eva_unit02_pressed_maroon
+    });
+
+    require(theme.checkbox_style.mark.enabled
+            == elysia::core::colors::eva_unit02_sun_yellow
+            && theme.radio_button_style.mark.enabled
+                == elysia::core::colors::eva_unit02_sun_yellow
+            && theme.slider_style.fill.enabled
+                == elysia::core::colors::eva_unit02_sun_yellow
+            && theme.text_input_style.caret
+                == elysia::core::colors::eva_unit02_sun_yellow,
+        "Unit-02 marks, slider fill, and caret must retain sun yellow");
+    require(theme.text_input_style.text.enabled
+            == elysia::core::colors::eva_unit02_bone_white
+            && theme.text_input_style.placeholder.enabled
+                == elysia::core::colors::eva_unit02_warm_mist,
+        "Unit-02 input text must use bone white with a warm-mist placeholder");
+    require(default_button.chrome.background.disabled
+            == elysia::core::colors::gray_700
+            && default_button.text.disabled == elysia::core::colors::gray_500
+            && primary_button.chrome.background.disabled
+                == elysia::core::colors::gray_700
+            && primary_button.text.disabled == elysia::core::colors::gray_700
+            && danger_button.chrome.background.disabled
+                == elysia::core::colors::gray_700
+            && danger_button.text.disabled == elysia::core::colors::gray_500,
+        "Unit-02 disabled buttons must retain neutral fallback mappings");
+    require(theme.dialog_style.action_button.chrome.background.idle
+            == default_button.chrome.background.idle
+            && theme.dialog_style.action_button.text.enabled
+                == default_button.text.enabled,
+        "Unit-02 dialog actions must inherit Default");
 }
 
 void test_quiet_slate_palette_and_contrast()
@@ -970,7 +1777,11 @@ int main()
     test_textured_button_border();
     test_other_chrome_active_borders();
     test_builtin_theme_border_states();
-    test_elysia_dark_bar_fill_contrast();
+    test_elysia_light_palette_and_contrast();
+    test_elysia_dark_palette_and_contrast();
+    test_evangelion_unit00_palette_and_contrast();
+    test_evangelion_unit01_palette_and_contrast();
+    test_evangelion_unit02_palette_and_contrast();
     test_quiet_slate_palette_and_contrast();
     test_container_driven_theme_tree();
     test_labeled_control_text_follows_theme();
