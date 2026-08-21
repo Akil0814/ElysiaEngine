@@ -4,7 +4,7 @@
 #include "../../builtin/scenes/settings_scene.h"
 #include "../../builtin/scenes/application_failure_scene.h"
 #include "../../builtin/scenes/startup_loading_scene.h"
-#include "../../elysia/realm_scene_composition.h"
+#include "../../elysia/detail/realm_scene_composition.h"
 #include "../../scene/scene_manager.h"
 
 namespace elysia::application
@@ -28,7 +28,7 @@ void compose_application_scenes(
     scene_manager.register_engine_scene<
         elysia::builtin::ApplicationFailureScene>(
             elysia::builtin::SceneKeys::ApplicationFailure);
-    elysia::realm::register_realm_scene(scene_manager);
+    elysia::realm::detail::register_realm_scenes(scene_manager);
     game_module.register_scenes(scene_manager);
     scene_manager.start(descriptor.initial_route);
 }

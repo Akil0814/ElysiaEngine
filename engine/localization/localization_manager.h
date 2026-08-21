@@ -12,9 +12,11 @@
 #include <filesystem>
 #include <expected>
 #include <cstdint>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace elysia::builtin
@@ -49,6 +51,26 @@ public:
 	void clear_texture_cache();
 
 private:
+	struct TranslationResolution
+	{
+		std::string_view text;
+		bool found = false;
+	};
+
+	struct MissingTranslationWarningKey
+	{
+		std::string locale;
+		std::string key;
+
+		bool operator==(const MissingTranslationWarningKey& other) const noexcept;
+	};
+
+	struct MissingTranslationWarningKeyHash
+	{
+		std::size_t operator()(
+			const MissingTranslationWarningKey& value) const noexcept;
+	};
+
 	std::string_view tr(std::string_view key) const;
 	SDL_Texture* get_text_texture(std::string_view key, const LocalizedTextStyle& style);
 	SDL_Texture* get_raw_text_texture(std::string_view text, const LocalizedTextStyle& style);
@@ -73,10 +95,13 @@ private:
 		const std::string& language) const;
 	[[nodiscard]] std::expected<std::filesystem::path,LocalizationFailure>
 		resolve_locale_directory(const std::string& language) const;
-	std::string_view lookup_translation(
+	[[nodiscard]] TranslationResolution resolve_translation(
+		std::string_view key) const;
+	[[nodiscard]] const std::string* lookup_translation(
 		const TranslationTable& table,
 		std::string_view key
 	) const;
+	void warn_missing_translation_once(std::string_view key) const;
 	TTF_Font* resolve_text_font(const LocalizedTextStyle& style) const;
 	CachedTexturePtr create_text_texture(
 		std::string_view key,
@@ -94,6 +119,9 @@ private:
 	elysia::io::I18nManifest _manifest;
 	TextTextureCache _text_texture_cache;
 	std::unordered_map<std::string, TranslationTable> _translation_tables;
+	mutable std::unordered_set<
+		MissingTranslationWarningKey,
+		MissingTranslationWarningKeyHash> _warned_missing_translations;
 	std::string _current_language;
 	const elysia::typography::FontResolver* _font_resolver = nullptr;
 	const elysia::builtin::BuiltinAssetCache* _builtin_asset_cache = nullptr;

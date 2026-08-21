@@ -3,9 +3,12 @@
 #include "engine/builtin/audio/builtin_audio_player.h"
 #include "engine/builtin/resources/builtin_asset_cache.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
-#include "engine/elysia/elysia_scene.h"
-#include "engine/elysia/elysia_scene_payload.h"
-#include "engine/elysia/realm_scene_composition.h"
+#include "engine/elysia/elysia_realm.h"
+#include "engine/elysia/detail/elysia_intro_scene.h"
+#include "engine/elysia/detail/elysia_realm_scene.h"
+#include "engine/elysia/detail/realm_content_payload.h"
+#include "engine/elysia/detail/realm_scene_composition.h"
+#include "engine/elysia/detail/realm_scene_keys.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/scene/scene_manager.h"
@@ -116,36 +119,43 @@ void send_escape(elysia::scene::SceneManager& scene_manager)
         } });
 }
 
-void advance_full_sequence(
+void advance_intro_normally(
     elysia::scene::SceneManager& scene_manager,
     SDL_Renderer* renderer)
 {
     for (int phase = 0; phase < 3; ++phase)
         scene_manager.on_update(1.5);
     scene_manager.on_render(renderer);
-    for (int line = 0; line < 9; ++line)
-        scene_manager.on_update(1.0);
-    scene_manager.on_render(renderer);
-    scene_manager.on_update(5.0);
-    scene_manager.on_render(renderer);
 }
 
 void test_payload_contract()
 {
-    elysia::realm::ElysiaScene scene;
+    static_assert(elysia::scene::SceneKeys::ElysiaRealm == 1111);
+    static_assert(
+        elysia::realm::detail::SceneKeys::RealmContent == 0xFFFF0007u);
+    static_assert(elysia::scene::SceneKeys::is_engine(
+        elysia::realm::detail::SceneKeys::RealmContent));
+
+    elysia::realm::detail::ElysiaIntroScene scene;
     require(throws_logic_error_containing(
             [&scene] { scene.on_enter({}); },
-            "ElysiaScenePayload"),
-        "ElysiaScene must require its Realm payload");
+            "ElysiaRealmPayload"),
+        "ElysiaIntroScene must require the public Realm payload");
 
     const elysia::scene::ScenePayload invalid_payload =
-        elysia::realm::ElysiaScenePayload{
+        elysia::realm::ElysiaRealmPayload{
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
             [&scene,&invalid_payload] { scene.on_enter(invalid_payload); },
-            "ElysiaScenePayload"),
-        "ElysiaScene must reject an invalid return route");
+            "ElysiaRealmPayload"),
+        "ElysiaIntroScene must reject an invalid return route");
+
+    elysia::realm::detail::ElysiaRealmScene realm_scene;
+    require(throws_logic_error_containing(
+            [&realm_scene] { realm_scene.on_enter({}); },
+            "RealmContentPayload"),
+        "ElysiaRealmScene must require its internal payload");
 }
 
 void test_sequence_escape_reuse_and_audio_lifecycle()
@@ -167,23 +177,22 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
         fixture.renderer(),registry,1280,720,&cache,nullptr,&audio_player);
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
-    elysia::realm::register_realm_scene(scene_manager);
+    elysia::realm::detail::register_realm_scenes(scene_manager);
     scene_manager.register_game_scene<ReturnScene>(1);
 
-    const auto enter_realm = [&scene_manager](int marker) {
+    const auto enter_intro = [&scene_manager](int marker) {
+        const elysia::scene::SceneRoute return_route{
+            .target = 1,
+            .payload = ReturnPayload{.marker = marker},
+            .reload_mode = elysia::scene::SceneReloadMode::Reuse};
+
         scene_manager.on_scene_request(elysia::scene::SceneRequest{
             .type = elysia::scene::SceneRequestType::Switch,
             .route = elysia::scene::SceneRoute{
-                .target = elysia::scene::SceneKeys::ElysiaEasterEgg,
-                .payload = elysia::realm::ElysiaScenePayload{
-                    .return_route = elysia::scene::SceneRoute{
-                        .target = 1,
-                        .payload = ReturnPayload{ .marker = marker },
-                        .reload_mode = elysia::scene::SceneReloadMode::Reuse
-                    }
-                },
-                .reload_mode = elysia::scene::SceneReloadMode::Reuse
-            }
+                .target = elysia::scene::SceneKeys::ElysiaRealm,
+                .payload = elysia::realm::ElysiaRealmPayload{
+                    .return_route = return_route},
+                .reload_mode = elysia::scene::SceneReloadMode::Reuse}
         });
         scene_manager.on_update(0.0);
     };
@@ -193,25 +202,56 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
         .payload = ReturnPayload{ .marker = 0 }
     });
 
-    enter_realm(33);
+    enter_intro(33);
     require(Mix_PlayingMusic() != 0,
-        "ElysiaScene must start Realm music on entry");
-    advance_full_sequence(scene_manager,fixture.renderer());
+        "ElysiaIntroScene must start Realm music on entry");
+
+    send_escape(scene_manager);
+    require(scene_manager.current_scene_key()
+            == elysia::scene::SceneKeys::ElysiaRealm,
+        "ElysiaIntroScene must ignore Escape");
+    require(Mix_PlayingMusic() != 0,
+        "ignored Intro input must not stop Realm music");
+
+    scene_manager.on_update(4.5);
+    require(scene_manager.current_scene_key()
+            == elysia::scene::SceneKeys::ElysiaRealm,
+        "completed code playback must wait for the logo playback");
+    scene_manager.on_update(1.5);
+    require(scene_manager.current_scene_key()
+            == elysia::scene::SceneKeys::ElysiaRealm,
+        "Intro must remain active while the logo hold phase is incomplete");
+    scene_manager.on_update(1.5);
+    require(scene_manager.current_scene_key()
+            == elysia::realm::detail::SceneKeys::RealmContent,
+        "Intro must enter Realm exactly after both playbacks complete");
+    scene_manager.on_render(fixture.renderer());
+    require(Mix_PlayingMusic() != 0,
+        "Intro must hand Realm music off without stopping it");
+
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && ReturnScene::marker == 33,
-        "ElysiaScene Escape must preserve the full caller route");
+        "ElysiaRealmScene Escape must preserve the full caller route");
     require(Mix_PlayingMusic() == 0,
-        "ElysiaScene must stop Realm music on exit");
+        "ElysiaRealmScene must stop Realm music on exit");
 
-    enter_realm(34);
-    advance_full_sequence(scene_manager,fixture.renderer());
+    enter_intro(34);
+    advance_intro_normally(scene_manager,fixture.renderer());
+    require(scene_manager.current_scene_key()
+            == elysia::realm::detail::SceneKeys::RealmContent,
+        "the reused Realm entry must replay the complete Intro");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && ReturnScene::marker == 34,
-        "ElysiaScene Reuse must replay and use the updated caller route");
+        "Realm Reuse must use the updated caller route");
     require(Mix_PlayingMusic() == 0,
-        "ElysiaScene Reuse exit must leave Realm music stopped");
+        "Realm Reuse exit must leave Realm music stopped");
 
+    enter_intro(35);
+    require(Mix_PlayingMusic() != 0,
+        "re-entered Intro must restart Realm music");
     scene_manager.shutdown();
+    require(Mix_PlayingMusic() == 0,
+        "Intro shutdown before handoff must stop Realm music");
     audio_player.unbind();
     cache.shutdown();
 }

@@ -18,12 +18,34 @@
 
 #include <filesystem>
 #include <array>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
 namespace
 {
 using elysia::tests::require;
+
+std::size_t count_occurrences(std::string_view text,std::string_view needle)
+{
+    std::size_t count = 0;
+    std::size_t position = 0;
+    while ((position = text.find(needle,position)) != std::string_view::npos)
+    {
+        ++count;
+        position += needle.size();
+    }
+    return count;
+}
+
+void write_text_file(const std::filesystem::path& path,std::string_view text)
+{
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream output(path,std::ios::binary | std::ios::trunc);
+    require(output.good(),"localization test must create its temporary text file");
+    output << text;
+    require(output.good(),"localization test must write its temporary text file");
+}
 
 class LocalizationFixture
 {
@@ -148,10 +170,71 @@ int main()
         *elysia::resources::ResourceService::instance(),
         localization->supported_languages()).has_value(),
         "FontResolver must configure after localization publishes its languages");
+
+    const elysia::localization::LocalizedTextStyle style{
+        .typography_role =
+            elysia::typography::UiTypographyRole::ButtonCompact
+    };
+
+    constexpr std::string_view missing_key = "test.localization.missing";
+    constexpr std::string_view direct_texture_missing_key =
+        "test.localization.direct_texture_missing";
+    std::ostringstream missing_key_warnings;
+    std::streambuf* previous_missing_key_log_buffer =
+        std::clog.rdbuf(missing_key_warnings.rdbuf());
+
     require(localization->tr("common.save") == "Save",
         "project translations must remain the first lookup source");
     require(localization->tr("engine.settings.title") == "Settings",
         "missing Engine namespace keys must fall back to Engine translations");
+    require(localization->tr(missing_key) == missing_key
+            && localization->tr(missing_key) == missing_key,
+        "fully missing translations must preserve the key fallback");
+
+    SDL_Texture* missing_texture =
+        localization->get_text_texture(missing_key,style);
+    SDL_Texture* repeated_missing_texture =
+        localization->get_text_texture(missing_key,style);
+    elysia::localization::LocalizedTextStyle alternate_missing_style = style;
+    alternate_missing_style.wrap_width = 240;
+    SDL_Texture* alternate_missing_texture =
+        localization->get_text_texture(missing_key,alternate_missing_style);
+    SDL_Texture* direct_missing_texture = localization->get_text_texture(
+        direct_texture_missing_key,style);
+    SDL_Texture* raw_key_like_texture =
+        localization->get_raw_text_texture(missing_key,style);
+    require(missing_texture && repeated_missing_texture == missing_texture
+            && alternate_missing_texture && direct_missing_texture
+            && raw_key_like_texture,
+        "missing key and raw text fallbacks must continue producing cached textures");
+
+    require(localization->set_language("zh-Hans"),
+        "missing-key warning test must switch to Simplified Chinese");
+    require(localization->tr(missing_key) == missing_key
+            && localization->tr(missing_key) == missing_key,
+        "the same missing key must retain its fallback in a new locale");
+    require(localization->set_language("en"),
+        "missing-key warning test must switch back to English");
+    require(localization->tr(missing_key) == missing_key,
+        "switching back must preserve the original missing-key fallback");
+
+    std::clog.rdbuf(previous_missing_key_log_buffer);
+    const std::string missing_warning_text = missing_key_warnings.str();
+    require(count_occurrences(
+            missing_warning_text,
+            "Missing localization key: key='test.localization.missing', locale='en'") == 1,
+        "a missing key must warn once for its English locale across all key entry points");
+    require(count_occurrences(
+            missing_warning_text,
+            "Missing localization key: key='test.localization.missing', locale='zh-Hans'") == 1,
+        "the same missing key must warn once in a different locale");
+    require(count_occurrences(
+            missing_warning_text,
+            "Missing localization key: key='test.localization.direct_texture_missing', locale='en'") == 1,
+        "a first request through the texture entry point must emit one missing-key warning");
+    require(count_occurrences(missing_warning_text,"Missing localization key:") == 3,
+        "known translations, successful fallbacks and raw text must not emit missing-key warnings");
+
     const std::array legacy_locales{
         std::string("zh") + "_cn",
         std::string("zh_") + "Hans",
@@ -166,10 +249,6 @@ int main()
             "LocalizationService must return typed errors and retain the current language");
     }
 
-    const elysia::localization::LocalizedTextStyle style{
-        .typography_role =
-            elysia::typography::UiTypographyRole::ButtonCompact
-    };
     SDL_Texture* engine_text_texture =
         localization->get_text_texture("engine.settings.title",style);
     require(engine_text_texture != nullptr,
@@ -251,9 +330,64 @@ int main()
         "LocalizationService measurement must honor an explicit Engine font source");
 
     localization_manager->shutdown();
+
+    const std::filesystem::path resolution_root =
+        std::filesystem::temp_directory_path()
+        / "elysia_localization_resolution_warning_tests";
+    std::filesystem::remove_all(resolution_root);
+    std::filesystem::create_directories(resolution_root);
+    std::filesystem::copy(
+        source_root / "assets",
+        resolution_root / "assets",
+        std::filesystem::copy_options::recursive);
+    write_text_file(
+        resolution_root / "assets/configs/manifests/i18n_manifest.json",
+        R"({"default_language":"en","languages":["en","zh-Hans"],"file":["base.json"]})");
+    write_text_file(
+        resolution_root / "assets/i18n/en/base.json",
+        R"({"test":{"same_as_key":"test.same_as_key","fallback_only":"Default fallback"}})");
+    write_text_file(
+        resolution_root / "assets/i18n/zh-Hans/base.json",
+        R"({"test":{}})");
+    require(path_manager->initialize(resolution_root),
+        "translation resolution test must initialize isolated project paths");
+    require(localization_manager->initialize(
+            fixture.renderer(),
+            resolution_root / "assets/configs/manifests/i18n_manifest.json",
+            "en",
+            &font_resolver,
+            &cache),
+        "translation resolution test must reinitialize localization");
+
+    std::ostringstream resolution_warnings;
+    std::streambuf* previous_resolution_log_buffer =
+        std::clog.rdbuf(resolution_warnings.rdbuf());
+    require(localization->tr("test.same_as_key") == "test.same_as_key",
+        "a translation equal to its key must still count as an explicit translation");
+    require(localization->tr(missing_key) == missing_key
+            && localization->tr(missing_key) == missing_key,
+        "reinitialization must retain the missing-key visual fallback");
+    require(localization->set_language("zh-Hans"),
+        "translation resolution test must switch to its secondary locale");
+    require(localization->tr("test.fallback_only") == "Default fallback",
+        "a missing current-locale entry must fall back to the default language");
+    std::clog.rdbuf(previous_resolution_log_buffer);
+
+    const std::string resolution_warning_text = resolution_warnings.str();
+    require(count_occurrences(
+            resolution_warning_text,
+            "Missing localization key: key='test.localization.missing', locale='en'") == 1,
+        "shutdown and reinitialize must reset missing-key warning deduplication");
+    require(count_occurrences(resolution_warning_text,"Missing localization key:") == 1,
+        "equal-to-key translations and successful default fallbacks must not warn");
+
+    localization_manager->shutdown();
     localization_manager->shutdown();
     require(!localization_manager->is_initialized(),
         "localization shutdown must be idempotent and clear initialized state");
+    require(path_manager->initialize(source_root),
+        "translation resolution test must restore source project paths");
+    std::filesystem::remove_all(resolution_root);
     font_resolver.shutdown();
     cache.shutdown();
     return 0;

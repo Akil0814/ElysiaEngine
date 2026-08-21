@@ -4,7 +4,7 @@
 
 namespace elysia::realm
 {
-struct ElysiaScenePayload
+struct ElysiaRealmPayload
 {
     elysia::scene::SceneRoute return_route{};
 };

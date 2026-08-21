@@ -148,8 +148,8 @@ void test_scene_key_domains_and_payload_helpers()
     static_assert(SceneKeys::is_game(999));
     static_assert(!SceneKeys::is_game(1000));
     static_assert(SceneKeys::is_reserved(1000));
-    static_assert(SceneKeys::ElysiaEasterEgg == 1111);
-    static_assert(SceneKeys::is_easter_egg(1111));
+    static_assert(SceneKeys::ElysiaRealm == 1111);
+    static_assert(SceneKeys::is_engine_owned(1111));
     static_assert(SceneKeys::is_supported(1111));
     static_assert(!SceneKeys::is_reserved(1111));
     static_assert(SceneKeys::is_reserved(1110));
@@ -187,11 +187,11 @@ void test_registration_and_route_key_errors_are_distinct()
         "engine-owned keys"), "engine-owned registration must reject game keys");
     SceneManager easter_egg_manager;
     easter_egg_manager.register_engine_scene<FirstProbeScene>(
-        SceneKeys::ElysiaEasterEgg);
+        SceneKeys::ElysiaRealm);
     require(throws_logic_error_containing(
         [&easter_egg_manager] {
             easter_egg_manager.register_engine_scene<SecondProbeScene>(
-                SceneKeys::ElysiaEasterEgg);
+                SceneKeys::ElysiaRealm);
         },
         "duplicate"), "the Elysia Easter egg key must use engine-owned registration");
 

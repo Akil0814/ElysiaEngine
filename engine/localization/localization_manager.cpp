@@ -19,6 +19,11 @@ namespace
 {
 using TranslationTable = std::unordered_map<std::string, std::string>;
 
+inline void hash_combine(std::size_t& seed,std::size_t value) noexcept
+{
+	seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
 std::expected<void,std::string> flatten_locale_json(
 	const elysia::io::json& node,
 	const std::string& prefix,
@@ -61,6 +66,20 @@ std::expected<void,std::string> flatten_locale_json(
 	return {};
 }
 
+}
+
+bool LocalizationManager::MissingTranslationWarningKey::operator==(
+	const MissingTranslationWarningKey& other) const noexcept
+{
+	return locale == other.locale && key == other.key;
+}
+
+std::size_t LocalizationManager::MissingTranslationWarningKeyHash::operator()(
+	const MissingTranslationWarningKey& value) const noexcept
+{
+	std::size_t seed = std::hash<std::string>{}(value.locale);
+	hash_combine(seed,std::hash<std::string>{}(value.key));
+	return seed;
 }
 
 std::expected<void,LocalizationFailure> LocalizationManager::initialize(
@@ -148,6 +167,7 @@ void LocalizationManager::shutdown()
 {
 	_text_texture_cache.clear();
 	_translation_tables.clear();
+	_warned_missing_translations.clear();
 	_manifest = elysia::io::I18nManifest{};
 	_manifest_path.clear();
 	_i18n_root.clear();
@@ -163,36 +183,49 @@ std::string_view LocalizationManager::tr(std::string_view key) const
 	if (!_initialized)
 		return key;
 
+	const TranslationResolution resolution = resolve_translation(key);
+	if (resolution.found)
+		return resolution.text;
+
+	warn_missing_translation_once(key);
+	return key;
+}
+
+LocalizationManager::TranslationResolution LocalizationManager::resolve_translation(
+	std::string_view key) const
+{
 	const auto current_table_iterator = _translation_tables.find(_current_language);
 	if (current_table_iterator != _translation_tables.end())
 	{
-		const std::string_view current_translation =
-			lookup_translation(current_table_iterator->second, key);
-		if (current_translation != key)
-			return current_translation;
+		if (const std::string* current_translation =
+			lookup_translation(current_table_iterator->second,key))
+		{
+			return {*current_translation,true};
+		}
 	}
 
 	const auto default_table_iterator = _translation_tables.find(_manifest.default_language);
 	if (default_table_iterator != _translation_tables.end())
 	{
-		const std::string_view default_translation =
-			lookup_translation(default_table_iterator->second, key);
-		if (default_translation != key)
-			return default_translation;
+		if (const std::string* default_translation =
+			lookup_translation(default_table_iterator->second,key))
+		{
+			return {*default_translation,true};
+		}
 	}
 
 	if (key.starts_with("engine.") && _builtin_asset_cache)
 	{
 		if (const std::string* translation = _builtin_asset_cache->find_translation(_current_language, key))
-			return *translation;
+			return {*translation,true};
 		if (_current_language != "en")
 		{
 			if (const std::string* fallback = _builtin_asset_cache->find_translation("en", key))
-				return *fallback;
+				return {*fallback,true};
 		}
 	}
 
-	return key;
+	return {key,false};
 }
 
 SDL_Texture* LocalizationManager::get_text_texture(
@@ -416,16 +449,29 @@ LocalizationManager::resolve_locale_directory(
 		"locale-directory",language,direct_path,_manifest_path));
 }
 
-std::string_view LocalizationManager::lookup_translation(
+const std::string* LocalizationManager::lookup_translation(
 	const TranslationTable& table,
 	std::string_view key
 ) const
 {
 	const auto iterator = table.find(std::string(key));
 	if (iterator == table.end())
-		return key;
+		return nullptr;
 
-	return iterator->second;
+	return &iterator->second;
+}
+
+void LocalizationManager::warn_missing_translation_once(std::string_view key) const
+{
+	MissingTranslationWarningKey warning_key{
+		_current_language,
+		std::string(key)
+	};
+	if (!_warned_missing_translations.insert(std::move(warning_key)).second)
+		return;
+
+	ELYSIA_LOG_WARN("localization","Missing localization key: key='"
+		<< key << "', locale='" << _current_language << "'");
 }
 
 TTF_Font* LocalizationManager::resolve_text_font(

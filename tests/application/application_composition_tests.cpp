@@ -152,9 +152,9 @@ int main()
     }
     require(throws_logic_error_containing(
             [&scene_manager] { request_scene(
-                scene_manager,elysia::scene::SceneKeys::ElysiaEasterEgg); },
-            "ElysiaScene"),
-        "Application composition must register the Elysia Easter egg scene");
+                scene_manager,elysia::scene::SceneKeys::ElysiaRealm); },
+            "ElysiaRealmPayload"),
+        "Application composition must register the public Elysia Realm entry");
 
     scene_manager.shutdown();
     return EXIT_SUCCESS;

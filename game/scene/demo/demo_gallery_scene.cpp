@@ -3,7 +3,7 @@
 #include "../example_scene_keys.h"
 #include "../main_menu_scene.h"
 #include "../../../engine/builtin/scenes/application_failure_scene_payload.h"
-#include "../../../engine/elysia/elysia_scene_payload.h"
+#include "../../../engine/elysia/elysia_realm.h"
 #include "../../../engine/input/raw_input_types.h"
 #include "../../../engine/ui/composites/ui_confirmation_dialog.h"
 #include "../../../engine/ui/containers/ui_list_container.h"
@@ -212,7 +212,7 @@ void DemoGalleryScene::build_ui()
     elysia_realm->set_on_click([this]() {
         request_scene_switch(
             elysia::scene::SceneKeys::ElysiaRealm,
-            elysia::realm::ElysiaScenePayload{
+            elysia::realm::ElysiaRealmPayload{
                 .return_route = make_gallery_route()});
     });
     list->add_back(std::move(elysia_realm));

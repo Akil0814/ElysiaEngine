@@ -14,9 +14,6 @@ inline constexpr SceneKey GameBegin = 1;
 inline constexpr SceneKey GameEnd = 999;
 
 inline constexpr SceneKey ElysiaRealm = 1111;
-// Compatibility name retained for game and test code that predates the
-// clearer realm-oriented scene name.
-inline constexpr SceneKey ElysiaEasterEgg = ElysiaRealm;
 
 // This value is a range marker, not a usable scene key. Engine-owned
 // scenes occupy the values strictly above it.
@@ -33,14 +30,14 @@ inline constexpr SceneKey EngineBegin = EngineMarker + 1u;
     return key >= EngineBegin;
 }
 
-[[nodiscard]] constexpr bool is_easter_egg(SceneKey key) noexcept
+[[nodiscard]] constexpr bool is_engine_owned(SceneKey key) noexcept
 {
-    return key == ElysiaRealm;
+    return is_engine(key) || key == ElysiaRealm;
 }
 
 [[nodiscard]] constexpr bool is_supported(SceneKey key) noexcept
 {
-    return is_game(key) || is_engine(key) || is_easter_egg(key);
+    return is_game(key) || is_engine_owned(key);
 }
 
 [[nodiscard]] constexpr bool is_reserved(SceneKey key) noexcept
