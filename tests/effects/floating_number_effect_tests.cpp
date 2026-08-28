@@ -1,6 +1,6 @@
 ﻿#define SDL_MAIN_HANDLED
 
-#include "engine/builtin/resources/builtin_asset_cache.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/core/time.h"
 #include "engine/effects/runtime/effect_manager.h"
@@ -109,11 +109,12 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         typography::resolve_font_settings(typography::FontSettings{});
     require(resolved_font_settings.has_value(),
         "floating number default font settings must resolve");
-    builtin::BuiltinAssetCache engine_cache;
-    require(engine_cache.initialize(
+    builtin::BuiltinResources builtin_resources;
+    require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*path_manager),
-        resolved_font_settings->engine_point_sizes()).has_value(),
+        resolved_font_settings->engine_point_sizes(),
+        {}).has_value(),
         "floating number tests must initialize built-in fonts");
     typography::FontResolver font_resolver;
     require(localization_manager->initialize(
@@ -121,10 +122,10 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         path_manager->configs() / "manifests" / "i18n_manifest.json",
         "en",
         &font_resolver,
-        &engine_cache), "floating number tests must initialize localization");
+        &builtin_resources), "floating number tests must initialize localization");
     require(font_resolver.configure(
         *resolved_font_settings,
-        engine_cache,
+        builtin_resources,
         *resources::ResourceService::instance(),
         localization_service->supported_languages()).has_value(),
         "floating number tests must configure Engine fonts");
@@ -336,7 +337,7 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     effect_manager->set_runtime_dependencies(nullptr,nullptr);
     localization_manager->shutdown();
     font_resolver.shutdown();
-    engine_cache.shutdown();
+    builtin_resources.shutdown();
 }
 
 int main()

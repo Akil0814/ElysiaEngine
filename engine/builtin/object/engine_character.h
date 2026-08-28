@@ -5,6 +5,7 @@
 #include "../../core/interface/updatable.h"
 #include "../../input/contracts/raw_input_event_receiver.h"
 #include "../../physics/contracts/collider_provider.h"
+#include "../resources/builtin_resource_ids.h"
 
 #include <memory>
 #include <optional>
@@ -14,7 +15,7 @@
 
 namespace elysia::builtin
 {
-class BuiltinAssetCache;
+class BuiltinResources;
 
 class EngineCharacter final : public elysia::core::GameObject,
     public elysia::input::RawInputEventReceiver,
@@ -24,7 +25,7 @@ class EngineCharacter final : public elysia::core::GameObject,
 public:
     static constexpr float kMovementSpeed = 180.0f;
 
-    explicit EngineCharacter(const BuiltinAssetCache& asset_cache);
+    explicit EngineCharacter(const BuiltinResources& resources);
     ~EngineCharacter() override = default;
 
     void update(double delta_seconds) override;
@@ -37,9 +38,9 @@ public:
     [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override;
 
     [[nodiscard]] bool set_animations(
-        const BuiltinAssetCache& asset_cache,
-        std::string_view idle_key,
-        std::string_view move_key);
+        const BuiltinResources& resources,
+        BuiltinAnimationId idle_id,
+        BuiltinAnimationId move_id);
 
     void set_movement_bounds(
         std::optional<elysia::core::Rect> bounds) noexcept;

@@ -1,8 +1,6 @@
 #include "elysia_realm_scene.h"
 
-#include "../../builtin/audio/builtin_audio_player.h"
-#include "../../builtin/resources/builtin_asset_cache.h"
-#include "../../builtin/resources/builtin_asset_keys.h"
+#include "../../builtin/resources/builtin_resources.h"
 #include "../../scene/runtime/scene_runtime_context.h"
 #include "../../ui/widgets/image/ui_image.h"
 #include "../../ui/window/ui_window.h"
@@ -21,6 +19,12 @@ namespace
 }
 }
 
+ElysiaRealmScene::ElysiaRealmScene(
+    const elysia::builtin::BuiltinResources& builtin_resources) noexcept
+    : _builtin_resources(&builtin_resources)
+{
+}
+
 void ElysiaRealmScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
     const RealmContentPayload* realm_payload =
@@ -31,18 +35,10 @@ void ElysiaRealmScene::on_enter(const elysia::scene::ScenePayload& payload)
             "ElysiaRealmScene requires RealmContentPayload with a valid return route.");
     }
 
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->is_initialized())
+    if (!_builtin_resources || !_builtin_resources->is_initialized())
     {
         throw std::logic_error(
-            "ElysiaRealmScene requires an initialized BuiltinAssetCache.");
-    }
-
-    const auto* audio_player = runtime_context().builtin_audio_player();
-    if (!audio_player || !audio_player->bound())
-    {
-        throw std::logic_error(
-            "ElysiaRealmScene requires a bound BuiltinAudioPlayer.");
+            "ElysiaRealmScene requires initialized BuiltinResources.");
     }
 
     _return_route = realm_payload->return_route;
@@ -55,9 +51,7 @@ void ElysiaRealmScene::on_enter(const elysia::scene::ScenePayload& payload)
 
 void ElysiaRealmScene::on_exit()
 {
-    const auto* audio_player = runtime_context().builtin_audio_player();
-    if (audio_player && audio_player->bound())
-        audio_player->stop_music();
+    _builtin_resources->stop_music();
 
     _paused = false;
     if (_root_window && !_root_window->is_destroyed())
@@ -76,15 +70,8 @@ void ElysiaRealmScene::reset()
 
 void ElysiaRealmScene::build_ui()
 {
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache)
-    {
-        throw std::logic_error(
-            "ElysiaRealmScene requires BuiltinAssetCache while building UI.");
-    }
-
-    SDL_Texture* texture = cache->find_texture(
-        elysia::builtin::asset_keys::ElysiaDefaultTexture);
+    SDL_Texture* texture = _builtin_resources->find_texture(
+        elysia::builtin::BuiltinTextureId::ElysiaDefault);
     if (!texture)
     {
         throw std::logic_error(

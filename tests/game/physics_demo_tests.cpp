@@ -8,6 +8,7 @@
 #include "game/scene/demo/demo_scene_payload.h"
 #include "game/scene/demo/physics/physics_combat_layout.h"
 #include "engine/camera/camera_manager.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
@@ -23,6 +24,14 @@ using elysia::tests::require;
 
 namespace
 {
+void register_example_scenes(elysia::scene::SceneManager& scene_manager)
+{
+    static elysia::builtin::BuiltinResources builtin_resources;
+    example::application::GameModule{}.register_scenes(
+        scene_manager,
+        elysia::application::GameSceneRegistrationContext(builtin_resources));
+}
+
 class RegistrationProbeScene final : public elysia::scene::Scene
 {
 public:
@@ -326,7 +335,7 @@ void test_scene_keys_are_unique()
 void test_game_module_registers_demo_scenes()
 {
     elysia::scene::SceneManager scene_manager;
-    example::application::GameModule{}.register_scenes(scene_manager);
+    register_example_scenes(scene_manager);
 
     for (const elysia::scene::SceneKey key : {
             example::scene_keys::DemoGallery,
@@ -395,7 +404,7 @@ void require_demo_camera(
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
-    example::application::GameModule{}.register_scenes(scene_manager);
+    register_example_scenes(scene_manager);
     scene_manager.set_runtime_context(context);
     scene_manager.start({
         .target = scene_key,
@@ -455,9 +464,9 @@ void test_each_physics_demo_owns_one_inspector_panel()
         elysia::io::ContentRegistry registry;
         PanelRegistryProbe panels;
         elysia::scene::SceneRuntimeContext context(
-            nullptr, registry, 1280, 720, nullptr, nullptr, nullptr, &panels);
+            nullptr, registry, 1280, 720, nullptr, &panels);
         elysia::scene::SceneManager scene_manager;
-        example::application::GameModule{}.register_scenes(scene_manager);
+        register_example_scenes(scene_manager);
         scene_manager.set_runtime_context(context);
         scene_manager.start({
             .target = scene_key,
@@ -481,7 +490,7 @@ void test_physics_demo_navigation_and_recreate_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
-    example::application::GameModule{}.register_scenes(scene_manager);
+    register_example_scenes(scene_manager);
     scene_manager.register_game_scene<DemoReturnScene>(1);
     scene_manager.set_runtime_context(context);
 
@@ -525,7 +534,7 @@ void test_animation_preview_returns_complete_caller_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
-    example::application::GameModule{}.register_scenes(scene_manager);
+    register_example_scenes(scene_manager);
     scene_manager.register_game_scene<DemoReturnScene>(1);
     scene_manager.set_runtime_context(context);
     scene_manager.start({
@@ -550,7 +559,7 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
-    example::application::GameModule{}.register_scenes(scene_manager);
+    register_example_scenes(scene_manager);
     scene_manager.set_runtime_context(context);
     scene_manager.start({
         .target = example::scene_keys::MainMenu,

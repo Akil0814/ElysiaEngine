@@ -9,7 +9,9 @@
 #include <SDL_mixer.h>
 
 #include <expected>
+#include <array>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -41,7 +43,7 @@ using BuiltinTranslationTable = std::unordered_map<std::string, std::string>;
 
 struct BuiltinAnimationDefinition
 {
-    std::string key;
+    BuiltinAnimationId id = BuiltinAnimationId::Count;
     const elysia::resources::Atlas* atlas = nullptr;
     double fps = 0.0;
     bool loop = false;
@@ -64,13 +66,16 @@ public:
 
     [[nodiscard]] bool is_initialized() const noexcept;
 
-    [[nodiscard]] SDL_Texture* find_texture(std::string_view key) const noexcept;
-    [[nodiscard]] TTF_Font* find_font(std::string_view locale,int point_size) const noexcept;
-    [[nodiscard]] const std::string* find_translation(std::string_view locale,std::string_view key) const noexcept;
-    [[nodiscard]] const BuiltinAnimationDefinition* find_animation(std::string_view key) const noexcept;
-    [[nodiscard]] Mix_Chunk* find_sound(std::string_view key) const noexcept;
-    [[nodiscard]] Mix_Music* find_music(std::string_view key) const noexcept;
-    [[nodiscard]] std::unique_ptr<elysia::animation::Animation> create_animation(std::string_view key) const;
+    [[nodiscard]] SDL_Texture* find_texture(BuiltinTextureId id) const noexcept;
+    [[nodiscard]] TTF_Font* find_font(BuiltinFontId id,int point_size) const noexcept;
+    [[nodiscard]] const std::string* find_translation(
+        BuiltinLocaleId locale,std::string_view key) const noexcept;
+    [[nodiscard]] const BuiltinAnimationDefinition* find_animation(
+        BuiltinAnimationId id) const noexcept;
+    [[nodiscard]] Mix_Chunk* find_sound(BuiltinSoundId id) const noexcept;
+    [[nodiscard]] Mix_Music* find_music(BuiltinMusicId id) const noexcept;
+    [[nodiscard]] std::unique_ptr<elysia::animation::Animation> create_animation(
+        BuiltinAnimationId id) const;
 
     [[nodiscard]] std::size_t texture_count() const noexcept;
     [[nodiscard]] std::size_t font_count() const noexcept;
@@ -79,39 +84,45 @@ public:
     [[nodiscard]] std::size_t sound_count() const noexcept;
     [[nodiscard]] std::size_t music_count() const noexcept;
 
-    [[nodiscard]] static std::string font_key(std::string_view locale,int point_size);
-
 private:
-    using TextureMap = std::unordered_map<std::string, elysia::resources::TextureResource>;
-    using FontMap = std::unordered_map<std::string, BuiltinFontPtr>;
-    using TranslationTables = std::unordered_map<std::string, BuiltinTranslationTable>;
-    using AtlasMap = std::unordered_map<std::string, std::unique_ptr<elysia::resources::Atlas>>;
-    using AnimationDefinitions = std::unordered_map<std::string, BuiltinAnimationDefinition>;
-    using SoundMap = std::unordered_map<std::string, BuiltinSoundPtr>;
-    using MusicMap = std::unordered_map<std::string, BuiltinMusicPtr>;
+    using TextureStorage = std::array<elysia::resources::TextureResource,
+        builtin_resource_index(BuiltinTextureId::Count)>;
+    using FontSizeMap = std::unordered_map<int, BuiltinFontPtr>;
+    using FontStorage = std::array<FontSizeMap,
+        builtin_resource_index(BuiltinFontId::Count)>;
+    using TranslationTables = std::array<BuiltinTranslationTable,
+        builtin_resource_index(BuiltinLocaleId::Count)>;
+    using AtlasStorage = std::array<std::unique_ptr<elysia::resources::Atlas>,
+        builtin_resource_index(BuiltinAnimationId::Count)>;
+    using AnimationDefinitions = std::array<std::optional<BuiltinAnimationDefinition>,
+        builtin_resource_index(BuiltinAnimationId::Count)>;
+    using SoundStorage = std::array<BuiltinSoundPtr,
+        builtin_resource_index(BuiltinSoundId::Count)>;
+    using MusicStorage = std::array<BuiltinMusicPtr,
+        builtin_resource_index(BuiltinMusicId::Count)>;
 
     struct PreparedState
     {
-        TextureMap textures;
-        FontMap fonts;
+        TextureStorage textures;
+        FontStorage fonts;
         TranslationTables translations;
-        AtlasMap atlases;
+        AtlasStorage atlases;
         AnimationDefinitions animations;
-        SoundMap sounds;
-        MusicMap music;
+        SoundStorage sounds;
+        MusicStorage music;
     };
 
     [[nodiscard]] std::expected<PreparedState, std::string> prepare(SDL_Renderer* renderer,
         const BuiltinAssetCatalog& catalog,std::span<const int> point_sizes) const;
 
 private:
-    TextureMap _textures;
-    FontMap _fonts;
+    TextureStorage _textures;
+    FontStorage _fonts;
     TranslationTables _translations;
-    AtlasMap _atlases;
+    AtlasStorage _atlases;
     AnimationDefinitions _animations;
-    SoundMap _sounds;
-    MusicMap _music;
+    SoundStorage _sounds;
+    MusicStorage _music;
     SDL_Renderer* _renderer = nullptr;
 };
 }

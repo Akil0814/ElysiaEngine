@@ -1,6 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
-#include "engine/builtin/resources/builtin_asset_keys.h"
+#include "engine/builtin/resources/builtin_resource_ids.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/bootstrap/bootstrap_texture_cache.h"
 #include "engine/bootstrap/bootstrapper.h"
 #include "engine/bootstrap/startup_preload_loader.h"
@@ -80,7 +81,8 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
                 && loader.find_texture("project.logo") == nullptr,
             "startup preload must be idempotent for the same renderer");
         require(
-            loader.find_texture(builtin::asset_keys::ElysiaWhiteTexture) == nullptr,
+            loader.find_texture(builtin::builtin_resource_name(
+                builtin::BuiltinTextureId::ElysiaWhite)) == nullptr,
             "startup loader must not own built-in textures");
         require(resource_manager->resource_count() == resource_count_before,
             "bootstrap preload must not publish textures to ResourceManager");
@@ -141,7 +143,8 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
         require(missing_loader.find_texture("project.missing") == nullptr,
             "a failed required preload must not publish a texture");
         require(missing_loader.find_texture(
-            builtin::asset_keys::ElysiaWhiteTexture) == nullptr,
+            builtin::builtin_resource_name(
+                builtin::BuiltinTextureId::ElysiaWhite)) == nullptr,
             "project startup preload must not expose built-in textures");
         std::filesystem::remove(missing_manifest,remove_error);
 
@@ -177,7 +180,8 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
             std::ofstream output(reserved_manifest,std::ios::trunc);
             output
                 << R"({"textures":[{"key":")"
-                << builtin::asset_keys::ElysiaWhiteTexture
+                << builtin::builtin_resource_name(
+                    builtin::BuiltinTextureId::ElysiaWhite)
                 << R"(","file":"unused.png"}]})";
         }
         bootstrap::StartupPreloadLoader reserved_loader;
@@ -228,7 +232,8 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
                     "project.logo") == nullptr,
             "bootstrap lifecycle test must accept an empty project preload");
 
-        builtin::StartupLoadingScene startup_scene;
+        builtin::BuiltinResources builtin_resources;
+        builtin::StartupLoadingScene startup_scene(builtin_resources);
         startup_scene.on_exit();
         require(
             bootstrapper->find_preload_texture("project.logo")

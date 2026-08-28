@@ -15,7 +15,7 @@
 
 namespace elysia::builtin
 {
-class BuiltinAssetCache;
+class BuiltinResources;
 }
 
 namespace elysia::resources
@@ -62,7 +62,7 @@ public:
 
     [[nodiscard]] std::expected<void,FontResolveError> configure(
         const ResolvedFontSettings& settings,
-        const elysia::builtin::BuiltinAssetCache& builtin_asset_cache,
+        const elysia::builtin::BuiltinResources& builtin_resources,
         const elysia::resources::ResourceService& resource_service,
         std::span<const std::string> supported_languages);
     void shutdown() noexcept;
@@ -103,7 +103,7 @@ private:
 
 private:
     std::optional<ResolvedFontSettings> _settings;
-    const elysia::builtin::BuiltinAssetCache* _builtin_asset_cache = nullptr;
+    const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
     const elysia::resources::ResourceService* _resource_service = nullptr;
     std::vector<std::string> _supported_languages;
     std::uint64_t _generation = 0;

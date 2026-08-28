@@ -1,9 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
-#include "engine/builtin/resources/builtin_asset_cache.h"
-#include "engine/builtin/audio/builtin_audio_player.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
-#include "engine/builtin/resources/builtin_asset_keys.h"
 #include "engine/io/path/path_manager.h"
 #include "engine/loading/content_runtime_cleanup.h"
 #include "engine/core/render/colors.h"
@@ -69,28 +67,34 @@ int main()
     AssistCacheFixture fixture;
     const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
     elysia::builtin::BuiltinAssetCatalog catalog(source_root);
-    elysia::builtin::BuiltinAssetCache cache;
+    elysia::builtin::BuiltinResources resources;
     constexpr std::array default_point_sizes{10,20,30,40,50,60,70};
 
-    const auto initialized = cache.initialize(
+    const auto initialized = resources.initialize(
         fixture.renderer(),
         catalog,
-        default_point_sizes);
+        default_point_sizes,
+        elysia::audio::AudioSettings{
+            .master_volume = 125,
+            .music_volume = -10,
+            .sound_volume = 42
+        });
     require(initialized.has_value(), "Built-in asset cache must load all repository built-in resources");
-    require(cache.is_initialized(), "successful cache initialization must publish a live cache");
-    require(cache.texture_count() == 7, "cache must own all seven Engine textures");
-    require(cache.font_count() == 35, "cache must own five font faces at seven fixed sizes");
-    require(cache.locale_count() == 5, "cache must own all five Engine translation tables");
-    require(cache.find_texture(
-            elysia::builtin::asset_keys::ElysiaWhiteTexture) != nullptr,
+    require(resources.is_initialized(), "successful initialization must publish live built-in resources");
+    require(resources.texture_count() == 7, "resources must own all seven Engine textures");
+    require(resources.font_count() == 35, "resources must own five font faces at seven fixed sizes");
+    require(resources.locale_count() == 5, "resources must own all five Engine translation tables");
+    require(resources.find_texture(
+            elysia::builtin::BuiltinTextureId::ElysiaWhite) != nullptr,
         "cache must expose the Engine startup logo by stable key");
-    require(cache.find_texture(elysia::builtin::asset_keys::EngineCharacterIdleTexture) != nullptr
-            && cache.find_texture(elysia::builtin::asset_keys::EngineCharacterMoveTexture) != nullptr,
+    require(resources.find_texture(elysia::builtin::BuiltinTextureId::EngineCharacterIdle) != nullptr
+            && resources.find_texture(elysia::builtin::BuiltinTextureId::EngineCharacterMove) != nullptr,
         "cache must expose both Engine character sprites by stable key");
-    require(cache.find_font("zh-Hans", 30) != nullptr,
+    require(resources.find_font(elysia::builtin::BuiltinFontId::SimplifiedChinese, 30) != nullptr,
         "cache must expose Engine fonts by locale and point size");
-    require(cache.find_font("zh_hans", 30) == nullptr,
-        "cache must reject non-BCP-47 locale aliases");
+    require(elysia::builtin::builtin_locale_id("zh_hans")
+            == elysia::builtin::BuiltinLocaleId::Count,
+        "locale mapping must reject non-BCP-47 locale aliases");
     const std::array legacy_locales{
         std::string("zh") + "_cn",
         std::string("zh_") + "Hans",
@@ -98,59 +102,55 @@ int main()
     };
     for (const std::string& legacy_locale : legacy_locales)
     {
-        require(cache.find_font(legacy_locale,30) == nullptr
-                && cache.find_translation(legacy_locale,"engine.settings.title") == nullptr,
+        require(elysia::builtin::builtin_locale_id(legacy_locale)
+                == elysia::builtin::BuiltinLocaleId::Count,
             "cache must reject every legacy locale spelling");
     }
 
-    elysia::builtin::BuiltinAssetCache custom_size_cache;
+    elysia::builtin::BuiltinResources custom_size_resources;
     constexpr std::array custom_point_sizes{24};
-    require(custom_size_cache.initialize(
+    require(custom_size_resources.initialize(
             fixture.renderer(),
             catalog,
-            custom_point_sizes).has_value()
-            && custom_size_cache.font_count() == 5
-            && custom_size_cache.find_font("en",24) != nullptr,
+            custom_point_sizes,
+            {}).has_value()
+            && custom_size_resources.font_count() == 5
+            && custom_size_resources.find_font(
+                elysia::builtin::BuiltinFontId::Latin,24) != nullptr,
         "cache must dynamically load Application-requested point sizes");
-    custom_size_cache.shutdown();
-    require(cache.find_translation("ja", "engine.settings.title") != nullptr,
+    custom_size_resources.shutdown();
+    require(resources.find_translation(
+            elysia::builtin::BuiltinLocaleId::Japanese,
+            "engine.settings.title") != nullptr,
         "cache must expose parsed Engine translations");
-    require(cache.animation_count() == 2, "cache must register both Engine character animations");
-    require(cache.sound_count() == 0 && cache.music_count() == 1,
+    require(resources.animation_count() == 2, "resources must register both Engine character animations");
+    require(resources.sound_count() == 0 && resources.music_count() == 1,
         "cache must expose the registered Elysia scene music");
-    require(cache.find_sound("") == nullptr
-            && cache.find_sound("system.button_click_up") == nullptr
-            && cache.find_music("") == nullptr
-            && cache.find_music("missing.music") == nullptr
-            && cache.find_music(elysia::builtin::asset_keys::ElysianRealm) != nullptr,
+    require(resources.find_sound(static_cast<elysia::builtin::BuiltinSoundId>(255)) == nullptr
+            && resources.find_music(static_cast<elysia::builtin::BuiltinMusicId>(255)) == nullptr
+            && resources.find_music(elysia::builtin::BuiltinMusicId::ElysianRealm) != nullptr,
         "cache must distinguish registered and unregistered Engine audio keys");
 
-    elysia::builtin::BuiltinAudioPlayer audio_player;
-    require(!audio_player.bound(),
-        "Built-in audio player must begin unbound");
-    require(audio_player.play_sound("system.button_click_up") == -1
-            && !audio_player.play_music(elysia::builtin::asset_keys::ElysianRealm),
+    elysia::builtin::BuiltinResources uninitialized_resources;
+    require(uninitialized_resources.play_sound(
+                static_cast<elysia::builtin::BuiltinSoundId>(255)) == -1
+            && !uninitialized_resources.play_music(
+                elysia::builtin::BuiltinMusicId::ElysianRealm),
         "unbound built-in audio requests must fail safely");
-    audio_player.bind(cache,elysia::audio::AudioSettings{
-        .master_volume = 125,
-        .music_volume = -10,
-        .sound_volume = 42
-    });
-    require(audio_player.bound()
-            && audio_player.settings().master_volume == 100
-            && audio_player.settings().music_volume == 0
-            && audio_player.settings().sound_volume == 42,
-        "binding the built-in audio player must clamp its volume snapshot");
-    require(audio_player.play_sound("system.button_click_up") == -1
-            && !audio_player.play_music("missing.music"),
+    require(resources.audio_settings().master_volume == 100
+            && resources.audio_settings().music_volume == 0
+            && resources.audio_settings().sound_volume == 42,
+        "initializing built-in resources must clamp its volume snapshot");
+    require(resources.play_sound(static_cast<elysia::builtin::BuiltinSoundId>(255)) == -1
+            && !resources.play_music(static_cast<elysia::builtin::BuiltinMusicId>(255)),
         "bound built-in audio requests must not fall back to project resources");
-    require(audio_player.play_music(elysia::builtin::asset_keys::ElysianRealm),
+    require(resources.play_music(elysia::builtin::BuiltinMusicId::ElysianRealm),
         "bound built-in audio player must play registered scene music");
-    audio_player.stop_music();
-    const auto* idle_definition = cache.find_animation(
-        elysia::builtin::asset_keys::EngineCharacterIdleAnimation);
-    const auto* move_definition = cache.find_animation(
-        elysia::builtin::asset_keys::EngineCharacterMoveAnimation);
+    resources.stop_music();
+    const auto* idle_definition = resources.find_animation(
+        elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
+    const auto* move_definition = resources.find_animation(
+        elysia::builtin::BuiltinAnimationId::EngineCharacterMove);
     require(idle_definition != nullptr && idle_definition->atlas != nullptr
             && idle_definition->atlas->size() == 8 && idle_definition->fps == 8.0
             && idle_definition->loop
@@ -167,8 +167,8 @@ int main()
             && first_frame->_source_rect->width() == 32.0f && first_frame->_source_rect->height() == 32.0f
             && last_frame->_source_rect->x() == 224.0f,
         "Engine character animation atlases must expose eight 32 px source rectangles");
-    const auto animation = cache.create_animation(
-        elysia::builtin::asset_keys::EngineCharacterIdleAnimation);
+    const auto animation = resources.create_animation(
+        elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
     require(animation != nullptr && animation->current_frame_index() == 0
             && animation->current_frame() == first_frame,
         "cache must create an initialized Engine character animation instance");
@@ -176,8 +176,8 @@ int main()
     elysia::ui::UiAnimation ui_animation(
         elysia::core::Rect{ 0.0f,0.0f,32.0f,32.0f });
     require(ui_animation.set_engine_animation(
-                cache,
-                elysia::builtin::asset_keys::EngineCharacterIdleAnimation)
+                resources,
+                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle)
             && ui_animation.is_looping(),
         "UiAnimation must bind looping built-in animations without AnimationManager");
     ui_animation.set_opacity(128);
@@ -202,40 +202,39 @@ int main()
         "Built-in UiAnimation must render base then a matching color mask");
 
     elysia::loading::clear_loaded_content();
-    require(cache.find_texture(
-            elysia::builtin::asset_keys::ElysiaWhiteTexture) != nullptr
-            && cache.find_font("en", 20) != nullptr,
+    require(resources.find_texture(
+            elysia::builtin::BuiltinTextureId::ElysiaWhite) != nullptr
+            && resources.find_font(elysia::builtin::BuiltinFontId::Latin, 20) != nullptr,
         "clearing project content must not invalidate built-in resources");
-    require(cache.create_animation(
-                elysia::builtin::asset_keys::EngineCharacterIdleAnimation) != nullptr
-            && cache.create_animation(
-                elysia::builtin::asset_keys::EngineCharacterMoveAnimation) != nullptr,
+    require(resources.create_animation(
+                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle) != nullptr
+            && resources.create_animation(
+                elysia::builtin::BuiltinAnimationId::EngineCharacterMove) != nullptr,
         "clearing project content must not invalidate built-in animations");
     require(ui_animation.set_engine_animation(
-                cache,
-                elysia::builtin::asset_keys::EngineCharacterIdleAnimation),
+                resources,
+                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle),
         "UiAnimation built-in binding must survive project content cleanup");
 
     const std::filesystem::path missing_root = std::filesystem::temp_directory_path()
         / ("elysia_assist_cache_missing_"
             + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-    const auto failed_reinitialize = cache.initialize(
+    const auto failed_reinitialize = resources.initialize(
         fixture.renderer(),
         elysia::builtin::BuiltinAssetCatalog(missing_root),
-        default_point_sizes);
+        default_point_sizes,
+        {});
     require(!failed_reinitialize.has_value(),
         "invalid built-in resources must reject initialization");
-    require(cache.texture_count() == 7 && cache.font_count() == 35 && cache.locale_count() == 5
-            && cache.animation_count() == 2 && cache.sound_count() == 0
-            && cache.music_count() == 1,
+    require(resources.texture_count() == 7 && resources.font_count() == 35 && resources.locale_count() == 5
+            && resources.animation_count() == 2 && resources.sound_count() == 0
+            && resources.music_count() == 1,
         "a failed initialization must preserve the last complete cache transactionally");
 
-    audio_player.unbind();
-    require(!audio_player.bound(), "unbinding must detach the built-in audio player");
-    cache.shutdown();
-    require(!cache.is_initialized() && cache.texture_count() == 0 && cache.font_count() == 0
-            && cache.locale_count() == 0 && cache.animation_count() == 0
-            && cache.sound_count() == 0 && cache.music_count() == 0,
+    resources.shutdown();
+    require(!resources.is_initialized() && resources.texture_count() == 0 && resources.font_count() == 0
+            && resources.locale_count() == 0 && resources.animation_count() == 0
+            && resources.sound_count() == 0 && resources.music_count() == 0,
         "cache shutdown must release all Engine-owned runtime resources");
     return 0;
 }

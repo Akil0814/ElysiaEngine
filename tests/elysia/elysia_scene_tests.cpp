@@ -1,7 +1,6 @@
 ﻿#define SDL_MAIN_HANDLED
 
-#include "engine/builtin/audio/builtin_audio_player.h"
-#include "engine/builtin/resources/builtin_asset_cache.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/elysia/elysia_realm.h"
 #include "engine/elysia/detail/elysia_intro_scene.h"
@@ -136,7 +135,8 @@ void test_payload_contract()
     static_assert(elysia::scene::SceneKeys::is_engine(
         elysia::realm::detail::SceneKeys::RealmContent));
 
-    elysia::realm::detail::ElysiaIntroScene scene;
+    elysia::builtin::BuiltinResources resources;
+    elysia::realm::detail::ElysiaIntroScene scene(resources);
     require(throws_logic_error_containing(
             [&scene] { scene.on_enter({}); },
             "ElysiaRealmPayload"),
@@ -151,7 +151,7 @@ void test_payload_contract()
             "ElysiaRealmPayload"),
         "ElysiaIntroScene must reject an invalid return route");
 
-    elysia::realm::detail::ElysiaRealmScene realm_scene;
+    elysia::realm::detail::ElysiaRealmScene realm_scene(resources);
     require(throws_logic_error_containing(
             [&realm_scene] { realm_scene.on_enter({}); },
             "RealmContentPayload"),
@@ -161,23 +161,24 @@ void test_payload_contract()
 void test_sequence_escape_reuse_and_audio_lifecycle()
 {
     SdlFixture fixture;
-    elysia::builtin::BuiltinAssetCache cache;
-    require(cache.initialize(
+    elysia::builtin::BuiltinResources builtin_resources;
+    require(builtin_resources.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(
                     std::filesystem::path{ ELYSIA_SOURCE_DIR }),
-                std::array{10,20,30,40,50,60,70})
+                std::array{10,20,30,40,50,60,70},
+                {})
                 .has_value(),
         "Realm scene tests must initialize built-in resources");
 
-    elysia::builtin::BuiltinAudioPlayer audio_player;
-    audio_player.bind(cache,elysia::audio::AudioSettings{});
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(
-        fixture.renderer(),registry,1280,720,&cache,nullptr,&audio_player);
+        fixture.renderer(),registry,1280,720);
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
-    elysia::realm::detail::register_realm_scenes(scene_manager);
+    elysia::realm::detail::register_realm_scenes(
+        scene_manager,
+        builtin_resources);
     scene_manager.register_game_scene<ReturnScene>(1);
 
     const auto enter_intro = [&scene_manager](int marker) {
@@ -252,8 +253,7 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     scene_manager.shutdown();
     require(Mix_PlayingMusic() == 0,
         "Intro shutdown before handoff must stop Realm music");
-    audio_player.unbind();
-    cache.shutdown();
+    builtin_resources.shutdown();
 }
 }
 

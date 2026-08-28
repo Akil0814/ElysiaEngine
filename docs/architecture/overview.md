@@ -36,7 +36,7 @@ ElysiaEngine executable
 1. `main.cpp` 创建 `example::application::GameModule`。
 2. `Application::initialize()` 读取模块的 `ApplicationDescriptor`。
 3. Bootstrap 解析启动配置和内容注册表，初始化 SDL、窗口、渲染器、音频、用户配置、内建资源、本地化和共享服务。
-4. `SceneRuntimeContext` 向场景提供渲染器、逻辑分辨率、内容注册表、内建资源、字体与内建音频访问。
+4. `SceneRuntimeContext` 向所有场景提供渲染器、逻辑分辨率、内容注册表和字体等通用能力；built-in 资源不进入通用场景上下文。
 5. 项目模块注册场景，`SceneManager` 进入 `initial_route`。
 6. `Application::run()` 推进事件、输入、场景更新、音频调度和渲染，直到收到正常退出或发生运行时失败。
 

@@ -9,18 +9,14 @@ SceneRuntimeContext::SceneRuntimeContext(
     const elysia::io::ContentRegistry& content_registry,
     int logical_width,
     int logical_height,
-    const elysia::builtin::BuiltinAssetCache* builtin_asset_cache,
     elysia::typography::FontResolver* font_resolver,
-    const elysia::builtin::BuiltinAudioPlayer* builtin_audio_player,
     elysia::tools::IDevelopmentPanelRegistry* development_panels
 ) noexcept
     : _renderer(renderer)
     , _content_registry(&content_registry)
     , _logical_width(logical_width)
     , _logical_height(logical_height)
-    , _builtin_asset_cache(builtin_asset_cache)
     , _font_resolver(font_resolver)
-    , _builtin_audio_player(builtin_audio_player)
     , _development_panels(development_panels)
 {
 }
@@ -45,20 +41,9 @@ int SceneRuntimeContext::logical_height() const noexcept
     return _logical_height;
 }
 
-const elysia::builtin::BuiltinAssetCache* SceneRuntimeContext::builtin_asset_cache() const noexcept
-{
-    return _builtin_asset_cache;
-}
-
 elysia::typography::FontResolver* SceneRuntimeContext::font_resolver() const noexcept
 {
     return _font_resolver;
-}
-
-const elysia::builtin::BuiltinAudioPlayer*
-SceneRuntimeContext::builtin_audio_player() const noexcept
-{
-    return _builtin_audio_player;
 }
 
 elysia::tools::IDevelopmentPanelRegistry*

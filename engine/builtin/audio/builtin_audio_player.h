@@ -1,8 +1,7 @@
 #pragma once
 
+#include "../resources/builtin_resource_ids.h"
 #include "../../audio/audio_settings.h"
-
-#include <string_view>
 
 namespace elysia::builtin
 {
@@ -15,8 +14,8 @@ public:
     void unbind() noexcept;
 
     [[nodiscard]] bool bound() const noexcept;
-    [[nodiscard]] int play_sound(std::string_view key, int loops = 0) const;
-    [[nodiscard]] bool play_music(std::string_view key, int loops = -1) const;
+    [[nodiscard]] int play_sound(BuiltinSoundId id, int loops = 0) const;
+    [[nodiscard]] bool play_music(BuiltinMusicId id, int loops = -1) const;
     void stop_music() const noexcept;
 
     void set_master_volume(int volume) noexcept;

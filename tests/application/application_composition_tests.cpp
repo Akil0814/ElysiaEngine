@@ -1,6 +1,7 @@
 #define SDL_MAIN_HANDLED
 
 #include "engine/application/composition/application_scene_composition.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
@@ -24,6 +25,12 @@ struct InitialPayload
 class InitialScene final : public elysia::scene::Scene
 {
 public:
+    explicit InitialScene(
+        const elysia::builtin::BuiltinResources& builtin_resources) noexcept
+    {
+        received_builtin_resources = &builtin_resources;
+    }
+
     void on_enter(const elysia::scene::ScenePayload& payload) override
     {
         const InitialPayload* initial_payload =
@@ -45,6 +52,8 @@ public:
     static inline int received_marker = 0;
     static inline int received_width = 0;
     static inline int received_height = 0;
+    static inline const elysia::builtin::BuiltinResources*
+        received_builtin_resources = nullptr;
 };
 
 class FakeGameModule final : public elysia::application::IGameModule
@@ -65,10 +74,13 @@ public:
     }
 
     void register_scenes(
-        elysia::scene::SceneManager& scene_manager) const override
+        elysia::scene::SceneManager& scene_manager,
+        const elysia::application::GameSceneRegistrationContext& context) const override
     {
         ++registration_calls;
-        scene_manager.register_game_scene<InitialScene>(1);
+        scene_manager.register_game_scene<InitialScene>(
+            1,
+            std::cref(context.builtin_resources()));
     }
 
     mutable int descriptor_calls = 0;
@@ -119,11 +131,13 @@ int main()
         descriptor.logical_height);
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
+    elysia::builtin::BuiltinResources builtin_resources;
 
     elysia::application::compose_application_scenes(
         scene_manager,
         game_module,
-        descriptor);
+        descriptor,
+        builtin_resources);
 
     require(game_module.descriptor_calls == 1,
         "Application composition must read the module descriptor exactly once");
@@ -135,6 +149,8 @@ int main()
     require(InitialScene::received_width == 960
         && InitialScene::received_height == 540,
         "the module logical viewport must be available before the first scene enters");
+    require(InitialScene::received_builtin_resources == &builtin_resources,
+        "game scene registration context must support explicit built-in resource injection");
 
     require(throws_logic_error_containing(
             [&scene_manager] { request_scene(scene_manager,99); },

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "builtin_resource_ids.h"
 #include "../../io/path/path_manager.h"
 
 #include <expected>
@@ -10,28 +11,41 @@
 
 namespace elysia::builtin
 {
-struct BuiltinAssetDescriptor
+struct BuiltinFontDescriptor
 {
-    std::string_view key;
+    BuiltinFontId id = BuiltinFontId::Count;
+    BuiltinLocaleId locale = BuiltinLocaleId::Count;
+    std::filesystem::path relative_path;
+};
+
+struct BuiltinTextureDescriptor
+{
+    BuiltinTextureId id = BuiltinTextureId::Count;
     std::filesystem::path relative_path;
 };
 
 struct BuiltinLocaleDescriptor
 {
-    std::string_view locale;
+    BuiltinLocaleId id = BuiltinLocaleId::Count;
     std::filesystem::path relative_path;
 };
 
-struct BuiltinAudioDescriptor
+struct BuiltinSoundDescriptor
 {
-    std::string_view key;
+    BuiltinSoundId id = BuiltinSoundId::Count;
+    std::filesystem::path relative_path;
+};
+
+struct BuiltinMusicDescriptor
+{
+    BuiltinMusicId id = BuiltinMusicId::Count;
     std::filesystem::path relative_path;
 };
 
 struct BuiltinAnimationDescriptor
 {
-    std::string_view key;
-    std::string_view texture_key;
+    BuiltinAnimationId id = BuiltinAnimationId::Count;
+    BuiltinTextureId texture_id = BuiltinTextureId::Count;
     int frame_width = 0;
     int frame_height = 0;
     std::size_t frame_count = 0;
@@ -69,12 +83,12 @@ public:
 
     [[nodiscard]] const std::filesystem::path& root() const noexcept;
     [[nodiscard]] std::filesystem::path required_marker_path() const;
-    [[nodiscard]] std::span<const BuiltinAssetDescriptor> fonts() const noexcept;
-    [[nodiscard]] std::span<const BuiltinAssetDescriptor> textures() const noexcept;
+    [[nodiscard]] std::span<const BuiltinFontDescriptor> fonts() const noexcept;
+    [[nodiscard]] std::span<const BuiltinTextureDescriptor> textures() const noexcept;
     [[nodiscard]] std::span<const BuiltinLocaleDescriptor> locales() const noexcept;
     [[nodiscard]] std::span<const BuiltinAnimationDescriptor> animations() const noexcept;
-    [[nodiscard]] std::span<const BuiltinAudioDescriptor> sounds() const noexcept;
-    [[nodiscard]] std::span<const BuiltinAudioDescriptor> music() const noexcept;
+    [[nodiscard]] std::span<const BuiltinSoundDescriptor> sounds() const noexcept;
+    [[nodiscard]] std::span<const BuiltinMusicDescriptor> music() const noexcept;
     [[nodiscard]] std::filesystem::path resolve(const std::filesystem::path& relative_path) const;
     [[nodiscard]] std::expected<void, BuiltinAssetValidationError>validate_required_files() const;
 

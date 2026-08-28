@@ -1,5 +1,5 @@
 ﻿#include "engine/builtin/resources/builtin_asset_catalog.h"
-#include "engine/builtin/resources/builtin_asset_keys.h"
+#include "engine/builtin/resources/builtin_resource_ids.h"
 #include "tests/support/test_assertions.h"
 
 #include <chrono>
@@ -14,12 +14,13 @@ using elysia::builtin::BuiltinAssetCatalog;
 using elysia::builtin::BuiltinAssetValidationErrorCode;
 
 template<typename Descriptor>
-std::set<std::string> keys_of(const std::span<const Descriptor> descriptors)
+auto ids_of(const std::span<const Descriptor> descriptors)
 {
-    std::set<std::string> keys;
+    using Id = decltype(Descriptor::id);
+    std::set<Id> ids;
     for (const auto& descriptor : descriptors)
-        keys.emplace(descriptor.key);
-    return keys;
+        ids.emplace(descriptor.id);
+    return ids;
 }
 
 std::set<std::string> locales_of(
@@ -27,7 +28,7 @@ std::set<std::string> locales_of(
 {
     std::set<std::string> locales;
     for (const auto& descriptor : descriptors)
-        locales.emplace(descriptor.locale);
+        locales.emplace(elysia::builtin::builtin_locale_name(descriptor.id));
     return locales;
 }
 
@@ -57,24 +58,16 @@ private:
 
 int main()
 {
-    using namespace elysia::builtin::asset_keys;
+    using namespace elysia::builtin;
 
-    static_assert(LatinFont == "engine.font.latin");
-    static_assert(SimplifiedChineseFont == "engine.font.zh_hans");
-    static_assert(TraditionalChineseFont == "engine.font.zh_hant");
-    static_assert(JapaneseFont == "engine.font.ja");
-    static_assert(KoreanFont == "engine.font.ko");
-    static_assert(ElysiaDefaultTexture == "engine.brand.elysia.default");
-    static_assert(ElysiaBlackTexture == "engine.brand.elysia.black");
-    static_assert(ElysiaBlackAlphaInverseTexture
-        == "engine.brand.elysia.black_alpha_inverse");
-    static_assert(ElysiaLightEdgeTexture == "engine.brand.elysia.light_edge");
-    static_assert(ElysiaWhiteTexture == "engine.brand.elysia.white");
-    static_assert(EngineCharacterIdleTexture == "engine.character.sprite.idle");
-    static_assert(EngineCharacterMoveTexture == "engine.character.sprite.move");
-    static_assert(EngineCharacterIdleAnimation == "engine.character.idle");
-    static_assert(EngineCharacterMoveAnimation == "engine.character.move");
-    static_assert(ElysianRealm == "engine.elysia.music");
+    require(builtin_resource_name(BuiltinFontId::Latin) == "engine.font.latin"
+            && builtin_resource_name(BuiltinTextureId::ElysiaWhite)
+                == "engine.brand.elysia.white"
+            && builtin_resource_name(BuiltinAnimationId::EngineCharacterIdle)
+                == "engine.character.idle"
+            && builtin_resource_name(BuiltinMusicId::ElysianRealm)
+                == "engine.elysia.music",
+        "typed built-in ids must retain stable diagnostic names");
 
     const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
     BuiltinAssetCatalog catalog(source_root);
@@ -89,38 +82,38 @@ int main()
     require(catalog.music().size() == 1,
         "assist catalog must describe the Elysia scene music");
     require(
-        keys_of(catalog.fonts()) == std::set<std::string>{
-            std::string(JapaneseFont),
-            std::string(KoreanFont),
-            std::string(LatinFont),
-            std::string(SimplifiedChineseFont),
-            std::string(TraditionalChineseFont),
+        ids_of(catalog.fonts()) == std::set<BuiltinFontId>{
+            BuiltinFontId::Japanese,
+            BuiltinFontId::Korean,
+            BuiltinFontId::Latin,
+            BuiltinFontId::SimplifiedChinese,
+            BuiltinFontId::TraditionalChinese,
         },
         "assist font keys must be stable"
     );
     require(
-        keys_of(catalog.textures()) == std::set<std::string>{
-            std::string(ElysiaBlackTexture),
-            std::string(ElysiaBlackAlphaInverseTexture),
-            std::string(ElysiaDefaultTexture),
-            std::string(ElysiaLightEdgeTexture),
-            std::string(ElysiaWhiteTexture),
-            std::string(EngineCharacterIdleTexture),
-            std::string(EngineCharacterMoveTexture),
+        ids_of(catalog.textures()) == std::set<BuiltinTextureId>{
+            BuiltinTextureId::ElysiaBlack,
+            BuiltinTextureId::ElysiaBlackAlphaInverse,
+            BuiltinTextureId::ElysiaDefault,
+            BuiltinTextureId::ElysiaLightEdge,
+            BuiltinTextureId::ElysiaWhite,
+            BuiltinTextureId::EngineCharacterIdle,
+            BuiltinTextureId::EngineCharacterMove,
         },
         "assist texture keys must be stable"
     );
     require(
-        keys_of(catalog.music()) == std::set<std::string>{
-            std::string(ElysianRealm)
+        ids_of(catalog.music()) == std::set<BuiltinMusicId>{
+            BuiltinMusicId::ElysianRealm
         },
         "assist music keys must be stable"
     );
     const auto animations = catalog.animations();
-    require(animations[0].key == EngineCharacterIdleAnimation
-            && animations[0].texture_key == EngineCharacterIdleTexture
-            && animations[1].key == EngineCharacterMoveAnimation
-            && animations[1].texture_key == EngineCharacterMoveTexture,
+    require(animations[0].id == BuiltinAnimationId::EngineCharacterIdle
+            && animations[0].texture_id == BuiltinTextureId::EngineCharacterIdle
+            && animations[1].id == BuiltinAnimationId::EngineCharacterMove
+            && animations[1].texture_id == BuiltinTextureId::EngineCharacterMove,
         "Engine character animation descriptors must use stable animation and texture keys");
     for (const auto& animation : animations)
     {

@@ -21,7 +21,7 @@
 
 namespace elysia::builtin
 {
-class BuiltinAssetCache;
+class BuiltinResources;
 }
 
 namespace elysia::typography
@@ -44,7 +44,7 @@ public:
 		const std::filesystem::path& manifest_path,
 		std::string initial_language,
 		const elysia::typography::FontResolver* font_resolver,
-		const elysia::builtin::BuiltinAssetCache* builtin_asset_cache = nullptr
+		const elysia::builtin::BuiltinResources* builtin_resources = nullptr
 	);
 	void shutdown();
 	[[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
@@ -124,7 +124,7 @@ private:
 		MissingTranslationWarningKeyHash> _warned_missing_translations;
 	std::string _current_language;
 	const elysia::typography::FontResolver* _font_resolver = nullptr;
-	const elysia::builtin::BuiltinAssetCache* _builtin_asset_cache = nullptr;
+	const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
 	bool _initialized = false;
 };
 

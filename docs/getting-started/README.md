@@ -14,7 +14,7 @@ Elysia Engine 当前以源码仓库形式提供。最直接的使用方式是构
 项目层实现 `elysia::application::IGameModule`：
 
 - `descriptor()` 返回逻辑分辨率、呈现设置和初始场景路由。
-- `register_scenes()` 将项目场景注册到 `SceneManager`。
+- `register_scenes()` 将项目场景注册到 `SceneManager`；普通场景只需注册 key，需要显式使用 built-in 资源的场景可从只读注册上下文取得 `BuiltinResources` 并作为构造参数注入。
 
 程序入口把模块交给 `Application::initialize()`，初始化成功后调用 `Application::run()`。仓库中的 `example::application::GameModule` 是这一模式的可运行示例。
 
