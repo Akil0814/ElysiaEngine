@@ -328,11 +328,22 @@ UiElement* UiListContainer::neighbor_region_of(const UiControl* control,UiAction
     if ((_layout.direction == UiLayoutDirection::Vertical && action == UiAction::NavigateUp)
         || (_layout.direction == UiLayoutDirection::Horizontal && action == UiAction::NavigateLeft))
     {
-        return found != regions.begin() ? *(found - 1) : nullptr;
+        while (found != regions.begin())
+        {
+            --found;
+            if (first_focusable_control_in_delegated_region(*found))
+                return *found;
+        }
+        return nullptr;
     }
 
-    auto next = found + 1;
-    return next != regions.end() ? *next : nullptr;
+    // Layout-only rows (such as settings hints) are not navigation stops.
+    for (auto next = found + 1; next != regions.end(); ++next)
+    {
+        if (first_focusable_control_in_delegated_region(*next))
+            return *next;
+    }
+    return nullptr;
 }
 
 void UiListContainer::sync_child_scope_focus() noexcept
