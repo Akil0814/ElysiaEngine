@@ -1,6 +1,6 @@
 #include "ui_animation.h"
 
-#include "../../../builtin/resources/builtin_asset_cache.h"
+#include "../../../builtin/resources/builtin_resources.h"
 #include "../../../animation/animation_service.h"
 #include "../../../core/render/render_command.h"
 
@@ -64,12 +64,12 @@ bool UiAnimation::set_animation_key(std::string_view animation_key)
 }
 
 bool UiAnimation::set_engine_animation(
-    const elysia::builtin::BuiltinAssetCache& builtin_asset_cache,
-    std::string_view animation_key)
+    const elysia::builtin::BuiltinResources& builtin_resources,
+    elysia::builtin::BuiltinAnimationId animation_id)
 {
     std::unique_ptr<elysia::animation::Animation> animation =
-        builtin_asset_cache.create_animation(animation_key);
-    const auto* definition = builtin_asset_cache.find_animation(animation_key);
+        builtin_resources.create_animation(animation_id);
+    const auto* definition = builtin_resources.find_animation(animation_id);
     if (!animation || !definition)
     {
         _animation_key.clear();
@@ -81,7 +81,7 @@ bool UiAnimation::set_engine_animation(
     if (_loop_override)
         animation->set_loop(*_loop_override);
 
-    _animation_key = animation_key;
+    _animation_key = elysia::builtin::builtin_resource_name(animation_id);
     _animation = std::move(animation);
     _default_loop = definition->loop;
     _animation->reset();

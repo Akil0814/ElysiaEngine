@@ -21,8 +21,8 @@ Elysia Engine 将配置划分为三个职责明确的模块：
 ```text
 Bootstrap
   content_registry.json（解析一次） -> Application 持有 ContentRegistry
-  AppConfig -> UserConfigService -> renderer -> BuiltinAssetCache
-  BuiltinAssetCache -> LocalizationManager -> 项目 preload manifest（全部条目必需）
+  AppConfig -> UserConfigService -> renderer -> BuiltinResources
+  BuiltinResources -> LocalizationManager -> 项目 preload manifest（全部条目必需）
   Application -> SceneRuntimeContext（向 Scene 提供只读 registry、逻辑画布与 Builtin Asset Cache）
 
 GameContentLoader

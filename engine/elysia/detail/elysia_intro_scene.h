@@ -15,11 +15,18 @@ class UiWindow;
 class UiListContainer;
 }
 
+namespace elysia::builtin
+{
+class BuiltinResources;
+}
+
 namespace elysia::realm::detail
 {
 class ElysiaIntroScene final : public elysia::scene::Scene
 {
 public:
+    explicit ElysiaIntroScene(
+        const elysia::builtin::BuiltinResources& builtin_resources) noexcept;
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_update(double delta) override;
     void on_exit() override;
@@ -34,6 +41,7 @@ private:
     void destroy_ui() noexcept;
 
 private:
+    const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
     std::size_t _current_line = 0;
     bool _logo_finished = false;
     bool _code_finished = false;

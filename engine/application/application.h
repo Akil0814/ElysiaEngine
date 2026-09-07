@@ -3,8 +3,7 @@
 #include "application_run_result.h"
 #include "game_module.h"
 
-#include "../builtin/resources/builtin_asset_cache.h"
-#include "../builtin/audio/builtin_audio_player.h"
+#include "../builtin/resources/builtin_resources.h"
 #include "../bootstrap/bootstrap_types.h"
 #include "../config/user_config_service.h"
 #include "../input/input_system.h"
@@ -95,8 +94,7 @@ private:
 #endif
     elysia::scene::SceneManager _scene_manager;
     elysia::io::ContentRegistry _content_registry;
-    elysia::builtin::BuiltinAssetCache _builtin_asset_cache;
-    elysia::builtin::BuiltinAudioPlayer _builtin_audio_player;
+    elysia::builtin::BuiltinResources _builtin_resources;
     elysia::typography::FontResolver _font_resolver;
     std::optional<elysia::scene::SceneRuntimeContext> _scene_runtime_context;
 

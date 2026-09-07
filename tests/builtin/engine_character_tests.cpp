@@ -1,9 +1,8 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/builtin/object/engine_character.h"
-#include "engine/builtin/resources/builtin_asset_cache.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
-#include "engine/builtin/resources/builtin_asset_keys.h"
 #include "engine/tools/debug_draw.h"
 #include "tests/support/test_assertions.h"
 
@@ -89,21 +88,21 @@ elysia::core::RenderCommand render_character(
 }
 
 void test_animation_switching_and_facing(
-    elysia::builtin::BuiltinAssetCache& cache)
+    elysia::builtin::BuiltinResources& resources)
 {
-    elysia::builtin::EngineCharacter character(cache);
+    elysia::builtin::EngineCharacter character(resources);
     const auto idle_command = render_character(character);
-    const auto* idle_definition = cache.find_animation(
-        elysia::builtin::asset_keys::EngineCharacterIdleAnimation);
-    const auto* move_definition = cache.find_animation(
-        elysia::builtin::asset_keys::EngineCharacterMoveAnimation);
+    const auto* idle_definition = resources.find_animation(
+        elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
+    const auto* move_definition = resources.find_animation(
+        elysia::builtin::BuiltinAnimationId::EngineCharacterMove);
     require(idle_definition && move_definition
             && idle_command.texture == idle_definition->atlas->frame_at(0)->_texture,
         "EngineCharacter must render the idle animation by default");
     require(!character.set_animations(
-                cache,
-                elysia::builtin::asset_keys::EngineCharacterIdleAnimation,
-                "engine.character.missing")
+                resources,
+                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle,
+                static_cast<elysia::builtin::BuiltinAnimationId>(255))
             && render_character(character).texture == idle_command.texture,
         "a partially invalid animation replacement must preserve the current animation set");
 
@@ -133,9 +132,9 @@ void test_animation_switching_and_facing(
 }
 
 void test_movement_normalization_and_bounds(
-    elysia::builtin::BuiltinAssetCache& cache)
+    elysia::builtin::BuiltinResources& resources)
 {
-    elysia::builtin::EngineCharacter character(cache);
+    elysia::builtin::EngineCharacter character(resources);
     character.set_position(elysia::core::Vector2::zero());
     send_control(character, elysia::input::RawInputControl::KeyD, true);
     character.update(1.0);
@@ -177,9 +176,9 @@ void test_movement_normalization_and_bounds(
 }
 
 void test_collider_and_debug_draw(
-    elysia::builtin::BuiltinAssetCache& cache)
+    elysia::builtin::BuiltinResources& resources)
 {
-    elysia::builtin::EngineCharacter character(cache);
+    elysia::builtin::EngineCharacter character(resources);
     const auto colliders = character.colliders();
     require(colliders.size() == 1,
         "EngineCharacter must expose one debug collider");
@@ -224,19 +223,20 @@ void test_collider_and_debug_draw(
 int main()
 {
     SdlFixture fixture;
-    elysia::builtin::BuiltinAssetCache cache;
-    require(cache.initialize(
+    elysia::builtin::BuiltinResources resources;
+    require(resources.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(
                     std::filesystem::path{ELYSIA_SOURCE_DIR}),
-                std::array{10, 20, 30, 40, 50, 60, 70})
+                std::array{10, 20, 30, 40, 50, 60, 70},
+                {})
                 .has_value(),
         "EngineCharacter tests must initialize built-in resources");
 
-    test_animation_switching_and_facing(cache);
-    test_movement_normalization_and_bounds(cache);
-    test_collider_and_debug_draw(cache);
+    test_animation_switching_and_facing(resources);
+    test_movement_normalization_and_bounds(resources);
+    test_collider_and_debug_draw(resources);
 
-    cache.shutdown();
+    resources.shutdown();
     return EXIT_SUCCESS;
 }

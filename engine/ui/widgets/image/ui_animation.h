@@ -4,6 +4,7 @@
 #include "../../../core/render/color.h"
 #include "../../../core/interface/updatable.h"
 #include "../../core/ui_element.h"
+#include "../../../builtin/resources/builtin_resource_ids.h"
 
 #include <memory>
 #include <optional>
@@ -12,7 +13,7 @@
 
 namespace elysia::builtin
 {
-class BuiltinAssetCache;
+class BuiltinResources;
 }
 
 namespace elysia::ui
@@ -33,8 +34,8 @@ public:
     bool set_animation_key(std::string_view animation_key);
     // Binds a persistent built-in animation without using the project AnimationManager.
     bool set_engine_animation(
-        const elysia::builtin::BuiltinAssetCache& builtin_asset_cache,
-        std::string_view animation_key);
+        const elysia::builtin::BuiltinResources& builtin_resources,
+        elysia::builtin::BuiltinAnimationId animation_id);
     [[nodiscard]] const std::string& animation_key() const noexcept;
 
     // Overrides the registered animation's loop setting for this widget. The override is retained

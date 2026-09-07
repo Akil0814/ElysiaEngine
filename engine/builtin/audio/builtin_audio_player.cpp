@@ -27,7 +27,7 @@ bool BuiltinAudioPlayer::bound() const noexcept
     return _cache != nullptr;
 }
 
-int BuiltinAudioPlayer::play_sound(std::string_view key, int loops) const
+int BuiltinAudioPlayer::play_sound(BuiltinSoundId id, int loops) const
 {
     if (!_cache)
     {
@@ -35,17 +35,19 @@ int BuiltinAudioPlayer::play_sound(std::string_view key, int loops) const
         return -1;
     }
 
-    Mix_Chunk* sound = _cache->find_sound(key);
+    Mix_Chunk* sound = _cache->find_sound(id);
     if (!sound)
     {
-        ELYSIA_LOG_WARN("builtin","Play sound failed: built-in sound does not exist: " << key);
+        ELYSIA_LOG_WARN("builtin","Play sound failed: built-in sound does not exist: "
+            << builtin_resource_name(id));
         return -1;
     }
 
     const int channel = Mix_PlayChannel(-1,sound,loops);
     if (channel < 0)
     {
-        ELYSIA_LOG_WARN("builtin","Play sound failed: " << key << " error: " << Mix_GetError());
+        ELYSIA_LOG_WARN("builtin","Play sound failed: " << builtin_resource_name(id)
+            << " error: " << Mix_GetError());
         return -1;
     }
 
@@ -55,7 +57,7 @@ int BuiltinAudioPlayer::play_sound(std::string_view key, int loops) const
     return channel;
 }
 
-bool BuiltinAudioPlayer::play_music(std::string_view key, int loops) const
+bool BuiltinAudioPlayer::play_music(BuiltinMusicId id, int loops) const
 {
     if (!_cache)
     {
@@ -63,10 +65,11 @@ bool BuiltinAudioPlayer::play_music(std::string_view key, int loops) const
         return false;
     }
 
-    Mix_Music* music = _cache->find_music(key);
+    Mix_Music* music = _cache->find_music(id);
     if (!music)
     {
-        ELYSIA_LOG_WARN("builtin","Play music failed: built-in music does not exist: " << key);
+        ELYSIA_LOG_WARN("builtin","Play music failed: built-in music does not exist: "
+            << builtin_resource_name(id));
         return false;
     }
 
@@ -75,7 +78,8 @@ bool BuiltinAudioPlayer::play_music(std::string_view key, int loops) const
     Mix_VolumeMusic(to_mix_volume(effective_volume));
     if (Mix_PlayMusic(music,loops) != 0)
     {
-        ELYSIA_LOG_WARN("builtin","Play music failed: " << key << " error: " << Mix_GetError());
+        ELYSIA_LOG_WARN("builtin","Play music failed: " << builtin_resource_name(id)
+            << " error: " << Mix_GetError());
         return false;
     }
 

@@ -1,7 +1,6 @@
 #include "engine_character.h"
 
-#include "../resources/builtin_asset_cache.h"
-#include "../resources/builtin_asset_keys.h"
+#include "../resources/builtin_resources.h"
 #include "../../core/render/colors.h"
 #include "../../tools/debug_draw.h"
 
@@ -31,7 +30,7 @@ constexpr elysia::core::Rect kLocalColliderRect{24.0f, 16.0f, 48.0f, 72.0f};
 }
 }
 
-EngineCharacter::EngineCharacter(const BuiltinAssetCache& asset_cache)
+EngineCharacter::EngineCharacter(const BuiltinResources& resources)
     : GameObject(elysia::core::DepthLayer::Character)
 {
     set_world_rect(kDefaultWorldRect);
@@ -42,9 +41,9 @@ EngineCharacter::EngineCharacter(const BuiltinAssetCache& asset_cache)
     _collider.response = elysia::physics::CollisionResponse::Ignore;
 
     if (!set_animations(
-            asset_cache,
-            asset_keys::EngineCharacterIdleAnimation,
-            asset_keys::EngineCharacterMoveAnimation))
+            resources,
+            BuiltinAnimationId::EngineCharacterIdle,
+            BuiltinAnimationId::EngineCharacterMove))
     {
         throw std::logic_error(
             "EngineCharacter requires the built-in idle and move animations.");
@@ -155,14 +154,14 @@ EngineCharacter::colliders() noexcept
 }
 
 bool EngineCharacter::set_animations(
-    const BuiltinAssetCache& asset_cache,
-    std::string_view idle_key,
-    std::string_view move_key)
+    const BuiltinResources& resources,
+    BuiltinAnimationId idle_id,
+    BuiltinAnimationId move_id)
 {
     std::unique_ptr<elysia::animation::Animation> idle =
-        asset_cache.create_animation(idle_key);
+        resources.create_animation(idle_id);
     std::unique_ptr<elysia::animation::Animation> move =
-        asset_cache.create_animation(move_key);
+        resources.create_animation(move_id);
     if (!idle || !move)
         return false;
 

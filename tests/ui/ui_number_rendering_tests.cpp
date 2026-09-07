@@ -1,6 +1,6 @@
 ﻿#define SDL_MAIN_HANDLED
 
-#include "engine/builtin/resources/builtin_asset_cache.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/io/path/path_manager.h"
 #include "engine/localization/localization_manager.h"
@@ -62,11 +62,12 @@ void test_ui_number_uses_shared_localized_glyphs()
         typography::resolve_font_settings(typography::FontSettings{});
     require(resolved_font_settings.has_value(),
         "UI number default font settings must resolve");
-    builtin::BuiltinAssetCache engine_cache;
-    require(engine_cache.initialize(
+    builtin::BuiltinResources builtin_resources;
+    require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*paths),
-        resolved_font_settings->engine_point_sizes()).has_value(),
+        resolved_font_settings->engine_point_sizes(),
+        {}).has_value(),
         "UI number tests must initialize built-in fonts");
     typography::FontResolver font_resolver;
     localization_manager->shutdown();
@@ -75,11 +76,11 @@ void test_ui_number_uses_shared_localized_glyphs()
         paths->configs() / "manifests" / "i18n_manifest.json",
         "en",
         &font_resolver,
-        &engine_cache
+        &builtin_resources
     ),"UI number tests must initialize localization");
     require(font_resolver.configure(
         *resolved_font_settings,
-        engine_cache,
+        builtin_resources,
         *resources::ResourceService::instance(),
         localization->supported_languages()).has_value(),
         "UI number tests must configure Engine fonts");
@@ -138,7 +139,7 @@ void test_ui_number_uses_shared_localized_glyphs()
     localization_manager->shutdown();
     font_resolver.shutdown();
     resources->clear();
-    engine_cache.shutdown();
+    builtin_resources.shutdown();
     SDL_DestroyRenderer(renderer);
     SDL_FreeSurface(surface);
     Mix_CloseAudio();

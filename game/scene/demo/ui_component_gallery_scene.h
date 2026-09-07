@@ -10,6 +10,11 @@
 
 struct SDL_Texture;
 
+namespace elysia::builtin
+{
+class BuiltinResources;
+}
+
 namespace elysia::ui
 {
 class UiButton;
@@ -25,6 +30,8 @@ namespace example::scene
 class UiComponentGalleryScene final : public elysia::scene::Scene
 {
 public:
+    explicit UiComponentGalleryScene(
+        const elysia::builtin::BuiltinResources& builtin_resources) noexcept;
     void on_input(
         const elysia::input::RawInputFrame& input,
         const std::vector<elysia::input::RawInputEvent>& events) override;
@@ -72,6 +79,7 @@ private:
     void set_status_key(const char* key);
 
 private:
+    const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
     elysia::scene::SceneRoute _return_route;
     elysia::ui::UiWindow* _root_window = nullptr;
     elysia::ui::UiThemeManager _theme_manager;

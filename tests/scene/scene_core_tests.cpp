@@ -116,6 +116,51 @@ public:
 using FirstProbeScene = ProbeScene<1>;
 using SecondProbeScene = ProbeScene<2>;
 
+struct ConstructorDependency
+{
+    int marker = 0;
+};
+
+class ConstructorProbeScene final : public elysia::scene::Scene
+{
+public:
+    ConstructorProbeScene(
+        const ConstructorDependency& dependency,
+        int registered_value)
+        : _dependency(&dependency)
+        , _registered_value(registered_value)
+    {
+        ++constructions;
+        received_dependency = _dependency;
+        received_value = _registered_value;
+    }
+
+    ~ConstructorProbeScene() override
+    {
+        ++destructions;
+    }
+
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        ++enters;
+        received_dependency = _dependency;
+        received_value = _registered_value;
+    }
+
+    void on_exit() override {}
+    void reset() override {}
+
+    static inline int constructions = 0;
+    static inline int destructions = 0;
+    static inline int enters = 0;
+    static inline int received_value = 0;
+    static inline const ConstructorDependency* received_dependency = nullptr;
+
+private:
+    const ConstructorDependency* _dependency = nullptr;
+    int _registered_value = 0;
+};
+
 void reset_probe_states()
 {
     FirstProbeScene::state = {};
@@ -260,6 +305,54 @@ void test_runtime_context_synchronizes_camera_viewports()
                 == elysia::core::Vector2(960.0f, 540.0f),
             "Camera scene reset must preserve the synchronized viewport");
     }
+}
+
+void test_registration_arguments_are_reusable_for_recreate()
+{
+    using namespace elysia::scene;
+
+    ConstructorProbeScene::constructions = 0;
+    ConstructorProbeScene::destructions = 0;
+    ConstructorProbeScene::enters = 0;
+    ConstructorProbeScene::received_value = 0;
+    ConstructorProbeScene::received_dependency = nullptr;
+
+    ConstructorDependency dependency{ .marker = 73 };
+    int registered_value = 41;
+
+    elysia::io::ContentRegistry registry;
+    SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    SceneManager manager;
+    manager.set_runtime_context(context);
+    manager.register_game_scene<ConstructorProbeScene>(
+        3,
+        std::cref(dependency),
+        registered_value);
+
+    registered_value = 99;
+    manager.start(SceneRoute{ .target = 3 });
+    require(ConstructorProbeScene::constructions == 1
+            && ConstructorProbeScene::enters == 1
+            && ConstructorProbeScene::received_dependency == &dependency
+            && ConstructorProbeScene::received_value == 41,
+        "scene registration must copy values and explicitly borrow std::cref dependencies");
+
+    manager.on_scene_request(SceneRequest{
+        .type = SceneRequestType::Switch,
+        .route = SceneRoute{
+            .target = 3,
+            .reload_mode = SceneReloadMode::Recreate
+        }
+    });
+    manager.on_update(0.0);
+    require(ConstructorProbeScene::constructions == 2
+            && ConstructorProbeScene::destructions == 1
+            && ConstructorProbeScene::enters == 2
+            && ConstructorProbeScene::received_dependency == &dependency
+            && ConstructorProbeScene::received_value == 41,
+        "Recreate must rebuild a non-default scene from the saved registration arguments");
+
+    manager.shutdown();
 }
 
 void test_scene_maps_debug_draw_categories_to_physics_capture()
@@ -503,6 +596,7 @@ int main()
     test_scene_key_domains_and_payload_helpers();
     test_registration_and_route_key_errors_are_distinct();
     test_runtime_context_synchronizes_camera_viewports();
+    test_registration_arguments_are_reusable_for_recreate();
     test_scene_maps_debug_draw_categories_to_physics_capture();
     test_route_copy_reload_modes_and_runtime_context_binding();
     test_unbound_scene_runtime_context_is_rejected();

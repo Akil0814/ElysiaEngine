@@ -349,18 +349,34 @@ void test_settings_panel_single_page_draft_and_actions()
         panel.set_scope_focused(true);
         require(panel.focus_first_available(),
             "settings focus must begin at the first visible field");
-        bool reached_save = false;
-        for (int attempt = 0; attempt < 16 && !reached_save; ++attempt)
+        std::vector<ui::UiControl*> expected_targets{
+            window_dropdown,fps_dropdown,vsync,master_volume,
+            field_control<ui::UiSlider>(*content,"engine.settings.fields.music_volume"),
+            field_control<ui::UiSlider>(*content,"engine.settings.fields.sound_volume"),
+            language_dropdown,save
+        };
+        require(panel.focused_target() == expected_targets.front(),
+            "settings navigation must start at the first field");
+        for (std::size_t index = 1; index < expected_targets.size(); ++index)
         {
             (void)panel.on_ui_input_event({
                 .action = ui::UiAction::NavigateDown,
                 .type = ui::UiInputEventType::ActionPressed,
                 .device = device
             });
-            reached_save = panel.focused_target() == save;
+            require(panel.focused_target() == expected_targets[index],
+                "Down must visit every settings field without skipping at hint rows");
         }
-        require(reached_save,
-            "keyboard and gamepad focus must reach fixed actions from content");
+        for (std::size_t index = expected_targets.size() - 1; index > 0; --index)
+        {
+            (void)panel.on_ui_input_event({
+                .action = ui::UiAction::NavigateUp,
+                .type = ui::UiInputEventType::ActionPressed,
+                .device = device
+            });
+            require(panel.focused_target() == expected_targets[index - 1],
+                "Up must visit every settings field without stopping at hint rows");
+        }
     }
 }
 

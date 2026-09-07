@@ -1,7 +1,6 @@
 #include "ui_component_gallery_scene.h"
 
-#include "../../../engine/builtin/resources/builtin_asset_cache.h"
-#include "../../../engine/builtin/resources/builtin_asset_keys.h"
+#include "../../../engine/builtin/resources/builtin_resources.h"
 #include "../../../engine/input/raw_input_types.h"
 #include "../../../engine/scene/runtime/scene_runtime_context.h"
 #include "../../../engine/ui/composites/ui_tab_container.h"
@@ -40,6 +39,12 @@ bool is_valid_return_route(const elysia::scene::SceneRoute& route) noexcept
 }
 }
 
+UiComponentGalleryScene::UiComponentGalleryScene(
+    const elysia::builtin::BuiltinResources& builtin_resources) noexcept
+    : _builtin_resources(&builtin_resources)
+{
+}
+
 void UiComponentGalleryScene::on_input(
     const elysia::input::RawInputFrame& input,
     const std::vector<elysia::input::RawInputEvent>& events)
@@ -67,11 +72,10 @@ void UiComponentGalleryScene::on_enter(const elysia::scene::ScenePayload& payloa
             "UiComponentGalleryScene requires DemoScenePayload with a valid return route.");
     }
 
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->is_initialized())
+    if (!_builtin_resources || !_builtin_resources->is_initialized())
     {
         throw std::logic_error(
-            "UiComponentGalleryScene requires an initialized BuiltinAssetCache.");
+            "UiComponentGalleryScene requires initialized BuiltinResources.");
     }
 
     _return_route = demo_payload->return_route;
@@ -228,12 +232,8 @@ void UiComponentGalleryScene::sync_theme_switch_button_roles() noexcept
 void UiComponentGalleryScene::rebuild_ui()
 {
     clear_ui();
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache)
-        throw std::logic_error("UiComponentGalleryScene requires BuiltinAssetCache while building UI.");
-
-    SDL_Texture* image_texture = cache->find_texture(
-        elysia::builtin::asset_keys::ElysiaDefaultTexture);
+    SDL_Texture* image_texture = _builtin_resources->find_texture(
+        elysia::builtin::BuiltinTextureId::ElysiaDefault);
     if (!image_texture)
         throw std::logic_error("UiComponentGalleryScene requires engine.brand.elysia.default.");
 

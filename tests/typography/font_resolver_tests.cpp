@@ -1,7 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/typography/font_settings.h"
-#include "engine/builtin/resources/builtin_asset_cache.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/io/path/path_manager.h"
@@ -65,10 +65,11 @@ public:
         const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
         require(elysia::io::PathManager::instance()->initialize(source_root),
             "FontResolver tests must initialize project paths");
-        require(_engine_cache.initialize(
+        require(_builtin_resources.initialize(
             _renderer,
             elysia::builtin::BuiltinAssetCatalog(source_root),
-            std::array{10,20,24,30,40,50,60,70}).has_value(),
+            std::array{10,20,24,30,40,50,60,70},
+            {}).has_value(),
             "FontResolver tests must initialize built-in fonts");
         elysia::resources::ResourceManager::instance()->clear();
     }
@@ -76,7 +77,7 @@ public:
     ~FontResolverFixture()
     {
         elysia::resources::ResourceManager::instance()->clear();
-        _engine_cache.shutdown();
+        _builtin_resources.shutdown();
         SDL_DestroyRenderer(_renderer);
         SDL_FreeSurface(_surface);
         Mix_CloseAudio();
@@ -85,9 +86,9 @@ public:
         SDL_Quit();
     }
 
-    [[nodiscard]] elysia::builtin::BuiltinAssetCache& engine_cache() noexcept
+    [[nodiscard]] elysia::builtin::BuiltinResources& builtin_resources() noexcept
     {
-        return _engine_cache;
+        return _builtin_resources;
     }
 
     [[nodiscard]] SDL_Renderer* renderer() const noexcept
@@ -108,7 +109,7 @@ public:
 private:
     SDL_Surface* _surface = nullptr;
     SDL_Renderer* _renderer = nullptr;
-    elysia::builtin::BuiltinAssetCache _engine_cache;
+    elysia::builtin::BuiltinResources _builtin_resources;
 };
 
 ResolvedFontSettings settings_with_size(
@@ -174,7 +175,7 @@ void test_engine_resolution_and_validation(FontResolverFixture& fixture)
             FontSource::EngineBuiltIn,
             FontSource::EngineBuiltIn,
             24),
-        fixture.engine_cache(),
+        fixture.builtin_resources(),
         fixture.resource_service(),
         languages);
     require(configured.has_value(),
@@ -242,7 +243,7 @@ void test_atomic_project_activation(FontResolverFixture& fixture)
             FontSource::Project,
             FontSource::Project,
             24),
-        fixture.engine_cache(),
+        fixture.builtin_resources(),
         fixture.resource_service(),
         languages);
     require(configured.has_value(),
@@ -323,7 +324,6 @@ void test_atomic_project_activation(FontResolverFixture& fixture)
         registry,
         1280,
         720,
-        &fixture.engine_cache(),
         &resolver);
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
@@ -398,7 +398,7 @@ void test_invalid_configuration(FontResolverFixture& fixture)
             FontSource::EngineBuiltIn,
             FontSource::EngineBuiltIn,
             20),
-        fixture.engine_cache(),
+        fixture.builtin_resources(),
         fixture.resource_service(),
         no_languages);
     require(!invalid

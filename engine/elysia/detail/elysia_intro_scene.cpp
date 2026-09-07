@@ -3,9 +3,7 @@
 #include "realm_content_payload.h"
 #include "realm_scene_keys.h"
 
-#include "../../builtin/audio/builtin_audio_player.h"
-#include "../../builtin/resources/builtin_asset_cache.h"
-#include "../../builtin/resources/builtin_asset_keys.h"
+#include "../../builtin/resources/builtin_resources.h"
 #include "../../scene/runtime/scene_runtime_context.h"
 #include "../../ui/containers/ui_list_container.h"
 #include "../../ui/widgets/image/ui_fade_image.h"
@@ -47,6 +45,12 @@ constexpr float kCodeListMargin = 16.0f;
 constexpr double kCodeLineIntervalSeconds = 0.5;
 }
 
+ElysiaIntroScene::ElysiaIntroScene(
+    const elysia::builtin::BuiltinResources& builtin_resources) noexcept
+    : _builtin_resources(&builtin_resources)
+{
+}
+
 void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
     const ElysiaRealmPayload* entry_payload =
@@ -57,18 +61,10 @@ void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
             "ElysiaIntroScene requires ElysiaRealmPayload with a valid return route.");
     }
 
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->is_initialized())
+    if (!_builtin_resources || !_builtin_resources->is_initialized())
     {
         throw std::logic_error(
-            "ElysiaIntroScene requires an initialized BuiltinAssetCache.");
-    }
-
-    const auto* audio_player = runtime_context().builtin_audio_player();
-    if (!audio_player || !audio_player->bound())
-    {
-        throw std::logic_error(
-            "ElysiaIntroScene requires a bound BuiltinAudioPlayer.");
+            "ElysiaIntroScene requires initialized BuiltinResources.");
     }
 
     _return_route = entry_payload->return_route;
@@ -85,7 +81,8 @@ void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
     _root_window->set_visible(true);
     _root_window->set_active(true);
 
-    if (!audio_player->play_music(elysia::builtin::asset_keys::ElysianRealm))
+    if (!_builtin_resources->play_music(
+            elysia::builtin::BuiltinMusicId::ElysianRealm))
     {
         destroy_ui();
         throw std::logic_error("ElysiaIntroScene could not play Realm music.");
@@ -108,11 +105,7 @@ void ElysiaIntroScene::on_exit()
 {
     stop_playback();
     if (!_music_handed_off)
-    {
-        const auto* audio_player = runtime_context().builtin_audio_player();
-        if (audio_player && audio_player->bound())
-            audio_player->stop_music();
-    }
+        _builtin_resources->stop_music();
 
     _music_handed_off = false;
     _paused = false;
@@ -138,15 +131,8 @@ void ElysiaIntroScene::reset()
 
 void ElysiaIntroScene::build_ui()
 {
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache)
-    {
-        throw std::logic_error(
-            "ElysiaIntroScene requires BuiltinAssetCache while building UI.");
-    }
-
-    SDL_Texture* texture = cache->find_texture(
-        elysia::builtin::asset_keys::ElysiaDefaultTexture);
+    SDL_Texture* texture = _builtin_resources->find_texture(
+        elysia::builtin::BuiltinTextureId::ElysiaDefault);
     if (!texture)
     {
         throw std::logic_error(

@@ -5,7 +5,14 @@ namespace elysia::scene
 class SceneManager;
 }
 
+namespace elysia::builtin
+{
+class BuiltinResources;
+}
+
 namespace elysia::realm::detail
 {
-void register_realm_scenes(elysia::scene::SceneManager& scene_manager);
+void register_realm_scenes(
+    elysia::scene::SceneManager& scene_manager,
+    const elysia::builtin::BuiltinResources& builtin_resources);
 }

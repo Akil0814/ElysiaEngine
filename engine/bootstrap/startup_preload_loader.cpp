@@ -1,6 +1,6 @@
 #include "startup_preload_loader.h"
 
-#include "../builtin/resources/builtin_asset_keys.h"
+#include "../builtin/resources/builtin_resource_ids.h"
 #include "../resources/texture/surface_loader.h"
 #include "../resources/texture/texture_loader.h"
 #include "../io/path/path_manager.h"
@@ -135,7 +135,8 @@ std::expected<void,BootstrapFailure> StartupPreloadLoader::load_manifest()
                     + key_result.error().message,
                 "preload-texture",entry.key,_manifest_path,_manifest_path,
                 pointer + "/key",key_result.error().origin));
-        if (entry.key == elysia::builtin::asset_keys::ElysiaWhiteTexture)
+        if (entry.key == elysia::builtin::builtin_resource_name(
+                elysia::builtin::BuiltinTextureId::ElysiaWhite))
             return std::unexpected(preload_failure(
                 "Load preload manifest failed: project texture uses the "
                 "engine-reserved key: " + entry.key,"preload-texture",entry.key,

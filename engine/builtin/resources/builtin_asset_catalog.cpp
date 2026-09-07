@@ -1,6 +1,4 @@
 #include "builtin_asset_catalog.h"
-#include "builtin_asset_keys.h"
-#include "../../localization/locale.h"
 
 #include <array>
 #include <system_error>
@@ -10,36 +8,36 @@ namespace elysia::builtin
 {
 namespace
 {
-const std::array<BuiltinAssetDescriptor, 5> kFontDescriptors = {
-    BuiltinAssetDescriptor{asset_keys::LatinFont, "fonts/NotoSans-Regular.ttf"},
-    BuiltinAssetDescriptor{asset_keys::SimplifiedChineseFont, "fonts/NotoSansSC-Regular.ttf"},
-    BuiltinAssetDescriptor{asset_keys::TraditionalChineseFont, "fonts/NotoSansTC-Regular.ttf"},
-    BuiltinAssetDescriptor{asset_keys::JapaneseFont, "fonts/NotoSansJP-Regular.ttf"},
-    BuiltinAssetDescriptor{asset_keys::KoreanFont, "fonts/NotoSansKR-Regular.ttf"},
+const std::array<BuiltinFontDescriptor, 5> kFontDescriptors = {
+    BuiltinFontDescriptor{BuiltinFontId::Latin, BuiltinLocaleId::English, "fonts/NotoSans-Regular.ttf"},
+    BuiltinFontDescriptor{BuiltinFontId::SimplifiedChinese, BuiltinLocaleId::SimplifiedChinese, "fonts/NotoSansSC-Regular.ttf"},
+    BuiltinFontDescriptor{BuiltinFontId::TraditionalChinese, BuiltinLocaleId::TraditionalChinese, "fonts/NotoSansTC-Regular.ttf"},
+    BuiltinFontDescriptor{BuiltinFontId::Japanese, BuiltinLocaleId::Japanese, "fonts/NotoSansJP-Regular.ttf"},
+    BuiltinFontDescriptor{BuiltinFontId::Korean, BuiltinLocaleId::Korean, "fonts/NotoSansKR-Regular.ttf"},
 };
 
-const std::array<BuiltinAssetDescriptor, 7> kTextureDescriptors = {
-    BuiltinAssetDescriptor{asset_keys::ElysiaDefaultTexture, "textures/elysia.png"},
-    BuiltinAssetDescriptor{asset_keys::ElysiaBlackTexture, "textures/elysia_black.png"},
-    BuiltinAssetDescriptor{asset_keys::ElysiaBlackAlphaInverseTexture,"textures/elysia_black_alpha_inverse.png"},
-    BuiltinAssetDescriptor{asset_keys::ElysiaLightEdgeTexture, "textures/elysia_light_edge.png"},
-    BuiltinAssetDescriptor{asset_keys::ElysiaWhiteTexture,"textures/elysia_white.png"},
-    BuiltinAssetDescriptor{asset_keys::EngineCharacterMoveTexture, "textures/character_move.png"},
-    BuiltinAssetDescriptor{asset_keys::EngineCharacterIdleTexture, "textures/character_idle.png"},
+const std::array<BuiltinTextureDescriptor, 7> kTextureDescriptors = {
+    BuiltinTextureDescriptor{BuiltinTextureId::ElysiaDefault, "textures/elysia.png"},
+    BuiltinTextureDescriptor{BuiltinTextureId::ElysiaBlack, "textures/elysia_black.png"},
+    BuiltinTextureDescriptor{BuiltinTextureId::ElysiaBlackAlphaInverse,"textures/elysia_black_alpha_inverse.png"},
+    BuiltinTextureDescriptor{BuiltinTextureId::ElysiaLightEdge, "textures/elysia_light_edge.png"},
+    BuiltinTextureDescriptor{BuiltinTextureId::ElysiaWhite,"textures/elysia_white.png"},
+    BuiltinTextureDescriptor{BuiltinTextureId::EngineCharacterMove, "textures/character_move.png"},
+    BuiltinTextureDescriptor{BuiltinTextureId::EngineCharacterIdle, "textures/character_idle.png"},
 };
 
 const std::array<BuiltinLocaleDescriptor, 5> kLocaleDescriptors = {
-    BuiltinLocaleDescriptor{elysia::localization::kEnglishLocale, "i18n/en/engine.json"},
-    BuiltinLocaleDescriptor{elysia::localization::kSimplifiedChineseLocale, "i18n/zh-Hans/engine.json"},
-    BuiltinLocaleDescriptor{elysia::localization::kTraditionalChineseLocale, "i18n/zh-Hant/engine.json"},
-    BuiltinLocaleDescriptor{elysia::localization::kJapaneseLocale, "i18n/ja/engine.json"},
-    BuiltinLocaleDescriptor{elysia::localization::kKoreanLocale, "i18n/ko/engine.json"},
+    BuiltinLocaleDescriptor{BuiltinLocaleId::English, "i18n/en/engine.json"},
+    BuiltinLocaleDescriptor{BuiltinLocaleId::SimplifiedChinese, "i18n/zh-Hans/engine.json"},
+    BuiltinLocaleDescriptor{BuiltinLocaleId::TraditionalChinese, "i18n/zh-Hant/engine.json"},
+    BuiltinLocaleDescriptor{BuiltinLocaleId::Japanese, "i18n/ja/engine.json"},
+    BuiltinLocaleDescriptor{BuiltinLocaleId::Korean, "i18n/ko/engine.json"},
 };
 
 const std::array<BuiltinAnimationDescriptor, 2> kAnimationDescriptors = {
     BuiltinAnimationDescriptor{
-        .key = asset_keys::EngineCharacterIdleAnimation,
-        .texture_key = asset_keys::EngineCharacterIdleTexture,
+        .id = BuiltinAnimationId::EngineCharacterIdle,
+        .texture_id = BuiltinTextureId::EngineCharacterIdle,
         .frame_width = 32,
         .frame_height = 32,
         .frame_count = 8,
@@ -47,8 +45,8 @@ const std::array<BuiltinAnimationDescriptor, 2> kAnimationDescriptors = {
         .loop = true
     },
     BuiltinAnimationDescriptor{
-        .key = asset_keys::EngineCharacterMoveAnimation,
-        .texture_key = asset_keys::EngineCharacterMoveTexture,
+        .id = BuiltinAnimationId::EngineCharacterMove,
+        .texture_id = BuiltinTextureId::EngineCharacterMove,
         .frame_width = 32,
         .frame_height = 32,
         .frame_count = 8,
@@ -57,10 +55,10 @@ const std::array<BuiltinAnimationDescriptor, 2> kAnimationDescriptors = {
     }
 };
 
-const std::array<BuiltinAudioDescriptor, 0> kSoundDescriptors = {};
+const std::array<BuiltinSoundDescriptor, 0> kSoundDescriptors = {};
 
-const std::array<BuiltinAudioDescriptor, 1> kMusicDescriptors = {
-    BuiltinAudioDescriptor{asset_keys::ElysianRealm,"audio\\Elysian_Realm.ogg"}
+const std::array<BuiltinMusicDescriptor, 1> kMusicDescriptors = {
+    BuiltinMusicDescriptor{BuiltinMusicId::ElysianRealm,"audio/Elysian_Realm.ogg"}
 };
 
 constexpr std::string_view kRequiredMarkerFileName = ".elysia_engine_required";
@@ -82,12 +80,12 @@ std::filesystem::path BuiltinAssetCatalog::required_marker_path() const
     return _root / kRequiredMarkerFileName;
 }
 
-std::span<const BuiltinAssetDescriptor> BuiltinAssetCatalog::fonts() const noexcept
+std::span<const BuiltinFontDescriptor> BuiltinAssetCatalog::fonts() const noexcept
 {
     return kFontDescriptors;
 }
 
-std::span<const BuiltinAssetDescriptor> BuiltinAssetCatalog::textures() const noexcept
+std::span<const BuiltinTextureDescriptor> BuiltinAssetCatalog::textures() const noexcept
 {
     return kTextureDescriptors;
 }
@@ -102,12 +100,12 @@ std::span<const BuiltinAnimationDescriptor> BuiltinAssetCatalog::animations() co
     return kAnimationDescriptors;
 }
 
-std::span<const BuiltinAudioDescriptor> BuiltinAssetCatalog::sounds() const noexcept
+std::span<const BuiltinSoundDescriptor> BuiltinAssetCatalog::sounds() const noexcept
 {
     return kSoundDescriptors;
 }
 
-std::span<const BuiltinAudioDescriptor> BuiltinAssetCatalog::music() const noexcept
+std::span<const BuiltinMusicDescriptor> BuiltinAssetCatalog::music() const noexcept
 {
     return kMusicDescriptors;
 }
@@ -153,12 +151,12 @@ BuiltinAssetCatalog::validate_required_files() const
         return {};
     };
 
-    for (const BuiltinAssetDescriptor& descriptor : kFontDescriptors)
+    for (const BuiltinFontDescriptor& descriptor : kFontDescriptors)
     {
         if (const auto result = validate_asset(descriptor); !result)
             return result;
     }
-    for (const BuiltinAssetDescriptor& descriptor : kTextureDescriptors)
+    for (const BuiltinTextureDescriptor& descriptor : kTextureDescriptors)
     {
         if (const auto result = validate_asset(descriptor); !result)
             return result;
@@ -168,12 +166,12 @@ BuiltinAssetCatalog::validate_required_files() const
         if (const auto result = validate_asset(descriptor); !result)
             return result;
     }
-    for (const BuiltinAudioDescriptor& descriptor : kSoundDescriptors)
+    for (const BuiltinSoundDescriptor& descriptor : kSoundDescriptors)
     {
         if (const auto result = validate_asset(descriptor); !result)
             return result;
     }
-    for (const BuiltinAudioDescriptor& descriptor : kMusicDescriptors)
+    for (const BuiltinMusicDescriptor& descriptor : kMusicDescriptors)
     {
         if (const auto result = validate_asset(descriptor); !result)
             return result;
@@ -181,7 +179,8 @@ BuiltinAssetCatalog::validate_required_files() const
 
     for (const BuiltinAnimationDescriptor& descriptor : kAnimationDescriptors)
     {
-        if (descriptor.key.empty() || descriptor.texture_key.empty()
+        if (builtin_resource_name(descriptor.id).empty()
+            || builtin_resource_name(descriptor.texture_id).empty()
             || descriptor.frame_width <= 0 || descriptor.frame_height <= 0
             || descriptor.frame_count == 0 || descriptor.fps <= 0.0)
         {

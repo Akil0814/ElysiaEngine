@@ -1,10 +1,9 @@
 #include "startup_loading_scene.h"
 #include "application_failure_scene_payload.h"
 
-#include "../resources/builtin_asset_keys.h"
+#include "../resources/builtin_resources.h"
 #include "../../bootstrap/bootstrapper.h"
 #include "../../io/path/path_manager.h"
-#include "../resources/builtin_asset_cache.h"
 #include "../../tools/logger.h"
 #include "../../typography/font_resolver.h"
 #include "../../ui/widgets/image/ui_fade_image.h"
@@ -23,6 +22,12 @@ using elysia::scene::Scene;
 using elysia::scene::ScenePayload;
 using elysia::scene::SceneRoute;
 using elysia::scene::try_scene_payload;
+
+StartupLoadingScene::StartupLoadingScene(
+    const BuiltinResources& builtin_resources) noexcept
+    : _builtin_resources(&builtin_resources)
+{
+}
 
 namespace
 {
@@ -161,11 +166,8 @@ void StartupLoadingScene::on_input(
 
 bool StartupLoadingScene::create_presentation()
 {
-    const elysia::builtin::BuiltinAssetCache* builtin_asset_cache =
-        runtime_context().builtin_asset_cache();
-    SDL_Texture* engine_texture = builtin_asset_cache
-        ? builtin_asset_cache->find_texture(
-            elysia::builtin::asset_keys::ElysiaWhiteTexture)
+    SDL_Texture* engine_texture = _builtin_resources
+        ? _builtin_resources->find_texture(BuiltinTextureId::ElysiaWhite)
         : nullptr;
     if (!engine_texture)
     {

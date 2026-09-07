@@ -2,6 +2,7 @@
 
 #include "engine/builtin/scenes/startup_loading_scene.h"
 #include "engine/builtin/scenes/application_failure_scene_payload.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/scene/routing/scene_request_observer.h"
 #include "engine/typography/font_resolver.h"
 #include "engine/ui/text/ui_text_content.h"
@@ -91,7 +92,8 @@ bool throws_logic_error_containing(
 
 void test_payload_contract_names_startup_scene()
 {
-    elysia::builtin::StartupLoadingScene scene;
+    elysia::builtin::BuiltinResources resources;
+    elysia::builtin::StartupLoadingScene scene(resources);
     require(throws_logic_error_containing(
         [&scene]
         {
@@ -115,7 +117,8 @@ void test_success_and_failure_routes_are_forwarded_unchanged()
     using namespace elysia::scene;
     using namespace elysia::builtin;
 
-    StartupLoadingScene success_scene;
+    BuiltinResources resources;
+    StartupLoadingScene success_scene(resources);
     RequestProbe success_probe;
     success_scene.attach(&success_probe);
     StartupLoadingSceneTestAccess::prime(
@@ -139,7 +142,7 @@ void test_success_and_failure_routes_are_forwarded_unchanged()
         "startup success must forward the complete success route");
     success_scene.detach(&success_probe);
 
-    StartupLoadingScene failure_scene;
+    StartupLoadingScene failure_scene(resources);
     RequestProbe failure_probe;
     failure_scene.attach(&failure_probe);
     StartupLoadingSceneTestAccess::prime(
@@ -170,7 +173,8 @@ void test_failure_without_route_uses_builtin_failure_scene()
     using namespace elysia::scene;
     using namespace elysia::builtin;
 
-    StartupLoadingScene scene;
+    BuiltinResources resources;
+    StartupLoadingScene scene(resources);
     RequestProbe probe;
     scene.attach(&probe);
     StartupLoadingSceneTestAccess::prime(
@@ -215,7 +219,8 @@ void test_font_activation_failure_uses_configured_failure_route()
     using namespace elysia::scene;
     using namespace elysia::builtin;
 
-    StartupLoadingScene scene;
+    BuiltinResources resources;
+    StartupLoadingScene scene(resources);
     RequestProbe probe;
     scene.attach(&probe);
     StartupLoadingSceneTestAccess::prime(

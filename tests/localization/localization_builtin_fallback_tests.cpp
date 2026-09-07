@@ -1,7 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/typography/font_settings.h"
-#include "engine/builtin/resources/builtin_asset_cache.h"
+#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/io/path/path_manager.h"
 #include "engine/localization/localization_manager.h"
@@ -93,11 +93,12 @@ int main()
     auto* path_manager = elysia::io::PathManager::instance();
     require(path_manager->initialize(source_root), "localization fallback tests must initialize project paths");
 
-    elysia::builtin::BuiltinAssetCache cache;
-    require(cache.initialize(
+    elysia::builtin::BuiltinResources builtin_resources;
+    require(builtin_resources.initialize(
         fixture.renderer(),
         elysia::builtin::BuiltinAssetCatalog(source_root),
-        std::array{20}).has_value(),
+        std::array{20},
+        {}).has_value(),
         "localization fallback tests must initialize built-in asset cache");
 
     auto* localization_manager = elysia::localization::LocalizationManager::instance();
@@ -107,7 +108,7 @@ int main()
         "LocalizationManager must begin uninitialized");
 	const auto missing_manifest = localization_manager->initialize(
 		fixture.renderer(),source_root / "assets/configs/manifests/missing_i18n.json",
-		"en",&font_resolver,&cache);
+		"en",&font_resolver,&builtin_resources);
 	require(!missing_manifest
 		&& missing_manifest.error().error_code() == "LOCALIZATION-MANIFEST"
 		&& !missing_manifest.error().diagnostic.entries.empty()
@@ -129,7 +130,7 @@ int main()
 	std::streambuf* previous_log_buffer = std::clog.rdbuf(captured_warning.rdbuf());
 	const auto fallback_result = localization_manager->initialize(
 		fixture.renderer(),fallback_root / "assets/configs/manifests/i18n_manifest.json",
-		"zh-Hans",&font_resolver,&cache);
+		"zh-Hans",&font_resolver,&builtin_resources);
 	std::clog.rdbuf(previous_log_buffer);
 	require(fallback_result && localization->current_language() == "en",
 		"a requested locale failure must recover to the loaded default language");
@@ -148,7 +149,7 @@ int main()
         source_root / "assets" / "configs" / "manifests" / "i18n_manifest.json",
         "en",
         &font_resolver,
-        &cache),
+        &builtin_resources),
         "LocalizationManager must initialize with built-in defaults");
     require(localization_manager->is_initialized(),
         "successful localization initialization must publish initialized state");
@@ -166,7 +167,7 @@ int main()
         "localization fallback font settings must resolve");
     require(font_resolver.configure(
         *resolved_font_settings,
-        cache,
+        builtin_resources,
         *elysia::resources::ResourceService::instance(),
         localization->supported_languages()).has_value(),
         "FontResolver must configure after localization publishes its languages");
@@ -286,7 +287,9 @@ int main()
         "localized measurement must succeed with a project font present");
     int engine_width = 0;
     int engine_height = 0;
-    require(TTF_SizeUTF8(cache.find_font("en", 20), "Moon", &engine_width, &engine_height) == 0,
+    require(TTF_SizeUTF8(builtin_resources.find_font(
+            elysia::builtin::BuiltinFontId::Latin, 20),
+            "Moon", &engine_width, &engine_height) == 0,
         "Engine font must measure the precedence probe text");
     require(localized_width == engine_width && localized_height == engine_height,
         "Engine fonts must remain active until project activation");
@@ -356,7 +359,7 @@ int main()
             resolution_root / "assets/configs/manifests/i18n_manifest.json",
             "en",
             &font_resolver,
-            &cache),
+            &builtin_resources),
         "translation resolution test must reinitialize localization");
 
     std::ostringstream resolution_warnings;
@@ -389,6 +392,6 @@ int main()
         "translation resolution test must restore source project paths");
     std::filesystem::remove_all(resolution_root);
     font_resolver.shutdown();
-    cache.shutdown();
+    builtin_resources.shutdown();
     return 0;
 }

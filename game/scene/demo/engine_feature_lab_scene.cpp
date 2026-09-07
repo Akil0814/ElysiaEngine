@@ -1,7 +1,6 @@
 #include "engine_feature_lab_scene.h"
 
-#include "../../../engine/builtin/resources/builtin_asset_cache.h"
-#include "../../../engine/builtin/resources/builtin_asset_keys.h"
+#include "../../../engine/builtin/resources/builtin_resources.h"
 #include "../../../engine/builtin/object/engine_character.h"
 #include "../../../engine/core/render/colors.h"
 #include "../../../engine/effects/effect_service.h"
@@ -47,6 +46,12 @@ std::unique_ptr<elysia::ui::UiButton> make_control_button(const char* label)
 }
 }
 
+EngineFeatureLabScene::EngineFeatureLabScene(
+    const elysia::builtin::BuiltinResources& builtin_resources) noexcept
+    : _builtin_resources(&builtin_resources)
+{
+}
+
 void EngineFeatureLabScene::on_update(double delta)
 {
     elysia::scene::Scene::on_update(delta);
@@ -86,13 +91,12 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
 
     _return_route = test_payload->return_route;
     _paused = false;
-    const auto* cache = runtime_context().builtin_asset_cache();
-    if (!cache || !cache->is_initialized())
-        throw std::logic_error("EngineFeatureLabScene requires an initialized BuiltinAssetCache.");
+    if (!_builtin_resources || !_builtin_resources->is_initialized())
+        throw std::logic_error("EngineFeatureLabScene requires initialized BuiltinResources.");
     if (!_character || _character->is_destroyed())
     {
         _character = create_and_add_object<elysia::builtin::EngineCharacter>(
-            *cache);
+            *_builtin_resources);
         if (!_character)
         {
             throw std::runtime_error(
@@ -117,8 +121,8 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
         _primary_animation = create_and_add_object<elysia::ui::UiAnimation>(
             elysia::core::Rect{ 160.0f,200.0f,292.0f,292.0f });
         if (!_primary_animation->set_engine_animation(
-                *cache,
-                elysia::builtin::asset_keys::EngineCharacterMoveAnimation))
+                *_builtin_resources,
+                elysia::builtin::BuiltinAnimationId::EngineCharacterMove))
         {
             throw std::logic_error(
                 "EngineFeatureLabScene could not bind the character move animation.");
@@ -129,8 +133,8 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
         _secondary_animation = create_and_add_object<elysia::ui::UiAnimation>(
             elysia::core::Rect{ 760.0f,204.0f,324.0f,284.0f });
         if (!_secondary_animation->set_engine_animation(
-                *cache,
-                elysia::builtin::asset_keys::EngineCharacterMoveAnimation))
+                *_builtin_resources,
+                elysia::builtin::BuiltinAnimationId::EngineCharacterMove))
         {
             throw std::logic_error(
                 "EngineFeatureLabScene could not bind the character move animation.");
