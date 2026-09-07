@@ -17,6 +17,7 @@
 
 - [开发文档](development/README.md)：代码规范、测试约定与文档维护规则。
 - [C++ 代码规范](development/coding-standard.md)
+- [C++11+ 语言特性盘点](development/cpp-language-features.md)
 - [测试指南](development/testing.md)
 - [文档维护规则](development/documentation.md)
 

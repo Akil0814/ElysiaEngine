@@ -1,6 +1,7 @@
 # 开发与维护
 
 - [C++ 代码规范](coding-standard.md)
+- [C++11+ 语言特性盘点](cpp-language-features.md)
 - [测试指南](testing.md)
 - [文档维护规则](documentation.md)
 
