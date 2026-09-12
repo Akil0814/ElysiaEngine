@@ -715,8 +715,60 @@ void debug_capture_is_selective_and_diagnostic_only()
 }
 }
 
+void interpolated_presentation_tracks_fixed_steps()
+{
+    using namespace elysia::physics;
+    Object moving;
+    moving.set_world_rect({0, 0, 10, 10});
+    moving.body.velocity = {120, 0};
+    moving.body.gravity_scale = 0;
+    PhysicsWorld world;
+    const auto handle = world.register_object(moving, &moving, &moving);
+    require(handle.is_valid(), "Interpolation probe must register");
+
+    // A 120 Hz display must move on frames without a 60 Hz physics step too.
+    for (int frame = 1; frame <= 12; ++frame)
+    {
+        (void)world.advance(1.0 / 120.0);
+        const float expected = static_cast<float>(std::max(0, frame - 2));
+        require(moving.render_rect().position().nearly_equals({expected, 0}),
+            "Presentation must move uniformly between fixed physics steps");
+        require(moving.position().nearly_equals({static_cast<float>(frame / 2 * 2), 0}),
+            "Render interpolation must not change authoritative physics positions");
+    }
+    (void)world.advance(1.0 / 240.0);
+    require(moving.render_rect().position().nearly_equals({10.5f, 0}),
+        "A shorter display frame must advance presentation proportionally");
+    (void)world.advance(1.0 / 30.0);
+    require(moving.render_rect().position().nearly_equals({14.5f, 0}),
+        "Multiple physics steps must interpolate the final pair of positions");
+
+    require(world.teleport_object(handle, {100, 0}), "Teleport must succeed");
+    require(moving.render_rect().position().nearly_equals({100, 0}),
+        "Teleport must discard the old presentation offset immediately");
+    (void)world.advance(1.0 / 240.0);
+    require(moving.render_rect().position().nearly_equals({100, 0}),
+        "A frame without a physics step must not interpolate across a teleport");
+
+    moving.set_position({200, 0});
+    (void)world.advance(1.0 / 60.0);
+    require(moving.render_rect().x() >= 200.0f,
+        "Direct position changes must not blend from an obsolete physics position");
+    require(world.unregister_object(handle), "Interpolation probe must unregister");
+    require(moving.render_rect().position() == moving.position(),
+        "Unregistering must restore authoritative presentation");
+
+    require(world.register_object(moving, &moving, &moving).is_valid(),
+        "Interpolation probe must re-register");
+    (void)world.advance(1.0 / 60.0);
+    world.reset();
+    require(moving.render_rect().position() == moving.position(),
+        "World reset must remove presentation offsets");
+}
+
 int main()
 {
+    interpolated_presentation_tracks_fixed_steps();
     contacts_and_events();
     reset_during_event_batch();
     listener_exception_reaches_application_boundary();
