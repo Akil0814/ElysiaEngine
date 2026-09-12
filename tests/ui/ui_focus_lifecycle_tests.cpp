@@ -1,6 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/ui/composites/ui_dropdown.h"
+#include "engine/ui/composites/ui_confirmation_dialog.h"
 #include "engine/ui/composites/ui_tab_container.h"
 #include "engine/ui/containers/ui_grid_container.h"
 #include "engine/ui/containers/ui_list_container.h"
@@ -148,6 +149,117 @@ void test_deep_nested_focus_propagation()
     require(!first_raw->is_focused() && second_raw->is_focused(),"leaf focus visuals should remain exclusive");
 }
 
+void test_window_focus_survives_hidden_overlay_cleanup()
+{
+    using namespace elysia;
+    ui::UiWindow window(core::Rect{ 0,0,640,480 });
+    auto* list = window.create_child<ui::UiListContainer>(core::Rect{ 0,0,240,160 });
+    auto* first = list->create_child<ui::UiButton>(core::Rect{ 0,0,120,40 });
+    auto* second = list->create_child<ui::UiButton>(core::Rect{ 0,0,120,40 });
+    auto* dialog = window.create_child<ui::UiConfirmationDialog>(core::Rect{ 0,0,460,250 });
+    require(dialog->register_with_window(window),"confirmation must register with its window");
+    window.register_focus_scope(*list);
+    window.on_ui_input_event(navigation_event(ui::UiAction::NavigateDown));
+    require(list->focused_target() == second,"setup must remember the second menu item");
+
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        window.set_active(false);
+        window.set_visible(false);
+        dialog->close();
+        require(window.focused_scope() == nullptr && !second->is_focused(),
+            "hidden window cleanup must suppress active focus");
+        window.set_visible(true);
+        window.set_active(true);
+        require(window.focus_first_available_scope() && window.focused_scope() == list,
+            "restoring a window must retain its menu registration without re-registering");
+        require(list->focused_target() == second && second->is_focused(),
+            "restoring a window must retain the preferred menu item");
+        window.on_ui_input_event(navigation_event(ui::UiAction::NavigateUp));
+        require(list->focused_target() == first && first->is_focused(),
+            "Up must work after hidden overlay cleanup");
+        window.on_ui_input_event(navigation_event(ui::UiAction::NavigateDown));
+        require(list->focused_target() == second && second->is_focused(),
+            "Down must work after hidden overlay cleanup");
+
+        dialog->open();
+        require(window.focused_scope() == dialog && !second->is_focused(),
+            "opening a modal must transfer focus away from the menu");
+        window.on_ui_input_event(navigation_event(ui::UiAction::NavigateUp));
+        require(list->focused_target() == second,
+            "modal navigation must not move the background menu");
+        window.on_ui_input_event(navigation_event(ui::UiAction::Cancel));
+        require(!window.is_overlay_open(*dialog)
+                && window.focused_scope() == list && second->is_focused(),
+            "canceling a modal must restore menu focus on every cycle");
+    }
+}
+
+void test_registered_scopes_survive_temporary_unavailability()
+{
+    using namespace elysia;
+    for (const bool hide : { false,true })
+    {
+        for (const bool affect_ancestor : { false,true })
+        {
+            ui::UiWindow window(core::Rect{ 0,0,640,480 });
+            auto* parent = window.create_child<ui::UiChildHost>(core::Rect{ 0,0,240,160 });
+            auto* left = parent->create_child<ui::UiListContainer>(core::Rect{ 0,0,240,160 });
+            auto* button = left->create_child<ui::UiButton>(core::Rect{ 0,0,120,40 });
+            auto* right = window.create_child<ui::UiListContainer>(core::Rect{ 300,0,240,160 });
+            right->create_child<ui::UiButton>(core::Rect{ 0,0,120,40 });
+            window.register_focus_scope(*left,{ nullptr,nullptr,nullptr,right });
+            window.register_focus_scope(*right,{ nullptr,nullptr,left,nullptr });
+            ui::UiElement* unavailable = affect_ancestor
+                ? static_cast<ui::UiElement*>(parent) : left;
+            if (hide)
+                unavailable->set_visible(false);
+            else
+                unavailable->set_active(false);
+            window.update(0.0);
+            require(window.focused_scope() == right && !button->is_focused(),
+                "an unavailable scope or ancestor must transfer focus to a usable scope");
+            window.on_ui_input_event(navigation_event(ui::UiAction::NavigateLeft));
+            require(window.focused_scope() == right,
+                "navigation must not enter an unavailable subtree");
+            unavailable->set_visible(true);
+            unavailable->set_active(true);
+            window.on_ui_input_event(navigation_event(ui::UiAction::NavigateLeft));
+            require(window.focused_scope() == left && button->is_focused(),
+                "restoring a subtree must preserve its registration and incoming neighbor link");
+            window.on_ui_input_event(navigation_event(ui::UiAction::NavigateRight));
+            require(window.focused_scope() == right,
+                "restoring a subtree must preserve its outgoing neighbor link");
+            require(window.focus_first_available_scope() && window.focused_scope() == left,
+                "temporary unavailability must not reorder scope registrations");
+        }
+    }
+}
+
+void test_window_prunes_removed_and_destroyed_scopes()
+{
+    using namespace elysia;
+    for (const bool destroy : { false,true })
+    {
+        ui::UiWindow window(core::Rect{ 0,0,640,480 });
+        auto* parent = window.create_child<ui::UiChildHost>(core::Rect{ 0,0,240,160 });
+        auto* list = parent->create_child<ui::UiListContainer>(core::Rect{ 0,0,240,160 });
+        list->create_child<ui::UiButton>(core::Rect{ 0,0,120,40 });
+        window.register_focus_scope(*list);
+        require(window.focused_scope() == list,"setup must focus the registered subtree");
+        if (destroy)
+            parent->destroy();
+        else
+            window.clear_children();
+        window.update(0.0);
+        require(window.focused_scope() == nullptr && !window.focus_first_available_scope(),
+            "destroying or removing a registered subtree must discard cached focus");
+        window.on_ui_input_event(navigation_event(ui::UiAction::NavigateDown));
+        require(window.focused_scope() == nullptr,
+            "navigation must not restore a removed or destroyed scope");
+    }
+}
+
 void test_nested_focus_boundary_navigation()
 {
     elysia::ui::UiWindow window(elysia::core::Rect{ 0,0,640,240 });
@@ -224,6 +336,9 @@ int main()
     test_empty_focus_scopes();
     test_nested_focus_and_dropdown_navigation();
     test_dropdown_option_rebuild_repairs_cached_focus();
+    test_window_focus_survives_hidden_overlay_cleanup();
+    test_registered_scopes_survive_temporary_unavailability();
+    test_window_prunes_removed_and_destroyed_scopes();
     test_deep_nested_focus_propagation();
     test_nested_focus_boundary_navigation();
     test_nested_focus_repair_after_visibility_and_removal();

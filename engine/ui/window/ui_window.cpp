@@ -813,6 +813,7 @@ void UiWindow::rebuild_layout()
 
 void UiWindow::prune_focus_scopes()
 {
+    // Temporary visibility/activity changes must not discard registrations or neighbors.
     std::vector<const UiFocusScope*> live_scopes;
     live_scopes.reserve(_scope_entries.size());
     collect_live_scopes(*this,live_scopes);
@@ -1043,8 +1044,14 @@ bool UiWindow::is_scope_usable(const UiFocusScope* scope) noexcept
 {
     if (!scope)
         return false;
-    const UiElement& element = scope->focus_scope_element();
-    return !element.is_destroyed() && element.is_active() && element.is_visible() && scope->has_focusable_target();
+    // A registered scope can remain owned while any ancestor makes it unavailable.
+    for (const UiElement* element = &scope->focus_scope_element();
+         element; element = element->layout_parent())
+    {
+        if (element->is_destroyed() || !element->is_active() || !element->is_visible())
+            return false;
+    }
+    return scope->has_focusable_target();
 }
 
 void UiWindow::update_focus_input_device(elysia::input::InputDevice device) noexcept

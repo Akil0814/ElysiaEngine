@@ -16,7 +16,7 @@ class UiElement;
 [[nodiscard]] bool is_control_usable(const UiControl* control) noexcept;
 // Collects focusable controls that are still live under the given element tree.
 void collect_live_controls(const UiElement& element,std::vector<const UiControl*>& out_controls);
-// Collects nested focus scopes that are still live under the given element tree.
+// Collects owned, non-destroyed scopes, including hidden/inactive subtrees.
 void collect_live_scopes(const UiElement& element,std::vector<const UiFocusScope*>& out_scopes);
 // Tests membership without assuming the stored control pointers are unique.
 [[nodiscard]] bool contains_control(const std::vector<const UiControl*>& controls,const UiControl* control) noexcept;

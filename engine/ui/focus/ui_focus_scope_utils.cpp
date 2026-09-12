@@ -60,7 +60,9 @@ void collect_live_controls(const UiElement& element,std::vector<const UiControl*
 
 void collect_live_scopes(const UiElement& element,std::vector<const UiFocusScope*>& out_scopes)
 {
-    if (element.is_destroyed() || !element.is_active() || !element.is_visible())
+    // Registration follows ownership, including temporarily hidden/inactive subtrees.
+    // Input eligibility is checked separately by the window.
+    if (element.is_destroyed())
         return;
     if (const auto* scope = dynamic_cast<const UiFocusScope*>(&element))
         out_scopes.push_back(scope);

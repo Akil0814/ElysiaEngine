@@ -383,25 +383,31 @@ void test_escape_returns_the_full_caller_route()
     });
     scene_manager.on_update(0.0);
 
-    scene_manager.on_scene_request(elysia::scene::SceneRequest{
-        .type = elysia::scene::SceneRequestType::Switch,
-        .route = elysia::scene::SceneRoute{
-            .target = example::scene_keys::UiComponentGallery,
-            .payload = example::scene::DemoScenePayload{
-                .return_route = elysia::scene::SceneRoute{
-                    .target = example::scene_keys::DemoGallery,
-                    .payload = example::scene::DemoScenePayload{
-                        .return_route = original_caller
-                    },
-                    .reload_mode = elysia::scene::SceneReloadMode::Reuse
-                }
-            }
-        }
-    });
-    scene_manager.on_update(0.0);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
+    require(scene_manager.current_scene_key() == example::scene_keys::UiComponentGallery,
+        "Gallery keyboard navigation must open the selected child page");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
         "Demo child Escape must return to DemoGalleryScene");
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
+        require(scene_manager.current_scene_key() == example::scene_keys::EngineFeatureLab,
+            "Down after returning to Gallery must open the next menu entry");
+        send_escape(scene_manager);
+        require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+            "Engine feature Escape must return to the cached Gallery");
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyUp);
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
+        require(scene_manager.current_scene_key() == example::scene_keys::UiComponentGallery,
+            "Up after returning to Gallery must open the previous menu entry");
+        send_escape(scene_manager);
+        require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+            "repeated child visits must keep returning to Gallery");
+    }
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 41,
         "DemoGalleryScene must preserve and return the original caller route");
