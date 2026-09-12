@@ -42,10 +42,24 @@ SoundRequestResult SoundPlaybackScheduler::request_sound(std::string_view key,
 
 void SoundPlaybackScheduler::update(double delta_seconds,
     const StartSoundCallback& start_sound,const ChannelPlayingCallback& is_channel_playing,
-    const StopSoundCallback& stop_sound)
+    const StopSoundCallback& stop_sound,const VolumeCallback& volume)
 {
-    _elapsed_seconds += std::max(0.0,delta_seconds);
+    delta_seconds = audio_delta(delta_seconds);
+    _elapsed_seconds += delta_seconds;
     prune_finished_sounds(is_channel_playing);
+
+    auto active = _active_sounds.begin();
+    while (active != _active_sounds.end())
+    {
+        active->fade.update(delta_seconds);
+        if (volume) volume(active->channel,active->group,active->fade.gain());
+        if (active->stopping && active->fade.finished() && stop_sound)
+        {
+            stop_sound(active->channel);
+            active = _active_sounds.erase(active);
+        }
+        else ++active;
+    }
 
     auto pending = _pending_sounds.begin();
     while (pending != _pending_sounds.end())
@@ -62,7 +76,7 @@ void SoundPlaybackScheduler::update(double delta_seconds,
 }
 
 bool SoundPlaybackScheduler::stop_sound(SoundHandle handle,
-    const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound)
+    const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound,std::chrono::milliseconds fade_out)
 {
     const auto pending = std::find_if(_pending_sounds.begin(),_pending_sounds.end(),
         [handle](const PendingSound& sound) { return sound.handle == handle; });
@@ -78,10 +92,27 @@ bool SoundPlaybackScheduler::stop_sound(SoundHandle handle,
     if (active == _active_sounds.end() || !stop_sound)
         return false;
 
-    stop_sound(active->channel);
-    _active_sounds.erase(active);
+    if (fade_out.count() <= 0)
+    {
+        stop_sound(active->channel);
+        _active_sounds.erase(active);
+    }
+    else if (!active->stopping)
+    {
+        active->stopping = true;
+        active->fade.start(0.0,fade_out);
+    }
 
     return true;
+}
+
+void SoundPlaybackScheduler::stop_all_sounds(const ChannelPlayingCallback& playing,
+    const StopSoundCallback& stop,std::chrono::milliseconds fade_out)
+{
+    prune_finished_sounds(playing);
+    std::vector<SoundHandle> handles;
+    for (const auto& sound : _active_sounds) handles.push_back(sound.handle);
+    for (auto handle : handles) (void)stop_sound(handle,playing,stop,fade_out);
 }
 
 void SoundPlaybackScheduler::cancel_all_scheduled_sounds()
@@ -100,7 +131,7 @@ void SoundPlaybackScheduler::for_each_active_channel(SoundGroup group,
     prune_finished_sounds(is_channel_playing);
     for (const ActiveSound& sound : _active_sounds)
         if (sound.group == group)
-            callback(sound.channel);
+            callback(sound.channel,sound.fade.gain());
 }
 
 void SoundPlaybackScheduler::reset()
@@ -143,11 +174,14 @@ bool SoundPlaybackScheduler::try_start_sound(SoundHandle handle,std::string_view
     if (_active_sounds.size() >= kSoundChannelCount)
         return false;
 
-    const int channel = start_sound(key,options.loops.value_or(0),options.group);
+    AudioFade fade;
+    fade.reset(options.fade_in.count() > 0 ? 0.0 : 1.0);
+    fade.start(1.0,options.fade_in);
+    const int channel = start_sound(key,options.loops.value_or(0),options.group,fade.gain());
     if (channel < 0)
         return false;
 
-    _active_sounds.push_back({ handle,channel,options.group });
+    _active_sounds.push_back({ handle,channel,options.group,fade,false });
     _last_started_seconds_by_key[std::string(key)] = _elapsed_seconds;
     return true;
 }

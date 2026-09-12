@@ -52,6 +52,7 @@ struct SoundPlayOptions
     std::optional<int> loops = std::nullopt;
     SoundGroup group = SoundGroup::Extra;
     std::chrono::milliseconds start_delay{ 0 };
+    std::chrono::milliseconds fade_in{ 0 };
 };
 
 using SoundHandle = std::uint64_t;

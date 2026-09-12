@@ -1,6 +1,6 @@
 # AudioService 模块说明
 
-`elysia::audio::AudioService` 是 Elysia Engine 的运行时音频播放服务。它负责把已经加载好的音频资源播放为音效或音乐，并管理音效的并发、冷却、延迟、停止和运行时音量。
+`elysia::audio::AudioService` 是 Elysia Engine 的运行时音频播放服务。它负责把已经加载好的音频资源播放为音效或音乐，并管理音效的并发、冷却、延迟、停止和运行时音量、渐入渐出与音乐顺序切换。
 
 本文面向两类读者：
 
@@ -54,7 +54,7 @@ audio->initialize(runtime_settings.audio);
 audio->update(delta_seconds);
 ```
 
-该调用推进延迟请求的时间；到期请求会在此时尝试正式播放。`Application` 当前在场景更新和场景切换处理完成后调用它，因此音频服务不需要知道场景生命周期。
+该调用推进延迟请求及音乐、音效的线性渐变；到期请求会在此时尝试正式播放。负数或非有限 delta 按零处理。新启动的声音从实际开始播放时计时，不消耗启动前的帧时间。`Application` 当前在场景更新和场景切换处理完成后调用它，因此音频服务不需要知道场景生命周期。
 
 关闭时调用：
 
@@ -96,6 +96,7 @@ struct SoundPlayOptions
     std::optional<int> loops;                 // nullopt 等同一次播放
     SoundGroup group = SoundGroup::Extra;
     std::chrono::milliseconds start_delay{0};
+    std::chrono::milliseconds fade_in{0};
 };
 ```
 
@@ -120,13 +121,14 @@ struct SoundRequestResult
 ### `stop_sound`
 
 ```cpp
-bool stop_sound(SoundHandle handle);
+bool stop_sound(SoundHandle handle, std::chrono::milliseconds fade_out = {});
 ```
 
 统一停止或取消一个请求：
 
 - handle 仍处于延迟状态：取消待播放请求，返回 `true`。
-- handle 已处于播放状态：停止其 SDL channel 并移除活跃记录，返回 `true`。
+- handle 已处于播放状态：接受停止请求，返回 `true`。正时长从当前增益渐出，到零后停止 channel 并移除活跃记录；期间 handle 有效且仍占并发名额。
+- 渐入中停止会从当前增益渐出；重复渐出请求不重启计时，非正时长立即停止。自然结束会提前清理。
 - handle 已自然结束、已被 `ReplaceOldest` 替换、无效，或服务未初始化：返回 `false`。
 
 ### `cancel_all_scheduled_sounds`
@@ -138,10 +140,10 @@ void cancel_all_scheduled_sounds();
 仅清空尚未开始的延迟请求，不停止已经在播放的音效。与之对应：
 
 ```cpp
-void stop_all_sounds();
+void stop_all_sounds(std::chrono::milliseconds fade_out = {});
 ```
 
-仅停止已经开始的全部音效，不取消延迟请求。
+仅停止或渐出已经开始的全部音效，不取消延迟请求。所有新增时间参数使用毫秒，默认零；非正时长立即完成。
 
 ## 4. 并发组、冷却与溢出策略
 
@@ -222,7 +224,7 @@ const AudioSettings& settings() const;
 音乐有效音量为：
 
 ```text
-master_volume × music_volume / 100
+master_volume / 100 × music_volume / 100 × music_fade_gain × MIX_MAX_VOLUME
 ```
 
 ### 组音量
@@ -242,22 +244,39 @@ int sound_group_volume(SoundGroup group) const;
 音效 channel 的有效音量为：
 
 ```text
-master_volume × sound_volume × group_volume / 10000
+master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_fade_gain × MIX_MAX_VOLUME
 ```
+
+渐变增益为独立的 `0..1` 线性系数；计算最终 SDL 音量后统一向下取整。音量设置与渐变相乘，渐变过程中修改设置立即生效，不修改保存的用户音量或组音量。播放前设置初始音量，避免渐入首帧满音量。
 
 `music_volume` 不影响音效；四组 `group_volume` 也不影响音乐。
 
 ## 6. 音乐 API
 
 ```cpp
-bool play_music(std::string_view key, int loops = -1);
-void stop_music();
+bool play_music(std::string_view key, int loops = -1,
+    std::chrono::milliseconds fade_in = {});
+void stop_music(std::chrono::milliseconds fade_out = {});
+
+struct MusicTransitionOptions
+{
+    int loops = -1;
+    std::chrono::milliseconds fade_out{0};
+    std::chrono::milliseconds fade_in{0};
+};
+bool transition_music(std::string_view key,
+    const MusicTransitionOptions& options = {});
 ```
 
-- `play_music()` 在开始新音乐前停止当前音乐。
-- 默认 `loops = -1`，即持续循环。
-- 音乐资源必须已由 `ResourceManager` 按 key 加载；服务未初始化、资源不存在或 SDL_mixer 返回错误时，函数返回 `false`。
-- 音乐是单独播放路径，不参与 `SoundGroup`、冷却、延迟请求、`SoundHandle` 或 24 个音效 channel 的调度。
+- `play_music()` 校验资源后立即替换当前音乐、清除待切换目标，并让新音乐按指定时长渐入；同一 key 也从头播放。
+- `transition_music()` 执行“旧音乐渐出 → 启动新音乐 → 新音乐渐入”。无音乐时直接启动新音乐；旧音乐自然结束时，在下一次更新启动目标。
+- 仅保存一个待播放目标。渐出期间收到新目标，更新 key、loops 和渐入时长，保留旧音乐渐出进度与结束时间。
+- 请求当前仍在播放的同一 key 时，取消待切换目标、保持播放位置与 loops，并按本次渐入时长恢复增益到 1；满音量时继续播放。
+- `stop_music()` 清除待切换目标，再从当前增益渐出。重复渐出不重启计时；非正时长立即停止。
+- 音乐 key 必须已加载。服务未初始化或资源无效时返回 `false`，不改变当前播放或已接受的切换。默认 `loops = -1` 为持续循环。
+- `transition_music()` 返回 `true` 表示请求已接受，不保证未来启动成功。待播放目标持有 key，启动时再次查询资源；资源消失或 SDL 启动失败时记录日志、清空目标并进入空闲，不自动重试。同步启动失败返回 `false`。
+- 音乐不参与音效组、冷却、延迟请求、handle 或 24 个音效 channel 的调度。本功能是单路顺序切换，不是两首音乐同时播放的交叉淡化。
+- `shutdown()` 立即停止所有播放并清空延迟、切换与渐变状态，不等待渐出；重复初始化先清理上一轮播放状态。
 
 ## 7. 常用调用示例
 
@@ -311,6 +330,22 @@ if (!audio->set_sound_group_config(
 audio->set_sound_group_volume(elysia::audio::SoundGroup::Ambient, 45);
 ```
 
+### 音乐平滑切换与环境音渐变
+
+```cpp
+audio->transition_music("bgm.battle", {
+    .fade_out = 800ms,
+    .fade_in = 500ms
+});
+const auto rain = audio->request_sound("ambient.rain", {
+    .loops = -1,
+    .group = elysia::audio::SoundGroup::Ambient,
+    .fade_in = 1000ms
+});
+if (rain.handle)
+    audio->stop_sound(*rain.handle, 800ms);
+```
+
 ## 8. 内部调度器职责
 
 `SoundPlaybackScheduler` 不作为 gameplay/UI 的直接入口。它完成以下工作：
@@ -320,9 +355,9 @@ audio->set_sound_group_volume(elysia::audio::SoundGroup::Ambient, 45);
 - 每次请求和更新前清理 SDL 已结束的 channel，避免并发计数残留。
 - 判定冷却、组上限、全局 channel 上限与溢出策略。
 - 在 `ReplaceOldest` 时选择同组最早活跃项并通过回调停止其 channel。
-- 按组枚举活跃 channel，供 `AudioService` 更新实际 channel 音量。
+- 保存每个活跃实例的渐变与停止状态，按组枚举 channel 及增益，供 `AudioService` 更新实际音量。
 
-`AudioService` 向调度器传入“启动声音、检查 channel 是否仍播放、停止 channel”的回调。这样调度器不依赖 `Scene`、`ResourceManager` 或 SDL_mixer 的资源查找；SDL 细节仍集中在服务层。
+`AudioService` 向调度器传入“启动声音、检查 channel 是否仍播放、停止 channel”的回调。启动回调接收初始增益，更新回调应用增益。内部 `MusicPlaybackController` 同样通过播放、停止、播放状态和音量回调管理音乐，不缓存资源指针。共享 `AudioFade` 提供线性插值。这样调度器不依赖 `Scene`、`ResourceManager` 或 SDL_mixer 的资源查找；SDL 细节仍集中在服务层。
 
 ## 9. 当前能力边界
 
@@ -331,7 +366,8 @@ audio->set_sound_group_volume(elysia::audio::SoundGroup::Ambient, 45);
 - 满槽后等待、自动重试或顺序播放队列。
 - 跨组优先级与跨组 channel 抢占。
 - 自定义动态音效组。
-- 单实例暂停/恢复、淡入淡出、声像、音高或随机变体。
+- 单实例暂停/恢复、声像、音高或随机变体。
+- 多路音乐交叉淡化、音乐排队、组音量渐变，以及内置启动画面播放器的渐变扩展。
 - 组音量的用户设置持久化。
 - 自动按 Scene、实体或技能批量取消延迟请求。
 
