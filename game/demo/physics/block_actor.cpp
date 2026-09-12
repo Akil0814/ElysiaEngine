@@ -96,11 +96,12 @@ void BlockCombatActor::submit_render_commands(
         return;
 
     constexpr float bar_height = 4.0f;
+    const auto visual_rect = render_rect();
     const float ratio = static_cast<float>(health().current())
         / static_cast<float>(health().maximum());
     const elysia::core::Rect background{
-        world_rect().left(), world_rect().top() - 8.0f,
-        world_rect().width(), bar_height};
+        visual_rect.left(), visual_rect.top() - 8.0f,
+        visual_rect.width(), bar_height};
     out_commands.push_back(elysia::core::make_world_fill_rect_command(
         background, {40, 40, 40, 255}));
     if (ratio > 0.0f)

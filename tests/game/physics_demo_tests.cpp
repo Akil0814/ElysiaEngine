@@ -431,8 +431,8 @@ void require_demo_camera(
             {1.0f, 1.0f}));
     cameras->update(0.1);
     require(cameras->camera(slot).center().nearly_equals(
-            expected_player_center + elysia::core::Vector2{30.0f, 0.0f}),
-        "Physics demo cameras must smoothly follow their focus at 300 units per second");
+            expected_player_center + elysia::core::Vector2{100.0f, 0.0f}),
+        "Physics demo cameras must follow their focus immediately");
     scene_manager.shutdown();
 }
 

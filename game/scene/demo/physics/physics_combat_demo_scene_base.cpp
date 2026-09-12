@@ -376,7 +376,7 @@ void PhysicsCombatDemoSceneBase::configure_fixed_camera()
     auto* cameras = elysia::camera::CameraManager::instance();
     constexpr auto slot = elysia::camera::CameraSlot::Main;
     cameras->set_follow_strategy(
-        slot, std::make_unique<elysia::camera::SmoothFollowStrategy>(300.0));
+        slot, std::make_unique<elysia::camera::HardFollowStrategy>());
     cameras->set_focus_rect(slot, std::nullopt);
     cameras->set_world_bounds(slot, std::nullopt);
     cameras->set_zoom(slot, 2.0f);

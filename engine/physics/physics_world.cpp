@@ -341,6 +341,8 @@ bool PhysicsWorld::unregister_immediate(PhysicsObjectHandle handle) noexcept
         _collider_index.erase(collider->id);
         collider->id = InvalidColliderId;
     }
+    if (found->owner)
+        found->owner->_render_offset = {};
     _registrations.erase(found);
     return true;
 }
@@ -719,6 +721,21 @@ std::uint32_t PhysicsWorld::advance(double frame_delta_seconds)
         throw;
     }
     _advancing = false;
+    const float alpha = static_cast<float>(std::clamp(
+        _accumulator_seconds / _config.fixed_delta_seconds, 0.0, 1.0));
+    for (const Registration& registration : _registrations)
+    {
+        auto* owner = registration.owner;
+        if (!owner)
+            continue;
+        owner->_render_offset = {};
+        if (!owner->is_active() || owner->is_destroyed() || !registration.body
+            || !registration.body->enabled || registration.body->type == BodyType::Static
+            || owner->position() != registration.current_owner_origin)
+            continue;
+        owner->_render_offset = (registration.previous_owner_origin
+            - registration.current_owner_origin) * (1.0f - alpha);
+    }
     return steps;
 }
 
@@ -735,7 +752,10 @@ bool PhysicsWorld::fixed_step(double fixed_delta_seconds)
     states.reserve(_registrations.size());
     for (Registration& registration : _registrations)
     {
-        registration.previous_owner_origin = registration.current_owner_origin;
+        // Direct position changes are teleports, not motion to interpolate across.
+        registration.previous_owner_origin =
+            registration.owner->position() == registration.current_owner_origin
+            ? registration.current_owner_origin : registration.owner->position();
         registration.current_owner_origin = registration.owner->position();
         if (!registration.owner->is_active())
             continue;
@@ -908,8 +928,12 @@ void PhysicsWorld::reset() noexcept
 void PhysicsWorld::reset_immediate() noexcept
 {
     for (Registration& registration : _registrations)
+    {
+        if (registration.owner)
+            registration.owner->_render_offset = {};
         for (Collider* collider : registration.colliders)
             if (collider) collider->id = InvalidColliderId;
+    }
     for (Registration& registration : _pending_registrations)
         for (Collider* collider : registration.colliders)
             if (collider) collider->id = InvalidColliderId;

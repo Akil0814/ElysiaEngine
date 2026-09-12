@@ -7,6 +7,8 @@
 #include "geometry/rect.h"
 #include "geometry/vector2.h"
 
+namespace elysia::physics { class PhysicsWorld; }
+
 namespace elysia::core
 {
 struct RenderCommand;
@@ -34,11 +36,12 @@ public:
     {
         SceneObject::reset();
         _time_scale = 1.0;
+        _render_offset = {};
     }
 
-    void set_world_rect(const Rect& rect) noexcept { _world_rect = rect; }
-    void set_position(const Vector2& position) noexcept { _world_rect.set_position(position); }
-    void set_center(const Vector2& center) noexcept { _world_rect.set_center(center); }
+    void set_world_rect(const Rect& rect) noexcept { _world_rect = rect; _render_offset = {}; }
+    void set_position(const Vector2& position) noexcept { _world_rect.set_position(position); _render_offset = {}; }
+    void set_center(const Vector2& center) noexcept { _world_rect.set_center(center); _render_offset = {}; }
     void set_size(const Vector2& size) noexcept { _world_rect.set_size(size); }
 
     [[nodiscard]] const Rect& world_rect() const noexcept { return _world_rect; }
@@ -46,7 +49,13 @@ public:
     [[nodiscard]] Vector2 center() const noexcept { return _world_rect.center(); }
     [[nodiscard]] Vector2 size() const noexcept { return _world_rect.size(); }
 
-    [[nodiscard]] virtual Rect render_rect() const noexcept { return _world_rect; }
+    // Physics interpolates presentation only; gameplay keeps using world_rect().
+    [[nodiscard]] virtual Rect render_rect() const noexcept
+    {
+        Rect rect = _world_rect;
+        rect.set_position(rect.position() + _render_offset);
+        return rect;
+    }
 
     [[nodiscard]] DepthLayer depth_layer() const noexcept { return _depth_layer; }
     [[nodiscard]] int order_in_layer() const noexcept { return _order_in_layer; }
@@ -63,6 +72,8 @@ public:
     void set_receive_input_when_paused(bool enabled) { _receive_input_when_paused = enabled;}
 
 private:
+    friend class elysia::physics::PhysicsWorld;
+    Vector2 _render_offset{};
     Rect _world_rect{};
 
     DepthLayer _depth_layer = DepthLayer::Item;
