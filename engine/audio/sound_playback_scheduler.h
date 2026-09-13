@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sound_playback_types.h"
+#include "audio_fade.h"
 
 #include <array>
 #include <functional>
@@ -14,10 +15,12 @@ namespace elysia::audio
 class SoundPlaybackScheduler
 {
 public:
-    using StartSoundCallback = std::function<int(std::string_view,int,SoundGroup)>;
+    // The final argument is the initial gain, applied before playback begins.
+    using StartSoundCallback = std::function<int(std::string_view,int,SoundGroup,double)>;
     using ChannelPlayingCallback = std::function<bool(int)>;
     using StopSoundCallback = std::function<void(int)>;
-    using ActiveChannelCallback = std::function<void(int)>;
+    using ActiveChannelCallback = std::function<void(int,double)>;
+    using VolumeCallback = std::function<void(int,SoundGroup,double)>;
 
     [[nodiscard]] bool set_group_config(SoundGroup group,const SoundGroupConfig& config);
     [[nodiscard]] const SoundGroupConfig& group_config(SoundGroup group) const;
@@ -26,9 +29,10 @@ public:
         const StartSoundCallback& start_sound,const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound = {});
 
     void update(double delta_seconds,const StartSoundCallback& start_sound,
-        const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound = {});
+        const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound = {},const VolumeCallback& volume = {});
 
-    [[nodiscard]] bool stop_sound(SoundHandle handle,const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound);
+    [[nodiscard]] bool stop_sound(SoundHandle handle,const ChannelPlayingCallback& is_channel_playing,const StopSoundCallback& stop_sound,std::chrono::milliseconds fade_out = {});
+    void stop_all_sounds(const ChannelPlayingCallback& playing,const StopSoundCallback& stop,std::chrono::milliseconds fade_out = {});
     void cancel_all_scheduled_sounds();
     void clear_active_sounds();
     void for_each_active_channel(SoundGroup group,const ChannelPlayingCallback& is_channel_playing,const ActiveChannelCallback& callback);
@@ -40,6 +44,8 @@ private:
         SoundHandle handle = 0;
         int channel = -1;
         SoundGroup group = SoundGroup::Extra;
+        AudioFade fade;
+        bool stopping = false;
     };
 
     struct PendingSound

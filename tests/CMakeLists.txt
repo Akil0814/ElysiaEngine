@@ -436,3 +436,11 @@ endforeach()
 target_compile_definitions(bootstrap_config_integration_tests
     PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
+
+add_elysia_test(audio_fade_tests
+    LABEL audio
+    SOURCES audio/audio_fade_tests.cpp
+    LIBRARIES ${SDL2_LIBRARIES}
+    SDL
+)
+target_compile_definitions(audio_fade_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
