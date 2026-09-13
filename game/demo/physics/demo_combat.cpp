@@ -104,38 +104,19 @@ void DemoCombatSession::end_attack(BlockCombatActor&,
         _runtime->end_attack_instance(instance);
 }
 
-bool DemoCombatSession::contact_direction(
-    const BlockCombatActor& actor, elysia::core::Vector2 direction) const
-{
-    std::vector<elysia::physics::CollisionContact> contacts;
-    const auto target = elysia::physics::CollisionTarget::from_collider(
-        actor.body_collider_id());
-    _world->collect_contacts(target, contacts);
-    for (const auto& contact : contacts)
-    {
-        if (contact.response != elysia::physics::CollisionResponse::Block)
-            continue;
-        auto normal = contact.pair.first == target
-            ? contact.manifold.normal : -contact.manifold.normal;
-        if (normal.dot(direction) >= 0.5f)
-            return true;
-    }
-    return false;
-}
-
 bool DemoCombatSession::is_grounded(const BlockCombatActor& actor) const
 {
-    return contact_direction(actor, {0, 1});
+    return _world->contact_state(elysia::physics::CollisionTarget::from_collider(actor.body_collider_id())).grounded;
 }
 
 bool DemoCombatSession::wall_left(const BlockCombatActor& actor) const
 {
-    return contact_direction(actor, {-1, 0});
+    return _world->contact_state(elysia::physics::CollisionTarget::from_collider(actor.body_collider_id())).wall_left;
 }
 
 bool DemoCombatSession::wall_right(const BlockCombatActor& actor) const
 {
-    return contact_direction(actor, {1, 0});
+    return _world->contact_state(elysia::physics::CollisionTarget::from_collider(actor.body_collider_id())).wall_right;
 }
 
 bool DemoCombatSession::request_drop_through(const BlockCombatActor& actor)

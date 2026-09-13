@@ -9,6 +9,9 @@ void ContactCache::update(
     std::vector<CollisionEvent>& out_events)
 {
     out_events.clear();
+    for (const auto& contact : _invalidated)
+        out_events.push_back({CollisionEventPhase::End, contact});
+    _invalidated.clear();
     std::size_t previous_index = 0;
     std::size_t current_index = 0;
     while (previous_index < _contacts.size()
@@ -50,6 +53,8 @@ void ContactCache::update(
             ++current_index;
         }
     }
+    // For a teleport/rebind at the same pair, the old End precedes the new Begin.
+    std::ranges::stable_sort(out_events, {}, [](const CollisionEvent& event) { return event.contact.pair; });
     _contacts.assign(current_contacts.begin(), current_contacts.end());
 }
 
@@ -67,26 +72,33 @@ void ContactCache::collect_contacts(
     }
 }
 
-void ContactCache::remove_target(CollisionTarget target) noexcept
+void ContactCache::invalidate_target(CollisionTarget target)
 {
-    std::erase_if(_contacts, [target](const CollisionContact& contact)
+    _invalidated.reserve(_invalidated.size() + _contacts.size());
+    std::erase_if(_contacts, [&](const CollisionContact& contact)
     {
-        return contact.pair.first == target || contact.pair.second == target;
+        const bool remove = contact.pair.first == target || contact.pair.second == target;
+        if (remove) _invalidated.push_back(contact);
+        return remove;
     });
 }
 
-void ContactCache::remove_tiles() noexcept
+void ContactCache::invalidate_tiles()
 {
-    std::erase_if(_contacts, [](const CollisionContact& contact)
+    _invalidated.reserve(_invalidated.size() + _contacts.size());
+    std::erase_if(_contacts, [&](const CollisionContact& contact)
     {
-        return contact.pair.first.kind == CollisionTargetKind::Tile
+        const bool remove = contact.pair.first.kind == CollisionTargetKind::Tile
             || contact.pair.second.kind == CollisionTargetKind::Tile;
+        if (remove) _invalidated.push_back(contact);
+        return remove;
     });
 }
 
 void ContactCache::clear() noexcept
 {
     _contacts.clear();
+    _invalidated.clear();
 }
 
 std::span<const CollisionContact> ContactCache::contacts() const noexcept

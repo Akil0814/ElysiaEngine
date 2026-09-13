@@ -72,7 +72,9 @@ sequenceDiagram
     S->>W: advance(frame delta)
     W->>W: 校验 delta 并累加 accumulator
     loop accumulator >= 1/60 且未超过 8 步
-        W->>W: 应用 pending 注册/注销
+        W->>W: accumulator -= fixed dt
+        W->>W: 调用 active 参与者 fixed_update(fixed dt)
+        W->>W: 按调用顺序应用 pending 命令
         W->>W: 保存 previous origins
         W->>P: integrate(entries, fixed dt)
         P-->>W: current origins / velocities
@@ -87,8 +89,9 @@ sequenceDiagram
         W->>W: 对比 ContactCache 生成 Begin/Stay/End
         W->>G: 分发稳定排序后的核心事件
         Note over P: integrate 已在读取 force 后立即清零
-        W->>W: accumulator -= fixed dt
+        W->>W: 提交事件回调中的 pending 命令
     end
+    W->>W: 更新 render_rect 的显示插值
     W-->>S: 本帧执行步数和诊断
 ```
 
@@ -126,7 +129,7 @@ struct PhysicsWorldConfig
 
 固定步对应的 accumulator 时间在进入 `fixed_step` 前扣除，因此 listener 或外部策略异常传播时不会把已经推进的状态以同一时间重复执行。dropped-step 使用饱和累计；超大有限 delta 不会令 `uint64_t` 回绕。
 
-首版不做渲染插值。未来若加入插值，应使用 previous/current Transform 生成只读 render transform，不能改写物理事实状态。
+当前 `render_rect()` 使用 previous/current origin 和剩余 accumulator 生成显示位置，约落后物理状态一个固定步。传送、直接设置位置、注销及 reset 会清理显示偏移；暂停冻结当前显示状态。相机和对象绘制使用同一个 `render_rect()`，`world_rect()`、碰撞和查询仍保持物理事实状态。
 
 ## 5. 注册与安全边界
 
@@ -138,7 +141,7 @@ Scene 发现 Provider 后调用 `PhysicsWorld::register_object`。注册必须�
 - 拒绝同一 owner 重复注册，或幂等返回已有 handle；两种行为只能选一种，首版采用幂等返回已有 handle；
 - 为 `InvalidColliderId` 分配新 ID；
 - 非零 ID 若已经属于其他 Collider，则整次注册失败；
-- 建立 owner → entry、ColliderId → collider slot 两个索引；
+- 建立 PhysicsObjectHandle → entry、ColliderId → collider 与 owner handle 两个索引；
 - 不接管 owner、Provider、Body 或 Collider 的所有权。
 
 ### 注销

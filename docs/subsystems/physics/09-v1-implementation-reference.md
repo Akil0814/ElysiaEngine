@@ -6,7 +6,11 @@
 
 | 能力 | 主要实现 |
 | --- | --- |
-| 固定步、注册、事件、查询 | `engine/physics/physics_world.h/.cpp` |
+| 固定步、注册、事件 | `engine/physics/physics_world.h/.cpp` |
+| Ray/Segment/Overlap/Sweep 查询 | `engine/physics/physics_queries.cpp` |
+| 固定步控制回调 | `engine/physics/contracts/physics_step_participant.h` |
+| CCD 实际运动分段 | `engine/physics/collision/motion_paths.h` |
+| 共享 Tile 采样与几何 | `engine/physics/tile/tile_geometry.h` |
 | Body 积分 | `engine/physics/body/physics_system.h/.cpp` |
 | 世界形状与几何 | `engine/physics/collision/world_shape.h/.cpp` |
 | 材质归一化与合并 | `engine/physics/collision/physics_material.h` |
@@ -67,6 +71,26 @@ public:
 ## 事件使用提醒
 
 核心 listener 接收规范化 `CollisionPair`，法线始终从 pair.first 指向 pair.second。若调用方关注 second，必须反转法线。Gameplay Runtime 已完成该角色路由，不应在物理核心中加入 Actor 或伤害判断。
+
+注销和传送使当前接触立即失效，下一物理步发送 End。End 只携带旧接触的值数据，不能据此解引用已销毁对象。Gameplay Runtime 缓存接触期间的 ColliderBinding 值，使 actor 解绑后 Sensor 仍能收到匹配的 End；收到 End 或 clear 后删除缓存。整体 World reset 仍静默。
+
+## 固定步控制
+
+在提供 Body 或 Collider 的 GameObject 上实现 `PhysicsStepParticipant`：
+
+```cpp
+void Player::fixed_update(double fixed_dt)
+{
+    body.accumulated_force += desired_force;
+    // Consume latched input and update collision windows here.
+}
+```
+
+World 每个物理步调用一次，再积分并清除本步 force。输入回调只锁存方向和按键请求；渲染帧没有物理步时请求继续保留。Demo 的角色控制、攻击窗口和移动平台已走这个入口，普通 update 只更新表现。
+
+## 回归测试
+
+`physics_regression_tests` 覆盖不同显示帧率的固定步控制、有序注册/传送/注销、Tile 替换、失效 End 与 Gameplay 解绑、CCD 墙后假触发、反弹路径上的 Sensor、CCD 预算、自定义检测策略和查询/索引生命周期。`physics_runtime_tests` 保留积分、材质、Tile、CCD、事件和显示插值的基础回归；`physics_demo_tests` 通过实际推进 World 验证攻击窗口与伤害。
 
 ## 材质与求解
 

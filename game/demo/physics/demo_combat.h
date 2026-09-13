@@ -102,8 +102,6 @@ public:
         const elysia::gameplay::collision::HitOverlapEvent& event) override;
 
 private:
-    [[nodiscard]] bool contact_direction(
-        const BlockCombatActor& actor, elysia::core::Vector2 direction) const;
     void apply_environment_damage(BlockCombatActor& actor,
         elysia::core::Vector2 hit_point);
     void queue_death(BlockCombatActor& actor);

@@ -8,6 +8,7 @@
 #include "../../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
 #include "../../../engine/physics/contracts/collider_provider.h"
 #include "../../../engine/physics/contracts/physics_body_provider.h"
+#include "../../../engine/physics/contracts/physics_step_participant.h"
 
 #include <array>
 
@@ -36,6 +37,7 @@ class BlockCombatActor
     : public ColoredBlockObject
     , public elysia::core::Updatable
     , public elysia::physics::PhysicsBodyProvider
+    , public elysia::physics::PhysicsStepParticipant
     , public elysia::physics::ColliderProvider
     , public IDamageableActor
 {
@@ -44,6 +46,7 @@ public:
     ~BlockCombatActor() override;
 
     void update(double delta) override;
+    void fixed_update(double delta) override;
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
 
@@ -113,13 +116,14 @@ class PlatformPlayerCharacter final
 {
 public:
     explicit PlatformPlayerCharacter(const elysia::core::Rect& rect);
-    void update(double delta) override;
+    void fixed_update(double delta) override;
     void on_gameplay_input_frame(
         const elysia::gameplay::GameplayInputFrame& input) override;
 private:
     float _move_axis = 0.0f;
     bool _jump_requested = false;
     bool _drop_requested = false;
+    bool _primary_requested = false;
 };
 
 class TopDownPlayerCharacter final
@@ -128,18 +132,19 @@ class TopDownPlayerCharacter final
 {
 public:
     explicit TopDownPlayerCharacter(const elysia::core::Rect& rect);
-    void update(double delta) override;
+    void fixed_update(double delta) override;
     void on_gameplay_input_frame(
         const elysia::gameplay::GameplayInputFrame& input) override;
 private:
     elysia::core::Vector2 _move{};
+    bool _primary_requested = false;
 };
 
 class StationaryEnemy final : public BlockCombatActor
 {
 public:
     StationaryEnemy(const elysia::core::Rect& rect, BlockCombatActor& target);
-    void update(double delta) override;
+    void fixed_update(double delta) override;
 private:
     BlockCombatActor* _target = nullptr;
 };
@@ -150,7 +155,7 @@ public:
     PlatformPatrolEnemy(
         const elysia::core::Rect& rect, BlockCombatActor& target,
         float patrol_left, float patrol_right);
-    void update(double delta) override;
+    void fixed_update(double delta) override;
 private:
     BlockCombatActor* _target = nullptr;
     float _patrol_left = 0.0f;
@@ -163,7 +168,7 @@ class TopDownChaseEnemy final : public BlockCombatActor
 public:
     TopDownChaseEnemy(
         const elysia::core::Rect& rect, BlockCombatActor& target);
-    void update(double delta) override;
+    void fixed_update(double delta) override;
 private:
     [[nodiscard]] bool has_line_of_sight() const;
     BlockCombatActor* _target = nullptr;

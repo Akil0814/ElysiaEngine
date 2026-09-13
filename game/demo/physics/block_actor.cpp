@@ -68,12 +68,16 @@ BlockCombatActor::~BlockCombatActor() = default;
 
 void BlockCombatActor::update(double delta)
 {
+    update_visual(delta);
+}
+
+void BlockCombatActor::fixed_update(double delta)
+{
     tick_actor(delta);
 }
 
 void BlockCombatActor::tick_actor(double delta)
 {
-    update_visual(delta);
     const double safe_delta = std::max(0.0, delta);
     _cooldown_remaining = std::max(0.0, _cooldown_remaining - safe_delta);
     if (!_attacking)
@@ -251,17 +255,20 @@ void PlatformPlayerCharacter::on_gameplay_input_frame(
         _drop_requested = input.move().y > 0.5f;
     }
     if (input.primary_pressed())
-        start_attack();
+        _primary_requested = true;
 }
 
-void PlatformPlayerCharacter::update(double delta)
+void PlatformPlayerCharacter::fixed_update(double delta)
 {
-    tick_actor(delta);
     if (!alive())
         return;
     physics_body()->velocity.x = _move_axis * move_speed();
     if (_move_axis != 0.0f)
         set_facing(_move_axis < 0.0f ? Facing::Left : Facing::Right);
+    if (_primary_requested)
+        start_attack();
+    _primary_requested = false;
+    tick_actor(delta);
     if (_jump_requested && combat_session())
     {
         if (_drop_requested)
@@ -287,14 +294,17 @@ void TopDownPlayerCharacter::on_gameplay_input_frame(
     _move = input.move();
     if (_move.length_squared() > 1.0f)
         _move.normalize_in_place();
-    if (!_move.is_zero())
-        face_toward(_move);
     if (input.primary_pressed())
-        start_attack();
+        _primary_requested = true;
 }
 
-void TopDownPlayerCharacter::update(double delta)
+void TopDownPlayerCharacter::fixed_update(double delta)
 {
+    if (!_move.is_zero())
+        face_toward(_move);
+    if (_primary_requested)
+        start_attack();
+    _primary_requested = false;
     tick_actor(delta);
     physics_body()->velocity = alive() ? _move * move_speed() : elysia::core::Vector2{};
 }
@@ -309,7 +319,7 @@ StationaryEnemy::StationaryEnemy(
     set_attack_timing(0.45, 0.15, 0.28, 1.0);
 }
 
-void StationaryEnemy::update(double delta)
+void StationaryEnemy::fixed_update(double delta)
 {
     tick_actor(delta);
     if (!_target || !_target->alive() || !alive())
@@ -331,7 +341,7 @@ PlatformPatrolEnemy::PlatformPatrolEnemy(
     set_attack_timing(0.45, 0.15, 0.28, 1.0);
 }
 
-void PlatformPatrolEnemy::update(double delta)
+void PlatformPatrolEnemy::fixed_update(double delta)
 {
     tick_actor(delta);
     if (!alive())
@@ -374,7 +384,7 @@ bool TopDownChaseEnemy::has_line_of_sight() const
     return !combat_session()->world().segment_cast(query).has_value();
 }
 
-void TopDownChaseEnemy::update(double delta)
+void TopDownChaseEnemy::fixed_update(double delta)
 {
     tick_actor(delta);
     if (!_target || !_target->alive() || !alive())

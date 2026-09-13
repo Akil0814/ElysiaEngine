@@ -162,8 +162,9 @@ void contacts_and_events()
     require(world.teleport_object(dynamic_handle, {-100, 0}),
         "Teleport must accept registered finite positions");
     (void)world.advance(1.0 / 60.0);
-    require(listener.events.size() == event_count,
-        "Teleport must clear related contacts silently");
+    require(listener.events.size() == event_count + 1
+            && listener.events.back().phase == CollisionEventPhase::End,
+        "Teleport must end the previous contact on the next fixed step");
 }
 
 void reset_during_event_batch()

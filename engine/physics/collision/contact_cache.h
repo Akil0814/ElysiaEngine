@@ -18,13 +18,15 @@ public:
         CollisionTarget target,
         std::vector<CollisionContact>& out_contacts) const;
 
-    void remove_target(CollisionTarget target) noexcept;
-    void remove_tiles() noexcept;
+    // Remove current state immediately; publish one End on the next step.
+    void invalidate_target(CollisionTarget target);
+    void invalidate_tiles();
     void clear() noexcept;
 
     [[nodiscard]] std::span<const CollisionContact> contacts() const noexcept;
 
 private:
     std::vector<CollisionContact> _contacts;
+    std::vector<CollisionContact> _invalidated;
 };
 }

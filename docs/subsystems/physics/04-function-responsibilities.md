@@ -126,12 +126,12 @@ public:
 - **时机**：步外立即提交；步中/事件回调立即预留稳定 handle/ID，并在下一安全边界提交。
 - **输入**：owner 必须存活；两个 provider 至少一个非空。
 - **步骤**：
-  1. 查 owner 索引；已注册则返回已有 handle；
+  1. 查 owner 是否已注册；相同 provider 返回已有 handle，待移除对象拒绝重复注册；
   2. 读取 Body 和 mutable Collider span；
   3. 验证实际至少取得一个 Body 或 Collider，并拒绝任何预填 Collider ID；Body 参数和形状校验留给后续算法阶段；
   4. 预留 handle 与所有新 Collider ID，但验证失败时不提交；
   5. 写回新 ID；
-  6. 一次性插入 entry、owner index、collider index；
+  6. 一次性插入 entry、handle index、collider index；
   7. current/previous origin 都初始化为 owner 当前 position，防止首次注册产生虚假 CCD。
 - **返回**：有效 handle；失败返回 invalid handle 并记录 collision 类别诊断。
 - **异常安全**：容器分配失败时不留下半注册索引；已经写回但未提交的 ID 必须恢复 invalid。
@@ -141,10 +141,10 @@ public:
 ### `unregister_object(handle)`（当前已实现）
 
 - **输入**：有效且属于当前 world 的 handle。
-- **步骤**：步外立即移除 collider/owner 索引，把 Provider 中全部 Collider ID 写回 invalid；步中/回调中进入 pending queue；不删除 owner/provider。
+- **步骤**：步外立即移除 collider/handle 索引，把 Provider 中全部 Collider ID 写回 invalid；步中/回调中进入 pending queue；不删除 owner/provider。
 - **返回**：找到或成功排队 true；无效/未知 handle false。
 - **ID**：已释放 Collider ID 不复用，并强制把对象字段清零；对象只有在旧 World 注销后才能进入另一 World。
-- **事件**：注销静默清相关 contact，不生成 End；world reset/Scene 退出同样静默。
+- **事件**：注销立即清理当前 contact，并在下一物理步生成一次 End；world reset/Scene 退出静默清空，包括未分发的 End。
 - **测试**：幂等性、旧 handle 不能控制新 entry、ID 清零与数值不复用。
 
 ### `set_tile_world(world)`（当前已实现）
@@ -165,6 +165,7 @@ public:
 ### `advance(frame_delta_seconds)`（当前已实现）
 
 - **调用者**：非暂停的 `Scene::on_update`，每渲染帧一次。
+- **控制入口**：每个 fixed step 先调用已注册且 active 的 `PhysicsStepParticipant::fixed_update`，再提交其有序 pending 操作、积分与求解。普通 update 不负责持续施力。
 - **职责**：可变帧时间转固定物理步。
 - **规则**：非有限或非正 delta 返回 0 且不改 accumulator；执行步数不超过配置；每一步在进入 `fixed_step` 前先消费 accumulator；超额完整步丢弃并以饱和计数诊断；保留不足一步余数。
 - **副作用**：执行完整积分、检测、求解、缓存和事件流程；查询与 Debug Capture 开关不改变该结果。
@@ -176,7 +177,7 @@ public:
 
 - **调用者**：只由 advance。
 - **前置**：dt 等于配置 fixed delta；不允许重入。
-- **顺序**：应用安全边界操作 → snapshot previous/current → integrate（同时消费 force）→ 构造值语义 shape views → evaluate/solve → 提交 Transform/velocity → ContactCache 生成事件 → listener 批次分发 → 清理已完全分离的 drop-through。
+- **顺序**：应用安全边界操作 → 调用参与者 fixed_update → 按调用顺序应用回调命令 → snapshot previous/current → integrate（同时消费 force）→ 构造值语义 shape views → evaluate/solve → 提交 Transform/velocity → ContactCache 生成事件 → listener 批次分发 → 清理已完全分离的 drop-through。
 - **失败策略**：单个无效 entry 记录诊断并跳过；核心容器分配异常或 listener 异常可以传播，但必须解除 stepping/dispatch guard。listener 不得抛异常，物理层不回滚已提交状态；Application update boundary 负责记录 `UnhandledException` 并 FaultExit。
 - **测试**：使用 fake system/listener 验证调用顺序。
 

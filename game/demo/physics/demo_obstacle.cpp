@@ -58,7 +58,7 @@ StaticBlockObstacle::StaticBlockObstacle(ObstacleConfig config)
 void StaticBlockObstacle::submit_render_commands(
     std::vector<elysia::core::RenderCommand>& out_commands) const
 {
-    submit_obstacle_shape(_collider, position(), display_color(), out_commands);
+    submit_obstacle_shape(_collider, render_rect().position(), display_color(), out_commands);
 }
 
 DynamicBlockObstacle::DynamicBlockObstacle(
@@ -79,7 +79,7 @@ DynamicBlockObstacle::DynamicBlockObstacle(
 void DynamicBlockObstacle::submit_render_commands(
     std::vector<elysia::core::RenderCommand>& out_commands) const
 {
-    submit_obstacle_shape(_collider, position(), display_color(), out_commands);
+    submit_obstacle_shape(_collider, render_rect().position(), display_color(), out_commands);
 }
 
 KinematicMovingPlatform::KinematicMovingPlatform(
@@ -103,12 +103,12 @@ KinematicMovingPlatform::KinematicMovingPlatform(
 void KinematicMovingPlatform::submit_render_commands(
     std::vector<elysia::core::RenderCommand>& out_commands) const
 {
-    submit_obstacle_shape(_collider, position(), display_color(), out_commands);
+    submit_obstacle_shape(_collider, render_rect().position(), display_color(), out_commands);
 }
 
-void KinematicMovingPlatform::update(double delta)
+void KinematicMovingPlatform::fixed_update(double delta)
 {
-    update_visual(delta);
+    (void)delta;
     if (position().x <= _left)
         _body.velocity.x = _speed;
     else if (position().x >= _right)

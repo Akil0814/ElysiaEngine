@@ -173,7 +173,7 @@ phase 为 Begin、Stay、End。事件保存规范化 target pair、最后有效 
 
 拥有上一固定步和当前固定步的规范化 contact map/set。负责比较并生成 Begin/Stay/End，不负责检测或 Gameplay 路由。
 
-禁用、注销、Tile World 更换和 teleport 必须使相关 key 失效。缓存 key 必须包含完整 `CollisionTarget`，不能只按地图统一 ID。
+禁用、注销、Tile World 更换和 teleport 必须使相关 key 失效。注销、换图和传送把旧接触转入待分发 End 队列，下一步先结束旧接触，再开始同 pair 的新接触；整体 reset 清空两种存储且不发事件。缓存 key 包含完整 `CollisionTarget`。
 
 ## 5. 策略与 CollisionSystem
 

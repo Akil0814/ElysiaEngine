@@ -10,6 +10,7 @@
 #include "contracts/collision_listener.h"
 #include "contracts/collision_query_service.h"
 #include "contracts/physics_body_provider.h"
+#include "contracts/physics_step_participant.h"
 #include "tile/tile_collision_world.h"
 
 #include "../core/game_object.h"
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 namespace elysia::physics
@@ -60,8 +62,8 @@ public:
     [[nodiscard]] std::size_t registered_object_count() const noexcept;
     [[nodiscard]] std::size_t registered_collider_count() const noexcept;
 
-    [[nodiscard]] bool set_tile_world(const ITileCollisionWorld& world) noexcept;
-    [[nodiscard]] bool clear_tile_world(const ITileCollisionWorld& world) noexcept;
+    [[nodiscard]] bool set_tile_world(const ITileCollisionWorld& world);
+    [[nodiscard]] bool clear_tile_world(const ITileCollisionWorld& world);
     [[nodiscard]] const ITileCollisionWorld* tile_world() const noexcept;
 
     [[nodiscard]] bool add_listener(ICollisionListener& listener) noexcept;
@@ -79,6 +81,7 @@ public:
         std::vector<CollisionContact>& out_contacts) const;
     [[nodiscard]] PhysicsContactState contact_state(
         PhysicsObjectHandle object) const noexcept;
+    [[nodiscard]] PhysicsContactState contact_state(CollisionTarget target) const noexcept;
 
     [[nodiscard]] std::uint32_t advance(double frame_delta_seconds);
     void reset() noexcept;
@@ -117,6 +120,7 @@ private:
         PhysicsBodyProvider* body_provider = nullptr;
         ColliderProvider* collider_provider = nullptr;
         PhysicsBody* body = nullptr;
+        PhysicsStepParticipant* step_participant = nullptr;
         std::vector<Collider*> colliders;
         elysia::core::Vector2 previous_owner_origin{};
         elysia::core::Vector2 current_owner_origin{};
@@ -135,12 +139,14 @@ private:
         TeleportVelocityMode velocity_mode = TeleportVelocityMode::Preserve;
     };
 
-    enum class PendingTileOperation : std::uint8_t
+    struct PendingRegistration { PhysicsObjectHandle handle{}; };
+    struct PendingUnregistration { PhysicsObjectHandle handle{}; };
+    struct PendingTileOperation
     {
-        None,
-        Set,
-        Clear
+        const ITileCollisionWorld* world = nullptr;
     };
+    using PendingOperation = std::variant<PendingRegistration, PendingUnregistration,
+        PendingTeleport, PendingListenerOperation, PendingTileOperation>;
 
     [[nodiscard]] bool fixed_step(double fixed_delta_seconds);
     [[nodiscard]] bool flush_pending_operations();
@@ -150,12 +156,15 @@ private:
         PhysicsBodyProvider* body_provider,
         ColliderProvider* collider_provider);
     void commit_registration(Registration registration);
-    [[nodiscard]] bool unregister_immediate(PhysicsObjectHandle handle) noexcept;
+    [[nodiscard]] bool unregister_immediate(PhysicsObjectHandle handle);
     [[nodiscard]] bool teleport_immediate(
         PhysicsObjectHandle handle,
         elysia::core::Vector2 position,
-        TeleportVelocityMode velocity_mode) noexcept;
-    void remove_cached_target(CollisionTarget target) noexcept;
+        TeleportVelocityMode velocity_mode);
+    void remove_cached_target(CollisionTarget target);
+    void replace_tile_world(const ITileCollisionWorld* world);
+    [[nodiscard]] const ITileCollisionWorld* logical_tile_world() const noexcept;
+    [[nodiscard]] bool pending_removal(PhysicsObjectHandle handle) const noexcept;
     [[nodiscard]] std::optional<OneWayCollision> one_way_for_target(
         CollisionTarget target) const noexcept;
     [[nodiscard]] Registration* find_registration(PhysicsObjectHandle handle) noexcept;
@@ -164,7 +173,9 @@ private:
 
     PhysicsWorldConfig _config{};
     std::vector<Registration> _registrations;
-    std::unordered_map<ColliderId, Collider*> _collider_index;
+    std::unordered_map<std::uint64_t, std::size_t> _registration_index;
+    struct ColliderRecord { Collider* collider; PhysicsObjectHandle owner; };
+    std::unordered_map<ColliderId, ColliderRecord> _collider_index;
     std::vector<ICollisionListener*> _listeners;
     const ITileCollisionWorld* _tile_world = nullptr;
 
@@ -177,11 +188,8 @@ private:
     PhysicsDebugSnapshot _debug_snapshot;
 
     std::vector<Registration> _pending_registrations;
-    std::vector<PhysicsObjectHandle> _pending_unregistrations;
-    std::vector<PendingListenerOperation> _pending_listener_operations;
-    std::vector<PendingTeleport> _pending_teleports;
-    PendingTileOperation _pending_tile_operation = PendingTileOperation::None;
-    const ITileCollisionWorld* _pending_tile_world = nullptr;
+    // Reserved registrations own no objects. Commands commit in caller order.
+    std::vector<PendingOperation> _pending_operations;
 
     std::uint64_t _next_object_handle = 1;
     ColliderId _next_collider_id = 1;

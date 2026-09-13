@@ -6,6 +6,7 @@
 #include "../../../engine/core/interface/updatable.h"
 #include "../../../engine/physics/contracts/collider_provider.h"
 #include "../../../engine/physics/contracts/physics_body_provider.h"
+#include "../../../engine/physics/contracts/physics_step_participant.h"
 
 namespace example::demo::physics
 {
@@ -58,6 +59,7 @@ private:
 class KinematicMovingPlatform final
     : public ColoredBlockObject
     , public elysia::core::Updatable
+    , public elysia::physics::PhysicsStepParticipant
     , public elysia::physics::ColliderProvider
     , public elysia::physics::PhysicsBodyProvider
 {
@@ -67,7 +69,8 @@ public:
         float left,
         float right,
         float speed);
-    void update(double delta) override;
+    void update(double delta) override { update_visual(delta); }
+    void fixed_update(double delta) override;
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
     [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }

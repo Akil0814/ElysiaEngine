@@ -285,6 +285,7 @@ TeamRelation GameplayCollisionRuntime::team_relation(TeamId source, TeamId targe
 
 void GameplayCollisionRuntime::clear() noexcept
 {
+    _contact_bindings.clear();
     _rigs.clear();
     _bindings.clear();
     _hit_boxes.clear();
@@ -308,8 +309,24 @@ void GameplayCollisionRuntime::on_collision_event(
         return found == _bindings.end()
             ? std::nullopt : std::optional<ColliderBinding>{found->second};
     };
-    const auto first_binding = binding_value(first);
-    const auto second_binding = binding_value(second);
+    auto first_binding = binding_value(first);
+    auto second_binding = binding_value(second);
+    if (event.phase == elysia::physics::CollisionEventPhase::End)
+    {
+        if (const auto found = _contact_bindings.find(event.contact.pair); found != _contact_bindings.end())
+        {
+            first_binding = found->second.first;
+            second_binding = found->second.second;
+            _contact_bindings.erase(found);
+        }
+    }
+    else if (first_binding || second_binding)
+    {
+        // Do not overwrite a previously known side merely because it unbound.
+        auto& cached = _contact_bindings[event.contact.pair];
+        if (first_binding) cached.first = first_binding;
+        if (second_binding) cached.second = second_binding;
+    }
 
     std::vector<BodyContactEvent> body_events;
     std::vector<PushBoxOverlapEvent> push_events;

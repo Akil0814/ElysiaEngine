@@ -243,6 +243,11 @@ add_elysia_test(physics_runtime_tests
     SDL
 )
 
+add_elysia_test(physics_regression_tests
+    LABEL physics
+    SOURCES physics/physics_regression_tests.cpp
+)
+
 add_elysia_test(gameplay_collision_service_tests
     LABEL physics
     SOURCES physics/gameplay_collision_service_tests.cpp

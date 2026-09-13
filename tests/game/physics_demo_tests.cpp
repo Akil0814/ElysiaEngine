@@ -13,9 +13,11 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/tools/development_overlay.h"
+#include "engine/gameplay/input/gameplay_input_map.h"
 #include "tests/support/test_assertions.h"
 
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
@@ -181,8 +183,9 @@ void test_actor_provider_and_damage_flow()
         "Combat actors must expose Body, HurtBox and HitBox storage");
     require(player_span.data() == player.colliders().data(),
         "Collider provider storage must stay address-stable");
-    require(world.register_object(player, &player, &player).is_valid()
-            && world.register_object(enemy, &enemy, &enemy).is_valid(),
+    const auto player_handle = world.register_object(player, &player, &player);
+    const auto enemy_handle = world.register_object(enemy, &enemy, &enemy);
+    require(player_handle.is_valid() && enemy_handle.is_valid(),
         "Combat actors must register with body and collider providers");
 
     elysia::gameplay::collision::GameplayCollisionRuntime runtime(world);
@@ -208,7 +211,7 @@ void test_actor_provider_and_damage_flow()
             "Actor rendering must not require a generated white texture");
 
     player.start_attack();
-    player.update(0.10);
+    (void)world.advance(0.10);
     require(player_span[2].enabled,
         "Player HitBox must enable during the active attack window");
     (void)world.advance(1.0 / 60.0);
@@ -218,17 +221,71 @@ void test_actor_provider_and_damage_flow()
     require(enemy.health().current() == 25,
         "Stay contacts from one attack instance must not repeat damage");
 
-    player.update(0.30);
-    (void)world.advance(1.0 / 60.0);
-    player.update(0.40);
+    for (int step = 0; step < 42; ++step)
+        (void)world.advance(1.0 / 60.0);
+    require(world.teleport_object(player_handle, {0, 0}, elysia::physics::TeleportVelocityMode::Clear)
+            && world.teleport_object(enemy_handle, {40, 0}, elysia::physics::TeleportVelocityMode::Clear),
+        "Reset the separated actors into melee range for the next attack");
     player.start_attack();
-    player.update(0.10);
-    (void)world.advance(1.0 / 60.0);
+    (void)world.advance(0.10);
     require(!enemy.alive() && enemy.health().current() == 0,
         "A new attack instance must be able to deal damage and kill");
     combat.flush_deaths();
     require(!enemy_span[0].enabled && !enemy_span[1].enabled,
         "Death processing must leave all physical participation disabled");
+}
+
+void test_input_is_latched_until_a_fixed_step()
+{
+    using namespace example::demo::physics;
+    using namespace elysia::physics;
+    PlatformPlayerCharacter player({0, 0, 34, 56});
+    StaticBlockObstacle floor({.rect = {0, 56, 200, 20}, .shape = AabbShape{{0, 0, 200, 20}}});
+    PhysicsWorldConfig config;
+    config.gravity = {0, 1200};
+    PhysicsWorld world(config);
+    require(world.register_object(player, &player, &player).is_valid()
+            && world.register_object(floor, nullptr, &floor).is_valid(), "Jump fixtures register");
+    elysia::gameplay::collision::GameplayCollisionRuntime runtime(world);
+    DemoCombatSession combat(world, runtime);
+    require(player.bind_combat(combat), "Player binds combat");
+    (void)world.advance(1.0 / 60);
+    require(combat.is_grounded(player), "Player starts grounded");
+
+    auto input_map = elysia::gameplay::make_default_gameplay_input_map();
+    elysia::input::RawInputFrame raw;
+    raw.state.set_pressed(elysia::input::RawInputControl::KeySpace, true);
+    raw.state.set_pressed(elysia::input::RawInputControl::KeyJ, true);
+    player.on_gameplay_input_frame(elysia::gameplay::GameplayInputFrame(input_map.resolve(raw).frame));
+    require(world.advance(1.0 / 240) == 0, "First display frame has no physics step");
+    raw.state.set_pressed(elysia::input::RawInputControl::KeySpace, false);
+    raw.state.set_pressed(elysia::input::RawInputControl::KeyJ, false);
+    player.on_gameplay_input_frame(elysia::gameplay::GameplayInputFrame(input_map.resolve(raw).frame));
+    require(world.advance(1.0 / 240) == 0, "Release frame also has no physics step");
+    require(world.advance(1.0 / 120) == 1 && std::fabs(player.physics_body()->velocity.y + 500) < 0.001f,
+        "A tap between fixed steps must still produce one jump");
+    (void)world.advance(1.0 / 60);
+    require(std::fabs(player.physics_body()->velocity.y + 480) < 0.001f, "Consumed jump must not retrigger");
+    (void)world.advance(3.0 / 60);
+    require(player.colliders()[2].enabled, "A short primary tap must survive until the fixed attack window");
+}
+
+void test_moving_obstacle_rendering_uses_interpolation()
+{
+    using namespace example::demo::physics;
+    ObstacleConfig config;
+    config.rect = {0, 0, 40, 10};
+    config.shape = elysia::physics::AabbShape{{0, 0, 40, 10}};
+    KinematicMovingPlatform platform(config, -100, 100, 120);
+    elysia::physics::PhysicsWorld world;
+    require(world.register_object(platform, &platform, &platform).is_valid(), "Platform registers");
+    (void)world.advance(1.0 / 60);
+    (void)world.advance(1.0 / 120);
+    std::vector<elysia::core::RenderCommand> commands;
+    platform.submit_render_commands(commands);
+    require(platform.position().nearly_equals({2, 0}) && commands.size() == 1
+            && commands.front().command_rect.position().nearly_equals({1, 0}),
+        "Moving platform graphics must use interpolated position while collision stays authoritative");
 }
 
 void test_obstacle_material_and_kinematic_platform()
@@ -248,7 +305,7 @@ void test_obstacle_material_and_kinematic_platform()
             && platform.colliders().front().material == config.material,
         "Moving platform must be Kinematic and retain its configured material");
     platform.set_position({41, 30});
-    platform.update(0.0);
+    platform.fixed_update(0.0);
     require(platform.physics_body()->velocity.x == -15.0f,
         "Moving platform must reverse after reaching its authored bound");
 
@@ -579,6 +636,8 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
 
 int main()
 {
+    test_input_is_latched_until_a_fixed_step();
+    test_moving_obstacle_rendering_uses_interpolation();
     test_health_contract();
     test_tile_adapter_contract();
     test_actor_provider_and_damage_flow();

@@ -1,14 +1,17 @@
 # ElysiaEngine 2D 物理系统
 
-> 状态（2026-08）：无旋转 2D 首版运行闭环已经落地。默认 `PhysicsWorld` 使用 SAP 扫描线宽相，可直接完成 Body 积分、普通 Collider、规则 Tile、AABB CCD、Block/Overlap、单向平台、Begin/Stay/End、Ray/Segment、Gameplay 路由以及调试快照。本文档中的“目标设计”章节保留设计理由；当前代码事实以本页、[当前实现审计](01-current-state-audit.md)和头文件为准。
+> 状态（2026-09）：无旋转 2D 运行闭环已包含固定步控制、显示插值、有序延迟操作和接触失效事件。默认 `PhysicsWorld` 使用 SAP 扫描线宽相，支持 Body 积分、普通 Collider、规则 Tile、AABB CCD、Block/Overlap、单向平台、Begin/Stay/End、Ray/Segment、Gameplay 路由及调试快照。本文档中的“目标设计”章节保留设计理由；当前代码事实以本页、[当前实现审计](01-current-state-audit.md)和头文件为准。
 
 ## 已实现能力
 
 - `Static`、`Kinematic`、`Dynamic` Body，以及重力、力、质量、阻尼、分轴限速和半隐式欧拉积分；
+- 注册对象可实现 `PhysicsStepParticipant::fixed_update`，在每个物理步积分前提交力、速度和碰撞窗口；普通 `update` 负责表现；
+- `render_rect()` 根据 previous/current 物理位置插值，角色、移动障碍和相机共享显示坐标；碰撞与查询保持使用物理坐标；
 - 每个 `Scene` 独占一个 `PhysicsWorld`，Provider 自动注册，Collider ID 单调分配且不复用；
 - `BruteForceBroadPhaseIndex` 正确性基线和默认 `SweepAndPruneBroadPhaseIndex`；
 - AABB/AABB、Circle/Circle、AABB/Circle 离散检测；
 - AABB/AABB、AABB/Tile 的 Swept AABB CCD；Circle Continuous 明确回退离散；
+- CCD 记录实际运动分段，阻挡后的预测路径不会触发事件；反弹后的新路径重新生成候选；预算耗尽时停在最后安全撞击点；
 - `PhysicsMaterial`、静/动摩擦、弹性、低速回弹阈值，以及默认 8 次稳定顺序冲量求解；
 - 逆质量加权位置修正、Kinematic 相对速度携带、Overlap、过滤、四方向单向平台和 drop-through；
 - `ContactCache` 与稳定排序的 Begin/Stay/End 核心事件；
@@ -73,6 +76,6 @@ engine/core
 
 ## 首版明确不支持
 
-旋转、角速度、OBB、多边形、斜坡、关节、睡眠、warm starting、渲染插值和 Circle CCD 不在首版范围。Circle 的摩擦只改变线速度，不模拟滚动。Kinematic 是无限质量移动平台语义，不会被 solver 推动，但其速度参与相对速度和摩擦计算。Dynamic–Dynamic CCD 首版只保证最早撞击，剩余时间的多次推进主要面向零逆质量目标。一个 Scene 当前只绑定一个活动 Tile Collision World。
+旋转、角速度、OBB、多边形、斜坡、关节、睡眠、warm starting 和 Circle CCD 不在当前范围。Circle 的摩擦只改变线速度，不模拟滚动。Kinematic 是无限质量移动平台语义，不会被 solver 推动，但其速度参与相对速度和摩擦计算。Dynamic–Dynamic CCD 只保证最早撞击，剩余时间的多次推进主要面向零逆质量目标。一个 Scene 当前只绑定一个活动 Tile Collision World。
 
 返回：[引擎文档入口](../README.md)

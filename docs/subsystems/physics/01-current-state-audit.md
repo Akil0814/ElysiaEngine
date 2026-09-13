@@ -11,7 +11,7 @@
 | 子系统 | 状态 | 当前实现 |
 | --- | --- | --- |
 | Body | 完成 | Static/Kinematic/Dynamic、重力、力、质量、阻尼、限速、Transform 写回 |
-| 注册与 ID | 完成 | 原子验证、稳定 handle、单调 ColliderId、pending 安全边界、回调期延迟 reset、静默清理 |
+| 注册与 ID | 完成 | 稳定 handle、单调 ColliderId、有序 pending 命令、handle/Collider 索引、回调期延迟 reset |
 | 世界形状 | 完成 | previous/current AABB 与 Circle、current/swept bounds |
 | 宽相 | 完成 | Brute Force oracle、SAP 默认索引、AABB query、稳定排序去重 |
 | 离散窄相 | 完成 | AABB/AABB、Circle/Circle、AABB/Circle，包含接触和退化情况 |
@@ -43,14 +43,18 @@
 
 ## 4. 生命周期语义
 
-- register/unregister、listener、teleport 和 Tile 变更在 `advance`/事件回调期间进入 pending 操作，在安全边界应用；
+- register/unregister、listener、teleport 和 Tile 变更在回调期间进入同一个有序命令队列，在安全边界按调用顺序应用；注册后可立即对预留 handle 排队传送；待注销 handle 拒绝后续传送及重复注册，注销完成后可重新注册；
 - `reset()` 在步外立即执行，在 advance/事件回调期间只设置最高优先级 pending reset；当前事件批次完成后静默清理，并停止本次 advance 的后续固定步；
-- unregister、destroy、reset、Tile clear 和 teleport 静默移除相关缓存；
+- unregister、destroy、Tile clear 和 teleport 立即使相关缓存失效，在下一物理步分发一次 End；整体 reset 仍静默清空；相同 pair 被重新建立时先 End 后 Begin；
 - 自然分离、Collider disable 和对象 inactive 通过本步 contact 消失产生 End；
 - listener 按批次快照分发，本批次中的 add/remove 不改变其余回调；
 - listener 不得抛异常；异常不回滚物理状态，解除内部 guard 后继续传播到 Application update boundary，由 `UnhandledException`/FaultExit 终止本次运行；
 - ColliderId 在同一 world 生命周期内不复用，reset 后计数也不倒退；
 - Provider 的 Body 地址与 Collider span 地址/长度必须覆盖注册期并保持稳定。
+
+实现 `PhysicsStepParticipant` 的注册对象在每步积分前收到一次 `fixed_update(fixed_dt)`。非 active、destroyed 和已排队注销的对象跳过；暂停时 Scene 不推进 World，因此没有固定步回调。回调中新增的对象在安全边界注册，本步可参与积分，其首次控制回调在下一步。输入在帧回调中锁存，由固定步消费；不要在每渲染帧重复叠加持续力。
+
+查询实现位于 `physics_queries.cpp`，共享 Collider 遍历和 Tile 几何助手；查询读取已提交位置，不复用求解前的宽相快照。World 使用 handle→registration 索引，求解器为本步 body 和 shape view 建立索引，避免接触循环反复全表扫描。
 
 ## 5. 已知首版限制
 

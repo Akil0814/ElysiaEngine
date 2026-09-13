@@ -9,6 +9,7 @@
 #include "../../physics/physics_world.h"
 
 #include <unordered_map>
+#include <map>
 #include <unordered_set>
 #include <vector>
 
@@ -56,6 +57,14 @@ public:
     void clear() noexcept;
 
 private:
+    struct ContactBindings
+    {
+        std::optional<ColliderBinding> first;
+        std::optional<ColliderBinding> second;
+    };
+    // End may arrive after an actor has unbound or been destroyed. Keep only
+    // value-semantic routing metadata for the lifetime of the core contact.
+    std::map<elysia::physics::CollisionPair, ContactBindings> _contact_bindings;
     struct AttackHitKey
     {
         AttackInstanceId attack = InvalidAttackInstanceId;

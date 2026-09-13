@@ -1,12 +1,15 @@
 #include "collision_system.h"
 
 #include "default_collision_strategies.h"
+#include "motion_paths.h"
 #include "../tile/tile_collision_world.h"
 #include "../tile/tile_coordinate_range.h"
+#include "../tile/tile_geometry.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -14,25 +17,22 @@ namespace elysia::physics
 {
 namespace
 {
-[[nodiscard]] PhysicsObjectState* find_state(
-    std::span<PhysicsObjectState> states,
-    PhysicsObjectHandle object) noexcept
+class StepStateIndex
 {
-    if (!object.is_valid())
-        return nullptr;
-    const auto found = std::ranges::find(states, object, &PhysicsObjectState::object);
-    return found == states.end() ? nullptr : &*found;
-}
-
-[[nodiscard]] const PhysicsObjectState* find_state(
-    std::span<const PhysicsObjectState> states,
-    PhysicsObjectHandle object) noexcept
-{
-    if (!object.is_valid())
-        return nullptr;
-    const auto found = std::ranges::find(states, object, &PhysicsObjectState::object);
-    return found == states.end() ? nullptr : &*found;
-}
+public:
+    explicit StepStateIndex(std::span<PhysicsObjectState> states)
+    {
+        _states.reserve(states.size());
+        for (auto& state : states) _states.emplace(state.object.value, &state);
+    }
+    [[nodiscard]] PhysicsObjectState* find(PhysicsObjectHandle object) const noexcept
+    {
+        const auto found = _states.find(object.value);
+        return found == _states.end() ? nullptr : found->second;
+    }
+private:
+    std::unordered_map<std::uint64_t, PhysicsObjectState*> _states;
+};
 
 [[nodiscard]] float inverse_mass(const PhysicsObjectState* state) noexcept
 {
@@ -48,10 +48,10 @@ namespace
 
 [[nodiscard]] CollisionShapeView adjusted_view(
     const CollisionShapeView& view,
-    std::span<const PhysicsObjectState> states) noexcept
+    const StepStateIndex& states) noexcept
 {
     CollisionShapeView adjusted = view;
-    const PhysicsObjectState* state = find_state(states, view.object);
+    const PhysicsObjectState* state = states.find(view.object);
     if (!state)
         return adjusted;
     const auto offset = state->current_owner_origin - view.current_owner_origin;
@@ -100,53 +100,6 @@ void sort_and_deduplicate_contacts(
             unique.back() = contact;
     }
     contacts = std::move(unique);
-}
-
-[[nodiscard]] TileCollisionCell resolved_cell(
-    const ITileCollisionWorld& world,
-    TileCoordinate coordinate) noexcept
-{
-    if (coordinate.x < 0 || coordinate.y < 0
-        || coordinate.x >= world.columns() || coordinate.y >= world.rows())
-    {
-        TileCollisionCell cell;
-        cell.type = world.out_of_bounds_policy() == TileOutOfBoundsPolicy::Block
-            ? TileCollisionType::Block
-            : TileCollisionType::Empty;
-        return cell;
-    }
-    return world.cell_at(coordinate);
-}
-
-[[nodiscard]] CollisionShapeView make_tile_view(
-    const ITileCollisionWorld& world,
-    TileCoordinate coordinate,
-    const TileCollisionCell& cell) noexcept
-{
-    const auto origin = world.world_origin();
-    const auto size = world.tile_size();
-    const elysia::core::Rect rect{
-        origin.x + static_cast<float>(coordinate.x) * size.x,
-        origin.y + static_cast<float>(coordinate.y) * size.y,
-        size.x,
-        size.y
-    };
-    const WorldAabb shape{rect};
-    CollisionShapeView view;
-    view.target = CollisionTarget::from_tile(coordinate);
-    view.previous_shape = shape;
-    view.current_shape = shape;
-    view.current_bounds = rect;
-    view.swept_bounds = rect;
-    view.filter = cell.filter;
-    view.response = cell.type == TileCollisionType::Overlap
-        ? CollisionResponse::Overlap
-        : CollisionResponse::Block;
-    view.one_way = cell.type == TileCollisionType::OneWay
-        ? cell.one_way
-        : std::nullopt;
-    view.material = cell.material;
-    return view;
 }
 
 [[nodiscard]] bool matching_internal_tile_surface(
@@ -304,6 +257,7 @@ void CollisionSystem::evaluate(
     PhysicsDebugCapture debug_capture,
     PhysicsDebugSnapshot* debug_snapshot)
 {
+    const StepStateIndex state_index(object_states);
     out_frame.clear();
     if (debug_snapshot)
         debug_snapshot->clear();
@@ -322,6 +276,14 @@ void CollisionSystem::evaluate(
     std::unordered_map<ColliderId, std::size_t> collider_lookup;
     collider_lookup.reserve(collider_views.size());
     std::vector<CollisionShapeView> all_views(collider_views.begin(), collider_views.end());
+    std::map<CollisionTarget, std::size_t> view_index;
+    for (std::size_t i = 0; i < all_views.size(); ++i) view_index.emplace(all_views[i].target, i);
+    const auto append_view = [&](CollisionShapeView view)
+    {
+        if (view_index.contains(view.target)) return;
+        view_index.emplace(view.target, all_views.size());
+        all_views.push_back(std::move(view));
+    };
 
     for (std::size_t i = 0; i < collider_views.size(); ++i)
     {
@@ -382,20 +344,18 @@ void CollisionSystem::evaluate(
         if (!axis_aligned)
             return false;
 
-        const TileCollisionCell current_cell = resolved_cell(
+        const TileCollisionCell current_cell = detail::tile_cell(
             *tile_world, second.target.tile);
-        const TileCollisionCell neighbour_cell = resolved_cell(
+        const TileCollisionCell neighbour_cell = detail::tile_cell(
             *tile_world, neighbour);
         if (!matching_internal_tile_surface(current_cell, neighbour_cell)
             || !collision_filters_allow(first.filter, neighbour_cell.filter))
             return false;
 
-        const CollisionShapeView neighbour_view = make_tile_view(
+        const CollisionShapeView neighbour_view = detail::tile_view(
             *tile_world, neighbour, neighbour_cell);
-        const auto neighbour_hit = detect_discrete_shapes(
-            first.current_shape,
-            neighbour_view.current_shape,
-            config.collision_epsilon);
+        const auto neighbour_hit = _strategies.discrete_detection->detect(
+            first, neighbour_view, detection_context);
         return neighbour_hit
             && _strategies.response->classify(
                 first, neighbour_view, *neighbour_hit, context)
@@ -404,7 +364,8 @@ void CollisionSystem::evaluate(
 
     const auto detect_candidate = [&](
         const CollisionShapeView& first,
-        const CollisionShapeView& second)
+        const CollisionShapeView& second,
+        double duration = -1.0)
     {
         if (!first.target.is_valid() || !second.target.is_valid()
             || (first.object.is_valid() && first.object == second.object)
@@ -415,9 +376,11 @@ void CollisionSystem::evaluate(
 
         ++stats.narrow_phase_tests;
         const bool continuous = supports_continuous(first, second);
+        const CollisionDetectionContext candidate_context{
+            duration < 0.0 ? fixed_delta_seconds : duration, config.collision_epsilon};
         std::optional<CollisionHit> hit = continuous
-            ? _strategies.continuous_detection->detect(first, second, detection_context)
-            : _strategies.discrete_detection->detect(first, second, detection_context);
+            ? _strategies.continuous_detection->detect(first, second, candidate_context)
+            : _strategies.discrete_detection->detect(first, second, candidate_context);
         if (!hit)
             return;
         if (continuous && hit->time_of_impact < 1.0f)
@@ -486,14 +449,14 @@ void CollisionSystem::evaluate(
                     ++stats.tile_samples;
                     const TileCoordinate coordinate{
                         static_cast<int>(x), static_cast<int>(y)};
-                    const TileCollisionCell cell = resolved_cell(*tile_world, coordinate);
+                    const TileCollisionCell cell = detail::tile_cell(*tile_world, coordinate);
                     if (cell.type == TileCollisionType::Empty)
                         continue;
                     if (capture_broad_phase)
                         debug_snapshot->tile_candidates.push_back(coordinate);
-                    CollisionShapeView tile = make_tile_view(*tile_world, coordinate, cell);
+                    CollisionShapeView tile = detail::tile_view(*tile_world, coordinate, cell);
                     detect_candidate(collider, tile);
-                    all_views.push_back(std::move(tile));
+                    append_view(std::move(tile));
                 }
             }
         }
@@ -509,10 +472,11 @@ void CollisionSystem::evaluate(
 
     const auto find_view = [&](CollisionTarget target) -> const CollisionShapeView*
     {
-        const auto found = std::ranges::find(all_views, target, &CollisionShapeView::target);
-        return found == all_views.end() ? nullptr : &*found;
+        const auto found = view_index.find(target);
+        return found == view_index.end() ? nullptr : &all_views[found->second];
     };
 
+    std::vector<CollisionContact> accepted_ccd_contacts;
     std::vector<PhysicsObjectHandle> ccd_resolved_objects;
     struct CcdProgress
     {
@@ -520,7 +484,6 @@ void CollisionSystem::evaluate(
         elysia::core::Vector2 sweep_start{};
         float remaining_seconds = 0.0f;
         std::uint32_t iterations = 0;
-        std::vector<CollisionPair> hit_pairs;
     };
     std::vector<CcdProgress> ccd_progress;
     std::vector<CollisionContact*> ccd_contacts;
@@ -534,6 +497,8 @@ void CollisionSystem::evaluate(
             return first->time_of_impact < second->time_of_impact;
         return first->pair < second->pair;
     });
+    detail::MotionPaths motion_paths(ccd_contacts.empty()
+        ? std::span<const PhysicsObjectState>{} : object_states);
     for (CollisionContact* contact_pointer : ccd_contacts)
     {
         CollisionContact& contact = *contact_pointer;
@@ -541,8 +506,8 @@ void CollisionSystem::evaluate(
         const auto* second_view = find_view(contact.pair.second);
         if (!first_view || !second_view)
             continue;
-        PhysicsObjectState* first_state = find_state(object_states, first_view->object);
-        PhysicsObjectState* second_state = find_state(object_states, second_view->object);
+        PhysicsObjectState* first_state = state_index.find(first_view->object);
+        PhysicsObjectState* second_state = state_index.find(second_view->object);
         const float first_inverse_mass = inverse_mass(first_state);
         const float second_inverse_mass = inverse_mass(second_state);
         if (first_inverse_mass <= 0.0f && second_inverse_mass <= 0.0f)
@@ -580,6 +545,7 @@ void CollisionSystem::evaluate(
             config.collision_epsilon);
         contact.normal_impulse += impulse.normal;
         contact.tangent_impulse += impulse.tangent;
+        accepted_ccd_contacts.push_back(contact);
         const float remaining = static_cast<float>(fixed_delta_seconds) * (1.0f - toi);
         if (first_inverse_mass > 0.0f && first_state->body)
             first_state->current_owner_origin += first_state->body->velocity * remaining;
@@ -588,12 +554,14 @@ void CollisionSystem::evaluate(
         if (first_inverse_mass > 0.0f)
         {
             ccd_resolved_objects.push_back(first_state->object);
-            ccd_progress.push_back({first_state, first_impact, remaining, 1, {contact.pair}});
+            motion_paths.record(first_state->object, toi, first_impact);
+            ccd_progress.push_back({first_state, first_impact, remaining, 1});
         }
         if (second_inverse_mass > 0.0f)
         {
             ccd_resolved_objects.push_back(second_state->object);
-            ccd_progress.push_back({second_state, second_impact, remaining, 1, {contact.pair}});
+            motion_paths.record(second_state->object, toi, second_impact);
+            ccd_progress.push_back({second_state, second_impact, remaining, 1});
         }
         ++stats.ccd_iterations;
     }
@@ -632,31 +600,48 @@ void CollisionSystem::evaluate(
                 moving.swept_bounds = swept_shape_bounds(
                     moving.previous_shape, moving.current_shape);
 
+                if (tile_world)
+                {
+                    const auto range = checked_tile_range(moving.swept_bounds,
+                        tile_world->world_origin(), tile_world->tile_size(),
+                        TileRangeBoundary::InclusiveTouching, config.max_tile_candidates_per_operation);
+                    if (!range) { ++stats.rejected_tile_candidate_ranges; continue; }
+                    for (std::int64_t y = range->min_y; y <= range->max_y; ++y)
+                        for (std::int64_t x = range->min_x; x <= range->max_x; ++x)
+                        {
+                            const TileCoordinate coordinate{static_cast<int>(x), static_cast<int>(y)};
+                            if (find_view(CollisionTarget::from_tile(coordinate))) continue;
+                            const auto cell = detail::tile_cell(*tile_world, coordinate);
+                            if (cell.type != TileCollisionType::Empty)
+                                append_view(detail::tile_view(*tile_world, coordinate, cell));
+                        }
+                }
+
                 for (const CollisionShapeView& target_source : all_views)
                 {
                     if (target_source.object == progress.state->object
                         || !std::holds_alternative<WorldAabb>(target_source.current_shape)
                         || !collision_filters_allow(moving.filter, target_source.filter))
                         continue;
-                    PhysicsObjectState* target_state = find_state(
-                        object_states, target_source.object);
+                    PhysicsObjectState* target_state = state_index.find(target_source.object);
                     if (inverse_mass(target_state) > 0.0f)
                         continue;
                     CollisionShapeView target = adjusted_view(
-                        target_source, object_states);
+                        target_source, state_index);
                     target.previous_shape = target.current_shape;
                     target.previous_owner_origin = target.current_owner_origin;
                     const CollisionPair pair = normalized_collision_pair(
                         moving.target, target.target);
-                    if (std::ranges::find(progress.hit_pairs, pair)
-                        != progress.hit_pairs.end())
-                        continue;
                     const auto hit = _strategies.continuous_detection->detect(
                         moving, target,
                         CollisionDetectionContext{
                             progress.remaining_seconds,
                             config.collision_epsilon});
                     if (!hit || hit->time_of_impact >= 1.0f - config.collision_epsilon)
+                        continue;
+                    if (hit->time_of_impact <= config.collision_epsilon
+                        && (desired_origin - progress.sweep_start).dot(hit->manifold.normal)
+                            <= config.collision_epsilon)
                         continue;
                     CollisionResponseContext context;
                     context.first_displacement = desired_origin - progress.sweep_start;
@@ -696,8 +681,7 @@ void CollisionSystem::evaluate(
             const auto movement = desired_origin - progress.sweep_start;
             const auto impact_origin = progress.sweep_start + movement * toi;
             progress.state->current_owner_origin = impact_origin;
-            PhysicsObjectState* target_state = find_state(
-                object_states, best->target.object);
+            PhysicsObjectState* target_state = state_index.find(best->target.object);
             const auto impulse = solve_velocity_contact(
                 progress.state,
                 target_state,
@@ -713,7 +697,7 @@ void CollisionSystem::evaluate(
             ++progress.iterations;
             ++stats.ccd_iterations;
             ++stats.ccd_hits;
-            progress.hit_pairs.push_back(best->pair);
+            motion_paths.record(progress.state->object, global_toi, impact_origin);
 
             CollisionContact contact;
             contact.pair = best->pair;
@@ -724,8 +708,84 @@ void CollisionSystem::evaluate(
             contact.tangent_impulse = impulse.tangent;
             if (contact.pair.first != best->moving.target)
                 contact.manifold.normal = -contact.manifold.normal;
-            out_frame.contacts.push_back(contact);
+            accepted_ccd_contacts.push_back(contact);
         }
+        // Exhausting the budget must stop at the last safe impact, not tunnel
+        // along an untested remainder of the path.
+        if (progress.iterations >= config.max_ccd_iterations)
+            progress.state->current_owner_origin = progress.sweep_start;
+    }
+
+    if (!ccd_progress.empty())
+    {
+        motion_paths.finish(object_states);
+        out_frame.contacts = std::move(accepted_ccd_contacts);
+        out_frame.ignored_pairs_overlapping.clear();
+
+        const auto segment_view = [&](const CollisionShapeView& source, float begin, float end)
+        {
+            auto view = source;
+            view.previous_owner_origin = motion_paths.origin_at(source.object, begin, source.previous_owner_origin);
+            view.current_owner_origin = motion_paths.origin_at(source.object, end, source.current_owner_origin);
+            view.previous_shape = translated_shape(source.previous_shape, view.previous_owner_origin - source.previous_owner_origin);
+            view.current_shape = translated_shape(source.previous_shape, view.current_owner_origin - source.previous_owner_origin);
+            view.current_bounds = shape_bounds(view.current_shape);
+            view.swept_bounds = swept_shape_bounds(view.previous_shape, view.current_shape);
+            return view;
+        };
+        const auto replay_pair = [&](const CollisionShapeView& first, const CollisionShapeView& second)
+        {
+            if (!supports_continuous(first, second))
+            {
+                detect_candidate(segment_view(first, 0, 1), segment_view(second, 0, 1));
+                return;
+            }
+            const auto times = motion_paths.boundaries(first.object, second.object);
+            for (std::size_t i = 1; i < times.size(); ++i)
+            {
+                const auto contact_begin = out_frame.contacts.size();
+                detect_candidate(segment_view(first, times[i - 1], times[i]),
+                    segment_view(second, times[i - 1], times[i]),
+                    fixed_delta_seconds * (times[i] - times[i - 1]));
+                for (std::size_t j = contact_begin; j < out_frame.contacts.size(); ++j)
+                    out_frame.contacts[j].time_of_impact = times[i - 1]
+                        + (times[i] - times[i - 1]) * out_frame.contacts[j].time_of_impact;
+            }
+        };
+
+        // Rebuild candidates from accepted paths, including bounces outside the
+        // original sweep. Preserve the injected broad phase for object pairs.
+        proxies.clear();
+        for (const auto& view : collider_views)
+            proxies.push_back({view.target.collider,
+                shape_bounds(segment_view(view, 0, 1).current_shape),
+                motion_paths.bounds(view.object, shape_bounds(view.previous_shape), view.previous_owner_origin),
+                view.filter, true});
+        _strategies.broad_phase->synchronize(proxies);
+        _strategies.broad_phase->collect_pairs(broad_pairs);
+        for (const auto& pair : broad_pairs)
+            replay_pair(collider_views[collider_lookup.at(pair.first)], collider_views[collider_lookup.at(pair.second)]);
+        if (tile_world)
+            for (const auto& view : collider_views)
+            {
+                const auto bounds = motion_paths.bounds(view.object, shape_bounds(view.previous_shape), view.previous_owner_origin);
+                const auto range = checked_tile_range(bounds, tile_world->world_origin(), tile_world->tile_size(),
+                    TileRangeBoundary::InclusiveTouching, config.max_tile_candidates_per_operation);
+                if (!range) { ++stats.rejected_tile_candidate_ranges; continue; }
+                for (std::int64_t y = range->min_y; y <= range->max_y; ++y)
+                    for (std::int64_t x = range->min_x; x <= range->max_x; ++x)
+                    {
+                        const TileCoordinate coordinate{static_cast<int>(x), static_cast<int>(y)};
+                        const auto cell = detail::tile_cell(*tile_world, coordinate);
+                        if (cell.type == TileCollisionType::Empty) continue;
+                        const auto tile = detail::tile_view(*tile_world, coordinate, cell);
+                        replay_pair(view, tile);
+                        if (!find_view(tile.target)) append_view(tile);
+                    }
+            }
+        std::ranges::sort(out_frame.ignored_pairs_overlapping);
+        out_frame.ignored_pairs_overlapping.erase(std::unique(out_frame.ignored_pairs_overlapping.begin(),
+            out_frame.ignored_pairs_overlapping.end()), out_frame.ignored_pairs_overlapping.end());
     }
 
     sort_and_deduplicate_contacts(out_frame.contacts, config.collision_epsilon);
@@ -741,17 +801,14 @@ void CollisionSystem::evaluate(
             const auto* second_source = find_view(contact.pair.second);
             if (!first_source || !second_source)
                 continue;
-            const CollisionShapeView first = adjusted_view(*first_source, object_states);
-            const CollisionShapeView second = adjusted_view(*second_source, object_states);
-            const auto hit = detect_discrete_shapes(
-                first.current_shape,
-                second.current_shape,
-                config.collision_epsilon);
+            const CollisionShapeView first = adjusted_view(*first_source, state_index);
+            const CollisionShapeView second = adjusted_view(*second_source, state_index);
+            const auto hit = _strategies.discrete_detection->detect(first, second, detection_context);
             if (!hit)
                 continue;
             contact.manifold = hit->manifold;
-            PhysicsObjectState* first_state = find_state(object_states, first.object);
-            PhysicsObjectState* second_state = find_state(object_states, second.object);
+            PhysicsObjectState* first_state = state_index.find(first.object);
+            PhysicsObjectState* second_state = state_index.find(second.object);
             const float first_inverse_mass = inverse_mass(first_state);
             const float second_inverse_mass = inverse_mass(second_state);
             const float inverse_mass_sum = first_inverse_mass + second_inverse_mass;
