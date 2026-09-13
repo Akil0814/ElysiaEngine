@@ -26,6 +26,10 @@ using elysia::tests::require;
 
 namespace
 {
+template<class T>
+elysia::physics::PhysicsObjectHandle add_physics(elysia::physics::PhysicsWorld& world,T& object){
+ auto h=world.register_object(object,object.body_definition(),object.collider_definitions());object.bind_physics(world,h);return h;
+}
 void register_example_scenes(elysia::scene::SceneManager& scene_manager)
 {
     static elysia::builtin::BuiltinResources builtin_resources;
@@ -177,14 +181,14 @@ void test_actor_provider_and_damage_flow()
     config.gravity = {};
     elysia::physics::PhysicsWorld world(config);
 
-    auto player_span = player.colliders();
-    auto enemy_span = enemy.colliders();
+    auto player_span = player.collider_definitions();
+    auto enemy_span = enemy.collider_definitions();
     require(player_span.size() == 3 && enemy_span.size() == 3,
         "Combat actors must expose Body, HurtBox and HitBox storage");
-    require(player_span.data() == player.colliders().data(),
+    require(player_span.data() == player.collider_definitions().data(),
         "Collider provider storage must stay address-stable");
-    const auto player_handle = world.register_object(player, &player, &player);
-    const auto enemy_handle = world.register_object(enemy, &enemy, &enemy);
+    const auto player_handle = add_physics(world, player);
+    const auto enemy_handle = add_physics(world, enemy);
     require(player_handle.is_valid() && enemy_handle.is_valid(),
         "Combat actors must register with body and collider providers");
 
@@ -197,8 +201,8 @@ void test_actor_provider_and_damage_flow()
             && player_span[2].filter.category == collision_layers::HitBox
             && !player_span[2].enabled,
         "Actor collider roles and initial HitBox state must match the contract");
-    require(player_span[0].material.static_friction == 0.0f
-            && player_span[0].material.dynamic_friction == 0.0f,
+    require(player_span[0].material.friction == 0.0f
+            && player_span[0].material.friction == 0.0f,
         "Player Body material must avoid wall-sticking friction");
 
     std::vector<elysia::core::RenderCommand> render_commands;
@@ -244,8 +248,8 @@ void test_input_is_latched_until_a_fixed_step()
     PhysicsWorldConfig config;
     config.gravity = {0, 1200};
     PhysicsWorld world(config);
-    require(world.register_object(player, &player, &player).is_valid()
-            && world.register_object(floor, nullptr, &floor).is_valid(), "Jump fixtures register");
+    require(add_physics(world, player).is_valid()
+            && add_physics(world, floor).is_valid(), "Jump fixtures register");
     elysia::gameplay::collision::GameplayCollisionRuntime runtime(world);
     DemoCombatSession combat(world, runtime);
     require(player.bind_combat(combat), "Player binds combat");
@@ -262,12 +266,12 @@ void test_input_is_latched_until_a_fixed_step()
     raw.state.set_pressed(elysia::input::RawInputControl::KeyJ, false);
     player.on_gameplay_input_frame(elysia::gameplay::GameplayInputFrame(input_map.resolve(raw).frame));
     require(world.advance(1.0 / 240) == 0, "Release frame also has no physics step");
-    require(world.advance(1.0 / 120) == 1 && std::fabs(player.physics_body()->velocity.y + 500) < 0.001f,
+    require(world.advance(1.0 / 120) == 1 && std::fabs(player.velocity().y + 500) < 0.001f,
         "A tap between fixed steps must still produce one jump");
     (void)world.advance(1.0 / 60);
-    require(std::fabs(player.physics_body()->velocity.y + 480) < 0.001f, "Consumed jump must not retrigger");
+    require(std::fabs(player.velocity().y + 480) < 0.001f, "Consumed jump must not retrigger");
     (void)world.advance(3.0 / 60);
-    require(player.colliders()[2].enabled, "A short primary tap must survive until the fixed attack window");
+    require(player.collider_definitions()[2].enabled, "A short primary tap must survive until the fixed attack window");
 }
 
 void test_moving_obstacle_rendering_uses_interpolation()
@@ -278,7 +282,7 @@ void test_moving_obstacle_rendering_uses_interpolation()
     config.shape = elysia::physics::AabbShape{{0, 0, 40, 10}};
     KinematicMovingPlatform platform(config, -100, 100, 120);
     elysia::physics::PhysicsWorld world;
-    require(world.register_object(platform, &platform, &platform).is_valid(), "Platform registers");
+    require(add_physics(world, platform).is_valid(), "Platform registers");
     (void)world.advance(1.0 / 60);
     (void)world.advance(1.0 / 120);
     std::vector<elysia::core::RenderCommand> commands;
@@ -294,19 +298,19 @@ void test_obstacle_material_and_kinematic_platform()
     ObstacleConfig config;
     config.rect = {20, 30, 80, 12};
     config.shape = elysia::physics::AabbShape{{0, 0, 80, 12}};
-    config.material = {1.0f, 0.8f, 0.25f};
+    config.material = {0.8f, 0.25f};
     DynamicBlockObstacle dynamic(config);
-    require(dynamic.colliders().front().material == config.material,
+    require(dynamic.collider_definitions().front().material == config.material,
         "Demo obstacles must forward configured contact material");
 
     KinematicMovingPlatform platform(config, 10, 40, 15);
-    require(platform.physics_body()->type == elysia::physics::BodyType::Kinematic
-            && platform.physics_body()->velocity.x == 15.0f
-            && platform.colliders().front().material == config.material,
+    require(platform.body_definition().type == elysia::physics::BodyType::Kinematic
+            && platform.body_definition().velocity.x == 15.0f
+            && platform.collider_definitions().front().material == config.material,
         "Moving platform must be Kinematic and retain its configured material");
     platform.set_position({41, 30});
     platform.fixed_update(0.0);
-    require(platform.physics_body()->velocity.x == -15.0f,
+    require(platform.velocity().x == -15.0f,
         "Moving platform must reverse after reaching its authored bound");
 
     std::vector<elysia::core::RenderCommand> commands;

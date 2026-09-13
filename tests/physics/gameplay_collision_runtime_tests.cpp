@@ -2,6 +2,7 @@
 
 #include "engine/gameplay/collision/gameplay_collision_runtime.h"
 #include "tests/support/test_assertions.h"
+#include "engine/core/game_object.h"
 
 #include <iostream>
 #include <vector>
@@ -12,7 +13,6 @@ namespace
 {
 class ColliderObject final
     : public elysia::core::GameObject
-    , public elysia::physics::ColliderProvider
 {
 public:
     ColliderObject() : GameObject(elysia::core::DepthLayer::Character)
@@ -20,12 +20,16 @@ public:
         collider.shape = elysia::physics::AabbShape{{0, 0, 10, 10}};
         collider.response = elysia::physics::CollisionResponse::Overlap;
     }
-    std::span<elysia::physics::Collider> colliders() noexcept override
+    std::span<elysia::physics::Collider> colliders() noexcept
     { return {&collider, 1}; }
-    std::span<const elysia::physics::Collider> colliders() const noexcept override
+    std::span<const elysia::physics::Collider> colliders() const noexcept
     { return {&collider, 1}; }
     elysia::physics::Collider collider;
 };
+
+elysia::physics::PhysicsObjectHandle add_physics(elysia::physics::PhysicsWorld& w,ColliderObject& o){
+ auto h=w.register_object(o,elysia::physics::BodyDefinition{},o.colliders());o.collider.id=w.collider_id(h,0);return h;
+}
 
 class Listener final : public elysia::gameplay::collision::GameplayCollisionListener
 {
@@ -104,7 +108,7 @@ int main()
     ColliderObject sensor_body_object;
     const auto add = [&](ColliderObject& object)
     {
-        return world.register_object(object, nullptr, &object);
+        return add_physics(world, object);
     };
     require(add(hit_object).is_valid() && add(hurt_object).is_valid()
             && add(push_first).is_valid() && add(push_second).is_valid()
@@ -166,7 +170,7 @@ int main()
     require(listener.sensor_events == 2
             && listener.sensor_phases.back() == CollisionEventPhase::Stay,
         "Sensor overlaps must route Stay");
-    sensor_body_object.set_position({120, 0});
+    world.teleport_object(*world.object_handle(sensor_body_object), {120, 0});
     (void)world.advance(1.0 / 60.0);
     require(listener.sensor_events == 3
             && listener.sensor_phases.back() == CollisionEventPhase::End,
@@ -191,8 +195,8 @@ int main()
         PhysicsWorld snapshot_world;
         ColliderObject sensor;
         ColliderObject body;
-        require(snapshot_world.register_object(sensor, nullptr, &sensor).is_valid()
-                && snapshot_world.register_object(body, nullptr, &body).is_valid(),
+        require(add_physics(snapshot_world, sensor).is_valid()
+                && add_physics(snapshot_world, body).is_valid(),
             "Gameplay callback snapshot probes must register");
         GameplayCollisionRuntime snapshot_runtime(snapshot_world);
         require(snapshot_runtime.bind_actor({

@@ -2,7 +2,6 @@
 
 #include "collision/collision_contact.h"
 #include "collision/world_shape.h"
-#include "contracts/broad_phase_index.h"
 #include "physics_object_handle.h"
 
 #include <cstddef>
@@ -56,15 +55,10 @@ struct PhysicsStepStats
 {
     std::size_t registered_objects = 0;
     std::size_t registered_colliders = 0;
-    std::size_t broad_phase_proxies = 0;
-    std::size_t broad_phase_pairs = 0;
-    std::size_t narrow_phase_tests = 0;
+    std::size_t awake_bodies = 0;
+    std::size_t joints = 0;
+    double step_milliseconds = 0;
     std::size_t contacts = 0;
-    std::size_t tile_samples = 0;
-    std::size_t rejected_tile_candidate_ranges = 0;
-    std::size_t ccd_hits = 0;
-    std::size_t ccd_iterations = 0;
-    std::size_t solver_iterations = 0;
     std::uint64_t dropped_fixed_steps = 0;
 };
 
@@ -86,7 +80,6 @@ struct PhysicsDebugVelocity
 struct PhysicsDebugSnapshot
 {
     std::vector<PhysicsDebugShape> shapes;
-    std::vector<BroadPhasePair> broad_phase_pairs;
     std::vector<TileCoordinate> tile_candidates;
     std::vector<CollisionContact> contacts;
     std::vector<PhysicsDebugVelocity> velocities;
@@ -94,7 +87,6 @@ struct PhysicsDebugSnapshot
     void clear() noexcept
     {
         shapes.clear();
-        broad_phase_pairs.clear();
         tile_candidates.clear();
         contacts.clear();
         velocities.clear();

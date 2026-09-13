@@ -124,6 +124,13 @@ void PhysicsCombatGalleryScene::build_ui()
             elysia::scene::SceneReloadMode::Recreate); });
     list->add_back(std::move(top_down));
     auto back = button("physics_combat_gallery.back");
+    auto lab = button("physics_combat_gallery.box2d_lab");
+    lab->set_on_click([this] {
+        request_scene_switch(example::scene_keys::Box2DLab,
+            DemoScenePayload{.return_route = make_menu_route()},
+            elysia::scene::SceneReloadMode::Recreate);
+    });
+    list->add_back(std::move(lab));
     back->set_on_click([this] { return_to_caller(); });
     list->add_back(std::move(back));
 

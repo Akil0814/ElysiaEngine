@@ -1,202 +1,79 @@
 #pragma once
-
 #include "physics_object_handle.h"
 #include "physics_world_config.h"
 #include "physics_world_stats.h"
-#include "body/physics_system.h"
-#include "collision/collision_system.h"
-#include "collision/contact_cache.h"
-#include "contracts/collider_provider.h"
+#include "body/body_definition.h"
+#include "joint_definition.h"
 #include "contracts/collision_listener.h"
 #include "contracts/collision_query_service.h"
-#include "contracts/physics_body_provider.h"
-#include "contracts/physics_step_participant.h"
 #include "tile/tile_collision_world.h"
-
-#include "../core/game_object.h"
-
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-#include <unordered_map>
-#include <variant>
-#include <vector>
-
-namespace elysia::physics
-{
-enum class TeleportVelocityMode : std::uint8_t
-{
-    Preserve,
-    Clear
-};
-
-struct PhysicsContactState
-{
-    bool grounded = false;
-    bool ceiling = false;
-    bool wall_left = false;
-    bool wall_right = false;
-};
-
-class PhysicsWorld final : public ICollisionQueryService
-{
+#include <memory>
+#include <span>
+namespace elysia::core { class GameObject; }
+namespace elysia::physics {
+enum class TeleportVelocityMode : std::uint8_t { Preserve, Clear };
+struct PhysicsContactState { bool grounded=false, ceiling=false, wall_left=false, wall_right=false; };
+class PhysicsWorld final : public ICollisionQueryService {
 public:
-    explicit PhysicsWorld(PhysicsWorldConfig config = {});
-    PhysicsWorld(PhysicsWorldConfig config, CollisionStrategySet strategies);
-    ~PhysicsWorld() override;
-
-    PhysicsWorld(const PhysicsWorld&) = delete;
-    PhysicsWorld& operator=(const PhysicsWorld&) = delete;
-    PhysicsWorld(PhysicsWorld&&) = delete;
-    PhysicsWorld& operator=(PhysicsWorld&&) = delete;
-
-    [[nodiscard]] PhysicsObjectHandle register_object(
-        elysia::core::GameObject& owner,
-        PhysicsBodyProvider* body_provider,
-        ColliderProvider* collider_provider);
-    [[nodiscard]] bool unregister_object(PhysicsObjectHandle handle);
-
-    [[nodiscard]] bool contains_object(PhysicsObjectHandle handle) const noexcept;
-    [[nodiscard]] bool contains_object(const elysia::core::GameObject& owner) const noexcept;
-    [[nodiscard]] bool contains_collider(ColliderId collider) const noexcept;
-    [[nodiscard]] std::size_t registered_object_count() const noexcept;
-    [[nodiscard]] std::size_t registered_collider_count() const noexcept;
-
-    [[nodiscard]] bool set_tile_world(const ITileCollisionWorld& world);
-    [[nodiscard]] bool clear_tile_world(const ITileCollisionWorld& world);
-    [[nodiscard]] const ITileCollisionWorld* tile_world() const noexcept;
-
-    [[nodiscard]] bool add_listener(ICollisionListener& listener) noexcept;
-    [[nodiscard]] bool remove_listener(const ICollisionListener& listener) noexcept;
-
-    [[nodiscard]] bool teleport_object(
-        PhysicsObjectHandle handle,
-        elysia::core::Vector2 position,
-        TeleportVelocityMode velocity_mode = TeleportVelocityMode::Preserve);
-    [[nodiscard]] bool request_pass_through(
-        ColliderId actor,
-        CollisionTarget support);
-    void collect_contacts(
-        CollisionTarget target,
-        std::vector<CollisionContact>& out_contacts) const;
-    [[nodiscard]] PhysicsContactState contact_state(
-        PhysicsObjectHandle object) const noexcept;
-    [[nodiscard]] PhysicsContactState contact_state(CollisionTarget target) const noexcept;
-
-    [[nodiscard]] std::uint32_t advance(double frame_delta_seconds);
-    void reset() noexcept;
-
-    [[nodiscard]] const PhysicsWorldConfig& config() const noexcept;
-    [[nodiscard]] double accumulator_seconds() const noexcept;
-    [[nodiscard]] const PhysicsStepStats& last_step_stats() const noexcept;
-    void set_debug_capture(PhysicsDebugCapture capture) noexcept;
-    [[nodiscard]] PhysicsDebugCapture debug_capture() const noexcept;
-    [[nodiscard]] const PhysicsDebugSnapshot& debug_snapshot() const noexcept;
-
-    [[nodiscard]] std::optional<CollisionQueryHit> raycast(
-        const RayCastQuery& query) const override;
-    [[nodiscard]] std::optional<CollisionQueryHit> segment_cast(
-        const SegmentCastQuery& query) const override;
-    void raycast_all(
-        const RayCastQuery& query,
-        std::vector<CollisionQueryHit>& out_hits) const override;
-    void segment_cast_all(
-        const SegmentCastQuery& query,
-        std::vector<CollisionQueryHit>& out_hits) const override;
-    void overlap_aabb(
-        const AabbOverlapQuery& query,
-        std::vector<CollisionOverlapQueryHit>& out_hits) const override;
-    void overlap_circle(
-        const CircleOverlapQuery& query,
-        std::vector<CollisionOverlapQueryHit>& out_hits) const override;
-    [[nodiscard]] std::optional<CollisionQueryHit> sweep_aabb(
-        const AabbSweepQuery& query) const override;
-
+ explicit PhysicsWorld(PhysicsWorldConfig config = {});
+ ~PhysicsWorld() override;
+ PhysicsWorld(const PhysicsWorld&) = delete;
+ PhysicsWorld& operator=(const PhysicsWorld&) = delete;
+ PhysicsObjectHandle register_object(elysia::core::GameObject&, const BodyDefinition&, std::span<const Collider>);
+ bool unregister_object(PhysicsObjectHandle);
+ bool contains_object(PhysicsObjectHandle) const noexcept;
+ bool contains_object(const elysia::core::GameObject&) const noexcept;
+ bool contains_collider(ColliderId) const noexcept;
+ std::size_t registered_object_count() const noexcept;
+ std::size_t registered_collider_count() const noexcept;
+ std::optional<PhysicsObjectHandle> object_handle(const elysia::core::GameObject&) const noexcept;
+ ColliderId collider_id(PhysicsObjectHandle, std::size_t index) const noexcept;
+ std::optional<BodyState> body_state(PhysicsObjectHandle) const noexcept;
+ std::optional<PhysicsPose> render_pose(PhysicsObjectHandle) const noexcept;
+ bool set_velocity(PhysicsObjectHandle, elysia::core::Vector2);
+ bool set_angular_velocity(PhysicsObjectHandle, float);
+ bool set_gravity_scale(PhysicsObjectHandle, float);
+ bool set_body_enabled(PhysicsObjectHandle, bool);
+ bool set_awake(PhysicsObjectHandle, bool);
+ bool apply_force(PhysicsObjectHandle, elysia::core::Vector2, std::optional<elysia::core::Vector2> world_point = {});
+ bool apply_impulse(PhysicsObjectHandle, elysia::core::Vector2, std::optional<elysia::core::Vector2> world_point = {});
+ bool apply_torque(PhysicsObjectHandle, float);
+ bool apply_angular_impulse(PhysicsObjectHandle, float);
+ bool teleport_object(PhysicsObjectHandle, elysia::core::Vector2, TeleportVelocityMode = TeleportVelocityMode::Preserve);
+ bool set_transform(PhysicsObjectHandle, PhysicsPose, TeleportVelocityMode = TeleportVelocityMode::Preserve);
+ bool update_collider(ColliderId, const Collider&);
+ bool set_collider_enabled(ColliderId, bool);
+ JointHandle create_distance_joint(const DistanceJointDefinition&);
+ JointHandle create_revolute_joint(const RevoluteJointDefinition&);
+ bool destroy_joint(JointHandle);
+ std::optional<JointState> joint_state(JointHandle) const noexcept;
+ bool set_tile_world(const ITileCollisionWorld&);
+ bool clear_tile_world(const ITileCollisionWorld&);
+ bool update_tiles(TileCoordinate begin, TileCoordinate end);
+ const ITileCollisionWorld* tile_world() const noexcept;
+ bool add_listener(ICollisionListener&);
+ bool remove_listener(const ICollisionListener&);
+ bool request_pass_through(ColliderId, CollisionTarget);
+ void collect_contacts(CollisionTarget, std::vector<CollisionContact>&) const;
+ PhysicsContactState contact_state(PhysicsObjectHandle) const noexcept;
+ PhysicsContactState contact_state(CollisionTarget) const noexcept;
+ std::uint32_t advance(double);
+ void reset() noexcept;
+ const PhysicsWorldConfig& config() const noexcept;
+ double accumulator_seconds() const noexcept;
+ const PhysicsStepStats& last_step_stats() const noexcept;
+ void set_debug_capture(PhysicsDebugCapture) noexcept;
+ PhysicsDebugCapture debug_capture() const noexcept;
+ const PhysicsDebugSnapshot& debug_snapshot() const noexcept;
+ std::optional<CollisionQueryHit> raycast(const RayCastQuery&) const override;
+ std::optional<CollisionQueryHit> segment_cast(const SegmentCastQuery&) const override;
+ void raycast_all(const RayCastQuery&, std::vector<CollisionQueryHit>&) const override;
+ void segment_cast_all(const SegmentCastQuery&, std::vector<CollisionQueryHit>&) const override;
+ void overlap_aabb(const AabbOverlapQuery&, std::vector<CollisionOverlapQueryHit>&) const override;
+ void overlap_circle(const CircleOverlapQuery&, std::vector<CollisionOverlapQueryHit>&) const override;
+ std::optional<CollisionQueryHit> sweep_aabb(const AabbSweepQuery&) const override;
 private:
-    struct Registration
-    {
-        PhysicsObjectHandle handle{};
-        elysia::core::GameObject* owner = nullptr;
-        PhysicsBodyProvider* body_provider = nullptr;
-        ColliderProvider* collider_provider = nullptr;
-        PhysicsBody* body = nullptr;
-        PhysicsStepParticipant* step_participant = nullptr;
-        std::vector<Collider*> colliders;
-        elysia::core::Vector2 previous_owner_origin{};
-        elysia::core::Vector2 current_owner_origin{};
-    };
-
-    struct PendingListenerOperation
-    {
-        ICollisionListener* listener = nullptr;
-        bool add = false;
-    };
-
-    struct PendingTeleport
-    {
-        PhysicsObjectHandle handle{};
-        elysia::core::Vector2 position{};
-        TeleportVelocityMode velocity_mode = TeleportVelocityMode::Preserve;
-    };
-
-    struct PendingRegistration { PhysicsObjectHandle handle{}; };
-    struct PendingUnregistration { PhysicsObjectHandle handle{}; };
-    struct PendingTileOperation
-    {
-        const ITileCollisionWorld* world = nullptr;
-    };
-    using PendingOperation = std::variant<PendingRegistration, PendingUnregistration,
-        PendingTeleport, PendingListenerOperation, PendingTileOperation>;
-
-    [[nodiscard]] bool fixed_step(double fixed_delta_seconds);
-    [[nodiscard]] bool flush_pending_operations();
-    void reset_immediate() noexcept;
-    [[nodiscard]] std::optional<Registration> prepare_registration(
-        elysia::core::GameObject& owner,
-        PhysicsBodyProvider* body_provider,
-        ColliderProvider* collider_provider);
-    void commit_registration(Registration registration);
-    [[nodiscard]] bool unregister_immediate(PhysicsObjectHandle handle);
-    [[nodiscard]] bool teleport_immediate(
-        PhysicsObjectHandle handle,
-        elysia::core::Vector2 position,
-        TeleportVelocityMode velocity_mode);
-    void remove_cached_target(CollisionTarget target);
-    void replace_tile_world(const ITileCollisionWorld* world);
-    [[nodiscard]] const ITileCollisionWorld* logical_tile_world() const noexcept;
-    [[nodiscard]] bool pending_removal(PhysicsObjectHandle handle) const noexcept;
-    [[nodiscard]] std::optional<OneWayCollision> one_way_for_target(
-        CollisionTarget target) const noexcept;
-    [[nodiscard]] Registration* find_registration(PhysicsObjectHandle handle) noexcept;
-    [[nodiscard]] const Registration* find_registration(PhysicsObjectHandle handle) const noexcept;
-    [[nodiscard]] const Registration* find_registration(ColliderId collider) const noexcept;
-
-    PhysicsWorldConfig _config{};
-    std::vector<Registration> _registrations;
-    std::unordered_map<std::uint64_t, std::size_t> _registration_index;
-    struct ColliderRecord { Collider* collider; PhysicsObjectHandle owner; };
-    std::unordered_map<ColliderId, ColliderRecord> _collider_index;
-    std::vector<ICollisionListener*> _listeners;
-    const ITileCollisionWorld* _tile_world = nullptr;
-
-    PhysicsSystem _physics_system;
-    CollisionSystem _collision_system;
-    ContactCache _contact_cache;
-    CollisionFrame _collision_frame;
-    std::vector<CollisionPair> _transient_ignored_pairs;
-    PhysicsStepStats _last_step_stats{};
-    PhysicsDebugSnapshot _debug_snapshot;
-
-    std::vector<Registration> _pending_registrations;
-    // Reserved registrations own no objects. Commands commit in caller order.
-    std::vector<PendingOperation> _pending_operations;
-
-    std::uint64_t _next_object_handle = 1;
-    ColliderId _next_collider_id = 1;
-    double _accumulator_seconds = 0.0;
-    std::uint64_t _dropped_fixed_steps = 0;
-    bool _advancing = false;
-    bool _pending_reset = false;
-    PhysicsDebugCapture _debug_capture = PhysicsDebugCapture::None;
+ struct Impl;
+ std::unique_ptr<Impl> _impl;
 };
 }

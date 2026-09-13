@@ -6,6 +6,7 @@
 #include "../scene/demo/engine_feature_lab_scene.h"
 #include "../scene/demo/ui_component_gallery_scene.h"
 #include "../scene/demo/physics/collider_combat_demo_scene.h"
+#include "../scene/demo/physics/box2d_lab_scene.h"
 #include "../scene/demo/physics/physics_combat_gallery_scene.h"
 #include "../scene/demo/physics/platform_tile_combat_demo_scene.h"
 #include "../scene/demo/physics/top_down_tile_combat_demo_scene.h"
@@ -72,6 +73,8 @@ void GameModule::register_scenes(
         example::scene_keys::PhysicsCombatGallery);
     scene_manager.register_game_scene<example::scene::ColliderCombatDemoScene>(
         example::scene_keys::ColliderCombatDemo);
+    scene_manager.register_game_scene<example::scene::Box2DLabScene>(
+        example::scene_keys::Box2DLab);
     scene_manager.register_game_scene<example::scene::PlatformTileCombatDemoScene>(
         example::scene_keys::PlatformTileCombatDemo);
     scene_manager.register_game_scene<example::scene::TopDownTileCombatDemoScene>(

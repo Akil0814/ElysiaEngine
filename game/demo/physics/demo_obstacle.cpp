@@ -72,8 +72,8 @@ DynamicBlockObstacle::DynamicBlockObstacle(
         collision_layers::World | collision_layers::Body, 0};
     _body.type = elysia::physics::BodyType::Dynamic;
     _body.velocity = velocity;
+    _body.mass_policy = elysia::physics::MassPolicy::ExplicitMass;
     _body.mass = 1.0f;
-    _body.max_speed = {2000.0f, 2000.0f};
 }
 
 void DynamicBlockObstacle::submit_render_commands(
@@ -97,7 +97,6 @@ KinematicMovingPlatform::KinematicMovingPlatform(
     _body.type = elysia::physics::BodyType::Kinematic;
     _body.gravity_scale = 0.0f;
     _body.velocity = {_speed, 0.0f};
-    _body.max_speed = {_speed, _speed};
 }
 
 void KinematicMovingPlatform::submit_render_commands(
@@ -110,8 +109,8 @@ void KinematicMovingPlatform::fixed_update(double delta)
 {
     (void)delta;
     if (position().x <= _left)
-        _body.velocity.x = _speed;
+        set_velocity_x(_speed);
     else if (position().x >= _right)
-        _body.velocity.x = -_speed;
+        set_velocity_x(-_speed);
 }
 }

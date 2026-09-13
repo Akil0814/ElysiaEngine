@@ -17,6 +17,10 @@ void submit_physics_debug_snapshot(
             return;
         if (const auto* box = std::get_if<WorldAabb>(&shape))
             debug_draw.draw_rect(category, box->rect, color);
+        else if (const auto* polygon = std::get_if<WorldPolygon>(&shape))
+        {
+            for (int i=0;i<4;++i) debug_draw.draw_line(category,polygon->vertices[i],polygon->vertices[(i+1)%4],color);
+        }
         else
         {
             const auto& circle = std::get<WorldCircle>(shape);

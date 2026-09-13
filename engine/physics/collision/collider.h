@@ -92,6 +92,8 @@ struct Collider
     CollisionDetectionMode detection_mode = CollisionDetectionMode::Discrete;
     std::optional<OneWayCollision> one_way;
     PhysicsMaterial material{};
+    SurfaceDensity density{};
+    bool sensor_contributes_mass = false;
 
     std::string_view tag{};
 

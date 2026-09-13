@@ -60,23 +60,23 @@ void ColliderCombatDemoScene::build_demo()
 
     auto box = detail::make_aabb_obstacle(
         {470, 430, 38, 38}, elysia::core::colors::purple_500);
-    box.material = {1.1f, 0.8f, 0.0f};
+    box.material = {0.8f, 0.0f};
     create_and_add_object<DynamicBlockObstacle>(box);
 
     auto circle = detail::make_aabb_obstacle(
         {540, 420, 36, 36}, elysia::core::colors::pink_500);
     circle.shape = elysia::physics::CircleShape{{18, 18}, 18};
-    circle.material = {0.2f, 0.1f, 0.65f};
+    circle.material = {0.1f, 0.65f};
     create_and_add_object<DynamicBlockObstacle>(circle);
 
     auto moving_platform = detail::make_aabb_obstacle(
         {670, 430, 180, 18}, elysia::core::colors::purple_700);
-    moving_platform.material = {1.0f, 0.8f, 0.0f};
+    moving_platform.material = {0.8f, 0.0f};
     create_and_add_object<KinematicMovingPlatform>(
         moving_platform, 650.0f, 850.0f, 90.0f);
     auto passenger = detail::make_aabb_obstacle(
         {735, 390, 34, 38}, elysia::core::colors::orange_500);
-    passenger.material = {1.0f, 0.8f, 0.0f};
+    passenger.material = {0.8f, 0.0f};
     create_and_add_object<DynamicBlockObstacle>(passenger);
 
     auto ccd = detail::make_aabb_obstacle(
@@ -85,7 +85,7 @@ void ColliderCombatDemoScene::build_demo()
     auto* fast = create_and_add_object<DynamicBlockObstacle>(
         ccd, elysia::core::Vector2{1500, 0});
     if (fast)
-        fast->physics_body()->gravity_scale = 0.0f;
+        physics_world().set_gravity_scale(fast->physics_handle(), 0.0f);
 
     create_and_add_object<detail::QueryProbe>(physics_world(), *player);
 }

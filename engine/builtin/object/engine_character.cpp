@@ -147,11 +147,6 @@ EngineCharacter::colliders() const noexcept
     return std::span<const elysia::physics::Collider>(&_collider, 1);
 }
 
-std::span<elysia::physics::Collider>
-EngineCharacter::colliders() noexcept
-{
-    return std::span<elysia::physics::Collider>(&_collider, 1);
-}
 
 bool EngineCharacter::set_animations(
     const BuiltinResources& resources,

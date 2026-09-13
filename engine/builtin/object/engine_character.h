@@ -4,7 +4,7 @@
 #include "../../core/game_object.h"
 #include "../../core/interface/updatable.h"
 #include "../../input/contracts/raw_input_event_receiver.h"
-#include "../../physics/contracts/collider_provider.h"
+#include "../../physics/collision/collider.h"
 #include "../resources/builtin_resource_ids.h"
 
 #include <memory>
@@ -19,8 +19,7 @@ class BuiltinResources;
 
 class EngineCharacter final : public elysia::core::GameObject,
     public elysia::input::RawInputEventReceiver,
-    public elysia::core::Updatable,
-    public elysia::physics::ColliderProvider
+    public elysia::core::Updatable
 {
 public:
     static constexpr float kMovementSpeed = 180.0f;
@@ -34,8 +33,7 @@ public:
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
 
-    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override;
-    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override;
+    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept;
 
     [[nodiscard]] bool set_animations(
         const BuiltinResources& resources,

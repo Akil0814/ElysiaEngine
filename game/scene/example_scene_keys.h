@@ -13,4 +13,5 @@ inline constexpr elysia::scene::SceneKey TopDownTileCombatDemo = 8;
 inline constexpr elysia::scene::SceneKey DemoGallery = 9;
 inline constexpr elysia::scene::SceneKey UiComponentGallery = 10;
 inline constexpr elysia::scene::SceneKey EngineFeatureLab = 11;
+inline constexpr elysia::scene::SceneKey Box2DLab = 12;
 }

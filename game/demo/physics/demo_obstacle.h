@@ -4,8 +4,7 @@
 #include "colored_block_object.h"
 
 #include "../../../engine/core/interface/updatable.h"
-#include "../../../engine/physics/contracts/collider_provider.h"
-#include "../../../engine/physics/contracts/physics_body_provider.h"
+#include "../../../engine/physics/contracts/physics_participant.h"
 #include "../../../engine/physics/contracts/physics_step_participant.h"
 
 namespace example::demo::physics
@@ -23,14 +22,13 @@ struct ObstacleConfig
 
 class StaticBlockObstacle final
     : public ColoredBlockObject
-    , public elysia::physics::ColliderProvider
+    , public elysia::physics::PhysicsParticipant
 {
 public:
     explicit StaticBlockObstacle(ObstacleConfig config);
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
-    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }
-    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override { return {&_collider, 1}; }
+    [[nodiscard]] std::span<const elysia::physics::Collider> collider_definitions() const override { return {&_collider, 1}; }
 private:
     elysia::physics::Collider _collider;
 };
@@ -38,8 +36,7 @@ private:
 class DynamicBlockObstacle final
     : public ColoredBlockObject
     , public elysia::core::Updatable
-    , public elysia::physics::ColliderProvider
-    , public elysia::physics::PhysicsBodyProvider
+    , public elysia::physics::PhysicsParticipant
 {
 public:
     explicit DynamicBlockObstacle(ObstacleConfig config,
@@ -47,12 +44,10 @@ public:
     void update(double delta) override { update_visual(delta); }
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
-    [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }
-    [[nodiscard]] const elysia::physics::PhysicsBody* physics_body() const noexcept override { return &_body; }
-    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }
-    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override { return {&_collider, 1}; }
+    [[nodiscard]] elysia::physics::BodyDefinition body_definition() const override { return _body; }
+    [[nodiscard]] std::span<const elysia::physics::Collider> collider_definitions() const override { return {&_collider, 1}; }
 private:
-    elysia::physics::PhysicsBody _body;
+    elysia::physics::BodyDefinition _body;
     elysia::physics::Collider _collider;
 };
 
@@ -60,8 +55,7 @@ class KinematicMovingPlatform final
     : public ColoredBlockObject
     , public elysia::core::Updatable
     , public elysia::physics::PhysicsStepParticipant
-    , public elysia::physics::ColliderProvider
-    , public elysia::physics::PhysicsBodyProvider
+    , public elysia::physics::PhysicsParticipant
 {
 public:
     KinematicMovingPlatform(
@@ -73,12 +67,10 @@ public:
     void fixed_update(double delta) override;
     void submit_render_commands(
         std::vector<elysia::core::RenderCommand>& out_commands) const override;
-    [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }
-    [[nodiscard]] const elysia::physics::PhysicsBody* physics_body() const noexcept override { return &_body; }
-    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return {&_collider, 1}; }
-    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override { return {&_collider, 1}; }
+    [[nodiscard]] elysia::physics::BodyDefinition body_definition() const override { return _body; }
+    [[nodiscard]] std::span<const elysia::physics::Collider> collider_definitions() const override { return {&_collider, 1}; }
 private:
-    elysia::physics::PhysicsBody _body;
+    elysia::physics::BodyDefinition _body;
     elysia::physics::Collider _collider;
     float _left = 0.0f;
     float _right = 0.0f;

@@ -218,7 +218,7 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
             config.gravity.x, config.gravity.y);
         ImGui::Text("Max catch-up steps: %u",
             config.max_steps_per_advance);
-        ImGui::Text("Solver iterations: %u", config.solver_iterations);
+        ImGui::Text("Sub-steps: %u", config.sub_steps);
     }
 
     const auto& stats = physics_world().last_step_stats();
@@ -237,15 +237,10 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
         };
         row("Registered objects", stats.registered_objects);
         row("Registered colliders", stats.registered_colliders);
-        row("Broad-phase proxies", stats.broad_phase_proxies);
-        row("Broad-phase pairs", stats.broad_phase_pairs);
-        row("Narrow-phase tests", stats.narrow_phase_tests);
         row("Contacts", stats.contacts);
-        row("Tile samples", stats.tile_samples);
-        row("Rejected tile ranges", stats.rejected_tile_candidate_ranges);
-        row("CCD hits", stats.ccd_hits);
-        row("CCD iterations", stats.ccd_iterations);
-        row("Solver iterations", stats.solver_iterations);
+        row("Awake bodies", stats.awake_bodies);
+        row("Joints", stats.joints);
+        ImGui::Text("Step: %.3f ms", stats.step_milliseconds);
         row("Dropped fixed steps", stats.dropped_fixed_steps);
         ImGui::EndTable();
     }
@@ -254,7 +249,6 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
     if (ImGui::CollapsingHeader("Debug Snapshot"))
     {
         ImGui::Text("Shapes: %zu", snapshot.shapes.size());
-        ImGui::Text("Pairs: %zu", snapshot.broad_phase_pairs.size());
         ImGui::Text("Tile candidates: %zu", snapshot.tile_candidates.size());
         ImGui::Text("Contacts: %zu", snapshot.contacts.size());
         ImGui::Text("Velocities: %zu", snapshot.velocities.size());
@@ -400,10 +394,10 @@ void PhysicsCombatDemoSceneBase::update_hud()
         const auto& stats = physics_world().last_step_stats();
         std::ostringstream text;
         text << "Enemies " << enemies
-             << " | Pairs " << stats.broad_phase_pairs
+             << " | Awake " << stats.awake_bodies
              << " | Contacts " << stats.contacts
-             << " | CCD " << stats.ccd_iterations
-             << " | Tiles " << stats.tile_samples
+             << " | Joints " << stats.joints
+             << " | Step ms " << stats.step_milliseconds
              << " | Dropped " << stats.dropped_fixed_steps;
         _stats_label->set_text_content(elysia::ui::ui_raw_text(text.str()));
     }

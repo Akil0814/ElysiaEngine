@@ -8,6 +8,7 @@
 #include "../core/render/sdl_render_command_executor.h"
 #include "../input/contracts/raw_input_event_receiver.h"
 #include "../physics/physics_debug_draw.h"
+#include "../physics/contracts/physics_participant.h"
 #include "../tools/debug_draw.h"
 #include "../tools/logger.h"
 #include "../input/contracts/raw_input_frame_receiver.h"
@@ -253,19 +254,17 @@ void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
     elysia::core::GameObject* game_object = dynamic_cast<elysia::core::GameObject*>(object);
     if (game_object)
     {
-        auto* body_provider =
-            dynamic_cast<elysia::physics::PhysicsBodyProvider*>(object);
-        auto* collider_provider =
-            dynamic_cast<elysia::physics::ColliderProvider*>(object);
-        if (body_provider || collider_provider)
+        auto* participant = dynamic_cast<elysia::physics::PhysicsParticipant*>(object);
+        if (participant)
         {
             const elysia::physics::PhysicsObjectHandle handle =
                 _physics_world.register_object(
                     *game_object,
-                    body_provider,
-                    collider_provider);
+                    participant->body_definition(),
+                    participant->collider_definitions());
             if (handle.is_valid())
             {
+                participant->bind_physics(_physics_world, handle);
                 _physics_registrations.push_back(
                     PhysicsRegistrationEntry{object, handle});
             }

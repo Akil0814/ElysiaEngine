@@ -45,7 +45,7 @@ BlockCombatActor::BlockCombatActor(ActorConfig config)
         collision_layers::World | collision_layers::Body,
         elysia::physics::CollisionResponse::Block,
         {0, 0, size.x, size.y}, "body");
-    _colliders[0].material = {0.0f, 0.0f, 0.0f};
+    _colliders[0].material = {0.0f, 0.0f};
     _colliders[1] = make_actor_collider(
         collision_layers::HurtBox, collision_layers::HitBox,
         elysia::physics::CollisionResponse::Overlap,
@@ -58,9 +58,9 @@ BlockCombatActor::BlockCombatActor(ActorConfig config)
     _colliders[2].enabled = false;
     _body.type = elysia::physics::BodyType::Dynamic;
     _body.gravity_scale = config.gravity_enabled ? 1.0f : 0.0f;
+    _body.mass_policy = elysia::physics::MassPolicy::ExplicitMass;
     _body.mass = 1.0f;
     _body.linear_damping = config.gravity_enabled ? 0.0f : 7.0f;
-    _body.max_speed = {config.move_speed, config.gravity_enabled ? 700.0f : config.move_speed};
     update_hit_box_shape();
 }
 
@@ -88,6 +88,7 @@ void BlockCombatActor::tick_actor(double delta)
         && _attack_elapsed < _active_end;
     _colliders[2].enabled = should_be_active && alive();
     _hit_box_active = _colliders[2].enabled;
+    update_physics_collider(2, _colliders[2]);
     if (_attack_elapsed >= _attack_total)
         stop_attack();
 }
@@ -150,6 +151,7 @@ void BlockCombatActor::start_attack()
 void BlockCombatActor::stop_attack() noexcept
 {
     _colliders[2].enabled = false;
+    update_physics_collider(2, _colliders[2]);
     _hit_box_active = false;
     _attacking = false;
     _attack_elapsed = 0.0;
@@ -163,11 +165,12 @@ void BlockCombatActor::mark_dead() noexcept
     // Binding removal is deferred because this can run inside a gameplay
     // collision listener batch.
     _colliders[2].enabled = false;
+    update_physics_collider(2, _colliders[2]);
     _hit_box_active = false;
     _attacking = false;
     _attack_elapsed = 0.0;
-    _body.velocity = {};
-    _body.enabled = false;
+    set_velocity({});
+    if (physics_world()) physics_world()->set_body_enabled(physics_handle(), false);
     for (auto& collider : _colliders)
         collider.enabled = false;
     set_dead_visual(true);
@@ -181,7 +184,7 @@ DamageResult BlockCombatActor::apply_damage(
     if (applied > 0)
     {
         flash(0.12);
-        _body.velocity += definition.knockback;
+        set_velocity(velocity() + definition.knockback);
     }
     const bool killed = was_alive && !_health.alive();
     if (killed)
@@ -235,6 +238,7 @@ void BlockCombatActor::update_hit_box_shape() noexcept
         rect = {size.x * 0.15f, size.y, size.x * 0.70f, range}; break;
     }
     _colliders[2].shape = elysia::physics::AabbShape{rect};
+    update_physics_collider(2, _colliders[2]);
 }
 
 PlatformPlayerCharacter::PlatformPlayerCharacter(
@@ -262,7 +266,7 @@ void PlatformPlayerCharacter::fixed_update(double delta)
 {
     if (!alive())
         return;
-    physics_body()->velocity.x = _move_axis * move_speed();
+    set_velocity_x(_move_axis * move_speed());
     if (_move_axis != 0.0f)
         set_facing(_move_axis < 0.0f ? Facing::Left : Facing::Right);
     if (_primary_requested)
@@ -274,7 +278,7 @@ void PlatformPlayerCharacter::fixed_update(double delta)
         if (_drop_requested)
             (void)combat_session()->request_drop_through(*this);
         else if (combat_session()->is_grounded(*this))
-            physics_body()->velocity.y = -520.0f;
+            set_velocity_y(-520.0f);
     }
     _jump_requested = false;
     _drop_requested = false;
@@ -306,7 +310,7 @@ void TopDownPlayerCharacter::fixed_update(double delta)
         start_attack();
     _primary_requested = false;
     tick_actor(delta);
-    physics_body()->velocity = alive() ? _move * move_speed() : elysia::core::Vector2{};
+    set_velocity(alive() ? _move * move_speed() : elysia::core::Vector2{});
 }
 
 StationaryEnemy::StationaryEnemy(
@@ -350,7 +354,7 @@ void PlatformPatrolEnemy::fixed_update(double delta)
         && close_enough(*this, *_target, 62.0f, 46.0f);
     if (target_close)
     {
-        physics_body()->velocity.x = 0.0f;
+        set_velocity_x(0.0f);
         face_toward(_target->center() - center());
         start_attack();
         return;
@@ -359,7 +363,7 @@ void PlatformPatrolEnemy::fixed_update(double delta)
         _direction = 1.0f;
     if (position().x >= _patrol_right || (combat_session() && combat_session()->wall_right(*this)))
         _direction = -1.0f;
-    physics_body()->velocity.x = _direction * move_speed();
+    set_velocity_x(_direction * move_speed());
     set_facing(_direction < 0.0f ? Facing::Left : Facing::Right);
 }
 
@@ -389,7 +393,7 @@ void TopDownChaseEnemy::fixed_update(double delta)
     tick_actor(delta);
     if (!_target || !_target->alive() || !alive())
     {
-        physics_body()->velocity = {};
+        set_velocity({});
         return;
     }
     const auto toward = _target->center() - center();
@@ -397,16 +401,16 @@ void TopDownChaseEnemy::fixed_update(double delta)
     face_toward(toward);
     if (distance <= 48.0f)
     {
-        physics_body()->velocity = {};
+        set_velocity({});
         start_attack();
     }
     else if (distance <= 420.0f && has_line_of_sight())
     {
-        physics_body()->velocity = toward.normalized() * move_speed();
+        set_velocity(toward.normalized() * move_speed());
     }
     else
     {
-        physics_body()->velocity = {};
+        set_velocity({});
     }
 }
 }

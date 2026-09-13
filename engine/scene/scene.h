@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <SDL.h>
 
@@ -18,8 +18,6 @@
 #include "../core/game_object.h"
 #include "../core/event/subject.h"
 #include "../core/interface/updatable.h"
-#include "../physics/contracts/collider_provider.h"
-#include "../physics/contracts/physics_body_provider.h"
 #include "../physics/physics_world.h"
 #include "../input/contracts/raw_input_event_receiver.h"
 #include "../input/contracts/raw_input_frame_receiver.h"

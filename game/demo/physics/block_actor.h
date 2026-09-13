@@ -6,8 +6,7 @@
 
 #include "../../../engine/core/interface/updatable.h"
 #include "../../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
-#include "../../../engine/physics/contracts/collider_provider.h"
-#include "../../../engine/physics/contracts/physics_body_provider.h"
+#include "../../../engine/physics/contracts/physics_participant.h"
 #include "../../../engine/physics/contracts/physics_step_participant.h"
 
 #include <array>
@@ -36,9 +35,8 @@ struct ActorConfig
 class BlockCombatActor
     : public ColoredBlockObject
     , public elysia::core::Updatable
-    , public elysia::physics::PhysicsBodyProvider
     , public elysia::physics::PhysicsStepParticipant
-    , public elysia::physics::ColliderProvider
+    , public elysia::physics::PhysicsParticipant
     , public IDamageableActor
 {
 public:
@@ -61,9 +59,9 @@ public:
         const DamageRequest&, const DamageDefinition&) override;
     [[nodiscard]] bool alive() const noexcept { return _health.alive(); }
     [[nodiscard]] elysia::gameplay::collision::TeamId team() const noexcept { return _team; }
-    [[nodiscard]] elysia::physics::ColliderId body_collider_id() const noexcept { return _colliders[0].id; }
-    [[nodiscard]] elysia::physics::ColliderId hurt_collider_id() const noexcept { return _colliders[1].id; }
-    [[nodiscard]] elysia::physics::ColliderId hit_collider_id() const noexcept { return _colliders[2].id; }
+    [[nodiscard]] elysia::physics::ColliderId body_collider_id() const noexcept { return physics_collider(0); }
+    [[nodiscard]] elysia::physics::ColliderId hurt_collider_id() const noexcept { return physics_collider(1); }
+    [[nodiscard]] elysia::physics::ColliderId hit_collider_id() const noexcept { return physics_collider(2); }
     [[nodiscard]] Facing facing() const noexcept { return _facing; }
     [[nodiscard]] float move_speed() const noexcept { return _move_speed; }
     [[nodiscard]] DemoCombatSession* combat_session() const noexcept { return _session; }
@@ -73,10 +71,8 @@ public:
     void set_attack_timing(double total, double active_begin, double active_end,
         double cooldown) noexcept;
 
-    [[nodiscard]] elysia::physics::PhysicsBody* physics_body() noexcept override { return &_body; }
-    [[nodiscard]] const elysia::physics::PhysicsBody* physics_body() const noexcept override { return &_body; }
-    [[nodiscard]] std::span<elysia::physics::Collider> colliders() noexcept override { return _colliders; }
-    [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept override { return _colliders; }
+    [[nodiscard]] elysia::physics::BodyDefinition body_definition() const override { return _body; }
+    [[nodiscard]] std::span<const elysia::physics::Collider> collider_definitions() const override { return _colliders; }
 
 protected:
     void tick_actor(double delta);
@@ -89,7 +85,7 @@ private:
     void update_hit_box_shape() noexcept;
 
     DemoCombatSession* _session = nullptr;
-    elysia::physics::PhysicsBody _body;
+    elysia::physics::BodyDefinition _body;
     std::array<elysia::physics::Collider, 3> _colliders;
     Health _health;
     elysia::gameplay::collision::ActorId _actor_id =
