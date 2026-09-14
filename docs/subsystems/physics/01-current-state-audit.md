@@ -1,80 +1,20 @@
-# 01｜当前状态与剩余限制审计
+# Current behavior and limitations
+Implemented: static/kinematic/dynamic bodies, rotating boxes and circles, mass policies, force and impulse APIs, sleeping, CCD, distance springs, revolute limits/motors, shape queries, tile geometry and gameplay event translation.
 
-返回：[物理文档入口](README.md)　下一篇：[目标架构](02-target-architecture.md)
+## Lifecycle
+Handles are monotonic and not reused within a world, including across reset. Removal immediately rejects new commands and state queries. Previously accepted commands commit in order before destruction. Body removal also invalidates its joints.
 
-## 1. 结论
+The adapter maps complete Box2D shape IDs, including generation, to engine targets. On destruction, mapping records become tombstones through the following completed event extraction. Gameplay events contain values, not pointers into Box2D or destroyed objects.
 
-物理模块已经从“契约骨架”进入可运行的无旋转 2D 首版。默认构造的 `PhysicsWorld` 不依赖全局 Service 或启动配置；它自带 SAP、离散检测、Swept AABB 和默认响应策略。Scene 与 Gameplay 生命周期也已闭合。
+Contact invalidation produces exactly one logical End. A rebuilt contact produces End before Begin for the same engine pair. Reset clears silently. Listener storage is borrowed; listeners must remain alive through the current dispatch batch even if they request removal.
 
-## 2. 子系统状态
+## Native behavior
+Sensors detect end-of-step overlap; they do not guarantee detection of objects that pass completely through within one step. Use an explicit shape cast for fast gameplay hits and respect the first blocking hit. Bullet bodies improve physical CCD; this is distinct from Sensor events.
 
-| 子系统 | 状态 | 当前实现 |
-| --- | --- | --- |
-| Body | 完成 | Static/Kinematic/Dynamic、重力、力、质量、阻尼、限速、Transform 写回 |
-| 注册与 ID | 完成 | 稳定 handle、单调 ColliderId、有序 pending 命令、handle/Collider 索引、回调期延迟 reset |
-| 世界形状 | 完成 | previous/current AABB 与 Circle、current/swept bounds |
-| 宽相 | 完成 | Brute Force oracle、SAP 默认索引、AABB query、稳定排序去重 |
-| 离散窄相 | 完成 | AABB/AABB、Circle/Circle、AABB/Circle，包含接触和退化情况 |
-| CCD | 首版完成 | AABB/AABB 与 AABB/Tile；Circle 回退离散 |
-| 响应与求解 | 基本可用 | Ignore/Overlap/Block、one-way、材质合并、静/动摩擦、弹性、顺序冲量与逆质量位置修正 |
-| 接触事件 | 完成 | ContactCache、Begin/Stay/End、listener 批次快照 |
-| Tile | 完成 | checked floor 坐标换算、候选上限、负坐标、非方格、越界策略、Block/同向 OneWay 内部面抑制 |
-| Query | 完成 | Ray/Segment 最近与 all-hits、AABB/Circle overlap、AABB sweep、Tile DDA |
-| Gameplay | 完成 | Body/PushBox/Hit/Sensor 路由、默认 Team、攻击实例去重、自动 Scene runtime |
-| 诊断 | 完成 | 步统计、dropped steps、形状/宽相/Tile/contact/velocity 调试快照 |
+One-way decisions use immutable pre-step geometry and velocity. Box2D pre-solve has limitations for high-speed continuous contacts; one-way platforms should be validated at intended gameplay speeds.
 
-## 3. 已删除的旧 API
+Only boxes and circles are exposed. Rotation is supported, but capsules, arbitrary convex polygons and ragdolls are outside this migration. Existing character controllers lock rotation.
 
-- `PhysicsService` 与 `CollisionStrategyFactories`；
-- CollisionSystem 的四个独立 setter；
-- `PhysicsBodyView`、`ColliderView`；
-- `PhysicsSystem::clear_forces`；
-- 旧 `PhysicsSystem::step` 与 `CollisionSystem::dispatch_events`。
+Tile Block out-of-bounds builds perimeter barriers around a finite map; it is not an infinite solid plane available at arbitrary remote coordinates. The map adapter currently limits installation to one million cells.
 
-替代关系如下：
-
-| 旧概念 | 当前概念 |
-| --- | --- |
-| 部分配置策略槽 | 完整 `CollisionStrategySet` |
-| `ColliderView` 指针快照 | 值语义 `CollisionShapeView` |
-| 分散 Body/Transform view | `PhysicsObjectState` |
-| 本步末尾清力 | `integrate` 读取后立即清力 |
-| 全局策略 Service | 默认策略函数或构造时整体注入 |
-
-## 4. 生命周期语义
-
-- register/unregister、listener、teleport 和 Tile 变更在回调期间进入同一个有序命令队列，在安全边界按调用顺序应用；注册后可立即对预留 handle 排队传送；待注销 handle 拒绝后续传送及重复注册，注销完成后可重新注册；
-- `reset()` 在步外立即执行，在 advance/事件回调期间只设置最高优先级 pending reset；当前事件批次完成后静默清理，并停止本次 advance 的后续固定步；
-- unregister、destroy、Tile clear 和 teleport 立即使相关缓存失效，在下一物理步分发一次 End；整体 reset 仍静默清空；相同 pair 被重新建立时先 End 后 Begin；
-- 自然分离、Collider disable 和对象 inactive 通过本步 contact 消失产生 End；
-- listener 按批次快照分发，本批次中的 add/remove 不改变其余回调；
-- listener 不得抛异常；异常不回滚物理状态，解除内部 guard 后继续传播到 Application update boundary，由 `UnhandledException`/FaultExit 终止本次运行；
-- ColliderId 在同一 world 生命周期内不复用，reset 后计数也不倒退；
-- Provider 的 Body 地址与 Collider span 地址/长度必须覆盖注册期并保持稳定。
-
-实现 `PhysicsStepParticipant` 的注册对象在每步积分前收到一次 `fixed_update(fixed_dt)`。非 active、destroyed 和已排队注销的对象跳过；暂停时 Scene 不推进 World，因此没有固定步回调。回调中新增的对象在安全边界注册，本步可参与积分，其首次控制回调在下一步。输入在帧回调中锁存，由固定步消费；不要在每渲染帧重复叠加持续力。
-
-查询实现位于 `physics_queries.cpp`，共享 Collider 遍历和 Tile 几何助手；查询读取已提交位置，不复用求解前的宽相快照。World 使用 handle→registration 索引，求解器为本步 body 和 shape view 建立索引，避免接触循环反复全表扫描。
-
-## 5. 已知首版限制
-
-1. Circle 没有连续检测，高速圆形可能穿过薄障碍；
-2. AABB CCD 每个 Body 每步最多处理 4 次剩余时间撞击；Dynamic–Dynamic 只保证最早动态撞击，后续迭代主要保证 Static/Kinematic/Tile 等零逆质量目标；
-3. solver 没有 warm starting、睡眠、旋转或角动量；深堆叠稳定性受固定 8 次迭代限制；
-4. Tile 只支持规则整格 AABB，没有斜坡、半砖和自定义多边形；
-5. AABB sweep 只支持 AABB Collider 和 Tile；Circle 目标明确跳过；
-6. 所有物理生命周期调用假定在主线程；
-7. Kinematic 为无限质量，不会被碰撞推动；
-8. 一个 PhysicsWorld 只允许一个活动 Tile World。
-
-## 6. 扩展审计
-
-四叉树可作为新的 `IBroadPhaseIndex` 实现加入，不需要修改检测、响应、World 或 Gameplay。实现只能长期保存 ColliderId、bounds 和过滤快照，不得缓存 `Collider*` 或跨帧 view 指针。必须以 `BruteForceBroadPhaseIndex` 为 oracle 比较候选超集和稳定顺序。
-
-新形状需要同时扩展局部 `ColliderShape`、`WorldColliderShape`、世界转换、bounds、离散策略、query 和调试适配；不能只在某一个 detector 中私自识别。
-
-## 7. 测试基线
-
-当前 physics 标签覆盖：数据契约、材质归一化与组合、积分、过滤、形状检测、Brute/SAP oracle、注册与 ID 生命周期、固定步上限、接触事件、摩擦/弹性/移动平台、基础堆叠、Block/Overlap、CCD、Tile 接缝、one-way、drop-through、全部查询族、Gameplay Service 与具体 Runtime（含 Sensor）。
-
-性能验收仍采用结构指标而不是机器相关毫秒阈值：记录 proxy、pair、narrow test、Tile sample、CCD 与 solver iteration；SAP 候选不能超过 Brute Force 全组合，并且真实检测结果必须一致。
+Box2D tolerances still require sensible physical sizes after conversion. A configurable EU scale is not a guarantee of numerical stability at arbitrary magnitudes.

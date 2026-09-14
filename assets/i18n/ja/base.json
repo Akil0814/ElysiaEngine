@@ -37,6 +37,7 @@
     }
   },
   "physics_combat_gallery": {
+    "box2d_lab": "Box2D 物理ラボ",
     "title": "物理・戦闘デモ",
     "collider": "コライダー戦闘",
     "platform_tile": "横スクロールタイル戦闘",

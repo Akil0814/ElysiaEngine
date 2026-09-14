@@ -37,6 +37,7 @@
     }
   },
   "physics_combat_gallery": {
+    "box2d_lab": "Box2D 物理实验室",
     "title": "物理与战斗演示",
     "collider": "碰撞体战斗",
     "platform_tile": "横版 Tile 战斗",

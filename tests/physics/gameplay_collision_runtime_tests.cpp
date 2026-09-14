@@ -25,10 +25,11 @@ public:
     std::span<const elysia::physics::Collider> colliders() const noexcept
     { return {&collider, 1}; }
     elysia::physics::Collider collider;
+    elysia::physics::ColliderId id = 0;
 };
 
 elysia::physics::PhysicsObjectHandle add_physics(elysia::physics::PhysicsWorld& w,ColliderObject& o){
- auto h=w.register_object(o,elysia::physics::BodyDefinition{},o.colliders());o.collider.id=w.collider_id(h,0);return h;
+ auto h=w.register_object(o,elysia::physics::BodyDefinition{},o.colliders());o.id=w.collider_id(h,0);return h;
 }
 
 class Listener final : public elysia::gameplay::collision::GameplayCollisionListener
@@ -116,37 +117,37 @@ int main()
         "Gameplay collision probes must register in the core world");
     require(add(sensor_object).is_valid() && add(sensor_body_object).is_valid(),
         "Sensor collision probes must register in the core world");
-    hit_object.set_position({0, 0});
-    hurt_object.set_position({0, 0});
-    push_first.set_position({30, 0});
-    push_second.set_position({30, 0});
-    body_object.set_position({60, 0});
-    world_object.set_position({60, 0});
-    sensor_object.set_position({90, 0});
-    sensor_body_object.set_position({90, 0});
+    world.teleport_object(*world.object_handle(hit_object), {0, 0});
+    world.teleport_object(*world.object_handle(hurt_object), {0, 0});
+    world.teleport_object(*world.object_handle(push_first), {30, 0});
+    world.teleport_object(*world.object_handle(push_second), {30, 0});
+    world.teleport_object(*world.object_handle(body_object), {60, 0});
+    world.teleport_object(*world.object_handle(world_object), {60, 0});
+    world.teleport_object(*world.object_handle(sensor_object), {90, 0});
+    world.teleport_object(*world.object_handle(sensor_body_object), {90, 0});
 
     GameplayCollisionRuntime runtime(world);
     Listener listener;
     require(runtime.add_listener(listener), "Gameplay listeners must bind");
     const ActorCollisionRig player_rig{
-        10, teams::Player, body_object.collider.id, push_first.collider.id,
-        {}, {sensor_object.collider.id}};
+        10, teams::Player, body_object.id, push_first.id,
+        {}, {sensor_object.id}};
     const ActorCollisionRig enemy_rig{
-        20, teams::Enemy, InvalidColliderId, push_second.collider.id,
-        {hurt_object.collider.id}, {}};
+        20, teams::Enemy, InvalidColliderId, push_second.id,
+        {hurt_object.id}, {}};
     const ActorCollisionRig sensor_body_rig{
-        40, teams::Player, sensor_body_object.collider.id,
+        40, teams::Player, sensor_body_object.id,
         InvalidColliderId, {}, {}};
-    require(!runtime.bind_actor({99, InvalidTeamId, world_object.collider.id})
+    require(!runtime.bind_actor({99, InvalidTeamId, world_object.id})
             && !runtime.bind_actor({99, teams::Player})
             && !runtime.bind_collider({
-                world_object.collider.id, 99, teams::Player, ColliderRole::HitBox}),
+                world_object.id, 99, teams::Player, ColliderRole::HitBox}),
         "Invalid Team, empty rigs, and generic HitBox bindings must be rejected");
     require(runtime.bind_actor(player_rig)
             && runtime.bind_actor(enemy_rig)
             && runtime.bind_actor(sensor_body_rig)
             && runtime.bind_hit_box({
-                {hit_object.collider.id, 10, teams::Enemy, ColliderRole::HitBox},
+                {hit_object.id, 10, teams::Enemy, ColliderRole::HitBox},
                 10, 100, 1000}),
         "Gameplay bindings must commit valid core collider identities");
 
@@ -159,8 +160,8 @@ int main()
         "Body contacts must route against both world and bound Sensor colliders");
     require(listener.sensor_events == 1
             && listener.sensor_phases.back() == CollisionEventPhase::Begin
-            && listener.last_sensor.collider == sensor_object.collider.id
-            && listener.last_sensor_body.collider == sensor_body_object.collider.id,
+            && listener.last_sensor.collider == sensor_object.id
+            && listener.last_sensor_body.collider == sensor_body_object.id,
         "Sensor/Body overlap Begin must normalize binding order and ignore Team relation");
     (void)world.advance(1.0 / 60.0);
     require(listener.hit_events == 1,
@@ -177,7 +178,7 @@ int main()
         "Sensor overlaps must route End after natural separation");
 
     runtime.end_attack_instance(100);
-    require(!runtime.unbind_collider(hit_object.collider.id),
+    require(!runtime.unbind_collider(hit_object.id),
         "Ending an attack must retire its HitBox binding");
     require(runtime.team_relation(teams::Player, teams::Player) == TeamRelation::Friendly
             && runtime.team_relation(teams::Player, teams::Enemy) == TeamRelation::Hostile
@@ -185,9 +186,9 @@ int main()
         "The built-in Team resolver must implement Friendly/Hostile/Neutral defaults");
     require(runtime.unbind_actor(10) && runtime.bind_actor(player_rig),
         "Actor unbind must remove the complete rig so the ActorId can bind again");
-    require(runtime.unbind_collider(body_object.collider.id)
-            && runtime.unbind_collider(push_first.collider.id)
-            && runtime.unbind_collider(sensor_object.collider.id)
+    require(runtime.unbind_collider(body_object.id)
+            && runtime.unbind_collider(push_first.id)
+            && runtime.unbind_collider(sensor_object.id)
             && runtime.bind_actor(player_rig),
         "Individual collider unbinds must maintain and eventually retire their rig");
 
@@ -201,9 +202,9 @@ int main()
         GameplayCollisionRuntime snapshot_runtime(snapshot_world);
         require(snapshot_runtime.bind_actor({
                     1, teams::Player, InvalidColliderId, InvalidColliderId,
-                    {}, {sensor.collider.id}})
+                    {}, {sensor.id}})
                 && snapshot_runtime.bind_actor({
-                    2, teams::Enemy, body.collider.id}),
+                    2, teams::Enemy, body.id}),
             "Gameplay callback snapshot rigs must bind");
         ClearingListener clearing(snapshot_runtime);
         require(snapshot_runtime.add_listener(clearing),

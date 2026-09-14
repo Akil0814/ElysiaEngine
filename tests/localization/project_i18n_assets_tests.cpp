@@ -154,6 +154,7 @@ const std::set<std::string> expected_keys = {
     "physics_combat_gallery.collider",
     "physics_combat_gallery.platform_tile",
     "physics_combat_gallery.title",
+    "physics_combat_gallery.box2d_lab",
     "physics_combat_gallery.top_down_tile",
     "ui_component_gallery.typography.description",
     "ui_component_gallery.typography.sample_10",

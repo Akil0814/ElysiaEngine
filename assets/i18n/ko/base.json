@@ -37,6 +37,7 @@
     }
   },
   "physics_combat_gallery": {
+    "box2d_lab": "Box2D 물리 실험실",
     "title": "물리 및 전투 데모",
     "collider": "콜라이더 전투",
     "platform_tile": "플랫폼 타일 전투",

@@ -229,6 +229,18 @@ add_elysia_test(physics_framework_contract_tests
     SOURCES physics/physics_framework_contract_tests.cpp
 )
 
+add_elysia_test(physics_scale_tests
+    LABEL physics
+    SOURCES physics/physics_scale_tests.cpp
+)
+
+add_elysia_test(box2d_lab_tests
+    LABEL physics
+    SOURCES game/box2d_lab_tests.cpp
+    LIBRARIES game_lib ${SDL2_LIBRARIES}
+    SDL
+)
+
 add_elysia_test(physics_world_lifecycle_tests
     LABEL physics
     SOURCES physics/physics_world_lifecycle_tests.cpp

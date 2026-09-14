@@ -20,17 +20,4 @@ struct CollisionEvent
     CollisionContact contact{};
 };
 
-struct CollisionFrame
-{
-    std::vector<CollisionContact> contacts;
-    std::vector<CollisionEvent> events;
-    std::vector<CollisionPair> ignored_pairs_overlapping;
-
-    void clear() noexcept
-    {
-        contacts.clear();
-        events.clear();
-        ignored_pairs_overlapping.clear();
-    }
-};
 }

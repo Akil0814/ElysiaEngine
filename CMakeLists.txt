@@ -141,6 +141,11 @@ endif()
 
 add_subdirectory(engine)
 add_subdirectory(game)
+option(ELYSIA_BUILD_PHYSICS_BENCHMARK "Build the standalone physics timing probe" OFF)
+if(ELYSIA_BUILD_PHYSICS_BENCHMARK)
+    add_executable(physics_benchmark tools/benchmarks/physics_benchmark.cpp)
+    target_link_libraries(physics_benchmark PRIVATE engine_lib)
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

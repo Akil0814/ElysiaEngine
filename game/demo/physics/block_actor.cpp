@@ -266,7 +266,9 @@ void PlatformPlayerCharacter::fixed_update(double delta)
 {
     if (!alive())
         return;
-    set_velocity_x(_move_axis * move_speed());
+    auto desired_velocity = velocity();
+    desired_velocity.x = _move_axis * move_speed();
+    desired_velocity.y = std::min(desired_velocity.y, 700.0f);
     if (_move_axis != 0.0f)
         set_facing(_move_axis < 0.0f ? Facing::Left : Facing::Right);
     if (_primary_requested)
@@ -278,10 +280,11 @@ void PlatformPlayerCharacter::fixed_update(double delta)
         if (_drop_requested)
             (void)combat_session()->request_drop_through(*this);
         else if (combat_session()->is_grounded(*this))
-            set_velocity_y(-520.0f);
+            desired_velocity.y = -520.0f;
     }
     _jump_requested = false;
     _drop_requested = false;
+    set_velocity(desired_velocity);
 }
 
 TopDownPlayerCharacter::TopDownPlayerCharacter(

@@ -83,18 +83,6 @@ void ContactCache::invalidate_target(CollisionTarget target)
     });
 }
 
-void ContactCache::invalidate_tiles()
-{
-    _invalidated.reserve(_invalidated.size() + _contacts.size());
-    std::erase_if(_contacts, [&](const CollisionContact& contact)
-    {
-        const bool remove = contact.pair.first.kind == CollisionTargetKind::Tile
-            || contact.pair.second.kind == CollisionTargetKind::Tile;
-        if (remove) _invalidated.push_back(contact);
-        return remove;
-    });
-}
-
 void ContactCache::clear() noexcept
 {
     _contacts.clear();

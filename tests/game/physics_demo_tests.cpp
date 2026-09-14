@@ -308,9 +308,11 @@ void test_obstacle_material_and_kinematic_platform()
             && platform.body_definition().velocity.x == 15.0f
             && platform.collider_definitions().front().material == config.material,
         "Moving platform must be Kinematic and retain its configured material");
-    platform.set_position({41, 30});
+    elysia::physics::PhysicsWorld platform_world;
+    add_physics(platform_world, platform);
+    platform_world.teleport_object(platform.physics_handle(), {41, 30});
     platform.fixed_update(0.0);
-    require(platform.velocity().x == -15.0f,
+    require(std::fabs(platform.velocity().x + 15.0f) < 0.001f,
         "Moving platform must reverse after reaching its authored bound");
 
     std::vector<elysia::core::RenderCommand> commands;

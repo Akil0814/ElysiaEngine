@@ -30,17 +30,11 @@ struct CollisionPair
 
 struct CollisionManifold
 {
-    // Detection strategies orient the normal from CollisionPair::first to second.
+    // Normal points from CollisionPair::first to second.
     elysia::core::Vector2 normal{};
     float penetration = 0.0f;
     std::array<elysia::core::Vector2, 2> contact_points{};
     std::uint8_t contact_point_count = 0;
-};
-
-struct CollisionHit
-{
-    CollisionManifold manifold{};
-    float time_of_impact = 1.0f;
 };
 
 struct CollisionOverlap
@@ -54,7 +48,6 @@ struct CollisionContact
     CollisionPair pair{};
     CollisionManifold manifold{};
     CollisionResponse response = CollisionResponse::Ignore;
-    float time_of_impact = 1.0f;
     float normal_impulse = 0.0f;
     float tangent_impulse = 0.0f;
 };

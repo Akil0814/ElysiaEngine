@@ -20,7 +20,6 @@ public:
 
     // Remove current state immediately; publish one End on the next step.
     void invalidate_target(CollisionTarget target);
-    void invalidate_tiles();
     void clear() noexcept;
 
     [[nodiscard]] std::span<const CollisionContact> contacts() const noexcept;

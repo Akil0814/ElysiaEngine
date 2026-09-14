@@ -249,7 +249,6 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
     if (ImGui::CollapsingHeader("Debug Snapshot"))
     {
         ImGui::Text("Shapes: %zu", snapshot.shapes.size());
-        ImGui::Text("Tile candidates: %zu", snapshot.tile_candidates.size());
         ImGui::Text("Contacts: %zu", snapshot.contacts.size());
         ImGui::Text("Velocities: %zu", snapshot.velocities.size());
     }

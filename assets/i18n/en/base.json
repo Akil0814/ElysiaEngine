@@ -37,6 +37,7 @@
     }
   },
   "physics_combat_gallery": {
+    "box2d_lab": "Box2D Physics Lab",
     "title": "Physics & Combat Demos",
     "collider": "Collider Combat",
     "platform_tile": "Platform Tile Combat",

@@ -80,14 +80,12 @@ struct PhysicsDebugVelocity
 struct PhysicsDebugSnapshot
 {
     std::vector<PhysicsDebugShape> shapes;
-    std::vector<TileCoordinate> tile_candidates;
     std::vector<CollisionContact> contacts;
     std::vector<PhysicsDebugVelocity> velocities;
 
     void clear() noexcept
     {
         shapes.clear();
-        tile_candidates.clear();
         contacts.clear();
         velocities.clear();
     }

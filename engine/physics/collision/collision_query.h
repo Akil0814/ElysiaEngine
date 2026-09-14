@@ -42,7 +42,6 @@ struct AabbSweepQuery
 struct CollisionOverlapQueryHit
 {
     CollisionTarget target{};
-    CollisionManifold manifold{};
     CollisionResponse response = CollisionResponse::Ignore;
 };
 

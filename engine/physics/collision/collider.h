@@ -16,6 +16,7 @@ inline constexpr ColliderId InvalidColliderId = 0;
 
 struct CollisionFilter
 {
+    bool operator==(const CollisionFilter&) const noexcept = default;
     CollisionBits category = 1u;
     CollisionBits mask = 0xffffffffu;
     std::int32_t group = 0;
@@ -77,14 +78,14 @@ constexpr PassThroughDirection& operator|=(
 
 struct OneWayCollision
 {
+    bool operator==(const OneWayCollision&) const noexcept = default;
     PassThroughDirection pass_through = PassThroughDirection::None;
     float tolerance = 0.01f;
 };
 
 struct Collider
 {
-    ColliderId id = InvalidColliderId;
-
+    bool operator==(const Collider&) const noexcept = default;
     ColliderShape shape{AabbShape{}};
 
     CollisionFilter filter{};
