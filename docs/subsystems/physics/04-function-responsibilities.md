@@ -1,8 +1,8 @@
 # Fixed-step execution
 1. Snapshot registered participants and invoke active, live participants' fixed updates.
 2. Commit deferred commands in order. A pending reset takes precedence.
-3. Remove destroyed objects, synchronize activation and snapshot previous poses.
-4. Freeze shape geometry, one-way rules, velocities and pass-through pairs.
+3. Remove destroyed objects and synchronize activation.
+4. Freeze current and preceding shape geometry, Tile adjacency, one-way rules, support contacts and pass-through pairs; then advance the previous-pose storage for interpolation.
 5. Advance Box2D.
 6. Copy contact/Sensor information into engine values while ID tombstones remain available.
 7. Update engine contact state and write back owner transforms.

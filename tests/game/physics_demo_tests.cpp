@@ -239,6 +239,30 @@ void test_actor_provider_and_damage_flow()
         "Death processing must leave all physical participation disabled");
 }
 
+void test_drop_through_all_supporting_tiles()
+{
+    using namespace example::demo::physics;
+    using namespace elysia::physics;
+    DemoTileMap tiles({0, 100}, {100, 20}, 3, 1, TileOutOfBoundsPolicy::Empty);
+    tiles.fill_row(0, 0, 2, one_way_tile());
+    PlatformPlayerCharacter player({85, 30, 34, 56});
+    PhysicsWorldConfig config;
+    config.gravity = {0, 1200};
+    PhysicsWorld world(config);
+    world.set_tile_world(tiles);
+    add_physics(world, player);
+    elysia::gameplay::collision::GameplayCollisionRuntime runtime(world);
+    DemoCombatSession combat(world, runtime);
+    require(player.bind_combat(combat), "Drop-through player binds combat");
+    for (int i = 0; i < 120; ++i)
+        world.advance(1.0 / 60);
+    require(combat.is_grounded(player), "Player stands across a tile seam");
+    require(combat.request_drop_through(player), "Gameplay requests drop through both supports");
+    for (int i = 0; i < 45; ++i)
+        world.advance(1.0 / 60);
+    require(player.position().y > 130, "Gameplay drop does not leave a second support blocking");
+}
+
 void test_input_is_latched_until_a_fixed_step()
 {
     using namespace example::demo::physics;
@@ -642,6 +666,7 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
 
 int main()
 {
+    test_drop_through_all_supporting_tiles();
     test_input_is_latched_until_a_fixed_step();
     test_moving_obstacle_rendering_uses_interpolation();
     test_health_contract();

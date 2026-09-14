@@ -2,6 +2,8 @@
 #include <iostream>
 struct Tiles : ITileCollisionWorld
 {
+    int width = 1;
+    int empty_column = -1;
     TileCollisionCell cell{TileCollisionType::Block};
     Vector2 world_origin() const noexcept override
     {
@@ -13,7 +15,7 @@ struct Tiles : ITileCollisionWorld
     }
     int columns() const noexcept override
     {
-        return 1;
+        return width;
     }
     int rows() const noexcept override
     {
@@ -23,8 +25,10 @@ struct Tiles : ITileCollisionWorld
     {
         return TileOutOfBoundsPolicy::Empty;
     }
-    TileCollisionCell cell_at(TileCoordinate) const noexcept override
+    TileCollisionCell cell_at(TileCoordinate coordinate) const noexcept override
     {
+        if (coordinate.x == empty_column)
+            return {};
         return cell;
     }
 };
@@ -50,6 +54,79 @@ Vector2 run_one_way_case(PassThroughDirection directions, Vector2 start, Vector2
 
 int main()
 {
+    {
+        Tiles wall;
+        wall.width = 3;
+        PhysicsWorld world;
+        world.set_tile_world(wall);
+        wall.empty_column = 0;
+        world.update_tiles({0, 0}, {0, 0});
+        Probe actor;
+        actor.set_position({70, 100});
+        actor.definition.velocity = {150, 0};
+        actor.add(world);
+        step(world, 60);
+        require(actor.position().x < 81, "Removing a neighbor exposes a blocking side face");
+    }
+    {
+        Tiles floor;
+        floor.width = 20;
+        floor.cell.material.friction = 0;
+        PhysicsWorldConfig config;
+        config.gravity = {0, 1000};
+        PhysicsWorld world(config);
+        world.set_tile_world(floor);
+        Probe walker;
+        walker.set_position({20, 70});
+        walker.collider.material.friction = 0;
+        auto handle = walker.add(world);
+        step(world, 120);
+        walker.tick = [&] {
+            world.set_velocity(handle, {150, world.body_state(handle)->velocity.y});
+        };
+        step(world, 360);
+        require(walker.position().x > 910,
+                "Walking crosses tile seams without catching a side face");
+        walker.tick = [&] {
+            world.set_velocity(handle, {-150, world.body_state(handle)->velocity.y});
+        };
+        step(world, 360);
+        require(walker.position().x < 30, "Walking crosses tile seams in reverse");
+        require(!world.request_pass_through(world.collider_id(handle, 0),
+                                            CollisionTarget::from_tile({0, 0})),
+                "Solid terrain rejects drop-through requests");
+    }
+    {
+        Tiles floor;
+        floor.width = 3;
+        floor.cell.type = TileCollisionType::OneWay;
+        floor.cell.one_way = OneWayCollision{PassThroughDirection::Up, 1};
+        PhysicsWorldConfig config;
+        config.gravity = {0, 1000};
+        PhysicsWorld world(config);
+        world.set_tile_world(floor);
+        Probe actor;
+        actor.set_position({90, 60});
+        auto handle = actor.add(world);
+        step(world, 300);
+        require(world.contact_state(handle).grounded && !world.body_state(handle)->awake,
+                "Actor rests asleep across a one-way tile seam");
+        std::vector<CollisionContact> contacts;
+        auto target = CollisionTarget::from_collider(world.collider_id(handle, 0));
+        world.collect_contacts(target, contacts);
+        require(contacts.size() == 2, "Seam has two supporting cells");
+        for (const auto &contact : contacts)
+            require(world.request_pass_through(target.collider, contact.pair.first == target
+                                                                    ? contact.pair.second
+                                                                    : contact.pair.first),
+                    "Every supporting one-way cell accepts drop-through");
+        step(world, 45);
+        require(actor.position().y > 140, "Sleeping actor drops through all seam supports");
+        world.teleport_object(handle, {90, 50});
+        world.set_velocity(handle, {});
+        step(world, 180);
+        require(world.contact_state(handle).grounded, "Cleared drop request permits landing again");
+    }
     for (int fps : {30, 60, 120, 144})
     {
         Probe o;

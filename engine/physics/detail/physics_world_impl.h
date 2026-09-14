@@ -39,7 +39,9 @@ struct PhysicsWorld::Impl
         CollisionTarget target{};
         std::optional<OneWayCollision> one_way;
         b2AABB bounds{};
+        b2AABB previous_bounds{};
         b2Vec2 velocity{};
+        unsigned internal_faces = 0; // left, right, top, bottom; frozen Tile adjacency
     };
     struct Joint
     {
@@ -58,6 +60,7 @@ struct PhysicsWorld::Impl
     std::map<std::uint64_t, Joint> joints;
     std::unordered_map<std::uint64_t, Mapping> mapping;
     std::unordered_map<std::uint64_t, Snapshot> snapshot;
+    std::set<CollisionPair> previous_blocking_contacts;
     std::set<CollisionPair> ignored;
     ContactCache cache;
     std::vector<ICollisionListener *> listeners;

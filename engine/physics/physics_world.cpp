@@ -169,6 +169,7 @@ void PhysicsWorld::Impl::clear()
     mapping.clear();
     snapshot.clear();
     ignored.clear();
+    previous_blocking_contacts.clear();
     cache.clear();
     listeners.clear();
     b2DestroyWorld(world);
@@ -606,32 +607,81 @@ bool PhysicsWorld::request_pass_through(ColliderId actor, CollisionTarget suppor
     if (!contains_collider(actor) || !support.is_valid())
         return false;
     auto &p = *_impl;
+    const Impl::Shape *platform = nullptr;
+    if (support.kind == CollisionTargetKind::Tile)
+    {
+        auto it = p.tile_shapes.find(support.tile);
+        if (it != p.tile_shapes.end())
+            platform = &it->second;
+    }
+    else
+    {
+        auto it = p.shapes.find(support.collider);
+        if (it != p.shapes.end())
+            platform = &it->second;
+    }
+    if (!platform || !platform->definition.one_way ||
+        platform->definition.one_way->pass_through == PassThroughDirection::None)
+        return false;
     p.enqueue([&p, actor, support] {
         p.ignored.insert(normalized_collision_pair(CollisionTarget::from_collider(actor), support));
+        auto it = p.shapes.find(actor);
+        if (it != p.shapes.end())
+            if (auto *object = p.get(it->second.owner); object && B2_IS_NON_NULL(object->native))
+                b2Body_SetAwake(object->native, true);
     });
     return true;
 }
 void PhysicsWorld::Impl::prepare_snapshot()
 {
     snapshot.clear();
+    previous_blocking_contacts.clear();
+    for (const auto &contact : cache.contacts())
+        if (contact.response == CollisionResponse::Block)
+            previous_blocking_contacts.insert(contact.pair);
     auto add = [&](Shape &s) {
         if (B2_IS_NULL(s.native))
             return;
         auto body = b2Shape_GetBody(s.native);
         auto transform = b2Body_GetTransform(body);
+        auto previous_transform = transform;
+        if (auto *object = get(s.owner))
+            previous_transform = {to(object->previous.position), b2MakeRot(object->previous.angle)};
         b2AABB bounds;
+        b2AABB previous_bounds;
         if (b2Shape_GetType(s.native) == b2_circleShape)
         {
             auto circle = b2Shape_GetCircle(s.native);
             bounds = b2ComputeCircleAABB(&circle, transform);
+            previous_bounds = b2ComputeCircleAABB(&circle, previous_transform);
         }
         else
         {
             auto polygon = b2Shape_GetPolygon(s.native);
             bounds = b2ComputePolygonAABB(&polygon, transform);
+            previous_bounds = b2ComputePolygonAABB(&polygon, previous_transform);
         }
-        snapshot.emplace(b2StoreShapeId(s.native), Snapshot{s.target, s.definition.one_way, bounds,
-                                                            b2Body_GetLinearVelocity(body)});
+        unsigned internal_faces = 0;
+        if (s.target.kind == CollisionTargetKind::Tile && !s.definition.one_way && tiles &&
+            s.target.tile.x >= 0 && s.target.tile.x < tiles->columns() && s.target.tile.y >= 0 &&
+            s.target.tile.y < tiles->rows())
+        {
+            const auto c = s.target.tile;
+            const TileCoordinate neighbors[] = {
+                {c.x - 1, c.y}, {c.x + 1, c.y}, {c.x, c.y - 1}, {c.x, c.y + 1}};
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                auto neighbor = tile_shapes.find(neighbors[i]);
+                if (neighbor != tile_shapes.end() && B2_IS_NON_NULL(neighbor->second.native) &&
+                    neighbor->second.definition.response == CollisionResponse::Block &&
+                    !neighbor->second.definition.one_way &&
+                    neighbor->second.definition.filter == s.definition.filter)
+                    internal_faces |= 1u << i;
+            }
+        }
+        snapshot.emplace(b2StoreShapeId(s.native),
+                         Snapshot{s.target, s.definition.one_way, bounds, previous_bounds,
+                                  b2Body_GetLinearVelocity(body), internal_faces});
     };
     for (auto &[id, s] : shapes)
         add(s);
@@ -649,10 +699,15 @@ void PhysicsWorld::Impl::prepare_snapshot()
         }
         if (!a || !b)
             return true;
-        return a->bounds.upperBound.x < b->bounds.lowerBound.x ||
-               b->bounds.upperBound.x < a->bounds.lowerBound.x ||
-               a->bounds.upperBound.y < b->bounds.lowerBound.y ||
-               b->bounds.upperBound.y < a->bounds.lowerBound.y;
+        // Resting Box2D shapes have a small separation. Keep the request across that
+        // gap until the actor has moved clear of the platform.
+        const float margin =
+            std::max({0.02f, a->one_way ? units.to_length(a->one_way->tolerance) : 0.0f,
+                      b->one_way ? units.to_length(b->one_way->tolerance) : 0.0f});
+        return a->bounds.upperBound.x + margin < b->bounds.lowerBound.x ||
+               b->bounds.upperBound.x + margin < a->bounds.lowerBound.x ||
+               a->bounds.upperBound.y + margin < b->bounds.lowerBound.y ||
+               b->bounds.upperBound.y + margin < a->bounds.lowerBound.y;
     });
 }
 bool PhysicsWorld::Impl::pre_solve(b2ShapeId a, b2ShapeId b, b2Manifold *manifold, void *context)
@@ -665,37 +720,58 @@ bool PhysicsWorld::Impl::pre_solve(b2ShapeId a, b2ShapeId b, b2Manifold *manifol
     auto &y = bi->second;
     if (p.ignored.contains(normalized_collision_pair(x.target, y.target)))
         return false;
+    const bool supported =
+        p.previous_blocking_contacts.contains(normalized_collision_pair(x.target, y.target));
     auto allow = [&](const Snapshot &platform, const Snapshot &actor, b2Vec2 normal) {
+        // Per-cell identity is retained, but shared solid faces are not terrain surfaces.
+        const unsigned face = std::abs(normal.x) > std::abs(normal.y) ? (normal.x < 0 ? 1u : 2u)
+                                                                      : (normal.y < 0 ? 4u : 8u);
+        if (platform.internal_faces & face)
+            return false;
         if (!platform.one_way)
             return true;
         auto rules = platform.one_way->pass_through;
         float tol = std::max(0.005f, p.units.to_length(platform.one_way->tolerance));
-        // Decide from pre-step bounds and velocity; never query or mutate the world here.
+        // A discrete contact can first arrive one step after crossing the surface.
+        // Preserve that approach side using the preceding pose, including moving supports.
+        // Never query or mutate the world here.
         bool has_direction = false;
         bool blocks = false;
         if (has_pass_through_direction(rules, PassThroughDirection::Up))
         {
             has_direction = true;
-            blocks |= actor.bounds.upperBound.y <= platform.bounds.lowerBound.y + tol &&
-                      actor.velocity.y >= platform.velocity.y && normal.y < -0.5f;
+            blocks |=
+                (supported || actor.bounds.upperBound.y <= platform.bounds.lowerBound.y + tol ||
+                 actor.previous_bounds.upperBound.y <=
+                     platform.previous_bounds.lowerBound.y + tol) &&
+                normal.y < -0.5f;
         }
         if (has_pass_through_direction(rules, PassThroughDirection::Down))
         {
             has_direction = true;
-            blocks |= actor.bounds.lowerBound.y >= platform.bounds.upperBound.y - tol &&
-                      actor.velocity.y <= platform.velocity.y && normal.y > 0.5f;
+            blocks |=
+                (supported || actor.bounds.lowerBound.y >= platform.bounds.upperBound.y - tol ||
+                 actor.previous_bounds.lowerBound.y >=
+                     platform.previous_bounds.upperBound.y - tol) &&
+                normal.y > 0.5f;
         }
         if (has_pass_through_direction(rules, PassThroughDirection::Left))
         {
             has_direction = true;
-            blocks |= actor.bounds.upperBound.x <= platform.bounds.lowerBound.x + tol &&
-                      actor.velocity.x >= platform.velocity.x && normal.x < -0.5f;
+            blocks |=
+                (supported || actor.bounds.upperBound.x <= platform.bounds.lowerBound.x + tol ||
+                 actor.previous_bounds.upperBound.x <=
+                     platform.previous_bounds.lowerBound.x + tol) &&
+                normal.x < -0.5f;
         }
         if (has_pass_through_direction(rules, PassThroughDirection::Right))
         {
             has_direction = true;
-            blocks |= actor.bounds.lowerBound.x >= platform.bounds.upperBound.x - tol &&
-                      actor.velocity.x <= platform.velocity.x && normal.x > 0.5f;
+            blocks |=
+                (supported || actor.bounds.lowerBound.x >= platform.bounds.upperBound.x - tol ||
+                 actor.previous_bounds.lowerBound.x >=
+                     platform.previous_bounds.upperBound.x - tol) &&
+                normal.x > 0.5f;
         }
         return !has_direction || blocks;
     };
@@ -831,11 +907,12 @@ std::uint32_t PhysicsWorld::advance(double dt)
                     else
                         b2Body_Disable(o.native);
                 }
-                o.previous = o.current;
             }
             for (auto id : dead)
                 p.destroy_object(id);
             p.prepare_snapshot();
+            for (auto &[id, o] : p.objects)
+                o.previous = o.current;
             b2World_Step(p.world, float(p.config.fixed_delta_seconds), int(p.config.sub_steps));
             ++p.epoch;
             std::vector<CollisionContact> contacts;

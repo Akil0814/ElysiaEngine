@@ -125,14 +125,14 @@ bool DemoCombatSession::request_drop_through(const BlockCombatActor& actor)
     const auto body = elysia::physics::CollisionTarget::from_collider(
         actor.body_collider_id());
     _world->collect_contacts(body, contacts);
+    bool accepted = false;
     for (const auto& contact : contacts)
     {
         const auto other = contact.pair.first == body
             ? contact.pair.second : contact.pair.first;
-        if (_runtime->request_drop_through({actor.body_collider_id(), other}))
-            return true;
+        accepted |= _runtime->request_drop_through({actor.body_collider_id(), other});
     }
-    return false;
+    return accepted;
 }
 
 void DemoCombatSession::update(double delta)

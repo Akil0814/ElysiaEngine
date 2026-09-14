@@ -5,6 +5,10 @@ After modifying cells, call `update_tiles(begin, end)` with an inclusive dirty r
 
 Block out-of-bounds installs four perimeter barriers. Empty out-of-bounds installs none. Negative map origins and non-square tiles are supported.
 
-One-way decisions compare exact pre-step shape bounds and relative velocity. A small native tolerance is retained for resting contacts. `request_pass_through` suppresses a pair until its frozen shape bounds no longer overlap.
+Adjacent solid cells with matching filters suppress their shared internal contact faces. Exposed faces remain blocking, and dirty updates refresh adjacency on the next step. Cell identities and materials remain separate.
+
+One-way decisions use frozen current and preceding shape bounds, the contact normal, and previously accepted support contacts. The preceding bounds retain the approach side when a discrete contact arrives after crossing the surface. Accepted supports remain enabled while penetration settles; tiny solver velocity reversals do not disable them.
+
+`request_pass_through` accepts one-way supports only, wakes the actor, and suppresses each requested pair until the shapes separate beyond the resting-contact margin. Request every supporting pair when the actor spans multiple cells. The demo Gameplay helper does this automatically.
 
 This adapter exposes rectangular cells; slopes, half tiles, chunk streaming and merged contours are not included.
