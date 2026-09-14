@@ -73,5 +73,28 @@ int main()
     auto state = motor.body_state(a);
     require(state && state->angle > 0.3f && state->angle < 0.6f,
             "Clockwise motor respects radian limits");
+
+    Probe debug_actor;
+    PhysicsWorld debug_world;
+    debug_actor.add(debug_world);
+    debug_world.set_debug_capture(PhysicsDebugCapture::Shapes);
+    step(debug_world);
+    require(debug_world.debug_snapshot().shapes.size() == 1,
+            "Shape capture produces a debug snapshot");
+    debug_world.set_debug_capture(PhysicsDebugCapture::Shapes);
+    require(debug_world.advance(1.0 / 120.0) == 0 &&
+                debug_world.debug_snapshot().shapes.size() == 1,
+            "Repeated capture mode preserves the snapshot between fixed steps");
+    debug_world.set_debug_capture(static_cast<PhysicsDebugCapture>(0xff));
+    require(debug_world.debug_capture() == PhysicsDebugCapture::All &&
+                debug_world.debug_snapshot().shapes.empty(),
+            "Capture mode masks unsupported bits and clears stale data on change");
+    step(debug_world);
+    require(debug_world.debug_snapshot().shapes.size() == 1,
+            "Changed capture mode produces a fresh snapshot");
+    debug_world.set_debug_capture(PhysicsDebugCapture::None);
+    require(debug_world.debug_snapshot().shapes.empty(),
+            "Disabling capture clears the active snapshot");
+
     std::cout << "physics simulation tests passed\n";
 }

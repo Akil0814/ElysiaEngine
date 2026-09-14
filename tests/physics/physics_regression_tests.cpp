@@ -28,6 +28,26 @@ struct Tiles : ITileCollisionWorld
         return cell;
     }
 };
+
+Vector2 run_one_way_case(PassThroughDirection directions, Vector2 start, Vector2 velocity)
+{
+    Probe platform;
+    platform.definition.type = BodyType::Static;
+    platform.set_position({100, 100});
+    platform.collider.shape = AabbShape{{0, 0, 20, 20}};
+    platform.collider.one_way = OneWayCollision{directions, 1};
+
+    Probe actor;
+    actor.set_position(start);
+    actor.definition.velocity = velocity;
+
+    PhysicsWorld world;
+    platform.add(world);
+    actor.add(world);
+    step(world, 24);
+    return actor.position();
+}
+
 int main()
 {
     for (int fps : {30, 60, 120, 144})
@@ -78,6 +98,32 @@ int main()
             "Drop request accepted");
     step(pw, 45);
     require(jumper.position().y > 140, "Drop passes platform");
+
+    require(run_one_way_case(PassThroughDirection::Up, {100, 140}, {0, -300}).y < 80,
+            "Up one-way allows upward passage");
+    require(run_one_way_case(PassThroughDirection::Up, {100, 60}, {0, 300}).y < 100,
+            "Up one-way blocks downward passage");
+    require(run_one_way_case(PassThroughDirection::Down, {100, 60}, {0, 300}).y > 120,
+            "Down one-way allows downward passage");
+    require(run_one_way_case(PassThroughDirection::Down, {100, 140}, {0, -300}).y > 100,
+            "Down one-way blocks upward passage");
+    require(run_one_way_case(PassThroughDirection::Left, {140, 100}, {-300, 0}).x < 80,
+            "Left one-way allows leftward passage");
+    require(run_one_way_case(PassThroughDirection::Left, {60, 100}, {300, 0}).x < 100,
+            "Left one-way blocks rightward passage");
+    require(run_one_way_case(PassThroughDirection::Right, {60, 100}, {300, 0}).x > 120,
+            "Right one-way allows rightward passage");
+    require(run_one_way_case(PassThroughDirection::Right, {140, 100}, {-300, 0}).x > 100,
+            "Right one-way blocks leftward passage");
+
+    constexpr auto up_or_left = PassThroughDirection::Up | PassThroughDirection::Left;
+    require(run_one_way_case(up_or_left, {100, 140}, {0, -300}).y < 80 &&
+                run_one_way_case(up_or_left, {140, 100}, {-300, 0}).x < 80,
+            "Combined one-way directions allow every configured passage");
+    require(run_one_way_case(up_or_left, {100, 60}, {0, 300}).y < 100 &&
+                run_one_way_case(up_or_left, {60, 100}, {300, 0}).x < 100,
+            "Combined one-way directions block unconfigured passage");
+
     // Sensor semantics are discrete; a cast supplies high-speed gameplay detection.
     Probe sensor, moving;
     sensor.collider.response = CollisionResponse::Overlap;

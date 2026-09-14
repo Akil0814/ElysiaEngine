@@ -23,7 +23,7 @@ ElysiaEngine executable -> game_lib -> engine_lib -> SDL2
 
 ## 构建与运行
 
-当前明确验证的平台是 Windows x64。需要 CMake 3.20 或更高版本，以及支持 C++23 的 MSVC 工具链。Windows 构建使用仓库 `thirdparty/SDL2` 中随附的 x64 库。
+当前明确验证的平台是 Windows x64。需要 CMake 3.22 或更高版本，以及支持 C++23 的 MSVC 工具链。Windows 构建使用仓库 `thirdparty/SDL2` 中随附的 x64 库，并直接构建 `thirdparty/box2d` 中固定版本的 Box2D 源码。
 
 ```powershell
 cmake -S . -B build -A x64

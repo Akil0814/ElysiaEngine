@@ -2,12 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 project(ElysiaEngine LANGUAGES C CXX)
 
 include(CTest)
-include(FetchContent)
-FetchContent_Declare(box2d
-    URL https://codeload.github.com/erincatto/box2d/zip/refs/tags/v3.1.1
-    URL_HASH SHA256=7c88bef902a118a2933c21027918fea455237a1310e5422daf4640d22ba9a446
-)
-FetchContent_MakeAvailable(box2d)
+add_subdirectory(thirdparty/box2d EXCLUDE_FROM_ALL)
 option(ELYSIA_ENABLE_ASAN "Enable AddressSanitizer for project targets" OFF)
 option(ELYSIA_ENABLE_IMGUI "Build the optional Dear ImGui development overlay" ON)
 

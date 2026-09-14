@@ -4,7 +4,7 @@
 
 要求：
 
-- CMake 3.20 或更高版本；
+- CMake 3.22 或更高版本；
 - 支持 C++23 的 Visual Studio/MSVC 工具链；
 - x64 生成器平台。
 

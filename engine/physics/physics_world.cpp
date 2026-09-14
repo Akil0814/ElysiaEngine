@@ -671,19 +671,33 @@ bool PhysicsWorld::Impl::pre_solve(b2ShapeId a, b2ShapeId b, b2Manifold *manifol
         auto rules = platform.one_way->pass_through;
         float tol = std::max(0.005f, p.units.to_length(platform.one_way->tolerance));
         // Decide from pre-step bounds and velocity; never query or mutate the world here.
+        bool has_direction = false;
+        bool blocks = false;
         if (has_pass_through_direction(rules, PassThroughDirection::Up))
-            return actor.bounds.upperBound.y <= platform.bounds.lowerBound.y + tol &&
-                   actor.velocity.y >= platform.velocity.y && normal.y < -0.5f;
+        {
+            has_direction = true;
+            blocks |= actor.bounds.upperBound.y <= platform.bounds.lowerBound.y + tol &&
+                      actor.velocity.y >= platform.velocity.y && normal.y < -0.5f;
+        }
         if (has_pass_through_direction(rules, PassThroughDirection::Down))
-            return actor.bounds.lowerBound.y >= platform.bounds.upperBound.y - tol &&
-                   actor.velocity.y <= platform.velocity.y && normal.y > 0.5f;
+        {
+            has_direction = true;
+            blocks |= actor.bounds.lowerBound.y >= platform.bounds.upperBound.y - tol &&
+                      actor.velocity.y <= platform.velocity.y && normal.y > 0.5f;
+        }
         if (has_pass_through_direction(rules, PassThroughDirection::Left))
-            return actor.bounds.upperBound.x <= platform.bounds.lowerBound.x + tol &&
-                   actor.velocity.x >= platform.velocity.x && normal.x < -0.5f;
+        {
+            has_direction = true;
+            blocks |= actor.bounds.upperBound.x <= platform.bounds.lowerBound.x + tol &&
+                      actor.velocity.x >= platform.velocity.x && normal.x < -0.5f;
+        }
         if (has_pass_through_direction(rules, PassThroughDirection::Right))
-            return actor.bounds.lowerBound.x >= platform.bounds.upperBound.x - tol &&
-                   actor.velocity.x <= platform.velocity.x && normal.x > 0.5f;
-        return true;
+        {
+            has_direction = true;
+            blocks |= actor.bounds.lowerBound.x >= platform.bounds.upperBound.x - tol &&
+                      actor.velocity.x <= platform.velocity.x && normal.x > 0.5f;
+        }
+        return !has_direction || blocks;
     };
     return allow(x, y, manifold->normal) && allow(y, x, b2Neg(manifold->normal));
 }
@@ -877,6 +891,10 @@ std::uint32_t PhysicsWorld::advance(double dt)
 }
 void PhysicsWorld::set_debug_capture(PhysicsDebugCapture c) noexcept
 {
+    constexpr auto valid_bits = static_cast<std::uint8_t>(PhysicsDebugCapture::All);
+    c = static_cast<PhysicsDebugCapture>(static_cast<std::uint8_t>(c) & valid_bits);
+    if (_impl->capture == c)
+        return;
     _impl->capture = c;
     _impl->debug.clear();
 }
