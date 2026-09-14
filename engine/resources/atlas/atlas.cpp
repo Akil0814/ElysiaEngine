@@ -1,3 +1,4 @@
+#include "engine/core/render/sdl_texture_size.h"
 #include "atlas.h"
 
 namespace elysia::resources
@@ -7,7 +8,7 @@ static bool query_texture_size(SDL_Texture* texture, int& width, int& height)
 	if (!texture)
 		return false;
 
-	return SDL_QueryTexture(texture, nullptr, nullptr, &width, &height) == 0;
+	return elysia::core::texture_pixel_size(texture,&width,&height);
 }
 
 Atlas::Atlas(std::string name)

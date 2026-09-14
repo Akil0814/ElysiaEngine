@@ -2,7 +2,7 @@
 
 #include "raw_input_types.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 namespace elysia::input
 {

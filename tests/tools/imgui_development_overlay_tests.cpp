@@ -3,7 +3,7 @@
 #include "engine/tools/imgui/imgui_development_overlay.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <imgui.h>
 
 #include <cstdlib>
@@ -21,21 +21,12 @@ class SdlFixture
 public:
     SdlFixture()
     {
-        require(SDL_Init(SDL_INIT_VIDEO) == 0,
+        require(SDL_Init(SDL_INIT_VIDEO),
             "ImGui integration tests must initialize SDL");
-        _window = SDL_CreateWindow(
-            "ImGui development overlay tests",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            640,
-            360,
-            SDL_WINDOW_HIDDEN);
+        _window = SDL_CreateWindow("ImGui development overlay tests", 640, 360, SDL_WINDOW_HIDDEN);
         require(_window != nullptr,
             "ImGui integration tests must create an SDL window");
-        _renderer = SDL_CreateRenderer(
-            _window,
-            -1,
-            SDL_RENDERER_SOFTWARE | SDL_RENDERER_TARGETTEXTURE);
+        _renderer = SDL_CreateRenderer(_window, "software");
         require(_renderer != nullptr,
             "ImGui integration tests must create an SDL renderer");
     }
@@ -169,29 +160,29 @@ void require_renderer_state_restoration(SdlFixture& fixture)
         320,
         180);
     require(target != nullptr, "renderer-state test must create a target texture");
-    require(SDL_SetRenderTarget(&renderer, target) == 0,
+    require(SDL_SetRenderTarget(&renderer, target),
         "renderer-state test must bind its target texture");
-    require(SDL_RenderSetLogicalSize(&renderer, 320, 180) == 0,
+    require(SDL_SetRenderLogicalPresentation(&renderer, 320, 180, SDL_LOGICAL_PRESENTATION_LETTERBOX),
         "renderer-state test must set logical size");
-    require(SDL_RenderSetIntegerScale(&renderer, SDL_TRUE) == 0,
+    require(SDL_SetRenderLogicalPresentation(&renderer,320,180,SDL_LOGICAL_PRESENTATION_INTEGER_SCALE),
         "renderer-state test must set integer scale");
     const SDL_Rect viewport{10, 12, 200, 100};
     const SDL_Rect clip{20, 22, 40, 30};
-    SDL_RenderSetViewport(&renderer, &viewport);
-    SDL_RenderSetClipRect(&renderer, &clip);
-    require(SDL_RenderSetScale(&renderer, 1.5f, 0.75f) == 0,
+    SDL_SetRenderViewport(&renderer, &viewport);
+    SDL_SetRenderClipRect(&renderer, &clip);
+    require(SDL_SetRenderScale(&renderer, 1.5f, 0.75f),
         "renderer-state test must set renderer scale");
-    require(SDL_SetRenderDrawColor(&renderer, 12, 34, 56, 78) == 0,
+    require(SDL_SetRenderDrawColor(&renderer, 12, 34, 56, 78),
         "renderer-state test must set draw color");
-    require(SDL_SetRenderDrawBlendMode(&renderer, SDL_BLENDMODE_ADD) == 0,
+    require(SDL_SetRenderDrawBlendMode(&renderer, SDL_BLENDMODE_ADD),
         "renderer-state test must set blend mode");
 
     SDL_Rect expected_viewport{};
-    SDL_RenderGetViewport(&renderer, &expected_viewport);
+    SDL_GetRenderViewport(&renderer, &expected_viewport);
     SDL_Rect expected_clip{};
-    SDL_RenderGetClipRect(&renderer, &expected_clip);
+    SDL_GetRenderClipRect(&renderer, &expected_clip);
     const bool expected_clip_enabled =
-        SDL_RenderIsClipEnabled(&renderer) == SDL_TRUE;
+        SDL_RenderClipEnabled(&renderer) == true;
 
     overlay.begin_frame(1.0 / 60.0);
     overlay.render(renderer);
@@ -200,21 +191,23 @@ void require_renderer_state_restoration(SdlFixture& fixture)
         "ImGui rendering must restore the SDL render target");
     int logical_width = 0;
     int logical_height = 0;
-    SDL_RenderGetLogicalSize(&renderer, &logical_width, &logical_height);
+    SDL_GetRenderLogicalPresentation(&renderer,&logical_width,&logical_height,nullptr);
     require(logical_width == 320 && logical_height == 180,
         "ImGui rendering must restore logical size");
-    require(SDL_RenderGetIntegerScale(&renderer) == SDL_TRUE,
+    SDL_RendererLogicalPresentation mode{};
+    SDL_GetRenderLogicalPresentation(&renderer,nullptr,nullptr,&mode);
+    require(mode == SDL_LOGICAL_PRESENTATION_INTEGER_SCALE,
         "ImGui rendering must restore integer scale");
     SDL_Rect actual_viewport{};
-    SDL_RenderGetViewport(&renderer, &actual_viewport);
+    SDL_GetRenderViewport(&renderer, &actual_viewport);
     require(actual_viewport.x == expected_viewport.x
             && actual_viewport.y == expected_viewport.y
             && actual_viewport.w == expected_viewport.w
             && actual_viewport.h == expected_viewport.h,
         "ImGui rendering must restore viewport");
     SDL_Rect actual_clip{};
-    SDL_RenderGetClipRect(&renderer, &actual_clip);
-    require((SDL_RenderIsClipEnabled(&renderer) == SDL_TRUE)
+    SDL_GetRenderClipRect(&renderer, &actual_clip);
+    require((SDL_RenderClipEnabled(&renderer) == true)
                 == expected_clip_enabled
             && actual_clip.x == expected_clip.x
             && actual_clip.y == expected_clip.y
@@ -223,7 +216,7 @@ void require_renderer_state_restoration(SdlFixture& fixture)
         "ImGui rendering must restore clipping");
     float scale_x = 0.0f;
     float scale_y = 0.0f;
-    SDL_RenderGetScale(&renderer, &scale_x, &scale_y);
+    SDL_GetRenderScale(&renderer, &scale_x, &scale_y);
     require(scale_x == 1.5f && scale_y == 0.75f,
         "ImGui rendering must restore renderer scale");
     Uint8 red = 0;

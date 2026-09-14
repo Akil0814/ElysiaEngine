@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+#include "tests/support/sdl_audio_fixture.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
@@ -13,10 +14,10 @@
 #include "engine/ui/widgets/ui_text_input.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -42,17 +43,14 @@ void test_text_input_uses_private_editing_texture()
 {
     using namespace elysia;
 
-    SDL_setenv("SDL_AUDIODRIVER","dummy",1);
-    require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0,
+    SDL_setenv_unsafe("SDL_AUDIO_DRIVER","dummy",1);
+    require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
         "text input texture test must initialize SDL video and audio");
-    require((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
-        "text input texture test must initialize PNG support");
-    require(TTF_Init() == 0,"text input texture test must initialize SDL_ttf");
-    require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,
+    require(TTF_Init(),"text input texture test must initialize SDL_ttf");
+    require(elysia::tests::open_test_mixer(),
         "text input texture test must open SDL_mixer audio");
 
-    SDL_Surface* target_surface = SDL_CreateRGBSurfaceWithFormat(
-        0,256,128,32,SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface* target_surface = SDL_CreateSurface(256, 128, SDL_PIXELFORMAT_RGBA32);
     require(target_surface != nullptr,"text input texture test must create a software target surface");
     SDL_Renderer* renderer = SDL_CreateSoftwareRenderer(target_surface);
     require(renderer != nullptr,"text input texture test must create a software renderer");
@@ -231,10 +229,10 @@ void test_text_input_uses_private_editing_texture()
     resource_manager->clear();
     builtin_resources.shutdown();
     SDL_DestroyRenderer(renderer);
-    SDL_FreeSurface(target_surface);
-    Mix_CloseAudio();
+    SDL_DestroySurface(target_surface);
+    elysia::tests::close_test_mixer();
     TTF_Quit();
-    IMG_Quit();
+
     SDL_Quit();
 }
 }

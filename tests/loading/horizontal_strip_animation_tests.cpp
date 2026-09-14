@@ -1,4 +1,4 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/animation/animation_service.h"
 #include "engine/animation/runtime/animation_manager.h"
@@ -18,7 +18,7 @@
 #include "engine/ui/widgets/image/ui_animation.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <array>
 #include <cstdlib>
@@ -46,7 +46,7 @@ std::uint32_t read_surface_pixel(
 		+ y * surface.pitch;
 	std::memcpy(
 		&pixel,
-		row + x * surface.format->BytesPerPixel,
+		row + x * SDL_BYTESPERPIXEL(surface.format),
 		sizeof(pixel));
 	return pixel;
 }
@@ -60,7 +60,7 @@ void write_surface_pixel(
 	auto* row = static_cast<std::uint8_t*>(surface.pixels)
 		+ y * surface.pitch;
 	std::memcpy(
-		row + x * surface.format->BytesPerPixel,
+		row + x * SDL_BYTESPERPIXEL(surface.format),
 		&pixel,
 		sizeof(pixel));
 }
@@ -69,10 +69,9 @@ void test_coverage_mask_surface_conversion()
 {
 	using namespace elysia;
 
-	require(SDL_Init(SDL_INIT_VIDEO) == 0,
+	require(SDL_Init(SDL_INIT_VIDEO),
 		"coverage mask tests must initialize SDL video");
-	resources::SurfacePtr source(SDL_CreateRGBSurfaceWithFormat(
-		0,3,1,32,SDL_PIXELFORMAT_RGBA32));
+	resources::SurfacePtr source(SDL_CreateSurface(3, 1, SDL_PIXELFORMAT_RGBA32));
 	require(source != nullptr,
 		"coverage mask tests must create a source surface");
 
@@ -83,12 +82,7 @@ void test_coverage_mask_surface_conversion()
 			*source,
 			index,
 			0,
-			SDL_MapRGBA(
-				source->format,
-				static_cast<Uint8>(10 + index),
-				static_cast<Uint8>(20 + index),
-				static_cast<Uint8>(30 + index),
-				alpha_values[index]));
+			SDL_MapRGBA(SDL_GetPixelFormatDetails(source->format),nullptr,static_cast<Uint8>(10 + index),static_cast<Uint8>(20 + index),static_cast<Uint8>(30 + index),alpha_values[index]));
 	}
 	const std::array<std::uint32_t,3> source_pixels{
 		read_surface_pixel(*source,0,0),
@@ -107,13 +101,7 @@ void test_coverage_mask_surface_conversion()
 		Uint8 green = 0;
 		Uint8 blue = 0;
 		Uint8 alpha = 0;
-		SDL_GetRGBA(
-			read_surface_pixel(*mask,index,0),
-			mask->format,
-			&red,
-			&green,
-			&blue,
-			&alpha);
+		SDL_GetRGBA(read_surface_pixel(*mask,index,0),SDL_GetPixelFormatDetails(mask->format),nullptr,&red,&green,&blue,&alpha);
 		require(red == 255 && green == 255 && blue == 255
 				&& alpha == alpha_values[index],
 			"coverage mask pixels must be white while preserving alpha");
@@ -267,10 +255,9 @@ void test_horizontal_strip_build_and_render_commands()
 {
 	using namespace elysia;
 
-	require(SDL_Init(SDL_INIT_VIDEO) == 0,
+	require(SDL_Init(SDL_INIT_VIDEO),
 		"horizontal strip tests must initialize SDL video");
-	SDL_Surface* target_surface = SDL_CreateRGBSurfaceWithFormat(
-		0,640,480,32,SDL_PIXELFORMAT_RGBA32);
+	SDL_Surface* target_surface = SDL_CreateSurface(640, 480, SDL_PIXELFORMAT_RGBA32);
 	require(target_surface != nullptr,
 		"horizontal strip tests must create a software target surface");
 	SDL_Renderer* renderer = SDL_CreateSoftwareRenderer(target_surface);
@@ -395,8 +382,8 @@ void test_horizontal_strip_build_and_render_commands()
 		"world-to-screen projection must preserve texture modulation");
 
 	require(SDL_SetTextureColorMod(
-			screen_overlay.texture,12,34,56) == 0
-			&& SDL_SetTextureAlphaMod(screen_overlay.texture,77) == 0,
+			screen_overlay.texture,12,34,56)
+			&& SDL_SetTextureAlphaMod(screen_overlay.texture,77),
 		"executor test must configure an initial shared texture modulation");
 	core::execute_render_command(renderer,screen_overlay);
 	Uint8 restored_red = 0;
@@ -448,7 +435,7 @@ void test_horizontal_strip_build_and_render_commands()
 
 	resource_manager->clear();
 	SDL_DestroyRenderer(renderer);
-	SDL_FreeSurface(target_surface);
+	SDL_DestroySurface(target_surface);
 	SDL_Quit();
 }
 
@@ -456,10 +443,9 @@ void test_horizontal_strip_rejects_non_divisible_width()
 {
 	using namespace elysia;
 
-	require(SDL_Init(SDL_INIT_VIDEO) == 0,
+	require(SDL_Init(SDL_INIT_VIDEO),
 		"invalid horizontal strip test must initialize SDL video");
-	SDL_Surface* target_surface = SDL_CreateRGBSurfaceWithFormat(
-		0,64,64,32,SDL_PIXELFORMAT_RGBA32);
+	SDL_Surface* target_surface = SDL_CreateSurface(64, 64, SDL_PIXELFORMAT_RGBA32);
 	SDL_Renderer* renderer = SDL_CreateSoftwareRenderer(target_surface);
 	require(target_surface && renderer,
 		"invalid horizontal strip test must create a software renderer");
@@ -481,8 +467,7 @@ void test_horizontal_strip_rejects_non_divisible_width()
 	prepared.task.source_type = request.source_type;
 	prepared.surface_result._asset_key = request.atlas_key;
 	prepared.surface_result._frame_path = request.source_path;
-	prepared.surface_result._surface.reset(SDL_CreateRGBSurfaceWithFormat(
-		0,10,4,32,SDL_PIXELFORMAT_RGBA32));
+	prepared.surface_result._surface.reset(SDL_CreateSurface(10, 4, SDL_PIXELFORMAT_RGBA32));
 	require(prepared.surface_result._surface != nullptr,
 		"invalid strip test must create its source surface");
 	require(!resource_manager->commit_prepared_atlas_frame(renderer, prepared),
@@ -490,7 +475,7 @@ void test_horizontal_strip_rejects_non_divisible_width()
 
 	resource_manager->clear();
 	SDL_DestroyRenderer(renderer);
-	SDL_FreeSurface(target_surface);
+	SDL_DestroySurface(target_surface);
 	SDL_Quit();
 }
 
@@ -513,8 +498,7 @@ elysia::resources::AtlasFramePreparedResult make_directory_frame(
 	prepared.surface_result._asset_key = atlas_key;
 	prepared.surface_result._frame_path = prepared.task.frame_path;
 	prepared.surface_result._frame_index = frame_index;
-	prepared.surface_result._surface.reset(SDL_CreateRGBSurfaceWithFormat(
-		0,4,4,32,SDL_PIXELFORMAT_RGBA32));
+	prepared.surface_result._surface.reset(SDL_CreateSurface(4, 4, SDL_PIXELFORMAT_RGBA32));
 	if (include_mask && prepared.surface_result._surface)
 	{
 		auto mask = resources::create_coverage_mask_surface(
@@ -529,10 +513,9 @@ void test_directory_frames_publish_transactionally()
 {
 	using namespace elysia;
 
-	require(SDL_Init(SDL_INIT_VIDEO) == 0,
+	require(SDL_Init(SDL_INIT_VIDEO),
 		"directory atlas tests must initialize SDL video");
-	SDL_Surface* target_surface = SDL_CreateRGBSurfaceWithFormat(
-		0,64,64,32,SDL_PIXELFORMAT_RGBA32);
+	SDL_Surface* target_surface = SDL_CreateSurface(64, 64, SDL_PIXELFORMAT_RGBA32);
 	SDL_Renderer* renderer = SDL_CreateSoftwareRenderer(target_surface);
 	require(target_surface && renderer,
 		"directory atlas tests must create a software renderer");
@@ -596,7 +579,7 @@ void test_directory_frames_publish_transactionally()
 
 	resource_manager->clear();
 	SDL_DestroyRenderer(renderer);
-	SDL_FreeSurface(target_surface);
+	SDL_DestroySurface(target_surface);
 	SDL_Quit();
 }
 }

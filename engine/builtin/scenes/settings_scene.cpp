@@ -8,7 +8,7 @@
 #include "../../ui/window/ui_window.h"
 #include "../../scene/runtime/scene_runtime_context.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <memory>
@@ -52,7 +52,7 @@ elysia::ui::SettingsPanelOptions make_panel_options(const elysia::config::UserCo
 {
     SDL_Rect usable_bounds{};
     std::optional<elysia::ui::SettingsWindowSize> usable_size;
-    if (SDL_GetDisplayUsableBounds(0,&usable_bounds) == 0)
+    if (SDL_GetDisplayUsableBounds(0,&usable_bounds))
     {
         usable_size = {
             usable_bounds.w,

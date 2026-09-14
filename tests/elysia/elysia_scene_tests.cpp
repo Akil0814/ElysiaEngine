@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+#include "tests/support/sdl_audio_fixture.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
@@ -13,10 +14,10 @@
 #include "engine/scene/scene_manager.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <array>
 #include <cstdlib>
@@ -34,17 +35,14 @@ class SdlFixture
 public:
     SdlFixture()
     {
-        SDL_setenv("SDL_AUDIODRIVER","dummy",1);
-        require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0,
+        SDL_setenv_unsafe("SDL_AUDIO_DRIVER","dummy",1);
+        require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
             "Realm scene tests must initialize SDL video and audio");
-        require((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
-            "Realm scene tests must initialize PNG support");
-        require(TTF_Init() == 0,
+        require(TTF_Init(),
             "Realm scene tests must initialize SDL_ttf");
-        require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,
+        require(elysia::tests::open_test_mixer(),
             "Realm scene tests must open SDL_mixer audio");
-        _surface = SDL_CreateRGBSurfaceWithFormat(
-            0,1280,720,32,SDL_PIXELFORMAT_RGBA32);
+        _surface = SDL_CreateSurface(1280, 720, SDL_PIXELFORMAT_RGBA32);
         require(_surface != nullptr,
             "Realm scene tests must create a software surface");
         _renderer = SDL_CreateSoftwareRenderer(_surface);
@@ -55,10 +53,10 @@ public:
     ~SdlFixture()
     {
         SDL_DestroyRenderer(_renderer);
-        SDL_FreeSurface(_surface);
-        Mix_CloseAudio();
+        SDL_DestroySurface(_surface);
+        elysia::tests::close_test_mixer();
         TTF_Quit();
-        IMG_Quit();
+
         SDL_Quit();
     }
 
@@ -204,14 +202,14 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     });
 
     enter_intro(33);
-    require(Mix_PlayingMusic() != 0,
+    require(elysia::tests::music_playing() != 0,
         "ElysiaIntroScene must start Realm music on entry");
 
     send_escape(scene_manager);
     require(scene_manager.current_scene_key()
             == elysia::scene::SceneKeys::ElysiaRealm,
         "ElysiaIntroScene must ignore Escape");
-    require(Mix_PlayingMusic() != 0,
+    require(elysia::tests::music_playing() != 0,
         "ignored Intro input must not stop Realm music");
 
     scene_manager.on_update(4.5);
@@ -227,13 +225,13 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
             == elysia::realm::detail::SceneKeys::RealmContent,
         "Intro must enter Realm exactly after both playbacks complete");
     scene_manager.on_render(fixture.renderer());
-    require(Mix_PlayingMusic() != 0,
+    require(elysia::tests::music_playing() != 0,
         "Intro must hand Realm music off without stopping it");
 
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && ReturnScene::marker == 33,
         "ElysiaRealmScene Escape must preserve the full caller route");
-    require(Mix_PlayingMusic() == 0,
+    require(elysia::tests::music_playing() == 0,
         "ElysiaRealmScene must stop Realm music on exit");
 
     enter_intro(34);
@@ -244,14 +242,14 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && ReturnScene::marker == 34,
         "Realm Reuse must use the updated caller route");
-    require(Mix_PlayingMusic() == 0,
+    require(elysia::tests::music_playing() == 0,
         "Realm Reuse exit must leave Realm music stopped");
 
     enter_intro(35);
-    require(Mix_PlayingMusic() != 0,
+    require(elysia::tests::music_playing() != 0,
         "re-entered Intro must restart Realm music");
     scene_manager.shutdown();
-    require(Mix_PlayingMusic() == 0,
+    require(elysia::tests::music_playing() == 0,
         "Intro shutdown before handoff must stop Realm music");
     builtin_resources.shutdown();
 }

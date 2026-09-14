@@ -3,7 +3,7 @@
 #include "font_roles.h"
 #include "font_settings.h"
 
-#include <SDL_ttf.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <cstdint>
 #include <expected>

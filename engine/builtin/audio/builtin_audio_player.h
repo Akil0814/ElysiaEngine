@@ -25,7 +25,6 @@ public:
 
 private:
     [[nodiscard]] static int clamp_volume(int volume) noexcept;
-    [[nodiscard]] static int to_mix_volume(int volume) noexcept;
 
 private:
     const BuiltinAssetCache* _cache = nullptr;

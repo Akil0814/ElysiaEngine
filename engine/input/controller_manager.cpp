@@ -37,12 +37,12 @@ void ControllerManager::handle_event(const SDL_Event& event)
 {
     switch (event.type)
     {
-    case SDL_CONTROLLERDEVICEADDED:
-        open_controller(event.cdevice.which);
+    case SDL_EVENT_GAMEPAD_ADDED:
+        open_controller(event.gdevice.which);
         break;
 
-    case SDL_CONTROLLERDEVICEREMOVED:
-        close_controller(event.cdevice.which);
+    case SDL_EVENT_GAMEPAD_REMOVED:
+        close_controller(event.gdevice.which);
         break;
 
     default:
@@ -52,21 +52,20 @@ void ControllerManager::handle_event(const SDL_Event& event)
 
 void ControllerManager::open_connected_controllers()
 {
-    const int joystick_count = SDL_NumJoysticks();
-    for (int joystick_index = 0; joystick_index < joystick_count; ++joystick_index)
-    {
-        open_controller(joystick_index);
-    }
+    int count=0;
+    SDL_JoystickID* ids = SDL_GetGamepads(&count);
+    for (int i=0;i<count;++i) open_controller(ids[i]);
+    SDL_free(ids);
 }
 
-void ControllerManager::open_controller(int joystick_index)
+void ControllerManager::open_controller(SDL_JoystickID joystick_id)
 {
-    if (!SDL_IsGameController(joystick_index))
+    if (!SDL_IsGamepad(joystick_id))
     {
         return;
     }
 
-    SDL_GameController* controller = SDL_GameControllerOpen(joystick_index);
+    SDL_Gamepad* controller = SDL_OpenGamepad(joystick_id);
     if (!controller)
     {
         elysia::tools::Logger::instance()->warn("input","Failed to open controller");
@@ -75,20 +74,20 @@ void ControllerManager::open_controller(int joystick_index)
         return;
     }
 
-    SDL_Joystick* joystick = SDL_GameControllerGetJoystick(controller);
-    const SDL_JoystickID joystick_id = SDL_JoystickInstanceID(joystick);
+    SDL_Joystick* joystick = SDL_GetGamepadJoystick(controller);
 
-    for (SDL_GameController* existing_controller : _controllers)
+
+    for (SDL_Gamepad* existing_controller : _controllers)
     {
         if (!existing_controller)
         {
             continue;
         }
 
-        SDL_Joystick* existing_joystick = SDL_GameControllerGetJoystick(existing_controller);
-        if (SDL_JoystickInstanceID(existing_joystick) == joystick_id)
+        SDL_Joystick* existing_joystick = SDL_GetGamepadJoystick(existing_controller);
+        if (SDL_GetJoystickID(existing_joystick) == joystick_id)
         {
-            SDL_GameControllerClose(controller);
+            SDL_CloseGamepad(controller);
             return;
         }
     }
@@ -98,23 +97,23 @@ void ControllerManager::open_controller(int joystick_index)
 
 void ControllerManager::close_controller(SDL_JoystickID joystick_id)
 {
-    std::vector<SDL_GameController*>::iterator iter = std::remove_if(
+    std::vector<SDL_Gamepad*>::iterator iter = std::remove_if(
         _controllers.begin(),
         _controllers.end(),
-        [joystick_id](SDL_GameController* controller)
+        [joystick_id](SDL_Gamepad* controller)
         {
             if (!controller)
             {
                 return true;
             }
 
-            SDL_Joystick* joystick = SDL_GameControllerGetJoystick(controller);
-            if (SDL_JoystickInstanceID(joystick) != joystick_id)
+            SDL_Joystick* joystick = SDL_GetGamepadJoystick(controller);
+            if (SDL_GetJoystickID(joystick) != joystick_id)
             {
                 return false;
             }
 
-            SDL_GameControllerClose(controller);
+            SDL_CloseGamepad(controller);
             return true;
         }
     );
@@ -124,11 +123,11 @@ void ControllerManager::close_controller(SDL_JoystickID joystick_id)
 
 void ControllerManager::close_all_controllers()
 {
-    for (SDL_GameController* controller : _controllers)
+    for (SDL_Gamepad* controller : _controllers)
     {
         if (controller)
         {
-            SDL_GameControllerClose(controller);
+            SDL_CloseGamepad(controller);
         }
     }
 

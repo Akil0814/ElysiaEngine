@@ -3,8 +3,8 @@
 #include "../../core/geometry/vector2.h"
 #include "../../core/render/color.h"
 
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <array>
 #include <cstddef>

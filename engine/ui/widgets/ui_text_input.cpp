@@ -1,3 +1,4 @@
+#include "engine/core/render/sdl_texture_size.h"
 #include "ui_text_input.h"
 
 #include "../focus/ui_control_focus_scope_host.h"
@@ -8,7 +9,7 @@
 #include "../../localization/localization_service.h"
 #include "../../localization/localized_text_style.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -81,6 +82,7 @@ namespace
 }
 
 const UiTextInput* s_text_input_owner = nullptr;
+SDL_Window* s_text_input_window = nullptr;
 }
 
 struct UiTextInput::TextLayout
@@ -354,7 +356,7 @@ void UiTextInput::submit_ui_render_commands(std::vector<elysia::core::UiRenderCo
         {
             int texture_width = 0;
             int texture_height = 0;
-            if (SDL_QueryTexture(text_texture,nullptr,nullptr,&texture_width,&texture_height) == 0
+            if (elysia::core::texture_pixel_size(text_texture,&texture_width,&texture_height)
                 && texture_width > 0
                 && texture_height > 0)
             {
@@ -386,7 +388,7 @@ void UiTextInput::submit_ui_render_commands(std::vector<elysia::core::UiRenderCo
 
     if (is_focused())
     {
-        const std::uint32_t ticks = SDL_GetTicks();
+        const std::uint64_t ticks = SDL_GetTicks();
         if (((ticks / 500U) % 2U) == 0U)
         {
             const float caret_top = layout.text_y;
@@ -847,7 +849,17 @@ void UiTextInput::sync_text_input_rect() const
         1,
         static_cast<int>(std::max(layout.text_height,1.0f))
     };
-    SDL_SetTextInputRect(&ime_rect);
+    SDL_Window* window = s_text_input_window;
+    if (!window) return;
+    if (SDL_Renderer* renderer = SDL_GetRenderer(window))
+    {
+        float x=0,y=0,right=0,bottom=0;
+        SDL_RenderCoordinatesToWindow(renderer,static_cast<float>(ime_rect.x),static_cast<float>(ime_rect.y),&x,&y);
+        SDL_RenderCoordinatesToWindow(renderer,static_cast<float>(ime_rect.x+ime_rect.w),static_cast<float>(ime_rect.y+ime_rect.h),&right,&bottom);
+        ime_rect = {static_cast<int>(std::floor(x)),static_cast<int>(std::floor(y)),
+            std::max(1,static_cast<int>(std::ceil(right)-std::floor(x))),std::max(1,static_cast<int>(std::ceil(bottom)-std::floor(y)))};
+    }
+    SDL_SetTextInputArea(window,&ime_rect,0);
 }
 
 elysia::input::InputDevice UiTextInput::resolve_focus_input_device() const noexcept
@@ -873,12 +885,14 @@ bool UiTextInput::should_try_show_screen_keyboard() const noexcept
 
 void UiTextInput::acquire_text_input_ownership() const
 {
+    if (s_text_input_window && s_text_input_window != SDL_GetKeyboardFocus()) SDL_StopTextInput(s_text_input_window);
+    s_text_input_window = SDL_GetKeyboardFocus();
     s_text_input_owner = this;
     sync_text_input_rect();
     if (should_try_show_screen_keyboard())
         SDL_SetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD,"1");
-    if (!SDL_IsTextInputActive())
-        SDL_StartTextInput();
+    if (s_text_input_window && !SDL_TextInputActive(s_text_input_window))
+        SDL_StartTextInput(s_text_input_window);
 }
 
 void UiTextInput::release_text_input_ownership() const
@@ -887,8 +901,8 @@ void UiTextInput::release_text_input_ownership() const
         return;
 
     s_text_input_owner = nullptr;
-    if (SDL_IsTextInputActive())
-        SDL_StopTextInput();
+    if (s_text_input_window) SDL_StopTextInput(s_text_input_window);
+    s_text_input_window = nullptr;
 }
 
 void UiTextInput::notify_text_changed_if_needed(const std::string& previous_text) const

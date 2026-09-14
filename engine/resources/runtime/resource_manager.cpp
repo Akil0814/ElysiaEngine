@@ -108,12 +108,12 @@ TTF_Font* elysia::resources::ResourceManager::find_font(std::string_view key) co
 	return _font_manager.find_font(key);
 }
 
-Mix_Chunk* elysia::resources::ResourceManager::find_sound(std::string_view key) const
+MIX_Audio* elysia::resources::ResourceManager::find_sound(std::string_view key) const
 {
 	return _audio_manager.find_sound(key);
 }
 
-Mix_Music* elysia::resources::ResourceManager::find_music(std::string_view key) const
+MIX_Audio* elysia::resources::ResourceManager::find_music(std::string_view key) const
 {
 	return _audio_manager.find_music(key);
 }

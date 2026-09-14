@@ -5,8 +5,8 @@
 #include "../../resources/atlas/atlas.h"
 #include "../../resources/texture/texture_loader.h"
 
-#include <SDL_ttf.h>
-#include <SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3_mixer/SDL_mixer.h>
 
 #include <expected>
 #include <array>
@@ -28,17 +28,17 @@ struct BuiltinFontDeleter
 
 struct BuiltinSoundDeleter
 {
-    void operator()(Mix_Chunk* sound) const noexcept;
+    void operator()(MIX_Audio* sound) const noexcept;
 };
 
 struct BuiltinMusicDeleter
 {
-    void operator()(Mix_Music* music) const noexcept;
+    void operator()(MIX_Audio* music) const noexcept;
 };
 
 using BuiltinFontPtr = std::unique_ptr<TTF_Font, BuiltinFontDeleter>;
-using BuiltinSoundPtr = std::unique_ptr<Mix_Chunk, BuiltinSoundDeleter>;
-using BuiltinMusicPtr = std::unique_ptr<Mix_Music, BuiltinMusicDeleter>;
+using BuiltinSoundPtr = std::unique_ptr<MIX_Audio, BuiltinSoundDeleter>;
+using BuiltinMusicPtr = std::unique_ptr<MIX_Audio, BuiltinMusicDeleter>;
 using BuiltinTranslationTable = std::unordered_map<std::string, std::string>;
 
 struct BuiltinAnimationDefinition
@@ -72,8 +72,8 @@ public:
         BuiltinLocaleId locale,std::string_view key) const noexcept;
     [[nodiscard]] const BuiltinAnimationDefinition* find_animation(
         BuiltinAnimationId id) const noexcept;
-    [[nodiscard]] Mix_Chunk* find_sound(BuiltinSoundId id) const noexcept;
-    [[nodiscard]] Mix_Music* find_music(BuiltinMusicId id) const noexcept;
+    [[nodiscard]] MIX_Audio* find_sound(BuiltinSoundId id) const noexcept;
+    [[nodiscard]] MIX_Audio* find_music(BuiltinMusicId id) const noexcept;
     [[nodiscard]] std::unique_ptr<elysia::animation::Animation> create_animation(
         BuiltinAnimationId id) const;
 

@@ -1,3 +1,4 @@
+#include "tests/support/sdl_audio_fixture.h"
 #define SDL_MAIN_HANDLED
 
 #include "engine/builtin/scenes/application_failure_presentation.h"
@@ -20,9 +21,9 @@
 #include <thread>
 #include <utility>
 
-#include <SDL.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 int main()
 {
@@ -177,14 +178,13 @@ int main()
         "missing-resource start test must initialize its isolated project root");
     auto registry = elysia::io::ContentRegistryLoader{}.load(paths->content_registry());
     require(registry,"missing-resource start test must parse the copied registry");
-    require(SDL_Init(SDL_INIT_VIDEO) == 0,
+    require(SDL_Init(SDL_INIT_VIDEO),
         "missing-resource start test must initialize SDL video");
-    require(TTF_Init() == 0,
+    require(TTF_Init(),
         "post-preflight font deletion tests must initialize SDL_ttf");
-    require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,
+    require(elysia::tests::open_test_mixer(),
         "post-preflight audio deletion tests must initialize SDL_mixer");
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
-        0,32,32,32,SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface* surface = SDL_CreateSurface(32, 32, SDL_PIXELFORMAT_RGBA32);
     SDL_Renderer* renderer = surface ? SDL_CreateSoftwareRenderer(surface) : nullptr;
     require(renderer,"missing-resource start test must create a software renderer");
     elysia::loading::GameContentLoader content_loader;
@@ -307,8 +307,8 @@ int main()
         "music","test.music",true);
 
     SDL_DestroyRenderer(renderer);
-    SDL_FreeSurface(surface);
-    Mix_CloseAudio();
+    SDL_DestroySurface(surface);
+    elysia::tests::close_test_mixer();
     TTF_Quit();
     SDL_Quit();
     require(paths->initialize(source_root),

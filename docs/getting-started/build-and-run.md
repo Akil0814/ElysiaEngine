@@ -1,108 +1,63 @@
 # 构建、运行与测试
 
-## Windows x64
+## Windows MSVC x64
 
-要求：
+要求 CMake 3.24+、支持 C++23 的 MSVC，以及支持 SDL3 GPU renderer 的图形驱动。所有 SDL 依赖与选定编解码器均使用仓库固定源码；正常配置和构建不需要网络。版本与补丁见[依赖来源](../../thirdparty/SDL3-DEPENDENCIES.md)。
 
-- CMake 3.22 或更高版本；
-- 支持 C++23 的 Visual Studio/MSVC 工具链；
-- x64 生成器平台。
-
-仓库已经在 `thirdparty/SDL2` 中提供 MSVC x64 的 SDL2、SDL2_image、SDL2_mixer、SDL2_ttf 和 SDL2_gfx 头文件、导入库与运行时 DLL。ENet 1.3.18 由 `thirdparty/enet` 的固定源码静态构建，不需要额外运行时 DLL。配置阶段会拒绝 Win32 生成器。
+使用独立目录，不复用旧 SDL2 缓存。以下命令使用 Visual Studio 多配置生成器：
 
 ```powershell
-cmake -S . -B build -A x64
-cmake --build build --config Debug
+cmake -S . -B out/build/sdl3-Debug -A x64 -DELYSIA_ENABLE_IMGUI=ON
+cmake --build out/build/sdl3-Debug --config Debug --parallel
+ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
+cmake -S . -B out/build/sdl3-Release -A x64 -DELYSIA_ENABLE_IMGUI=OFF
+cmake --build out/build/sdl3-Release --config Release --parallel
+ctest --test-dir out/build/sdl3-Release -C Release --output-on-failure
 ```
 
-运行示例程序：
+若目录已经使用 Ninja，请保留原生成器，或选择新的目录。在 x64 Native Tools 命令行中使用 `-G Ninja -DCMAKE_BUILD_TYPE=Debug` 或 `Release`，省略 `-A x64`。Ninja 的可执行文件位于构建目录下，无 `Debug/` 子目录。
+
+从仓库根目录运行：
 
 ```powershell
-.\build\Debug\ElysiaEngine.exe
+.\out\build\sdl3-Debug\Debug\ElysiaEngine.exe
 ```
 
-对于 Visual Studio 多配置生成器，Debug 测试需要显式指定配置：
+SDL3 为共享库，CMake 将实际生成的 SDL3 DLL 复制到程序和测试目录。image、ttf、mixer、gfx 与编解码器静态链接，不需要旧 SDL2 DLL。MSVC 运行库默认使用动态 CRT，Debug 与 Release 必须各自保持一致。
+
+## Dear ImGui
+
+默认 `ELYSIA_ENABLE_IMGUI=ON`，使用 Dear ImGui 1.92.9 的 SDL3 与 SDLRenderer3 后端。关闭时使用独立目录并传入 `-DELYSIA_ENABLE_IMGUI=OFF`。接口说明见 [Development Overlay](../subsystems/development-overlay.md)。
+
+## GPU 与测试
 
 ```powershell
-ctest --test-dir build -C Debug --output-on-failure
+ctest --test-dir out/build/sdl3-Debug -C Debug -L gpu --output-on-failure
+ctest --test-dir out/build/sdl3-Debug -C Debug -L input --output-on-failure
+ctest --test-dir out/build/sdl3-Debug -C Debug -L ui --output-on-failure
 ```
 
-可以按标签运行单个子系统，例如：
+GPU 测试需要真实图形设备，不能使用 dummy video 驱动。`sdl3_gpu_integration_tests` 会验证无效 GPU 后端的失败路径、实际 GPU 绘制和读回，并在测试工作目录写入 `sdl3-gpu-verification.png`。示例应用 smoke test 会运行数秒后注入正常退出事件。软件 renderer 测试用于精确检查 UI 像素规则，不能代替 GPU 测试。
 
-```powershell
-ctest --test-dir build -C Debug -L input --output-on-failure
-ctest --test-dir build -C Debug -L ui --output-on-failure
-```
+无显示环境可用 `ctest -LE gpu` 运行其余测试，但这不满足完整迁移验收。SDL3 的驱动环境变量名是 `SDL_VIDEO_DRIVER` 和 `SDL_AUDIO_DRIVER`。
 
-## 可选 Dear ImGui 开发覆盖层
+## Linux、macOS 与 MinGW
 
-当前开发构建默认启用 Dear ImGui。需要修正旧 CMake 缓存或建立独立开发目录时，可以显式开启：
-
-```powershell
-cmake -S . -B build-imgui -A x64 -DELYSIA_ENABLE_IMGUI=ON
-cmake --build build-imgui --config Debug
-ctest --test-dir build-imgui -C Debug -L tools --output-on-failure
-```
-
-具体生命周期、输入捕获和面板注册契约见 [Development Overlay](../subsystems/development-overlay.md)。
-
-发布构建应显式使用 `-DELYSIA_ENABLE_IMGUI=OFF`，从产物中完全移除 ImGui 与 Overlay 逐帧接入点。
-
-## macOS
-
-macOS 配置会在 `/opt/homebrew` 和 `/usr/local` 中查找 SDL2、SDL2_image、SDL2_mixer 和 SDL2_ttf；ENet 仍由仓库内的源码构建。安装依赖后可使用单配置构建：
+各平台使用相同的 vendored 源码，不再查找系统 SDL2 开发包。需要 C++23 工具链、CMake、平台图形/音频开发库及可用 GPU 驱动。SDL 的平台系统依赖见仓库中的 [Linux 说明](../../thirdparty/SDL3/docs/README-linux.md) 与 [macOS 说明](../../thirdparty/SDL3/docs/README-macos.md)。
 
 ```bash
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake -S . -B out/build/sdl3-linux -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build out/build/sdl3-linux --parallel
+ctest --test-dir out/build/sdl3-linux --output-on-failure
 ```
 
-该路径存在于当前 CMake 配置中，但本仓库不将 macOS 声明为与 Windows x64 同等级的持续验证平台。
-
-## Linux（Ubuntu 24.04 / WSL2）
-
-目标环境为 Ubuntu 24.04 x64 原生桌面或 WSL2，计划验证的工具链为 GCC 13。当前已补齐构建配置，但尚无 Linux 实机构建通过记录。
-
-在 Ubuntu 终端安装构建工具和系统 SDL2 开发包：
-
-```bash
-sudo apt update
-sudo apt install build-essential gcc-13 g++-13 cmake ninja-build pkg-config \
-  libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libsdl2-gfx-dev
-```
-
-Linux 通过 `pkg-config` 查找上述五个 SDL 模块，缺少任意一个会在 CMake 配置阶段报错。ENet、Box2D 和 ImGui 由仓库源码构建，无需单独安装；不使用 `thirdparty/SDL2/lib` 中的 Windows 二进制，也不需要 SDL_net。
-
-在仓库根目录执行以下命令。Linux 使用独立的 `build-linux` 目录，不复用 Windows 的 CMake 缓存；ImGui 默认开启：
-
-```bash
-cmake -S . -B build-linux -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_C_COMPILER=gcc-13 \
-  -DCMAKE_CXX_COMPILER=g++-13
-cmake --build build-linux --parallel
-ctest --test-dir build-linux --output-on-failure
-```
-
-在没有显示或音频设备的环境中，仅为测试进程设置 dummy 驱动：
-
-```bash
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-  ctest --test-dir build-linux --output-on-failure
-```
-
-这些变量不应设为游戏运行的默认环境。交互运行需要 Linux 图形桌面或 WSLg，并从仓库根目录启动：
-
-```bash
-./build-linux/ElysiaEngine
-```
-
-后续 Linux 实机验收需要完成 Debug 全量构建、完整 CTest、`ELYSIA_ENABLE_IMGUI=OFF` 构建，以及窗口、输入和音频的交互检查。无显示测试不能代替交互验证。
+macOS 或 MinGW 使用各自的新目录与工具链运行同样的配置入口。当前这些平台尚未实机验证；不能将 Windows 构建结果视为其他平台的验收结果。
 
 ## 常见问题
 
-- 配置提示 SDL 库架构不匹配：删除错误架构的构建目录，使用 `-A x64` 重新配置。
-- 程序启动时找不到资源：从仓库根目录启动构建产物，确保 `assets/` 保持原有相对位置。
-- 修改了源码但目标未更新：重新运行 CMake 配置；`engine/` 与 `game/` 使用 `GLOB_RECURSE CONFIGURE_DEPENDS` 收集 `.cpp`。
-- 只构建不运行测试不能验证数据文件和运行时集成；提交前应运行完整 CTest。
+- GPU 创建失败：检查系统图形驱动与 SDL GPU 后端支持。应用会报告错误并清理资源，不自动退回软件 renderer。
+- 找不到资源：从仓库根目录启动，保留 `assets/` 的目录结构。
+- Debug 并行构建遇到 MSVC PDB 冲突：使用新的构建目录，可在 Ninja 配置时设置 `-DCMAKE_C_FLAGS_DEBUG="/Od /Z7 /RTC1" -DCMAKE_CXX_FLAGS_DEBUG="/Od /Z7 /RTC1"`。
+- 不同生成器或架构不能共用缓存，切换时使用独立构建目录。
+
+迁移完成度及人工验收项目见 [SDL3 迁移记录](../development/sdl3-migration.md)。

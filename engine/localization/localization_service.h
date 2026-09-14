@@ -5,7 +5,7 @@
 #include "localization_failure.h"
 #include "../tools/singleton.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdint>
 #include <expected>

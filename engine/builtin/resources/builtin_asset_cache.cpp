@@ -1,10 +1,12 @@
+#include "engine/audio/mixer_backend.h"
+#include "engine/core/render/sdl_texture_size.h"
 #include "builtin_asset_cache.h"
 
 #include "../../io/json/strict_json.h"
 #include "../../resources/texture/surface_loader.h"
 #include "../../resources/texture/texture_loader.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <exception>
@@ -58,16 +60,16 @@ void BuiltinFontDeleter::operator()(TTF_Font* font) const noexcept
         TTF_CloseFont(font);
 }
 
-void BuiltinSoundDeleter::operator()(Mix_Chunk* sound) const noexcept
+void BuiltinSoundDeleter::operator()(MIX_Audio* sound) const noexcept
 {
     if (sound)
-        Mix_FreeChunk(sound);
+        elysia::audio::detail::mixer_backend().destroy_audio(sound);
 }
 
-void BuiltinMusicDeleter::operator()(Mix_Music* music) const noexcept
+void BuiltinMusicDeleter::operator()(MIX_Audio* music) const noexcept
 {
     if (music)
-        Mix_FreeMusic(music);
+        elysia::audio::detail::mixer_backend().destroy_audio(music);
 }
 
 BuiltinAssetCache::~BuiltinAssetCache()
@@ -164,14 +166,14 @@ const BuiltinAnimationDefinition* BuiltinAssetCache::find_animation(
     return definition ? &*definition : nullptr;
 }
 
-Mix_Chunk* BuiltinAssetCache::find_sound(BuiltinSoundId id) const noexcept
+MIX_Audio* BuiltinAssetCache::find_sound(BuiltinSoundId id) const noexcept
 {
     if (!valid_id(id, BuiltinSoundId::Count))
         return nullptr;
     return _sounds[builtin_resource_index(id)].get();
 }
 
-Mix_Music* BuiltinAssetCache::find_music(BuiltinMusicId id) const noexcept
+MIX_Audio* BuiltinAssetCache::find_music(BuiltinMusicId id) const noexcept
 {
     if (!valid_id(id, BuiltinMusicId::Count))
         return nullptr;
@@ -324,9 +326,9 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
                 renderer,
                 **coverage_mask_surface);
             if (!texture_resource.coverage_mask
-                || SDL_SetTextureBlendMode(
+                || !SDL_SetTextureBlendMode(
                     texture_resource.coverage_mask.get(),
-                    SDL_BLENDMODE_BLEND) != 0)
+                    SDL_BLENDMODE_BLEND))
             {
                 return std::unexpected(make_prepare_error(
                     "Built-in animation coverage mask texture creation failed",
@@ -378,8 +380,7 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
 
         int texture_width = 0;
         int texture_height = 0;
-        if (SDL_QueryTexture(texture.texture.get(), nullptr, nullptr,
-                &texture_width, &texture_height) != 0
+        if (!elysia::core::texture_pixel_size(texture.texture.get(),&texture_width,&texture_height)
             || !descriptor.has_expected_texture_dimensions(texture_width, texture_height))
         {
             return std::unexpected(
@@ -457,7 +458,7 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
             return std::unexpected("Built-in sound id is duplicated.");
 
         const std::filesystem::path path = catalog.resolve(descriptor.relative_path);
-        BuiltinSoundPtr sound(Mix_LoadWAV(path.string().c_str()));
+        BuiltinSoundPtr sound(MIX_LoadAudio(nullptr,path.string().c_str(),true));
         if (!sound)
             return std::unexpected(make_prepare_error("Built-in sound load failed", path));
         destination = std::move(sound);
@@ -472,7 +473,7 @@ std::expected<BuiltinAssetCache::PreparedState, std::string> BuiltinAssetCache::
             return std::unexpected("Built-in music id is duplicated.");
 
         const std::filesystem::path path = catalog.resolve(descriptor.relative_path);
-        BuiltinMusicPtr music(Mix_LoadMUS(path.string().c_str()));
+        BuiltinMusicPtr music(MIX_LoadAudio(nullptr,path.string().c_str(),false));
         if (!music)
             return std::unexpected(make_prepare_error("Built-in music load failed", path));
         destination = std::move(music);

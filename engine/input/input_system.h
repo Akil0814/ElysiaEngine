@@ -9,7 +9,7 @@
 #include "translator/keyboard_mouse_input_translator.h"
 #include "translator/input_translator.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <optional>
 #include <vector>
 
@@ -41,7 +41,7 @@ private:
     RawInputEvent normalize_mouse_event(const RawInputEvent& event) const;
     void update_mouse_frame_cache(const RawInputEvent& event);
     void refresh_mouse_position();
-    void convert_window_to_logical(int window_x, int window_y, int& logical_x, int& logical_y) const;
+    void convert_window_to_logical(float window_x, float window_y, int& logical_x, int& logical_y) const;
     void apply_event(const RawInputEvent& event);
     void append_event(const RawInputEvent& event);
     bool should_accept_controller_event(const SDL_Event& event);

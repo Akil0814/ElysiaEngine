@@ -10,7 +10,7 @@
 #include "../../ui/widgets/ui_button.h"
 #include "../../ui/window/ui_window.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -324,7 +324,7 @@ void ApplicationFailureDialog::sync_delegated_focus() noexcept
 
 void ApplicationFailureDialog::copy_information()
 {
-    if (SDL_SetClipboardText(_config.copy_report.c_str()) == 0)
+    if (SDL_SetClipboardText(_config.copy_report.c_str()))
     {
         if (_copy) _copy->set_text_content(_config.copied);
         return;

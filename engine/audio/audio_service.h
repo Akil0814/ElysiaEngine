@@ -1,11 +1,13 @@
 #pragma once
 
 #include "audio_settings.h"
+#include "mixer_backend.h"
 #include "music_playback_controller.h"
 #include "sound_playback_scheduler.h"
 #include "sound_playback_types.h"
 #include "../tools/singleton.h"
 
+#include <SDL3_mixer/SDL_mixer.h>
 #include <array>
 #include <string_view>
 
@@ -46,6 +48,9 @@ public:
     const AudioSettings& settings() const;
 
 private:
+    bool channel_playing(int channel) const;
+    void halt_channel(int channel);
+    static bool play_track(MIX_Track* track,MIX_Audio* audio,int loops);
     int start_sound(const std::string_view& key, int loops, SoundGroup group,double gain);
     MusicPlaybackController::Backend music_backend();
     void apply_music_volume(double gain) const;
@@ -55,6 +60,8 @@ private:
     static int clamp_volume(int volume);
 
 private:
+    MIX_Track*& _music_track = detail::mixer_backend().music;
+    std::array<MIX_Track*,kSoundChannelCount>& _tracks = detail::mixer_backend().tracks;
     AudioSettings _settings{};
     SoundPlaybackScheduler _sound_scheduler;
     MusicPlaybackController _music_controller;

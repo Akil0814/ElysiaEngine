@@ -1,6 +1,6 @@
 #include "application_window_settings.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 namespace elysia::application::detail
 {
@@ -28,7 +28,7 @@ std::expected<void,std::string> apply_window_settings(
         operations.center();
         return {};
     case elysia::config::WindowMode::BorderlessFullscreen:
-        if (operations.set_fullscreen(SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        if (operations.set_fullscreen(SDL_WINDOW_FULLSCREEN) != 0)
             return std::unexpected(operations.error_message());
         return {};
     }

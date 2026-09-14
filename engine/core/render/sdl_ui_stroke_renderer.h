@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include "render_command.h"
 #include "sdl_convert.h"
@@ -46,6 +46,26 @@ struct UiResolvedStrokeWidth
         : 1.0f;
 }
 
+inline void ui_output_transform(SDL_Renderer* renderer,float& sx,float& sy,float& ox,float& oy) noexcept
+{
+    SDL_GetRenderScale(renderer,&sx,&sy);
+    int width=0,height=0;
+    SDL_RendererLogicalPresentation mode{};
+    SDL_GetRenderLogicalPresentation(renderer,&width,&height,&mode);
+    SDL_FRect presentation{};
+    SDL_GetRenderLogicalPresentationRect(renderer,&presentation);
+    ox=0; oy=0;
+    if (mode != SDL_LOGICAL_PRESENTATION_DISABLED && width > 0 && height > 0)
+    {
+        sx *= presentation.w / width; sy *= presentation.h / height;
+        ox=presentation.x; oy=presentation.y;
+    }
+    sx=valid_renderer_scale(sx); sy=valid_renderer_scale(sy);
+    SDL_Rect viewport{};
+    SDL_GetRenderViewport(renderer,&viewport);
+    ox += viewport.x*sx; oy += viewport.y*sy;
+}
+
 [[nodiscard]] inline UiResolvedStrokeWidth resolve_ui_stroke_width(
     SDL_Renderer* renderer,
     UiStrokeWidth stroke_width
@@ -57,7 +77,8 @@ struct UiResolvedStrokeWidth
 
     float scale_x = 1.0f;
     float scale_y = 1.0f;
-    SDL_RenderGetScale(renderer,&scale_x,&scale_y);
+    float ox=0,oy=0;
+    ui_output_transform(renderer,scale_x,scale_y,ox,oy);
     return {
         1.0f / valid_renderer_scale(scale_x),
         1.0f / valid_renderer_scale(scale_y)
@@ -69,59 +90,9 @@ struct UiResolvedStrokeWidth
     const Vector2& point
 ) noexcept
 {
-    float scale_x = 1.0f;
-    float scale_y = 1.0f;
-    SDL_RenderGetScale(renderer,&scale_x,&scale_y);
-    scale_x = valid_renderer_scale(scale_x);
-    scale_y = valid_renderer_scale(scale_y);
-
-    float output_origin_x = 0.0f;
-    float output_origin_y = 0.0f;
-    int output_width = 0;
-    int output_height = 0;
-    SDL_GetRendererOutputSize(renderer,&output_width,&output_height);
-
-    if (SDL_Window* window = SDL_RenderGetWindow(renderer))
-    {
-        int window_origin_x = 0;
-        int window_origin_y = 0;
-        int window_width = 0;
-        int window_height = 0;
-        SDL_RenderLogicalToWindow(
-            renderer,0.0f,0.0f,&window_origin_x,&window_origin_y);
-        SDL_GetWindowSize(window,&window_width,&window_height);
-        if (window_width > 0 && window_height > 0)
-        {
-            output_origin_x = static_cast<float>(window_origin_x)
-                * static_cast<float>(output_width)
-                / static_cast<float>(window_width);
-            output_origin_y = static_cast<float>(window_origin_y)
-                * static_cast<float>(output_height)
-                / static_cast<float>(window_height);
-        }
-    }
-    else
-    {
-        int logical_width = 0;
-        int logical_height = 0;
-        SDL_RenderGetLogicalSize(renderer,&logical_width,&logical_height);
-        if (logical_width > 0 && logical_height > 0)
-        {
-            output_origin_x = 0.5f * (
-                static_cast<float>(output_width)
-                - static_cast<float>(logical_width) * scale_x);
-            output_origin_y = 0.5f * (
-                static_cast<float>(output_height)
-                - static_cast<float>(logical_height) * scale_y);
-        }
-    }
-
-    return {
-        (std::round(output_origin_x + point.x * scale_x)
-            - output_origin_x) / scale_x,
-        (std::round(output_origin_y + point.y * scale_y)
-            - output_origin_y) / scale_y
-    };
+    float sx=1,sy=1,ox=0,oy=0;
+    ui_output_transform(renderer,sx,sy,ox,oy);
+    return {(std::round(ox+point.x*sx)-ox)/sx,(std::round(oy+point.y*sy)-oy)/sy};
 }
 
 [[nodiscard]] inline float bias_ui_outer_edge(
@@ -140,7 +111,7 @@ struct UiResolvedStrokeWidth
 {
     return SDL_Vertex{
         SDL_FPoint{ position.x,position.y },
-        color,
+        to_sdl_fcolor(color),
         SDL_FPoint{}
     };
 }
@@ -212,6 +183,9 @@ inline void render_ui_ring(
 
     std::vector<int> indices;
     indices.reserve(outer.size() * 6);
+    // Keep the two halves of each strip apart. SDL's software renderer merges
+    // adjacent triangle pairs into rectangles, truncating scaled hairlines to
+    // zero pixels; retain triangle rasterization for these explicit meshes.
     for (std::size_t i = 0; i < outer.size(); ++i)
     {
         const std::size_t next = (i + 1) % outer.size();
@@ -220,10 +194,13 @@ inline void render_ui_ring(
         const int outer_next = static_cast<int>(next * 2);
         const int inner_next = outer_next + 1;
 
-        indices.insert(indices.end(),{
-            outer_i,outer_next,inner_next,
-            outer_i,inner_next,inner_i
-        });
+        indices.insert(indices.end(),{ outer_i,outer_next,inner_next });
+    }
+    for (std::size_t i = 0; i < outer.size(); ++i)
+    {
+        const int outer_i = static_cast<int>(i * 2);
+        const int inner_next = static_cast<int>(((i + 1) % outer.size()) * 2 + 1);
+        indices.insert(indices.end(),{ outer_i,inner_next,outer_i + 1 });
     }
     render_ui_geometry(renderer,vertices,indices);
 }

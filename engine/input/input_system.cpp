@@ -80,7 +80,7 @@ void InputSystem::process_event(const SDL_Event& event)
 {
     _controller_manager.handle_event(event);
 
-    if (event.type == SDL_CONTROLLERDEVICEREMOVED)
+    if (event.type == SDL_EVENT_GAMEPAD_REMOVED)
     {
         handle_controller_removed(event);
         return;
@@ -101,9 +101,9 @@ void InputSystem::process_event(const SDL_Event& event)
         return;
     }
 
-    if ((event.type == SDL_CONTROLLERBUTTONDOWN
-            || event.type == SDL_CONTROLLERBUTTONUP
-            || event.type == SDL_CONTROLLERAXISMOTION)
+    if ((event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN
+            || event.type == SDL_EVENT_GAMEPAD_BUTTON_UP
+            || event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION)
         && !should_accept_controller_event(event))
     {
         return;
@@ -144,21 +144,21 @@ bool InputSystem::is_event_captured(const SDL_Event& event) const noexcept
 
     switch (event.type)
     {
-    case SDL_KEYDOWN:
-    case SDL_KEYUP:
-    case SDL_TEXTINPUT:
-    case SDL_TEXTEDITING:
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_TEXT_INPUT:
+    case SDL_EVENT_TEXT_EDITING:
         return captures(DevelopmentInputCapture::Keyboard);
 
-    case SDL_MOUSEMOTION:
-    case SDL_MOUSEBUTTONDOWN:
-    case SDL_MOUSEBUTTONUP:
-    case SDL_MOUSEWHEEL:
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
         return captures(DevelopmentInputCapture::Pointer);
 
-    case SDL_CONTROLLERBUTTONDOWN:
-    case SDL_CONTROLLERBUTTONUP:
-    case SDL_CONTROLLERAXISMOTION:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
         return captures(DevelopmentInputCapture::Gamepad);
 
     default:
@@ -202,7 +202,10 @@ void InputSystem::translate_event(const SDL_Event& event, InputDevice event_devi
         return;
     }
 
-    std::vector<RawInputEvent> input_events = translator->translate_event(event);
+    SDL_Event logical_event = event;
+    if (_renderer && (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP))
+        SDL_ConvertEventToRenderCoordinates(_renderer,&logical_event);
+    std::vector<RawInputEvent> input_events = translator->translate_event(logical_event);
 
     for (const RawInputEvent& input_event : input_events)
     {
@@ -233,10 +236,7 @@ RawInputEvent InputSystem::normalize_mouse_event(const RawInputEvent& event) con
         return converted_event;
     }
 
-    // SDL_RenderSetLogicalSize filters mouse motion and button events into
-    // logical coordinates before SDL_PollEvent returns them. Wheel events do
-    // not carry a position, so their SDL_GetMouseState coordinates still need
-    // to be normalized here.
+    // Motion/buttons were converted before translation; queried wheel positions are window coordinates.
     if (event.type == RawInputEventType::MouseWheel)
     {
         if (_has_mouse_position)
@@ -246,9 +246,11 @@ RawInputEvent InputSystem::normalize_mouse_event(const RawInputEvent& event) con
         }
         else
         {
+            float window_x=0.0f,window_y=0.0f;
+            SDL_GetMouseState(&window_x,&window_y);
             convert_window_to_logical(
-                event.mouse_x,
-                event.mouse_y,
+                window_x,
+                window_y,
                 converted_event.mouse_x,
                 converted_event.mouse_y
             );
@@ -301,12 +303,13 @@ void InputSystem::refresh_mouse_position()
     RawInputEvent mouse_event;
     mouse_event.type = RawInputEventType::MouseMoved;
     mouse_event.device = InputDevice::Mouse;
-    SDL_GetMouseState(&mouse_event.mouse_x,&mouse_event.mouse_y);
+    float window_x=0,window_y=0;
+    SDL_GetMouseState(&window_x,&window_y);
 
     RawInputEvent converted_event = mouse_event;
     convert_window_to_logical(
-        mouse_event.mouse_x,
-        mouse_event.mouse_y,
+        window_x,
+        window_y,
         converted_event.mouse_x,
         converted_event.mouse_y
     );
@@ -315,18 +318,18 @@ void InputSystem::refresh_mouse_position()
     append_event(converted_event);
 }
 
-void InputSystem::convert_window_to_logical(int window_x, int window_y, int& logical_x, int& logical_y) const
+void InputSystem::convert_window_to_logical(float window_x, float window_y, int& logical_x, int& logical_y) const
 {
     if (!_renderer)
     {
-        logical_x = window_x;
-        logical_y = window_y;
+        logical_x = static_cast<int>(std::lround(window_x));
+        logical_y = static_cast<int>(std::lround(window_y));
         return;
     }
 
     float converted_x = static_cast<float>(window_x);
     float converted_y = static_cast<float>(window_y);
-    SDL_RenderWindowToLogical(_renderer, window_x, window_y, &converted_x, &converted_y);
+    SDL_RenderCoordinatesFromWindow(_renderer, window_x, window_y, &converted_x, &converted_y);
 
     logical_x = static_cast<int>(std::lround(converted_x));
     logical_y = static_cast<int>(std::lround(converted_y));
@@ -362,9 +365,9 @@ void InputSystem::append_event(const RawInputEvent& event)
 bool InputSystem::should_accept_controller_event(const SDL_Event& event)
 {
     const SDL_JoystickID controller_id =
-        event.type == SDL_CONTROLLERAXISMOTION
-            ? event.caxis.which
-            : event.cbutton.which;
+        event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION
+            ? event.gaxis.which
+            : event.gbutton.which;
     const bool activation_event = is_controller_activation_event(event);
 
     if (_active_controller_id && *_active_controller_id == controller_id)
@@ -390,24 +393,24 @@ bool InputSystem::should_accept_controller_event(const SDL_Event& event)
 
 bool InputSystem::is_controller_activation_event(const SDL_Event& event) const
 {
-    if (event.type == SDL_CONTROLLERBUTTONDOWN)
+    if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN)
     {
         return true;
     }
 
-    if (event.type != SDL_CONTROLLERAXISMOTION)
+    if (event.type != SDL_EVENT_GAMEPAD_AXIS_MOTION)
     {
         return false;
     }
 
     const float normalized_value =
-        std::fabs(static_cast<float>(event.caxis.value) / 32767.0f);
+        std::fabs(static_cast<float>(event.gaxis.value) / 32767.0f);
     return normalized_value > k_controller_activation_dead_zone;
 }
 
 void InputSystem::handle_controller_removed(const SDL_Event& event)
 {
-    if (!_active_controller_id || *_active_controller_id != event.cdevice.which)
+    if (!_active_controller_id || *_active_controller_id != event.gdevice.which)
     {
         return;
     }
@@ -473,14 +476,12 @@ void InputSystem::reset_input_lifecycle()
 
 bool InputSystem::should_clear_state_for_event(const SDL_Event& event) const
 {
-    return event.type == SDL_WINDOWEVENT
-        && event.window.event == SDL_WINDOWEVENT_FOCUS_LOST;
+    return event.type == SDL_EVENT_WINDOW_FOCUS_LOST;
 }
 
 bool InputSystem::is_window_size_changed_event(const SDL_Event& event) const
 {
-    return event.type == SDL_WINDOWEVENT
-        && event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED;
+    return event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
 }
 
 }

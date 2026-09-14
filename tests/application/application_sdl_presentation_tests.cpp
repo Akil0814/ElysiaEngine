@@ -1,9 +1,9 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/application/presentation/application_sdl_presentation.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdlib>
 #include <string>
@@ -22,15 +22,10 @@ public:
     SdlPresentationFixture()
     {
         require(
-            SDL_Init(SDL_INIT_VIDEO) == 0,
+            SDL_Init(SDL_INIT_VIDEO),
             "SDL presentation tests must initialize SDL video");
 
-        _surface = SDL_CreateRGBSurfaceWithFormat(
-            0,
-            1280,
-            720,
-            32,
-            SDL_PIXELFORMAT_RGBA32);
+        _surface = SDL_CreateSurface(1280, 720, SDL_PIXELFORMAT_RGBA32);
         require(
             _surface != nullptr,
             "SDL presentation tests must create a software surface");
@@ -44,7 +39,7 @@ public:
     ~SdlPresentationFixture()
     {
         SDL_DestroyRenderer(_renderer);
-        SDL_FreeSurface(_surface);
+        SDL_DestroySurface(_surface);
         SDL_Quit();
     }
 
@@ -68,12 +63,14 @@ void require_aspect_fit(SDL_Renderer* renderer)
 
     int logical_width = 0;
     int logical_height = 0;
-    SDL_RenderGetLogicalSize(renderer,&logical_width,&logical_height);
+    SDL_GetRenderLogicalPresentation(renderer,&logical_width,&logical_height,nullptr);
     require(
         logical_width == 640 && logical_height == 360,
         "SDL renderer presentation must retain the logical size");
+    SDL_RendererLogicalPresentation mode{};
+    SDL_GetRenderLogicalPresentation(renderer,nullptr,nullptr,&mode);
     require(
-        SDL_RenderGetIntegerScale(renderer) == SDL_FALSE,
+        mode == SDL_LOGICAL_PRESENTATION_LETTERBOX,
         "SDL renderer presentation must use aspect-fit scaling");
 }
 
@@ -88,12 +85,8 @@ void require_texture_filter(
     const auto hint_result = configure_sdl_render_hints(settings);
     require(hint_result.has_value(), "SDL render hints must be applied");
 
-    const char* logical_size_mode =
-        SDL_GetHint(SDL_HINT_RENDER_LOGICAL_SIZE_MODE);
-    require(
-        logical_size_mode
-            && std::string(logical_size_mode) == "letterbox",
-        "SDL logical size mode must be letterbox");
+    require(elysia::application::detail::configure_sdl_texture_filter(renderer,settings).has_value(),
+        "texture defaults must be configured on the renderer");
 
     SDL_Texture* texture = SDL_CreateTexture(
         renderer,
@@ -103,9 +96,9 @@ void require_texture_filter(
         8);
     require(texture != nullptr, "SDL presentation tests must create a texture");
 
-    SDL_ScaleMode actual_mode = SDL_ScaleModeNearest;
+    SDL_ScaleMode actual_mode = SDL_SCALEMODE_NEAREST;
     require(
-        SDL_GetTextureScaleMode(texture,&actual_mode) == 0,
+        SDL_GetTextureScaleMode(texture,&actual_mode),
         "SDL presentation tests must query texture scale mode");
     require(
         actual_mode == expected_mode,
@@ -134,11 +127,11 @@ int main()
     require_texture_filter(
         fixture.renderer(),
         ApplicationTextureFilter::Nearest,
-        SDL_ScaleModeNearest);
+        SDL_SCALEMODE_NEAREST);
     require_texture_filter(
         fixture.renderer(),
         ApplicationTextureFilter::Linear,
-        SDL_ScaleModeLinear);
+        SDL_SCALEMODE_LINEAR);
 
     require_invalid_settings_fail();
     return EXIT_SUCCESS;

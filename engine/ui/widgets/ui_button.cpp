@@ -1,3 +1,4 @@
+#include "engine/core/render/sdl_texture_size.h"
 #include "ui_button.h"
 
 #include "../style/ui_style_defaults.h"
@@ -8,7 +9,7 @@
 #include "../../localization/localization_service.h"
 #include "../../localization/localized_text_style.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <type_traits>
@@ -524,7 +525,7 @@ elysia::core::Rect UiButton::text_render_rect(SDL_Texture* text_texture) const n
 
     int texture_width = 0;
     int texture_height = 0;
-    if (SDL_QueryTexture(text_texture,nullptr,nullptr,&texture_width,&texture_height) != 0)
+    if (!elysia::core::texture_pixel_size(text_texture,&texture_width,&texture_height))
         return elysia::core::Rect::zero();
     if (texture_width <= 0 || texture_height <= 0)
         return elysia::core::Rect::zero();

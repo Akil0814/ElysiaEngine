@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+#include "engine/core/render/sdl_texture_size.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/effects/number/floating_number_glyph_cache.h"
 #include "engine/io/path/path_manager.h"
@@ -6,8 +7,8 @@
 #include "engine/resources/runtime/resource_manager.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <cstdlib>
 
@@ -19,10 +20,10 @@ struct GlyphCacheFixture
 {
     GlyphCacheFixture()
     {
-        require(SDL_Init(SDL_INIT_VIDEO) == 0,"glyph cache tests must initialize SDL video");
-        require(TTF_Init() == 0,"glyph cache tests must initialize SDL_ttf");
-        surface = SDL_CreateRGBSurfaceWithFormat(0,128,128,32,SDL_PIXELFORMAT_RGBA32);
-        second_surface = SDL_CreateRGBSurfaceWithFormat(0,128,128,32,SDL_PIXELFORMAT_RGBA32);
+        require(SDL_Init(SDL_INIT_VIDEO),"glyph cache tests must initialize SDL video");
+        require(TTF_Init(),"glyph cache tests must initialize SDL_ttf");
+        surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
+        second_surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
         require(surface && second_surface,"glyph cache tests must create software surfaces");
         renderer = SDL_CreateSoftwareRenderer(surface);
         second_renderer = SDL_CreateSoftwareRenderer(second_surface);
@@ -44,8 +45,8 @@ struct GlyphCacheFixture
         elysia::resources::ResourceManager::instance()->clear();
         SDL_DestroyRenderer(second_renderer);
         SDL_DestroyRenderer(renderer);
-        SDL_FreeSurface(second_surface);
-        SDL_FreeSurface(surface);
+        SDL_DestroySurface(second_surface);
+        SDL_DestroySurface(surface);
         TTF_Quit();
         SDL_Quit();
     }
@@ -83,7 +84,7 @@ void test_cache_domains_and_lifetime(GlyphCacheFixture& fixture)
     cache.reset();
     int width = 0;
     int height = 0;
-    require(retained && SDL_QueryTexture(retained.get(),nullptr,nullptr,&width,&height) == 0,
+    require(retained && elysia::core::texture_pixel_size(retained.get(),&width,&height),
         "live effects must retain textures across cache reset");
 
     require(cache.configure(fixture.renderer,fixture.font,1),"cache must reconfigure after reset");

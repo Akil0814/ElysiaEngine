@@ -5,7 +5,7 @@
 #include "startup_preload_loader.h"
 #include "../tools/singleton.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <expected>
 #include <filesystem>

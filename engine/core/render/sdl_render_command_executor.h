@@ -1,7 +1,7 @@
 #pragma once
 
-#include <SDL.h>
-#include <SDL2_gfxPrimitives.h>
+#include <SDL3/SDL.h>
+#include <SDL3_gfxPrimitives.h>
 
 #include "render_command.h"
 #include "sdl_convert.h"
@@ -26,7 +26,7 @@ namespace elysia::core
     return static_cast<std::int16_t>(rounded);
 }
 
-[[nodiscard]] inline SDL_RendererFlip to_sdl_renderer_flip(SpriteFlip flip) noexcept
+[[nodiscard]] inline SDL_FlipMode to_sdl_renderer_flip(SpriteFlip flip) noexcept
 {
     switch (flip)
     {
@@ -37,7 +37,7 @@ namespace elysia::core
         return SDL_FLIP_VERTICAL;
 
     case SpriteFlip::Both:
-        return static_cast<SDL_RendererFlip>(SDL_FLIP_HORIZONTAL | SDL_FLIP_VERTICAL);
+        return static_cast<SDL_FlipMode>(SDL_FLIP_HORIZONTAL | SDL_FLIP_VERTICAL);
 
     case SpriteFlip::None:
     default:
@@ -61,17 +61,17 @@ inline void execute_textured_render_command(
     if (!renderer || !texture)
         return;
 
-    SDL_Rect destination_rect = to_sdl_rect(destination_rect_value);
-    SDL_Point sdl_rotation_origin{
-        static_cast<int>(rotation_origin.x * destination_rect.w),
-        static_cast<int>(rotation_origin.y * destination_rect.h)
+    SDL_FRect destination_rect = to_sdl_frect(to_sdl_rect(destination_rect_value));
+    SDL_FPoint sdl_rotation_origin{
+        static_cast<float>(static_cast<int>(rotation_origin.x * destination_rect.w)),
+        static_cast<float>(static_cast<int>(rotation_origin.y * destination_rect.h))
     };
 
-    const SDL_Rect* src_rect = nullptr;
-    SDL_Rect converted_src_rect{};
+    const SDL_FRect* src_rect = nullptr;
+    SDL_FRect converted_src_rect{};
     if (use_src_rect)
     {
-        converted_src_rect = to_sdl_rect(src_rect_value);
+        converted_src_rect = to_sdl_frect(to_sdl_rect(src_rect_value));
         src_rect = &converted_src_rect;
     }
 
@@ -95,7 +95,7 @@ inline void execute_textured_render_command(
             texture_color_modulation->b);
     }
 
-    SDL_RenderCopyEx(
+    SDL_RenderTextureRotated(
         renderer,
         texture,
         src_rect,
@@ -142,11 +142,11 @@ inline void execute_world_fill_rect_command(
         return;
 
     SDL_Rect previous_clip_rect{};
-    const bool had_clip_rect = SDL_RenderIsClipEnabled(renderer) == SDL_TRUE;
+    const bool had_clip_rect = SDL_RenderClipEnabled(renderer) == true;
     if (had_clip_rect)
     {
-        SDL_RenderGetClipRect(renderer,&previous_clip_rect);
-        SDL_RenderSetClipRect(renderer,nullptr);
+        SDL_GetRenderClipRect(renderer,&previous_clip_rect);
+        SDL_SetRenderClipRect(renderer,nullptr);
     }
 
     SDL_BlendMode previous_blend_mode = SDL_BLENDMODE_NONE;
@@ -171,7 +171,7 @@ inline void execute_world_fill_rect_command(
     rect.h += k_edge_bias;
     SDL_SetRenderDrawBlendMode(renderer,SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer,color.r,color.g,color.b,color.a);
-    SDL_RenderFillRectF(renderer,&rect);
+    SDL_RenderFillRect(renderer,&rect);
 
     SDL_SetRenderDrawColor(
         renderer,
@@ -181,7 +181,7 @@ inline void execute_world_fill_rect_command(
         previous_alpha);
     SDL_SetRenderDrawBlendMode(renderer,previous_blend_mode);
     if (had_clip_rect)
-        SDL_RenderSetClipRect(renderer,&previous_clip_rect);
+        SDL_SetRenderClipRect(renderer,&previous_clip_rect);
 }
 }
 
@@ -211,11 +211,11 @@ inline void execute_filled_triangle_render_command(
         return;
 
     SDL_Rect previous_clip_rect{};
-    const bool had_clip_rect = SDL_RenderIsClipEnabled(renderer) == SDL_TRUE;
+    const bool had_clip_rect = SDL_RenderClipEnabled(renderer) == true;
     if (had_clip_rect)
     {
-        SDL_RenderGetClipRect(renderer,&previous_clip_rect);
-        SDL_RenderSetClipRect(renderer,nullptr);
+        SDL_GetRenderClipRect(renderer,&previous_clip_rect);
+        SDL_SetRenderClipRect(renderer,nullptr);
     }
 
     SDL_BlendMode previous_blend_mode = SDL_BLENDMODE_NONE;
@@ -225,17 +225,17 @@ inline void execute_filled_triangle_render_command(
     const SDL_Color color = to_sdl_color(render_command.color);
     const std::array<SDL_Vertex,3> vertices{
         SDL_Vertex{ SDL_FPoint{ render_command.triangle_vertices[0].x,
-                                render_command.triangle_vertices[0].y },color,SDL_FPoint{} },
+                                render_command.triangle_vertices[0].y },to_sdl_fcolor(color),SDL_FPoint{} },
         SDL_Vertex{ SDL_FPoint{ render_command.triangle_vertices[1].x,
-                                render_command.triangle_vertices[1].y },color,SDL_FPoint{} },
+                                render_command.triangle_vertices[1].y },to_sdl_fcolor(color),SDL_FPoint{} },
         SDL_Vertex{ SDL_FPoint{ render_command.triangle_vertices[2].x,
-                                render_command.triangle_vertices[2].y },color,SDL_FPoint{} }
+                                render_command.triangle_vertices[2].y },to_sdl_fcolor(color),SDL_FPoint{} }
     };
     SDL_RenderGeometry(
         renderer,nullptr,vertices.data(),static_cast<int>(vertices.size()),nullptr,0);
     SDL_SetRenderDrawBlendMode(renderer,previous_blend_mode);
     if (had_clip_rect)
-        SDL_RenderSetClipRect(renderer,&previous_clip_rect);
+        SDL_SetRenderClipRect(renderer,&previous_clip_rect);
 }
 
 inline void execute_render_command(SDL_Renderer* renderer, const ScreenRenderCommand& render_command) noexcept
@@ -321,18 +321,18 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
         return;
 
     SDL_Rect previous_clip_rect{};
-    const bool had_clip_rect = SDL_RenderIsClipEnabled(renderer) == SDL_TRUE;
+    const bool had_clip_rect = SDL_RenderClipEnabled(renderer) == true;
     if (had_clip_rect)
-        SDL_RenderGetClipRect(renderer, &previous_clip_rect);
+        SDL_GetRenderClipRect(renderer, &previous_clip_rect);
 
     if (render_command.use_clip_rect)
     {
         const SDL_Rect clip_rect = to_sdl_covering_rect(render_command.clip_rect);
-        SDL_RenderSetClipRect(renderer, &clip_rect);
+        SDL_SetRenderClipRect(renderer, &clip_rect);
     }
     else if (had_clip_rect)
     {
-        SDL_RenderSetClipRect(renderer, nullptr);
+        SDL_SetRenderClipRect(renderer, nullptr);
     }
 
     const bool primitive_command = render_command.type != UiRenderCommandType::Texture;
@@ -375,7 +375,7 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
         if (render_command.screen_rect.is_empty())
             break;
 
-        SDL_Rect rect = to_sdl_rect(render_command.screen_rect);
+        SDL_FRect rect = to_sdl_frect(to_sdl_rect(render_command.screen_rect));
         const SDL_Color color = to_sdl_color(render_command.color);
 
         SDL_SetRenderDrawColor(
@@ -455,9 +455,9 @@ inline void execute_render_command(SDL_Renderer* renderer, const UiRenderCommand
     }
 
     if (had_clip_rect)
-        SDL_RenderSetClipRect(renderer, &previous_clip_rect);
+        SDL_SetRenderClipRect(renderer, &previous_clip_rect);
     else
-        SDL_RenderSetClipRect(renderer, nullptr);
+        SDL_SetRenderClipRect(renderer, nullptr);
 }
 
 inline void execute_render_commands(

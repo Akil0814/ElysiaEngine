@@ -53,12 +53,12 @@ const BuiltinAnimationDefinition* BuiltinResources::find_animation(
     return _assets.find_animation(id);
 }
 
-Mix_Chunk* BuiltinResources::find_sound(BuiltinSoundId id) const noexcept
+MIX_Audio* BuiltinResources::find_sound(BuiltinSoundId id) const noexcept
 {
     return _assets.find_sound(id);
 }
 
-Mix_Music* BuiltinResources::find_music(BuiltinMusicId id) const noexcept
+MIX_Audio* BuiltinResources::find_music(BuiltinMusicId id) const noexcept
 {
     return _assets.find_music(id);
 }

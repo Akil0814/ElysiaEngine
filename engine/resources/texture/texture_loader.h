@@ -2,7 +2,7 @@
 
 #include "surface_loader.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <filesystem>
 #include <expected>

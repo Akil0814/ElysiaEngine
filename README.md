@@ -1,6 +1,6 @@
 # Elysia Engine
 
-Elysia Engine 是一个使用 C++23 与 SDL2 构建的二维游戏引擎。仓库同时包含可复用的引擎库、一个用于演示集成方式的示例游戏层，以及覆盖主要子系统的自动化测试。
+Elysia Engine 是一个使用 C++23 与 SDL3 构建的二维游戏引擎。仓库同时包含可复用的引擎库、一个用于演示集成方式的示例游戏层，以及覆盖主要子系统的自动化测试。
 
 当前项目仍处于开发阶段，适合用于研究和构建二维游戏运行时；它不是已经稳定发布的通用游戏引擎 SDK。现有实现包括应用生命周期、场景路由、输入映射、资源与配置加载、音频、相机、UI、存档、动画与特效等能力。物理模块已经提供基础契约和策略接口，但完整的场景级模拟闭环仍在设计与实现中。
 
@@ -17,7 +17,7 @@ Elysia Engine 是一个使用 C++23 与 SDL2 构建的二维游戏引擎。仓�
 
 ```text
 ElysiaEngine executable -> game_lib -> engine_lib
-                                      -> SDL2 libraries
+                                      -> SDL3 libraries
                                       -> Box2D
                                       -> ENet
 ```
@@ -26,23 +26,16 @@ ElysiaEngine executable -> game_lib -> engine_lib
 
 ## 构建与运行
 
-当前明确验证的平台是 Windows x64。需要 CMake 3.22 或更高版本，以及支持 C++23 的 MSVC 工具链。Windows 构建使用仓库 `thirdparty/SDL2` 中随附的 x64 库，并直接构建 `thirdparty/box2d` 与 `thirdparty/enet` 中固定版本的源码。
+当前主要验收平台是 Windows MSVC x64，需要 CMake 3.24 或更高版本和 C++23 工具链。SDL3、image、ttf、mixer、gfx 及所需编解码器均使用仓库内固定源码构建，配置和构建不下载依赖。渲染使用 SDL3 GPU renderer，创建失败时明确退出。
 
 ```powershell
-cmake -S . -B build -A x64
-cmake --build build --config Debug
-.\build\Debug\ElysiaEngine.exe
+cmake -S . -B out/build/sdl3-Debug -A x64
+cmake --build out/build/sdl3-Debug --config Debug
+ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
+.\out\build\sdl3-Debug\Debug\ElysiaEngine.exe
 ```
 
-运行测试：
-
-```powershell
-ctest --test-dir build -C Debug --output-on-failure
-```
-
-macOS 的 CMake 分支会从 Homebrew 常用路径查找 SDL2、SDL2_image、SDL2_mixer 和 SDL2_ttf；Box2D 与 ENet 由仓库随附源码构建。macOS 不与 Windows 同等级验证。
-
-Linux 已补齐通过 `pkg-config` 查找系统 SDL2、image、mixer、ttf 和 gfx 的配置；ENet、Box2D 和 ImGui 使用仓库源码。目标环境为 Ubuntu 24.04 x64（桌面或 WSL2），计划使用 GCC 13 验证；目前 Linux 实机编译、测试和交互运行仍待完成。安装与操作步骤见[Ubuntu / WSL2 构建指南](docs/getting-started/build-and-run.md#linuxubuntu-2404--wsl2)。
+请使用新的 SDL3 构建目录。Linux、macOS 和 MinGW 使用相同的固定源码依赖，其实际构建和交互验收尚未验证。版本和本地补丁见[依赖来源](thirdparty/SDL3-DEPENDENCIES.md)，迁移验收记录见[SDL3 迁移](docs/development/sdl3-migration.md)。
 
 更完整的环境与故障排查说明见[构建、运行与测试](docs/getting-started/build-and-run.md)。
 

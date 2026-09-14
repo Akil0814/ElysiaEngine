@@ -111,7 +111,7 @@ std::optional<FloatingNumberGlyph> FloatingNumberGlyphCache::create_glyph(
 {
     const char glyph_text[2] = { ch,'\0' };
     const SDL_Color text_color = elysia::core::to_sdl_color(color_value(color));
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(_font,glyph_text,text_color);
+    SDL_Surface* surface = TTF_RenderText_Blended(_font, glyph_text, 0, text_color);
     if (!surface)
         return std::nullopt;
 
@@ -120,7 +120,7 @@ std::optional<FloatingNumberGlyph> FloatingNumberGlyphCache::create_glyph(
         static_cast<float>(surface->h)
     );
     SDL_Texture* texture = SDL_CreateTextureFromSurface(_renderer,surface);
-    SDL_FreeSurface(surface);
+    SDL_DestroySurface(surface);
     if (!texture || source_size.x <= 0.0f || source_size.y <= 0.0f)
     {
         if (texture)

@@ -35,7 +35,7 @@ InputDeviceUpdateResult InputDeviceTracker::process_event(const SDL_Event& event
         return result;
     }
 
-    if (event.type == SDL_MOUSEMOTION)
+    if (event.type == SDL_EVENT_MOUSE_MOTION)
     {
         return result;
     }
@@ -84,21 +84,21 @@ InputDevice InputDeviceTracker::detect_event_device(const SDL_Event& event) cons
 {
     switch (event.type)
     {
-    case SDL_KEYDOWN:
-    case SDL_KEYUP:
-    case SDL_TEXTEDITING:
-    case SDL_TEXTINPUT:
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_TEXT_EDITING:
+    case SDL_EVENT_TEXT_INPUT:
         return InputDevice::Keyboard;
 
-    case SDL_MOUSEMOTION:
-    case SDL_MOUSEBUTTONDOWN:
-    case SDL_MOUSEBUTTONUP:
-    case SDL_MOUSEWHEEL:
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
         return InputDevice::Mouse;
 
-    case SDL_CONTROLLERAXISMOTION:
-    case SDL_CONTROLLERBUTTONDOWN:
-    case SDL_CONTROLLERBUTTONUP:
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
         return InputDevice::Gamepad;
 
     default:

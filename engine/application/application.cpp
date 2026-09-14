@@ -28,9 +28,9 @@
 #include <limits>
 #include <utility>
 
-#include <SDL_image.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3_image/SDL_image.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 namespace elysia::application
 {
@@ -381,9 +381,9 @@ bool Application::initialize_runtime(
     const ApplicationDescriptor& descriptor)
 {
     const elysia::config::UserConfigData& user_settings = settings.user;
-    const bool sdl_initialized = SDL_Init(SDL_INIT_EVERYTHING) == 0;
+    const bool sdl_initialized = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
     _sdl_initialized = sdl_initialized;
-    if (!check_startup_step(sdl_initialized,"platform","SDL2 Error"))
+    if (!check_startup_step(sdl_initialized,"platform","SDL3 Error"))
         return false;
 
     if (const auto presentation_result =
@@ -393,38 +393,15 @@ bool Application::initialize_runtime(
         return startup_fail("platform",presentation_result.error());
     }
 
-    const int img_flags = IMG_INIT_JPG | IMG_INIT_PNG;
-    const int initialized_img_flags = IMG_Init(img_flags);
-    _image_initialized = initialized_img_flags != 0;
-    if (!check_startup_step(
-        (initialized_img_flags & img_flags) == img_flags,
-        "platform",
-        "SDL_image Error"))
-    {
+    _mixer_initialized = MIX_Init();
+    if (!check_startup_step(_mixer_initialized,"audio","SDL_mixer Error"))
         return false;
-    }
 
-    const int mix_flags = MIX_INIT_MP3;
-    const int initialized_mix_flags = Mix_Init(mix_flags);
-    _mixer_initialized = initialized_mix_flags != 0;
-    if (!check_startup_step(
-        (initialized_mix_flags & mix_flags) == mix_flags,
-        "platform",
-        "SDL_mixer Error"))
-    {
-        return false;
-    }
-
-    const bool ttf_initialized = TTF_Init() == 0;
+    const bool ttf_initialized = TTF_Init();
     _ttf_initialized = ttf_initialized;
     if (!check_startup_step(ttf_initialized,"platform","SDL_ttf Error"))
         return false;
 
-    const bool audio_device_open =
-        Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0;
-    _audio_device_open = audio_device_open;
-    if (!check_startup_step(audio_device_open,"audio","Mix_OpenAudio Error"))
-        return false;
     if (!check_startup_step(
         elysia::audio::AudioService::instance()->initialize(user_settings.audio),
         "audio",
@@ -433,21 +410,15 @@ bool Application::initialize_runtime(
         return false;
     }
 
-    SDL_SetHint(SDL_HINT_IME_SHOW_UI,"1");
 
-    _window = SDL_CreateWindow(
-        settings.window_title.c_str(),
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        user_settings.window.windowed_size.width,
-        user_settings.window.windowed_size.height,
-        SDL_WINDOW_SHOWN);
+
+    _window = SDL_CreateWindow(settings.window_title.c_str(), user_settings.window.windowed_size.width, user_settings.window.windowed_size.height, 0);
     if (!check_startup_step(_window != nullptr,"platform","SDL_CreateWindow Error"))
         return false;
 
     if (user_settings.window.mode
             == elysia::config::WindowMode::BorderlessFullscreen
-        && SDL_SetWindowFullscreen(_window,SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        && !SDL_SetWindowFullscreen(_window,SDL_WINDOW_FULLSCREEN))
     {
         ELYSIA_LOG_WARN(
             "application",
@@ -460,13 +431,14 @@ bool Application::initialize_runtime(
         SDL_SetWindowPosition(_window,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED);
     }
 
-    std::uint32_t renderer_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE;
-    if (user_settings.vsync)
-        renderer_flags |= SDL_RENDERER_PRESENTVSYNC;
-
-    _renderer = SDL_CreateRenderer(_window,-1,renderer_flags);
-    if (!check_startup_step(_renderer != nullptr,"platform","SDL_CreateRenderer Error"))
+    _renderer = SDL_CreateGPURenderer(nullptr,_window);
+    if (!check_startup_step(_renderer != nullptr,"platform","SDL GPU renderer creation failed"))
         return false;
+    ELYSIA_LOG("application","SDL3 GPU backend: " << SDL_GetGPUDeviceDriver(SDL_GetGPURendererDevice(_renderer)));
+    if (!check_startup_step(SDL_SetRenderVSync(_renderer,user_settings.vsync ? 1 : 0),"platform","SDL VSync configuration failed"))
+        return false;
+    if (auto filter_result = detail::configure_sdl_texture_filter(_renderer,descriptor.presentation.render); !filter_result)
+        return startup_fail("platform",filter_result.error());
 
     if (const auto presentation_result =
             detail::configure_sdl_renderer_presentation(
@@ -564,7 +536,7 @@ ApplicationRunResult Application::run()
 #endif
             if (!development_event_consumed)
                 _input_system.process_event(_event);
-            if (_event.type == SDL_QUIT)
+            if (_event.type == SDL_EVENT_QUIT)
                 _normal_exit_requested = true;
         }
 
@@ -672,11 +644,6 @@ void Application::shutdown()
     SDL_DestroyWindow(_window);
     _window = nullptr;
 
-    if (_audio_device_open)
-    {
-        Mix_CloseAudio();
-        _audio_device_open = false;
-    }
     if (_ttf_initialized)
     {
         TTF_Quit();
@@ -684,13 +651,9 @@ void Application::shutdown()
     }
     if (_mixer_initialized)
     {
-        Mix_Quit();
+        elysia::audio::detail::mixer_backend().shutdown();
+        MIX_Quit();
         _mixer_initialized = false;
-    }
-    if (_image_initialized)
-    {
-        IMG_Quit();
-        _image_initialized = false;
     }
     if (_sdl_initialized)
     {
@@ -781,7 +744,7 @@ Application::apply_window_settings(
         detail::ApplicationWindowOperations{
             .set_fullscreen = [this](std::uint32_t flags)
             {
-                return SDL_SetWindowFullscreen(_window,flags);
+                return SDL_SetWindowFullscreen(_window,flags != 0) ? 0 : -1;
             },
             .set_size = [this](int width,int height)
             {

@@ -5,7 +5,7 @@
 #include "../resource_types.h"
 #include "../texture/texture_manager.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <filesystem>
 #include <memory>

@@ -1,12 +1,13 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/core/render/sdl_render_command_executor.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <vector>
 
@@ -21,25 +22,17 @@ public:
         : _width(width),
           _height(height)
     {
-        SDL_SetHint(SDL_HINT_RENDER_LOGICAL_SIZE_MODE,"letterbox");
-        require(SDL_Init(SDL_INIT_VIDEO) == 0,
+        require(SDL_Init(SDL_INIT_VIDEO),
             "stroke rendering tests must initialize SDL video");
-        _window = SDL_CreateWindow(
-            "ui stroke rendering test",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            width,
-            height,
-            SDL_WINDOW_HIDDEN);
+        _window = SDL_CreateWindow("ui stroke rendering test", width, height, SDL_WINDOW_HIDDEN);
         require(_window != nullptr,
             "stroke rendering tests must create a hidden window");
-        _renderer = SDL_CreateRenderer(
-            _window,-1,SDL_RENDERER_SOFTWARE);
+        _renderer = SDL_CreateRenderer(_window, "software");
         require(_renderer != nullptr,
             "stroke rendering tests must create a software renderer");
-        require(SDL_RenderSetLogicalSize(_renderer,1280,720) == 0,
+        require(SDL_SetRenderLogicalPresentation(_renderer, 1280, 720, SDL_LOGICAL_PRESENTATION_LETTERBOX),
             "stroke rendering tests must configure the logical canvas");
-        _format = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA32);
+        _format = SDL_GetPixelFormatDetails(SDL_PIXELFORMAT_RGBA32);
         require(_format != nullptr,
             "stroke rendering tests must allocate a pixel format");
         clear();
@@ -49,7 +42,6 @@ public:
     {
         SDL_DestroyRenderer(_renderer);
         SDL_DestroyWindow(_window);
-        SDL_FreeFormat(_format);
         SDL_Quit();
     }
 
@@ -64,14 +56,23 @@ public:
         _pixels.assign(
             static_cast<std::size_t>(_width * _height),
             std::uint32_t{});
-        require(
-            SDL_RenderReadPixels(
-                _renderer,
-                nullptr,
-                SDL_PIXELFORMAT_RGBA32,
-                _pixels.data(),
-                _width * static_cast<int>(sizeof(std::uint32_t))) == 0,
-            "stroke rendering tests must read renderer pixels");
+        int logical_width=0,logical_height=0;
+        SDL_RendererLogicalPresentation mode{};
+        SDL_GetRenderLogicalPresentation(_renderer,&logical_width,&logical_height,&mode);
+        // SDL3 limits readback to the current viewport. Flush the scene before
+        // selecting the full output so letterbox bars retain their positions.
+        SDL_FlushRenderer(_renderer);
+        SDL_SetRenderLogicalPresentation(_renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED);
+        SDL_Surface* capture = SDL_RenderReadPixels(_renderer,nullptr);
+        SDL_SetRenderLogicalPresentation(_renderer,logical_width,logical_height,mode);
+        require(capture != nullptr,"stroke rendering tests must read renderer pixels");
+        SDL_Surface* rgba = SDL_ConvertSurface(capture,SDL_PIXELFORMAT_RGBA32);
+        SDL_DestroySurface(capture);
+        require(rgba != nullptr,"pixel readback must convert to RGBA32");
+        require(rgba->w == _width && rgba->h == _height,"readback dimensions must match output");
+        for (int y=0;y<_height;++y)
+            std::memcpy(_pixels.data()+y*_width,static_cast<const char*>(rgba->pixels)+y*rgba->pitch,_width*sizeof(std::uint32_t));
+        SDL_DestroySurface(rgba);
     }
 
     [[nodiscard]] bool visible(int x,int y) const noexcept
@@ -84,7 +85,7 @@ public:
         Uint8 g = 0;
         Uint8 b = 0;
         Uint8 a = 0;
-        SDL_GetRGBA(pixel,_format,&r,&g,&b,&a);
+        SDL_GetRGBA(pixel,_format,nullptr,&r,&g,&b,&a);
         return a != 0 && (r != 0 || g != 0 || b != 0);
     }
 
@@ -98,7 +99,7 @@ public:
         Uint8 g = 0;
         Uint8 b = 0;
         Uint8 a = 0;
-        SDL_GetRGBA(pixel,_format,&r,&g,&b,&a);
+        SDL_GetRGBA(pixel,_format,nullptr,&r,&g,&b,&a);
         return {r, g, b, a};
     }
 
@@ -123,10 +124,11 @@ public:
                 _renderer,logical);
         float scale_x = 1.0f;
         float scale_y = 1.0f;
-        SDL_RenderGetScale(_renderer,&scale_x,&scale_y);
+        float ox=0,oy=0;
+        elysia::core::detail::ui_output_transform(_renderer,scale_x,scale_y,ox,oy);
         return {
-            std::round(snapped.x * scale_x),
-            std::round(snapped.y * scale_y)
+            std::round(ox + snapped.x * scale_x),
+            std::round(oy + snapped.y * scale_y)
         };
     }
 
@@ -152,7 +154,7 @@ private:
     int _height = 0;
     SDL_Window* _window = nullptr;
     SDL_Renderer* _renderer = nullptr;
-    SDL_PixelFormat* _format = nullptr;
+    const SDL_PixelFormatDetails* _format = nullptr;
     std::vector<std::uint32_t> _pixels;
 };
 
@@ -321,7 +323,7 @@ void test_logical_stroke_scales_and_renderer_state_is_restored()
     SDL_SetRenderDrawColor(fixture.renderer(),11,22,33,44);
     SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
     const SDL_Rect original_clip{ 5,6,700,500 };
-    SDL_RenderSetClipRect(fixture.renderer(),&original_clip);
+    SDL_SetRenderClipRect(fixture.renderer(),&original_clip);
 
     execute_render_command(
         fixture.renderer(),
@@ -343,7 +345,7 @@ void test_logical_stroke_scales_and_renderer_state_is_restored()
     require(blend_mode == SDL_BLENDMODE_ADD,
         "stroke rendering must preserve renderer blend mode");
     SDL_Rect restored_clip{};
-    SDL_RenderGetClipRect(fixture.renderer(),&restored_clip);
+    SDL_GetRenderClipRect(fixture.renderer(),&restored_clip);
     require(restored_clip.x == original_clip.x
             && restored_clip.y == original_clip.y
             && restored_clip.w == original_clip.w
@@ -407,7 +409,7 @@ void test_world_primitives_render_and_restore_state()
     SDL_SetRenderDrawColor(fixture.renderer(),11,22,33,44);
     SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
     const SDL_Rect original_clip{5, 6, 700, 500};
-    SDL_RenderSetClipRect(fixture.renderer(),&original_clip);
+    SDL_SetRenderClipRect(fixture.renderer(),&original_clip);
     execute_render_command(fixture.renderer(), fill_rect);
 
     Uint8 r = 0;
@@ -422,7 +424,7 @@ void test_world_primitives_render_and_restore_state()
     require(blend_mode == SDL_BLENDMODE_ADD,
         "World FillRect must preserve renderer blend mode");
     SDL_Rect restored_clip{};
-    SDL_RenderGetClipRect(fixture.renderer(),&restored_clip);
+    SDL_GetRenderClipRect(fixture.renderer(),&restored_clip);
     require(restored_clip.x == original_clip.x
             && restored_clip.y == original_clip.y
             && restored_clip.w == original_clip.w
@@ -457,13 +459,14 @@ void require_adjacent_world_fill_rects_are_seamless(
 
     float scale_x = 1.0f;
     float scale_y = 1.0f;
-    SDL_RenderGetScale(fixture.renderer(),&scale_x,&scale_y);
+    float offset_x=0.0f,offset_y=0.0f;
+    detail::ui_output_transform(fixture.renderer(),scale_x,scale_y,offset_x,offset_y);
     const int first_interior_x = static_cast<int>(
-        std::ceil(first.left() * scale_x));
+        std::ceil(offset_x + first.left() * scale_x));
     const int last_interior_x = static_cast<int>(
-        std::floor(second.right() * scale_x)) - 1;
+        std::floor(offset_x + second.right() * scale_x)) - 1;
     const int center_y = static_cast<int>(
-        std::floor(first.center().y * scale_y));
+        std::floor(offset_y + first.center().y * scale_y));
 
     for (int x = first_interior_x; x <= last_interior_x; ++x)
     {
@@ -503,7 +506,7 @@ void test_world_triangles_render_and_restore_state()
     SDL_SetRenderDrawColor(fixture.renderer(),11,22,33,44);
     SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
     const SDL_Rect original_clip{0, 0, 5, 5};
-    SDL_RenderSetClipRect(fixture.renderer(),&original_clip);
+    SDL_SetRenderClipRect(fixture.renderer(),&original_clip);
 
     ScreenRenderCommand clockwise;
     clockwise.type = RenderCommandType::FillTriangle;
@@ -545,7 +548,7 @@ void test_world_triangles_render_and_restore_state()
     require(blend_mode == SDL_BLENDMODE_ADD,
         "FillTriangle must preserve renderer blend mode");
     SDL_Rect restored_clip{};
-    SDL_RenderGetClipRect(fixture.renderer(),&restored_clip);
+    SDL_GetRenderClipRect(fixture.renderer(),&restored_clip);
     require(restored_clip.x == original_clip.x
             && restored_clip.y == original_clip.y
             && restored_clip.w == original_clip.w
@@ -557,15 +560,14 @@ void test_texture_and_world_primitive_submission_order()
 {
     using namespace elysia::core;
     SdlStrokeFixture fixture(1280,720);
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
-        0, 1, 1, 32, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface* surface = SDL_CreateSurface(1, 1, SDL_PIXELFORMAT_RGBA32);
     require(surface != nullptr,
         "Mixed world rendering test must create a source surface");
-    SDL_FillRect(surface, nullptr,
-        SDL_MapRGBA(surface->format, 0, 0, 255, 255));
+    SDL_FillSurfaceRect(surface, nullptr,
+        SDL_MapRGBA(SDL_GetPixelFormatDetails(surface->format),nullptr,0,0,255,255));
     SDL_Texture* texture = SDL_CreateTextureFromSurface(
         fixture.renderer(), surface);
-    SDL_FreeSurface(surface);
+    SDL_DestroySurface(surface);
     require(texture != nullptr,
         "Mixed world rendering test must create a texture");
 

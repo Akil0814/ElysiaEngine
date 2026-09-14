@@ -1,9 +1,9 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/application/presentation/application_window_settings.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdlib>
 #include <string>

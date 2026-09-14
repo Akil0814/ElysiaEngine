@@ -332,7 +332,13 @@ int main()
     test_delayed_replace_oldest();
     test_sound_handles_and_active_channel_enumeration();
     test_runtime_sound_group_volumes();
+    SDL_SetHint(SDL_HINT_AUDIO_DRIVER,"dummy");
+    require(SDL_Init(SDL_INIT_AUDIO),"lifecycle test must initialize SDL audio");
+    require(MIX_Init(),"lifecycle test must initialize SDL_mixer");
     test_audio_service_initialization_lifecycle();
+    elysia::audio::detail::mixer_backend().shutdown();
+    MIX_Quit();
+    SDL_Quit();
     std::cout << "sound playback scheduler tests passed\n";
     return EXIT_SUCCESS;
 }

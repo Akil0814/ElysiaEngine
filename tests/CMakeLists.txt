@@ -15,17 +15,7 @@ function(add_elysia_test TARGET_NAME)
         target_link_options(${TARGET_NAME} PRIVATE -fsanitize=address)
     endif()
 
-    if(TEST_SDL AND WIN32)
-        foreach(SDL2_RUNTIME_FILE IN LISTS SDL2_RUNTIME_FILES)
-            if(EXISTS "${SDL2_RUNTIME_FILE}")
-                add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${SDL2_RUNTIME_FILE}"
-                        "$<TARGET_FILE_DIR:${TARGET_NAME}>"
-                )
-            endif()
-        endforeach()
-    endif()
+    elysia_copy_sdl_runtime(${TARGET_NAME})
 
     add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
     if(TEST_LABEL)
@@ -34,6 +24,27 @@ function(add_elysia_test TARGET_NAME)
 endfunction()
 
 find_package(Threads REQUIRED)
+
+add_elysia_test(sdl3_asset_decode_tests
+    LABEL loading
+    SOURCES loading/sdl3_asset_decode_tests.cpp
+)
+target_compile_definitions(sdl3_asset_decode_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+add_elysia_test(sdl3_gpu_integration_tests
+    LABEL gpu
+    SOURCES application/sdl3_gpu_integration_tests.cpp
+    SDL
+)
+target_compile_definitions(sdl3_gpu_integration_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+set_tests_properties(sdl3_gpu_integration_tests PROPERTIES RUN_SERIAL TRUE)
+
+add_elysia_test(sdl3_application_smoke_tests
+    LABEL gpu
+    SOURCES application/sdl3_application_smoke_tests.cpp
+    LIBRARIES game_lib Threads::Threads
+)
+set_tests_properties(sdl3_application_smoke_tests PROPERTIES RUN_SERIAL TRUE TIMEOUT 30)
 
 add_elysia_test(save_service_tests
     LABEL save
@@ -48,7 +59,7 @@ add_elysia_test(glyph_run_layout_tests
 add_elysia_test(bootstrap_texture_cache_tests
     LABEL bootstrap
     SOURCES bootstrap/bootstrap_texture_cache_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -63,7 +74,7 @@ target_compile_definitions(builtin_asset_catalog_tests
 add_elysia_test(builtin_asset_cache_tests
     LABEL builtin
     SOURCES builtin/builtin_asset_cache_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(builtin_asset_cache_tests
@@ -73,7 +84,7 @@ target_compile_definitions(builtin_asset_cache_tests
 add_elysia_test(engine_character_tests
     LABEL builtin
     SOURCES builtin/engine_character_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(engine_character_tests
@@ -91,7 +102,7 @@ foreach(INPUT_TEST_TARGET IN ITEMS
     add_elysia_test(${INPUT_TEST_TARGET}
         LABEL input
         SOURCES input/${INPUT_TEST_TARGET}.cpp
-        LIBRARIES ${SDL2_LIBRARIES}
+        LIBRARIES ${ELYSIA_SDL_LIBRARIES}
         SDL
     )
 endforeach()
@@ -105,7 +116,7 @@ add_elysia_test(termination_manager_tests
 add_elysia_test(application_composition_tests
     LABEL application
     SOURCES application/application_composition_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -122,21 +133,21 @@ add_elysia_test(font_settings_tests
 add_elysia_test(application_sdl_presentation_tests
     LABEL application
     SOURCES application/application_sdl_presentation_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(application_window_settings_tests
     LABEL application
     SOURCES application/application_window_settings_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(camera_manager_tests
     LABEL camera
     SOURCES camera/camera_manager_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -153,14 +164,14 @@ add_elysia_test(camera_controller_tests
 add_elysia_test(scene_core_tests
     LABEL scene
     SOURCES scene/scene_core_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(game_object_query_tests
     LABEL object_query
     SOURCES object_query/game_object_query_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -172,21 +183,21 @@ add_elysia_test(startup_loading_flow_tests
 add_elysia_test(startup_loading_scene_tests
     LABEL scene
     SOURCES scene/startup_loading_scene_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(settings_scene_tests
     LABEL scene
     SOURCES scene/settings_scene_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(demo_scene_tests
     LABEL scene
     SOURCES game/demo_scene_tests.cpp
-    LIBRARIES game_lib ${SDL2_LIBRARIES}
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(demo_scene_tests
@@ -196,7 +207,7 @@ target_compile_definitions(demo_scene_tests
 add_elysia_test(elysia_scene_tests
     LABEL elysia
     SOURCES elysia/elysia_scene_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(elysia_scene_tests
@@ -212,7 +223,7 @@ target_compile_definitions(elysia_animation_loader_tests PRIVATE SDL_MAIN_HANDLE
 add_elysia_test(application_failure_scene_tests
     LABEL scene
     SOURCES scene/application_failure_scene_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(application_failure_scene_tests
@@ -237,21 +248,21 @@ add_elysia_test(physics_scale_tests
 add_elysia_test(box2d_lab_tests
     LABEL physics
     SOURCES game/box2d_lab_tests.cpp
-    LIBRARIES game_lib ${SDL2_LIBRARIES}
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(physics_world_lifecycle_tests
     LABEL physics
     SOURCES physics/physics_world_lifecycle_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(physics_runtime_tests
     LABEL physics
     SOURCES physics/physics_runtime_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -268,28 +279,28 @@ add_elysia_test(gameplay_collision_service_tests
 add_elysia_test(sound_playback_scheduler_tests
     LABEL audio
     SOURCES audio/sound_playback_scheduler_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(animation_effect_tests
     LABEL effects
     SOURCES effects/animation_effect_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(floating_number_glyph_cache_tests
     LABEL effects
     SOURCES effects/floating_number_glyph_cache_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(floating_number_effect_tests
     LABEL effects
     SOURCES effects/floating_number_effect_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -307,7 +318,7 @@ foreach(LOADING_TEST_TARGET IN ITEMS
     add_elysia_test(${LOADING_TEST_TARGET}
         LABEL loading
         SOURCES loading/${LOADING_TEST_TARGET}.cpp
-        LIBRARIES ${SDL2_LIBRARIES}
+        LIBRARIES ${ELYSIA_SDL_LIBRARIES}
         SDL
     )
 endforeach()
@@ -331,7 +342,7 @@ foreach(UI_TEST_TARGET IN ITEMS
     add_elysia_test(${UI_TEST_TARGET}
         LABEL ui
         SOURCES ui/${UI_TEST_TARGET}.cpp
-        LIBRARIES ${SDL2_LIBRARIES}
+        LIBRARIES ${ELYSIA_SDL_LIBRARIES}
         SDL
     )
 endforeach()
@@ -339,14 +350,14 @@ endforeach()
 add_elysia_test(logging_tests
     LABEL tools
     SOURCES tools/logging_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(development_overlay_tests
     LABEL tools
     SOURCES tools/development_overlay_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -354,7 +365,7 @@ if(ELYSIA_ENABLE_IMGUI)
     add_elysia_test(imgui_development_overlay_tests
         LABEL tools
         SOURCES tools/imgui_development_overlay_tests.cpp
-        LIBRARIES ${SDL2_LIBRARIES}
+        LIBRARIES ${ELYSIA_SDL_LIBRARIES}
         SDL
     )
 endif()
@@ -362,14 +373,14 @@ endif()
 add_elysia_test(gameplay_collision_runtime_tests
     LABEL physics
     SOURCES physics/gameplay_collision_runtime_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
 add_elysia_test(physics_demo_tests
     LABEL physics
     SOURCES game/physics_demo_tests.cpp
-    LIBRARIES game_lib ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES}
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 
@@ -420,7 +431,7 @@ target_compile_definitions(project_i18n_assets_tests
 add_elysia_test(localization_builtin_fallback_tests
     LABEL localization
     SOURCES localization/localization_builtin_fallback_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(localization_builtin_fallback_tests
@@ -430,7 +441,7 @@ target_compile_definitions(localization_builtin_fallback_tests
 add_elysia_test(font_resolver_tests
     LABEL typography
     SOURCES typography/font_resolver_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(font_resolver_tests
@@ -441,7 +452,7 @@ foreach(CONFIG_TEST_TARGET IN ITEMS app_config_tests user_config_tests config_se
     add_elysia_test(${CONFIG_TEST_TARGET}
         LABEL config
         SOURCES config/${CONFIG_TEST_TARGET}.cpp
-        LIBRARIES ${SDL2_LIBRARIES}
+        LIBRARIES ${ELYSIA_SDL_LIBRARIES}
         SDL
     )
 endforeach()
@@ -452,7 +463,7 @@ target_compile_definitions(bootstrap_config_integration_tests
 add_elysia_test(audio_fade_tests
     LABEL audio
     SOURCES audio/audio_fade_tests.cpp
-    LIBRARIES ${SDL2_LIBRARIES}
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(audio_fade_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

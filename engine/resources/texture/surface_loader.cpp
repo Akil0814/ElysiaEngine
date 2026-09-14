@@ -1,6 +1,6 @@
 #include "surface_loader.h"
 
-#include <SDL_image.h>
+#include <SDL3_image/SDL_image.h>
 
 #include <cstdint>
 #include <cstring>
@@ -9,7 +9,7 @@ namespace elysia::resources
 void SurfaceDeleter::operator()(SDL_Surface* surface) const
 {
 	if (surface)
-		SDL_FreeSurface(surface);
+		SDL_DestroySurface(surface);
 }
 
 std::expected<SurfaceLoadResult,ResourceFailure>
@@ -36,7 +36,7 @@ SurfaceLoader::load_surface(const SurfaceLoadRequest& request) const
 	if (!surface)
 		return std::unexpected(make_resource_failure(
 			ResourceError::DecodeFailed,
-			std::string("Load surface failed: ") + IMG_GetError(),
+			std::string("Load surface failed: ") + SDL_GetError(),
 			request._subject_type,request._asset_key,request._frame_path,request._origin));
 
 	result._surface.reset(surface);
@@ -52,22 +52,14 @@ std::expected<SurfacePtr,ResourceFailure> create_coverage_mask_surface(
 			ResourceError::InvalidRequest,
 			"Create coverage mask failed: source surface is invalid."));
 
-	SurfacePtr converted(SDL_ConvertSurfaceFormat(
-		const_cast<SDL_Surface*>(&source_surface),
-		SDL_PIXELFORMAT_RGBA32,
-		0));
+	SurfacePtr converted(SDL_ConvertSurface(const_cast<SDL_Surface*>(&source_surface), SDL_PIXELFORMAT_RGBA32));
 	if (!converted)
 		return std::unexpected(make_resource_failure(
 			ResourceError::CreateFailed,
 			std::string("Create coverage mask failed: convert source surface failed: ")
 				+ SDL_GetError()));
 
-	SurfacePtr mask(SDL_CreateRGBSurfaceWithFormat(
-		0,
-		converted->w,
-		converted->h,
-		32,
-		SDL_PIXELFORMAT_RGBA32));
+	SurfacePtr mask(SDL_CreateSurface(converted->w, converted->h, SDL_PIXELFORMAT_RGBA32));
 	if (!mask)
 		return std::unexpected(make_resource_failure(
 			ResourceError::CreateFailed,
@@ -76,18 +68,15 @@ std::expected<SurfacePtr,ResourceFailure> create_coverage_mask_surface(
 
 	const bool lock_converted = SDL_MUSTLOCK(converted.get()) != 0;
 	const bool lock_mask = SDL_MUSTLOCK(mask.get()) != 0;
-	if ((lock_converted && SDL_LockSurface(converted.get()) != 0)
-		|| (lock_mask && SDL_LockSurface(mask.get()) != 0))
-	{
-		if (lock_converted && converted->locked)
-			SDL_UnlockSurface(converted.get());
-		if (lock_mask && mask->locked)
-			SDL_UnlockSurface(mask.get());
-		return std::unexpected(make_resource_failure(
-			ResourceError::CreateFailed,
-			std::string("Create coverage mask failed: lock surface failed: ")
-				+ SDL_GetError()));
-	}
+    const bool converted_locked = lock_converted && SDL_LockSurface(converted.get());
+    const bool mask_locked = lock_mask && SDL_LockSurface(mask.get());
+    if ((lock_converted && !converted_locked) || (lock_mask && !mask_locked))
+    {
+        if (converted_locked) SDL_UnlockSurface(converted.get());
+        if (mask_locked) SDL_UnlockSurface(mask.get());
+        return std::unexpected(make_resource_failure(ResourceError::CreateFailed,
+            std::string("Create coverage mask failed: lock surface failed: ") + SDL_GetError()));
+    }
 
 	for (int y = 0; y < converted->h; ++y)
 	{
@@ -106,9 +95,9 @@ std::expected<SurfacePtr,ResourceFailure> create_coverage_mask_surface(
 			std::uint8_t green = 0;
 			std::uint8_t blue = 0;
 			std::uint8_t alpha = 0;
-			SDL_GetRGBA(source_pixel,converted->format,&red,&green,&blue,&alpha);
+			SDL_GetRGBA(source_pixel,SDL_GetPixelFormatDetails(converted->format),nullptr,&red,&green,&blue,&alpha);
 			const std::uint32_t mask_pixel =
-				SDL_MapRGBA(mask->format,255,255,255,alpha);
+				SDL_MapRGBA(SDL_GetPixelFormatDetails(mask->format),nullptr,255,255,255,alpha);
 			std::memcpy(
 				mask_row + static_cast<std::size_t>(x) * sizeof(std::uint32_t),
 				&mask_pixel,

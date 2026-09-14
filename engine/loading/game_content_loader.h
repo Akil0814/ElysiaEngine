@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include "resource_load_plan.h"
 #include "content_load_failure.h"

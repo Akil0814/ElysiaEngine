@@ -3,7 +3,7 @@
 #include "../resource_failure.h"
 #include "texture_loader.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <string>
 #include <expected>

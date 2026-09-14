@@ -1,6 +1,7 @@
 #include "keyboard_mouse_input_translator.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
+#include <cmath>
 
 namespace elysia::input
 {
@@ -10,81 +11,84 @@ std::vector<RawInputEvent> KeyboardMouseInputTranslator::translate_event(const S
 
     switch (event.type)
     {
-    case SDL_KEYDOWN:
-    case SDL_KEYUP:
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
     {
-        if (event.type == SDL_KEYDOWN && event.key.repeat != 0)
+        if (event.type == SDL_EVENT_KEY_DOWN && event.key.repeat != 0)
         {
             return events;
         }
 
         RawInputEvent input_event;
         input_event.control =
-            control_from_key(event.key.keysym.sym).value_or(RawInputControl::None);
-        input_event.type = input_event_type(event.type == SDL_KEYDOWN);
+            control_from_key(event.key.key).value_or(RawInputControl::None);
+        input_event.type = input_event_type(event.type == SDL_EVENT_KEY_DOWN);
         input_event.device = InputDevice::Keyboard;
-        input_event.keycode = event.key.keysym.sym;
-        input_event.scancode = event.key.keysym.scancode;
+        input_event.keycode = event.key.key;
+        input_event.scancode = event.key.scancode;
         events.push_back(input_event);
         break;
     }
 
-    case SDL_MOUSEBUTTONDOWN:
-    case SDL_MOUSEBUTTONUP:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
     {
         RawInputEvent input_event;
         input_event.control =
             control_from_mouse_button(event.button.button).value_or(RawInputControl::None);
-        input_event.type = input_event_type(event.type == SDL_MOUSEBUTTONDOWN);
+        input_event.type = input_event_type(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
         input_event.device = InputDevice::Mouse;
-        input_event.mouse_button = event.button.button;
-        input_event.mouse_x = event.button.x;
-        input_event.mouse_y = event.button.y;
+        input_event.mouse_button = static_cast<int>(std::lround(event.button.button));
+        input_event.mouse_x = static_cast<int>(std::lround(event.button.x));
+        input_event.mouse_y = static_cast<int>(std::lround(event.button.y));
         events.push_back(input_event);
         break;
     }
 
-    case SDL_MOUSEMOTION:
+    case SDL_EVENT_MOUSE_MOTION:
     {
         RawInputEvent input_event;
         input_event.type = RawInputEventType::MouseMoved;
         input_event.device = InputDevice::Mouse;
-        input_event.mouse_x = event.motion.x;
-        input_event.mouse_y = event.motion.y;
-        input_event.mouse_delta_x = event.motion.xrel;
-        input_event.mouse_delta_y = event.motion.yrel;
+        input_event.mouse_x = static_cast<int>(std::lround(event.motion.x));
+        input_event.mouse_y = static_cast<int>(std::lround(event.motion.y));
+        input_event.mouse_delta_x = static_cast<int>(std::lround(event.motion.xrel));
+        input_event.mouse_delta_y = static_cast<int>(std::lround(event.motion.yrel));
         events.push_back(input_event);
         break;
     }
 
-    case SDL_MOUSEWHEEL:
+    case SDL_EVENT_MOUSE_WHEEL:
     {
         RawInputEvent input_event;
         input_event.type = RawInputEventType::MouseWheel;
         input_event.device = InputDevice::Mouse;
         input_event.wheel_x = event.wheel.x;
         input_event.wheel_y = event.wheel.y;
-        SDL_GetMouseState(&input_event.mouse_x,&input_event.mouse_y);
+        float x=0,y=0;
+        SDL_GetMouseState(&x,&y);
+        input_event.mouse_x = static_cast<int>(std::lround(x));
+        input_event.mouse_y = static_cast<int>(std::lround(y));
         events.push_back(input_event);
         break;
     }
 
-    case SDL_TEXTINPUT:
+    case SDL_EVENT_TEXT_INPUT:
     {
         RawInputEvent input_event;
         input_event.type = RawInputEventType::TextInput;
         input_event.device = InputDevice::Keyboard;
-        input_event.text = event.text.text;
+        input_event.text = event.text.text ? event.text.text : "";
         events.push_back(input_event);
         break;
     }
 
-    case SDL_TEXTEDITING:
+    case SDL_EVENT_TEXT_EDITING:
     {
         RawInputEvent input_event;
         input_event.type = RawInputEventType::TextEditing;
         input_event.device = InputDevice::Keyboard;
-        input_event.text = event.edit.text;
+        input_event.text = event.edit.text ? event.edit.text : "";
         input_event.composition_start = event.edit.start;
         input_event.composition_length = event.edit.length;
         events.push_back(input_event);
@@ -102,32 +106,32 @@ std::optional<RawInputControl> KeyboardMouseInputTranslator::control_from_key(SD
 {
     switch (key)
     {
-    case SDLK_a: return RawInputControl::KeyA;
-    case SDLK_b: return RawInputControl::KeyB;
-    case SDLK_c: return RawInputControl::KeyC;
-    case SDLK_d: return RawInputControl::KeyD;
-    case SDLK_e: return RawInputControl::KeyE;
-    case SDLK_f: return RawInputControl::KeyF;
-    case SDLK_g: return RawInputControl::KeyG;
-    case SDLK_h: return RawInputControl::KeyH;
-    case SDLK_i: return RawInputControl::KeyI;
-    case SDLK_j: return RawInputControl::KeyJ;
-    case SDLK_k: return RawInputControl::KeyK;
-    case SDLK_l: return RawInputControl::KeyL;
-    case SDLK_m: return RawInputControl::KeyM;
-    case SDLK_n: return RawInputControl::KeyN;
-    case SDLK_o: return RawInputControl::KeyO;
-    case SDLK_p: return RawInputControl::KeyP;
-    case SDLK_q: return RawInputControl::KeyQ;
-    case SDLK_r: return RawInputControl::KeyR;
-    case SDLK_s: return RawInputControl::KeyS;
-    case SDLK_t: return RawInputControl::KeyT;
-    case SDLK_u: return RawInputControl::KeyU;
-    case SDLK_v: return RawInputControl::KeyV;
-    case SDLK_w: return RawInputControl::KeyW;
-    case SDLK_x: return RawInputControl::KeyX;
-    case SDLK_y: return RawInputControl::KeyY;
-    case SDLK_z: return RawInputControl::KeyZ;
+    case SDLK_A: return RawInputControl::KeyA;
+    case SDLK_B: return RawInputControl::KeyB;
+    case SDLK_C: return RawInputControl::KeyC;
+    case SDLK_D: return RawInputControl::KeyD;
+    case SDLK_E: return RawInputControl::KeyE;
+    case SDLK_F: return RawInputControl::KeyF;
+    case SDLK_G: return RawInputControl::KeyG;
+    case SDLK_H: return RawInputControl::KeyH;
+    case SDLK_I: return RawInputControl::KeyI;
+    case SDLK_J: return RawInputControl::KeyJ;
+    case SDLK_K: return RawInputControl::KeyK;
+    case SDLK_L: return RawInputControl::KeyL;
+    case SDLK_M: return RawInputControl::KeyM;
+    case SDLK_N: return RawInputControl::KeyN;
+    case SDLK_O: return RawInputControl::KeyO;
+    case SDLK_P: return RawInputControl::KeyP;
+    case SDLK_Q: return RawInputControl::KeyQ;
+    case SDLK_R: return RawInputControl::KeyR;
+    case SDLK_S: return RawInputControl::KeyS;
+    case SDLK_T: return RawInputControl::KeyT;
+    case SDLK_U: return RawInputControl::KeyU;
+    case SDLK_V: return RawInputControl::KeyV;
+    case SDLK_W: return RawInputControl::KeyW;
+    case SDLK_X: return RawInputControl::KeyX;
+    case SDLK_Y: return RawInputControl::KeyY;
+    case SDLK_Z: return RawInputControl::KeyZ;
 
     case SDLK_0: return RawInputControl::Key0;
     case SDLK_1: return RawInputControl::Key1;
@@ -167,12 +171,12 @@ std::optional<RawInputControl> KeyboardMouseInputTranslator::control_from_key(SD
     case SDLK_LEFTBRACKET: return RawInputControl::KeyLeftBracket;
     case SDLK_RIGHTBRACKET: return RawInputControl::KeyRightBracket;
     case SDLK_SEMICOLON: return RawInputControl::KeySemicolon;
-    case SDLK_QUOTE: return RawInputControl::KeyApostrophe;
+    case SDLK_APOSTROPHE: return RawInputControl::KeyApostrophe;
     case SDLK_COMMA: return RawInputControl::KeyComma;
     case SDLK_PERIOD: return RawInputControl::KeyPeriod;
     case SDLK_SLASH: return RawInputControl::KeySlash;
     case SDLK_BACKSLASH: return RawInputControl::KeyBackslash;
-    case SDLK_BACKQUOTE: return RawInputControl::KeyGrave;
+    case SDLK_GRAVE: return RawInputControl::KeyGrave;
     case SDLK_F1: return RawInputControl::KeyF1;
     case SDLK_F2: return RawInputControl::KeyF2;
     case SDLK_F3: return RawInputControl::KeyF3;

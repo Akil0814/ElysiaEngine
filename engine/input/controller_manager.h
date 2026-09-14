@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <vector>
 
@@ -25,12 +25,12 @@ public:
 
 private:
     void open_connected_controllers();
-    void open_controller(int joystick_index);
+    void open_controller(SDL_JoystickID joystick_id);
     void close_controller(SDL_JoystickID joystick_id);
     void close_all_controllers();
 
 private:
-    std::vector<SDL_GameController*> _controllers;
+    std::vector<SDL_Gamepad*> _controllers;
     bool _initialized = false;
 };
 

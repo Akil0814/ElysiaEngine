@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+#include "tests/support/sdl_audio_fixture.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/typography/font_settings.h"
 #include "engine/builtin/resources/builtin_resources.h"
@@ -14,10 +15,10 @@
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <array>
 #include <cstdlib>
@@ -44,18 +45,15 @@ class FontResolverFixture
 public:
     FontResolverFixture()
     {
-        SDL_setenv("SDL_AUDIODRIVER","dummy",1);
-        require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0,
+        SDL_setenv_unsafe("SDL_AUDIO_DRIVER","dummy",1);
+        require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
             "FontResolver tests must initialize SDL video and audio");
-        require((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
-            "FontResolver tests must initialize PNG support");
-        require(TTF_Init() == 0,
+        require(TTF_Init(),
             "FontResolver tests must initialize SDL_ttf");
-        require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,
+        require(elysia::tests::open_test_mixer(),
             "FontResolver tests must open SDL_mixer audio");
 
-        _surface = SDL_CreateRGBSurfaceWithFormat(
-            0,128,128,32,SDL_PIXELFORMAT_RGBA32);
+        _surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
         require(_surface != nullptr,
             "FontResolver tests must create a software surface");
         _renderer = SDL_CreateSoftwareRenderer(_surface);
@@ -79,10 +77,10 @@ public:
         elysia::resources::ResourceManager::instance()->clear();
         _builtin_resources.shutdown();
         SDL_DestroyRenderer(_renderer);
-        SDL_FreeSurface(_surface);
-        Mix_CloseAudio();
+        SDL_DestroySurface(_surface);
+        elysia::tests::close_test_mixer();
         TTF_Quit();
-        IMG_Quit();
+
         SDL_Quit();
     }
 

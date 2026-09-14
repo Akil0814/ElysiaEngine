@@ -39,8 +39,8 @@ public:
         BuiltinLocaleId locale,std::string_view key) const noexcept;
     [[nodiscard]] const BuiltinAnimationDefinition* find_animation(
         BuiltinAnimationId id) const noexcept;
-    [[nodiscard]] Mix_Chunk* find_sound(BuiltinSoundId id) const noexcept;
-    [[nodiscard]] Mix_Music* find_music(BuiltinMusicId id) const noexcept;
+    [[nodiscard]] MIX_Audio* find_sound(BuiltinSoundId id) const noexcept;
+    [[nodiscard]] MIX_Audio* find_music(BuiltinMusicId id) const noexcept;
     [[nodiscard]] std::unique_ptr<elysia::animation::Animation> create_animation(
         BuiltinAnimationId id) const;
 

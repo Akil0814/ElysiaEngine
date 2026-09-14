@@ -5,7 +5,7 @@
 #include "../io/json/json_loader.h"
 #include "../resources/resource_origin.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <expected>
 #include <filesystem>

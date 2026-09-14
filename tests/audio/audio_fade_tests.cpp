@@ -1,9 +1,10 @@
+#include "tests/support/sdl_audio_fixture.h"
 #define SDL_MAIN_HANDLED
 #include "engine/audio/audio_service.h"
 #include "engine/resources/runtime/resource_manager.h"
 #include "tests/support/test_assertions.h"
-#include <SDL.h>
-#include <SDL_mixer.h>
+#include <SDL3/SDL.h>
+#include <SDL3_mixer/SDL_mixer.h>
 #include <cmath>
 #include <limits>
 #include <unordered_map>
@@ -149,9 +150,9 @@ void test_sounds()
 
 void test_service()
 {
-    SDL_setenv("SDL_AUDIODRIVER","dummy",1);
-    require(SDL_Init(SDL_INIT_AUDIO) == 0,"SDL audio initializes");
-    require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,"dummy mixer opens");
+    SDL_setenv_unsafe("SDL_AUDIO_DRIVER","dummy",1);
+    require(SDL_Init(SDL_INIT_AUDIO),"SDL audio initializes");
+    require(elysia::tests::open_test_mixer(),"dummy mixer opens");
     auto* resources = elysia::resources::ResourceManager::instance();
     const std::filesystem::path root = ELYSIA_SOURCE_DIR;
     require(resources->load_sound({"sound",root / "assets/audio/system/button_click_down.wav",{}}).has_value(),"load sound");
@@ -160,30 +161,37 @@ void test_service()
     auto* audio = AudioService::instance();
     require(audio->initialize({}),"service initializes");
     const auto sound = audio->request_sound("sound",{.loops=-1,.group=SoundGroup::Ambient,.fade_in=1s});
-    require(sound.handle && Mix_Volume(0,-1) == 0,"SDL channel begins silent");
-    audio->update(0.5); require(Mix_Volume(0,-1) == 64,"SDL fade midpoint");
-    audio->set_master_volume(50); require(Mix_Volume(0,-1) == 32,"master composes with gain");
-    audio->set_sound_volume(50); require(Mix_Volume(0,-1) == 16,"sound composes with gain");
-    audio->set_sound_group_volume(SoundGroup::Ambient,50); require(Mix_Volume(0,-1) == 8,"group composes with gain");
+    require(sound.handle && elysia::tests::sound_gain(0) == 0.0f,"SDL channel begins silent");
+    audio->update(0.5); require(elysia::tests::sound_gain(0) == 0.5f,"SDL fade midpoint");
+    audio->set_master_volume(50); require(elysia::tests::sound_gain(0) == 0.25f,"master composes with gain");
+    audio->set_sound_volume(50); require(elysia::tests::sound_gain(0) == 0.125f,"sound composes with gain");
+    audio->set_sound_group_volume(SoundGroup::Ambient,50); require(elysia::tests::sound_gain(0) == 0.0625f,"group composes with gain");
     require(audio->play_music("a",-1,1s),"service music starts");
-    require(Mix_VolumeMusic(-1) == 0,"music begins silent");
-    audio->update(0.5); require(Mix_VolumeMusic(-1) == 32,"music master times gain");
-    audio->set_music_volume(50); require(Mix_VolumeMusic(-1) == 16,"music setting composes with gain");
+    require(elysia::tests::music_gain() == 0.0f,"music begins silent");
+    audio->update(0.5); require(elysia::tests::music_gain() == 0.25f,"music master times gain");
+    audio->set_music_volume(50); require(elysia::tests::music_gain() == 0.125f,"music setting composes with gain");
     require(audio->transition_music("b",{.fade_out=1s,.fade_in=1s}),"service transition accepted");
     require(!audio->transition_music("missing"),"invalid transition rejected");
     require(!audio->play_music("missing"),"invalid immediate play rejected");
-    audio->update(1); require(Mix_PlayingMusic() && Mix_VolumeMusic(-1) == 0,"valid pending target survives invalid requests");
-    audio->update(0.5); require(Mix_VolumeMusic(-1) == 16,"target fade begins at actual start");
+    audio->update(1); require(elysia::tests::music_playing() && elysia::tests::music_gain() == 0.0f,"valid pending target survives invalid requests");
+    audio->update(0.5); require(elysia::tests::music_gain() == 0.125f,"target fade begins at actual start");
     audio->stop_music(1s); audio->stop_all_sounds(1s);
-    audio->update(0.5); require(Mix_PlayingMusic() && Mix_Playing(0),"fading SDL voices remain live");
-    audio->update(0.5); require(!Mix_PlayingMusic() && !Mix_Playing(0),"SDL voices halt at fade completion");
+    audio->update(0.5); require(elysia::tests::music_playing() && elysia::tests::sound_playing(0),"fading SDL voices remain live");
+    audio->update(0.5); require(!elysia::tests::music_playing() && !elysia::tests::sound_playing(0),"SDL voices halt at fade completion");
     require(audio->settings().master_volume == 50 && audio->settings().music_volume == 50,"fades preserve user settings");
     require(audio->play_music("a"),"restart before shutdown");
     require(audio->transition_music("b",{.fade_out=1s}),"pending before shutdown");
-    audio->shutdown(); require(!Mix_PlayingMusic(),"shutdown halts immediately");
+    audio->shutdown(); require(!elysia::tests::music_playing(),"shutdown halts immediately");
     require(audio->initialize({}),"reinitialize"); audio->update(10);
-    require(!Mix_PlayingMusic(),"shutdown cleared pending music");
-    audio->shutdown(); resources->clear(); Mix_CloseAudio(); SDL_Quit();
+    require(!elysia::tests::music_playing(),"shutdown cleared pending music");
+    require(audio->play_music("a",-1),"music restarts before resource unload");
+    require(audio->play_sound("sound",-1),"sound restarts before resource unload");
+    resources->clear();
+    auto& mixer=elysia::audio::detail::mixer_backend();
+    require(MIX_GetTrackAudio(mixer.music)==nullptr && !MIX_TrackPlaying(mixer.music),"resource unload detaches and stops music");
+    for (auto* track : mixer.tracks)
+        require(MIX_GetTrackAudio(track)==nullptr && !MIX_TrackPlaying(track),"resource unload detaches and stops sound tracks");
+    audio->shutdown(); elysia::tests::close_test_mixer(); SDL_Quit();
 }
 
 int main()

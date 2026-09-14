@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+#include "tests/support/sdl_audio_fixture.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/animation/animation_service.h"
 #include "engine/config/config_service.h"
@@ -11,10 +12,10 @@
 #include "engine/resources/runtime/resource_manager.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <algorithm>
 #include <array>
@@ -74,17 +75,15 @@ void run_to_completion(elysia::loading::GameContentLoader& loader)
 
 int main()
 {
-    SDL_setenv("SDL_AUDIODRIVER", "dummy", 1);
-    require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0,
+    SDL_setenv_unsafe("SDL_AUDIO_DRIVER", "dummy", 1);
+    require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
         "game content loader config test must initialize SDL");
-    require((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
-        "game content loader config test must initialize SDL_image");
-    require(TTF_Init() == 0,
+    require(TTF_Init(),
         "game content loader config test must initialize SDL_ttf");
-    require(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) == 0,
+    require(elysia::tests::open_test_mixer(),
         "game content loader config test must open SDL_mixer audio");
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, 64, 64, 32, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface* surface = SDL_CreateSurface(64, 64, SDL_PIXELFORMAT_RGBA32);
     require(surface != nullptr, "game content loader config test must create a target surface");
     SDL_Renderer* renderer = SDL_CreateSoftwareRenderer(surface);
     require(renderer != nullptr, "game content loader config test must create a software renderer");
@@ -159,10 +158,10 @@ int main()
 
 	elysia::loading::clear_loaded_content();
     SDL_DestroyRenderer(renderer);
-    SDL_FreeSurface(surface);
-    Mix_CloseAudio();
+    SDL_DestroySurface(surface);
+    elysia::tests::close_test_mixer();
     TTF_Quit();
-    IMG_Quit();
+
     SDL_Quit();
     return 0;
 }

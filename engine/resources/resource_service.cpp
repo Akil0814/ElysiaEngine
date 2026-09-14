@@ -19,12 +19,12 @@ TTF_Font* ResourceService::find_font(std::string_view key) const
 	return ResourceManager::instance()->find_font(key);
 }
 
-Mix_Chunk* ResourceService::find_sound(std::string_view key) const
+MIX_Audio* ResourceService::find_sound(std::string_view key) const
 {
 	return ResourceManager::instance()->find_sound(key);
 }
 
-Mix_Music* ResourceService::find_music(std::string_view key) const
+MIX_Audio* ResourceService::find_music(std::string_view key) const
 {
 	return ResourceManager::instance()->find_music(key);
 }

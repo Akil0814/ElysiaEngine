@@ -3,7 +3,7 @@
 #include "engine/input/input_system.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -19,8 +19,8 @@ using elysia::tests::require;
 {
     SDL_Event event{};
     event.type = type;
-    event.key.keysym.sym = key;
-    event.key.keysym.scancode = SDL_GetScancodeFromKey(key);
+    event.key.key = key;
+    event.key.scancode = SDL_GetScancodeFromKey(key, nullptr);
     return event;
 }
 
@@ -34,15 +34,15 @@ using elysia::tests::require;
 
 void require_capture_filters_and_clears_state()
 {
-    require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) == 0,
+    require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD),
         "development input capture tests must initialize SDL");
 
     InputSystem input;
     input.initialize();
     input.begin_frame();
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_a));
-    input.process_event(mouse_button_event(SDL_MOUSEBUTTONDOWN));
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_a));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_A));
+    input.process_event(mouse_button_event(SDL_EVENT_MOUSE_BUTTON_DOWN));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_A));
     require(input.frame().state.is_pressed(RawInputControl::KeyA),
         "the baseline keyboard event must create held state");
     require(input.frame().state.is_pressed(RawInputControl::MouseLeft),
@@ -55,11 +55,11 @@ void require_capture_filters_and_clears_state()
         "starting capture must clear held keyboard and pointer state");
 
     input.begin_frame();
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_b));
-    input.process_event(mouse_button_event(SDL_MOUSEBUTTONDOWN));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_B));
+    input.process_event(mouse_button_event(SDL_EVENT_MOUSE_BUTTON_DOWN));
     SDL_Event text{};
-    text.type = SDL_TEXTINPUT;
-    std::strcpy(text.text.text, "x");
+    text.type = SDL_EVENT_TEXT_INPUT;
+    text.text.text = "x";
     input.process_event(text);
     require(input.events().empty(),
         "captured keyboard, text, and pointer events must not reach RawInput");
@@ -70,15 +70,14 @@ void require_capture_filters_and_clears_state()
         "captured input must not rebuild held state");
 
     SDL_Event window_event{};
-    window_event.type = SDL_WINDOWEVENT;
-    window_event.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+    window_event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
     input.process_event(window_event);
     require(input.events().empty(),
         "window lifecycle events must remain safe while input is captured");
 
     input.set_development_input_capture(DevelopmentInputCapture::None);
     input.begin_frame();
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_c));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_C));
     require(input.frame().state.is_pressed(RawInputControl::KeyC)
             && input.events().size() == 1,
         "releasing capture must restore normal keyboard input");

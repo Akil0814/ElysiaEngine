@@ -2,7 +2,7 @@
 
 #include "localized_text_style.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <functional>
 #include <cstdint>

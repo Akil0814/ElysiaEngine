@@ -16,7 +16,7 @@
 #include "../tools/development_overlay_host.h"
 #include "../typography/font_resolver.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <expected>
 #include <optional>
@@ -103,9 +103,7 @@ private:
     bool _has_shutdown = false;
     bool _user_config_handler_registered = false;
     bool _sdl_initialized = false;
-    bool _image_initialized = false;
     bool _mixer_initialized = false;
     bool _ttf_initialized = false;
-    bool _audio_device_open = false;
 };
 }

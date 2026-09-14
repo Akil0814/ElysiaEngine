@@ -19,7 +19,7 @@ cmake -S . -B build-imgui -DELYSIA_ENABLE_IMGUI=ON
 cmake --build build-imgui --config Debug
 ```
 
-开启后使用仓库固定的 Dear ImGui 1.92.9、`imgui_impl_sdl2` 与 `imgui_impl_sdlrenderer2`。不编译 `imgui_demo.cpp`，不启用 docking、multi-viewport 或 gamepad navigation。Overlay 隐藏时仍保留已初始化的 Context 和默认字体内存，但不向 backend 发送事件，不调用 `NewFrame`、面板 callback 或渲染。
+开启后使用仓库固定的 Dear ImGui 1.92.9、`imgui_impl_sdl3` 与 `imgui_impl_sdlrenderer3`。不编译 `imgui_demo.cpp`，不启用 docking、multi-viewport 或 gamepad navigation。Overlay 隐藏时仍保留已初始化的 Context 和默认字体内存，但不向 backend 发送事件，不调用 `NewFrame`、面板 callback 或渲染。
 
 修改 `option()` 的默认值不会覆盖已经存在的 `CMakeCache.txt`；旧构建目录需要重新配置并显式传入 `-DELYSIA_ENABLE_IMGUI=ON`。
 

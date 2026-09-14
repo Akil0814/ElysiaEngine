@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+#include "tests/support/sdl_audio_fixture.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/typography/font_settings.h"
 #include "engine/builtin/resources/builtin_resources.h"
@@ -11,10 +12,10 @@
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_mixer.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <filesystem>
 #include <array>
@@ -52,15 +53,13 @@ class LocalizationFixture
 public:
     LocalizationFixture()
     {
-        SDL_setenv("SDL_AUDIODRIVER","dummy",1);
-        require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0,
+        SDL_setenv_unsafe("SDL_AUDIO_DRIVER","dummy",1);
+        require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
             "localization fallback tests must initialize SDL video and audio");
-        require((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
-            "localization fallback tests must initialize PNG support");
-        require(TTF_Init() == 0, "localization fallback tests must initialize SDL_ttf");
-        require(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT,2,2048) == 0,
+        require(TTF_Init(), "localization fallback tests must initialize SDL_ttf");
+        require(elysia::tests::open_test_mixer(),
             "localization fallback tests must open SDL_mixer audio");
-        _surface = SDL_CreateRGBSurfaceWithFormat(0, 128, 128, 32, SDL_PIXELFORMAT_RGBA32);
+        _surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
         require(_surface != nullptr, "localization fallback tests must create a software surface");
         _renderer = SDL_CreateSoftwareRenderer(_surface);
         require(_renderer != nullptr, "localization fallback tests must create a software renderer");
@@ -71,10 +70,10 @@ public:
         elysia::localization::LocalizationManager::instance()->shutdown();
         elysia::resources::ResourceManager::instance()->clear();
         SDL_DestroyRenderer(_renderer);
-        SDL_FreeSurface(_surface);
-        Mix_CloseAudio();
+        SDL_DestroySurface(_surface);
+        elysia::tests::close_test_mixer();
         TTF_Quit();
-        IMG_Quit();
+
         SDL_Quit();
     }
 
@@ -287,9 +286,8 @@ int main()
         "localized measurement must succeed with a project font present");
     int engine_width = 0;
     int engine_height = 0;
-    require(TTF_SizeUTF8(builtin_resources.find_font(
-            elysia::builtin::BuiltinFontId::Latin, 20),
-            "Moon", &engine_width, &engine_height) == 0,
+    require(TTF_GetStringSize(builtin_resources.find_font(
+            elysia::builtin::BuiltinFontId::Latin, 20), "Moon", 0, &engine_width, &engine_height),
         "Engine font must measure the precedence probe text");
     require(localized_width == engine_width && localized_height == engine_height,
         "Engine fonts must remain active until project activation");
@@ -305,7 +303,7 @@ int main()
         "active project fonts must render localized text");
     int project_width = 0;
     int project_height = 0;
-    require(TTF_SizeUTF8(ELYSIA_RESOURCES->find_font("ui.latin.20"), "Moon", &project_width, &project_height) == 0,
+    require(TTF_GetStringSize(ELYSIA_RESOURCES->find_font("ui.latin.20"), "Moon", 0, &project_width, &project_height),
         "project font must measure the fallback probe text");
     require(localized_width == project_width && localized_height == project_height,
         "LocalizationService must render through the active project font");

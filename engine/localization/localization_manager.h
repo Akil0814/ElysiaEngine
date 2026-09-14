@@ -6,8 +6,8 @@
 #include "../io/loaders/asset_config_types.h"
 #include "../tools/singleton.h"
 
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <filesystem>
 #include <expected>

@@ -7,8 +7,7 @@ endif()
 add_library(engine_lib ${ENGINE})
 
 target_include_directories(engine_lib PUBLIC ${PROJECT_SOURCE_DIR})
-target_include_directories(engine_lib SYSTEM PUBLIC ${SDL2_INCLUDE_DIR})
-target_link_libraries(engine_lib PUBLIC ${SDL2_LIBRARIES} PRIVATE box2d enet)
+target_link_libraries(engine_lib PUBLIC ${ELYSIA_SDL_LIBRARIES} PRIVATE box2d enet)
 
 if(ELYSIA_ENABLE_IMGUI)
     target_link_libraries(engine_lib PUBLIC imgui_lib)

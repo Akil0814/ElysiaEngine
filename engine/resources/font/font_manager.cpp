@@ -29,7 +29,7 @@ std::expected<void,ResourceFailure> FontManager::load_font(
 	TTF_Font* font = TTF_OpenFont(file_path.string().c_str(), point_size);
 	if (!font)
 		return std::unexpected(make_resource_failure(
-			ResourceError::DecodeFailed,std::string("Load font failed: ") + TTF_GetError(),
+			ResourceError::DecodeFailed,std::string("Load font failed: ") + SDL_GetError(),
 			key,file_path));
 
 	return store_font(key, font);

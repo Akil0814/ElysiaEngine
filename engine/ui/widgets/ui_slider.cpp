@@ -4,7 +4,7 @@
 #include "../../audio/audio_service.h"
 #include "../../core/render/render_command.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <cmath>

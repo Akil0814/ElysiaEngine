@@ -1,4 +1,4 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/animation/animation_service.h"
 #include "engine/animation/runtime/animation_manager.h"
@@ -11,7 +11,7 @@
 #include "engine/scene/scene_manager.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -72,8 +72,8 @@ struct AnimationEffectFixture
 {
     AnimationEffectFixture()
     {
-        require(SDL_Init(SDL_INIT_VIDEO) == 0, "animation effect tests must initialize SDL video");
-        surface = SDL_CreateRGBSurfaceWithFormat(0, 20, 10, 32, SDL_PIXELFORMAT_RGBA32);
+        require(SDL_Init(SDL_INIT_VIDEO), "animation effect tests must initialize SDL video");
+        surface = SDL_CreateSurface(20, 10, SDL_PIXELFORMAT_RGBA32);
         require(surface != nullptr, "animation effect tests must create a surface");
         renderer = SDL_CreateSoftwareRenderer(surface);
         require(renderer != nullptr, "animation effect tests must create a software renderer");
@@ -85,7 +85,7 @@ struct AnimationEffectFixture
     {
         SDL_DestroyTexture(texture);
         SDL_DestroyRenderer(renderer);
-        SDL_FreeSurface(surface);
+        SDL_DestroySurface(surface);
         SDL_Quit();
     }
 

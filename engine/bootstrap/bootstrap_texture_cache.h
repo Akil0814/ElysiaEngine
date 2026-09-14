@@ -2,7 +2,7 @@
 
 #include "../resources/texture/texture_loader.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <string>
 #include <string_view>

@@ -1,6 +1,6 @@
 #include "development_overlay_host.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <utility>
 
@@ -10,8 +10,8 @@ namespace
 {
 [[nodiscard]] bool is_toggle_event(const SDL_Event& event) noexcept
 {
-    return (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
-        && event.key.keysym.sym == SDLK_F2;
+    return (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP)
+        && event.key.key == SDLK_F2;
 }
 }
 
@@ -63,7 +63,7 @@ bool DevelopmentOverlayHost::process_event(const SDL_Event& event)
 
     if (is_toggle_event(event))
     {
-        if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
+        if (event.type == SDL_EVENT_KEY_DOWN && event.key.repeat == 0)
             _visible = !_visible;
         return true;
     }

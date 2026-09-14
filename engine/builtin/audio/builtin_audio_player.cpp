@@ -1,9 +1,10 @@
 #include "builtin_audio_player.h"
+#include "../../audio/mixer_backend.h"
 
 #include "../resources/builtin_asset_cache.h"
 #include "../../tools/logger.h"
 
-#include <SDL_mixer.h>
+#include <SDL3_mixer/SDL_mixer.h>
 
 #include <algorithm>
 
@@ -35,7 +36,7 @@ int BuiltinAudioPlayer::play_sound(BuiltinSoundId id, int loops) const
         return -1;
     }
 
-    Mix_Chunk* sound = _cache->find_sound(id);
+    MIX_Audio* sound = _cache->find_sound(id);
     if (!sound)
     {
         ELYSIA_LOG_WARN("builtin","Play sound failed: built-in sound does not exist: "
@@ -43,16 +44,13 @@ int BuiltinAudioPlayer::play_sound(BuiltinSoundId id, int loops) const
         return -1;
     }
 
-    const int channel = Mix_PlayChannel(-1,sound,loops);
-    if (channel < 0)
-    {
-        ELYSIA_LOG_WARN("builtin","Play sound failed: " << builtin_resource_name(id)
-            << " error: " << Mix_GetError());
-        return -1;
-    }
-
-    const int effective_volume =(_settings.master_volume * _settings.sound_volume) / 100;
-    Mix_Volume(channel,to_mix_volume(effective_volume));
+    auto& backend = elysia::audio::detail::mixer_backend();
+    if (!backend.initialize()) return -1;
+    int channel = 0;
+    while (channel < static_cast<int>(backend.tracks.size()) && MIX_TrackPlaying(backend.tracks[channel])) ++channel;
+    if (channel == static_cast<int>(backend.tracks.size())) return -1;
+    MIX_SetTrackGain(backend.tracks[channel],(_settings.master_volume * _settings.sound_volume) / 10000.0f);
+    if (!backend.play(backend.tracks[channel],sound,loops)) return -1;
 
     return channel;
 }
@@ -65,7 +63,7 @@ bool BuiltinAudioPlayer::play_music(BuiltinMusicId id, int loops) const
         return false;
     }
 
-    Mix_Music* music = _cache->find_music(id);
+    MIX_Audio* music = _cache->find_music(id);
     if (!music)
     {
         ELYSIA_LOG_WARN("builtin","Play music failed: built-in music does not exist: "
@@ -73,22 +71,18 @@ bool BuiltinAudioPlayer::play_music(BuiltinMusicId id, int loops) const
         return false;
     }
 
-    const int effective_volume =
-        (_settings.master_volume * _settings.music_volume) / 100;
-    Mix_VolumeMusic(to_mix_volume(effective_volume));
-    if (Mix_PlayMusic(music,loops) != 0)
-    {
-        ELYSIA_LOG_WARN("builtin","Play music failed: " << builtin_resource_name(id)
-            << " error: " << Mix_GetError());
-        return false;
-    }
+    auto& backend = elysia::audio::detail::mixer_backend();
+    if (!backend.initialize()) return false;
+    MIX_SetTrackGain(backend.music,(_settings.master_volume * _settings.music_volume) / 10000.0f);
+    if (!backend.play(backend.music,music,loops)) return false;
 
     return true;
 }
 
 void BuiltinAudioPlayer::stop_music() const noexcept
 {
-    Mix_HaltMusic();
+    auto& backend = elysia::audio::detail::mixer_backend();
+    backend.stop(backend.music);
 }
 
 void BuiltinAudioPlayer::set_master_volume(int volume) noexcept
@@ -116,8 +110,4 @@ int BuiltinAudioPlayer::clamp_volume(int volume) noexcept
     return std::clamp(volume,0,100);
 }
 
-int BuiltinAudioPlayer::to_mix_volume(int volume) noexcept
-{
-    return (clamp_volume(volume) * MIX_MAX_VOLUME) / 100;
-}
 }

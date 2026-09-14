@@ -2,10 +2,10 @@
 
 #include "../logger.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <imgui.h>
-#include <imgui_impl_sdl2.h>
-#include <imgui_impl_sdlrenderer2.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
 
 #include <algorithm>
 #include <cmath>
@@ -20,7 +20,7 @@ struct SdlRendererState
     SDL_Texture* target = nullptr;
     int logical_width = 0;
     int logical_height = 0;
-    SDL_bool integer_scale = SDL_FALSE;
+    SDL_RendererLogicalPresentation presentation = SDL_LOGICAL_PRESENTATION_DISABLED;
     SDL_Rect viewport{};
     SDL_Rect clip{};
     bool clip_enabled = false;
@@ -38,14 +38,12 @@ struct SdlRendererState
 {
     SdlRendererState state;
     state.target = SDL_GetRenderTarget(&renderer);
-    SDL_RenderGetLogicalSize(
-        &renderer, &state.logical_width, &state.logical_height);
-    state.integer_scale = SDL_RenderGetIntegerScale(&renderer);
-    SDL_RenderGetViewport(&renderer, &state.viewport);
-    state.clip_enabled = SDL_RenderIsClipEnabled(&renderer) == SDL_TRUE;
+    SDL_GetRenderLogicalPresentation(&renderer,&state.logical_width,&state.logical_height,&state.presentation);
+    SDL_GetRenderViewport(&renderer, &state.viewport);
+    state.clip_enabled = SDL_RenderClipEnabled(&renderer) == true;
     if (state.clip_enabled)
-        SDL_RenderGetClipRect(&renderer, &state.clip);
-    SDL_RenderGetScale(&renderer, &state.scale_x, &state.scale_y);
+        SDL_GetRenderClipRect(&renderer, &state.clip);
+    SDL_GetRenderScale(&renderer, &state.scale_x, &state.scale_y);
     SDL_GetRenderDrawColor(
         &renderer,
         &state.red,
@@ -61,15 +59,13 @@ void restore_renderer_state(
     const SdlRendererState& state) noexcept
 {
     (void)SDL_SetRenderTarget(&renderer, state.target);
-    (void)SDL_RenderSetLogicalSize(
-        &renderer, state.logical_width, state.logical_height);
-    (void)SDL_RenderSetIntegerScale(&renderer, state.integer_scale);
-    (void)SDL_RenderSetScale(&renderer, state.scale_x, state.scale_y);
-    SDL_RenderSetViewport(&renderer, &state.viewport);
+    (void)SDL_SetRenderLogicalPresentation(&renderer, state.logical_width, state.logical_height, state.presentation);
+    (void)SDL_SetRenderScale(&renderer, state.scale_x, state.scale_y);
+    SDL_SetRenderViewport(&renderer, &state.viewport);
     if (state.clip_enabled)
-        SDL_RenderSetClipRect(&renderer, &state.clip);
+        SDL_SetRenderClipRect(&renderer, &state.clip);
     else
-        SDL_RenderSetClipRect(&renderer, nullptr);
+        SDL_SetRenderClipRect(&renderer, nullptr);
     (void)SDL_SetRenderDrawColor(
         &renderer,
         state.red,
@@ -105,15 +101,15 @@ std::expected<void, std::string> ImGuiDevelopmentOverlay::initialize(
     io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
     ImGui::StyleColorsDark();
 
-    if (!ImGui_ImplSDL2_InitForSDLRenderer(&window, &renderer))
+    if (!ImGui_ImplSDL3_InitForSDLRenderer(&window, &renderer))
     {
         shutdown();
         return std::unexpected(
-            "Dear ImGui SDL2 platform backend initialization failed.");
+            "Dear ImGui SDL3 platform backend initialization failed.");
     }
     _sdl_platform_initialized = true;
 
-    if (!ImGui_ImplSDLRenderer2_Init(&renderer))
+    if (!ImGui_ImplSDLRenderer3_Init(&renderer))
     {
         shutdown();
         return std::unexpected(
@@ -128,7 +124,7 @@ void ImGuiDevelopmentOverlay::process_event(const SDL_Event& event)
     if (!_context || !_sdl_platform_initialized)
         return;
     set_current_context();
-    (void)ImGui_ImplSDL2_ProcessEvent(&event);
+    (void)ImGui_ImplSDL3_ProcessEvent(&event);
 }
 
 void ImGuiDevelopmentOverlay::begin_frame(double delta_seconds)
@@ -140,8 +136,8 @@ void ImGuiDevelopmentOverlay::begin_frame(double delta_seconds)
     }
 
     set_current_context();
-    ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
+    ImGui_ImplSDLRenderer3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
     if (std::isfinite(delta_seconds) && delta_seconds > 0.0)
         ImGui::GetIO().DeltaTime = static_cast<float>(delta_seconds);
     ImGui::NewFrame();
@@ -189,7 +185,7 @@ void ImGuiDevelopmentOverlay::render(SDL_Renderer& renderer)
     }
 
     const SdlRendererState renderer_state = capture_renderer_state(renderer);
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), &renderer);
+    ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
     restore_renderer_state(renderer, renderer_state);
     _frame_started = false;
 }
@@ -199,9 +195,9 @@ void ImGuiDevelopmentOverlay::shutdown() noexcept
     if (_context)
         set_current_context();
     if (_sdl_renderer_initialized)
-        ImGui_ImplSDLRenderer2_Shutdown();
+        ImGui_ImplSDLRenderer3_Shutdown();
     if (_sdl_platform_initialized)
-        ImGui_ImplSDL2_Shutdown();
+        ImGui_ImplSDL3_Shutdown();
     if (_context)
         ImGui::DestroyContext(_context);
 

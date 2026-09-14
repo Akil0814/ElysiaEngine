@@ -1,4 +1,4 @@
-#define SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
 #include "engine/application/application.h"
 #include "game/application/example_game_module.h"
 

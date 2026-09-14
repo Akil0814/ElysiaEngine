@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include "color.h"
 #include "../geometry/rect.h"
@@ -16,6 +16,14 @@ namespace elysia::core
     return SDL_Color{ color.r, color.g, color.b, color.a };
 }
 
+[[nodiscard]] inline SDL_FColor to_sdl_fcolor(SDL_Color color) noexcept
+{
+    return {color.r/255.0f,color.g/255.0f,color.b/255.0f,color.a/255.0f};
+}
+[[nodiscard]] inline SDL_FRect to_sdl_frect(SDL_Rect rect) noexcept
+{
+    return {static_cast<float>(rect.x),static_cast<float>(rect.y),static_cast<float>(rect.w),static_cast<float>(rect.h)};
+}
 [[nodiscard]] inline Color from_sdl_color(SDL_Color color) noexcept
 {
     return Color{ color.r, color.g, color.b, color.a };

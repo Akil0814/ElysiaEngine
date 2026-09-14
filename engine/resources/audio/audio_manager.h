@@ -3,7 +3,7 @@
 #include "../resource_failure.h"
 #include "../resource_types.h"
 
-#include <SDL_mixer.h>
+#include <SDL3_mixer/SDL_mixer.h>
 
 #include <filesystem>
 #include <expected>
@@ -14,8 +14,8 @@
 
 namespace elysia::resources
 {
-using SoundPool = std::unordered_map<std::string, Mix_Chunk*>;
-using MusicPool = std::unordered_map<std::string, Mix_Music*>;
+using SoundPool = std::unordered_map<std::string, MIX_Audio*>;
+using MusicPool = std::unordered_map<std::string, MIX_Audio*>;
 
 class AudioManager : public ResourceSubManager
 {
@@ -31,8 +31,8 @@ public:
 	[[nodiscard]] std::expected<void,ResourceFailure> load_sounds(
 		const std::vector<SoundLoadRequest>& requests);
 	[[nodiscard]] std::expected<void,ResourceFailure> store_sound(
-		const std::string& key,Mix_Chunk* sound);
-	Mix_Chunk* find_sound(const std::string_view& key) const;
+		const std::string& key,MIX_Audio* sound);
+	MIX_Audio* find_sound(const std::string_view& key) const;
 
 	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
 		const std::string& key,
@@ -43,8 +43,8 @@ public:
 	[[nodiscard]] std::expected<void,ResourceFailure> load_music(
 		const std::vector<MusicLoadRequest>& requests);
 	[[nodiscard]] std::expected<void,ResourceFailure> store_music(
-		const std::string& key,Mix_Music* music);
-	Mix_Music* find_music(const std::string_view& key) const;
+		const std::string& key,MIX_Audio* music);
+	MIX_Audio* find_music(const std::string_view& key) const;
 
 	void clear() override;
 	size_t resource_count() const override;

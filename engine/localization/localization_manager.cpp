@@ -8,7 +8,7 @@
 #include "../io/path/path_manager.h"
 #include "../typography/font_resolver.h"
 
-#include <SDL_ttf.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <algorithm>
 #include <utility>
@@ -300,7 +300,7 @@ bool LocalizationManager::measure_raw_text(
 
 	if (text.empty())
 	{
-		out_height = TTF_FontHeight(font);
+		out_height = TTF_GetFontHeight(font);
 		return true;
 	}
 
@@ -309,26 +309,22 @@ bool LocalizationManager::measure_raw_text(
 	{
 		// SDL_ttf has no wrapped measurement API. Rendering to a temporary surface is
 		// the same layout path used for the final texture, so its extent is authoritative.
-		SDL_Surface* surface = TTF_RenderUTF8_Blended_Wrapped(
-			font,
-			raw_text.c_str(),
-			SDL_Color{ 255,255,255,255 },
-			style.wrap_width);
+		SDL_Surface* surface = TTF_RenderText_Blended_Wrapped(font, raw_text.c_str(), 0, SDL_Color{ 255,255,255,255 }, style.wrap_width);
 		if (!surface)
 		{
-			ELYSIA_LOG_WARN("localization","Measure wrapped raw text failed, error: " << TTF_GetError());
+			ELYSIA_LOG_WARN("localization","Measure wrapped raw text failed, error: " << SDL_GetError());
 			return false;
 		}
 
 		out_width = surface->w;
 		out_height = surface->h;
-		SDL_FreeSurface(surface);
+		SDL_DestroySurface(surface);
 		return true;
 	}
 
-	if (TTF_SizeUTF8(font,raw_text.c_str(),&out_width,&out_height) != 0)
+	if (!TTF_GetStringSize(font, raw_text.c_str(), 0, &out_width, &out_height))
 	{
-		ELYSIA_LOG_WARN("localization","Measure raw text failed, error: " << TTF_GetError());
+		ELYSIA_LOG_WARN("localization","Measure raw text failed, error: " << SDL_GetError());
 		return false;
 	}
 
@@ -526,29 +522,22 @@ CachedTexturePtr LocalizationManager::create_text_texture(
     const SDL_Color text_color = elysia::core::to_sdl_color(style.color);
 	if (style.wrap_width > 0)
 	{
-		surface = TTF_RenderUTF8_Blended_Wrapped(
-			font,
-			translated_text.c_str(),
-			text_color,
-			style.wrap_width);
+		surface = TTF_RenderText_Blended_Wrapped(font, translated_text.c_str(), 0, text_color, style.wrap_width);
 	}
 	else
 	{
-		surface = TTF_RenderUTF8_Blended(
-			font,
-			translated_text.c_str(),
-			text_color);
+		surface = TTF_RenderText_Blended(font, translated_text.c_str(), 0, text_color);
 	}
 
 	if (!surface)
 	{
 		ELYSIA_LOG_WARN("localization","Create text texture failed: TTF render failed for key "
-			<< key << ", error: " << TTF_GetError());
+			<< key << ", error: " << SDL_GetError());
 		return {};
 	}
 
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(_renderer, surface);
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	if (!texture)
 	{
 		ELYSIA_LOG_WARN("localization","Create text texture failed: SDL_CreateTextureFromSurface failed for key "
@@ -579,29 +568,22 @@ CachedTexturePtr LocalizationManager::create_raw_text_texture(
 	const SDL_Color text_color = elysia::core::to_sdl_color(style.color);
 	if (style.wrap_width > 0)
 	{
-		surface = TTF_RenderUTF8_Blended_Wrapped(
-			font,
-			raw_text.c_str(),
-			text_color,
-			style.wrap_width);
+		surface = TTF_RenderText_Blended_Wrapped(font, raw_text.c_str(), 0, text_color, style.wrap_width);
 	}
 	else
 	{
-		surface = TTF_RenderUTF8_Blended(
-			font,
-			raw_text.c_str(),
-			text_color);
+		surface = TTF_RenderText_Blended(font, raw_text.c_str(), 0, text_color);
 	}
 
 	if (!surface)
 	{
 		ELYSIA_LOG_WARN("localization","Create raw text texture failed, error: "
-			<< TTF_GetError());
+			<< SDL_GetError());
 		return {};
 	}
 
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(_renderer, surface);
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	if (!texture)
 	{
 		ELYSIA_LOG_WARN("localization","Create raw text texture failed: SDL_CreateTextureFromSurface failed, error: "

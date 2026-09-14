@@ -1,3 +1,4 @@
+#include "engine/core/render/sdl_texture_size.h"
 #include "ui_number.h"
 
 #include "../../style/ui_style_defaults.h"
@@ -6,7 +7,7 @@
 #include "../../../localization/localization_service.h"
 #include "../../../localization/localized_text_style.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <cmath>
@@ -114,7 +115,7 @@ void UiNumber::submit_ui_render_commands(std::vector<elysia::core::UiRenderComma
 
         int texture_width = 0;
         int texture_height = 0;
-        if (SDL_QueryTexture(texture,nullptr,nullptr,&texture_width,&texture_height) != 0
+        if (!elysia::core::texture_pixel_size(texture,&texture_width,&texture_height)
             || texture_width <= 0
             || texture_height <= 0)
         {

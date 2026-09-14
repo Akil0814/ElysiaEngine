@@ -16,7 +16,7 @@
         │
         ▼
 ResourceManager / AudioManager
-  按 key 持有 Mix_Chunk 与 Mix_Music
+  按 key 持有 MIX_Audio（音效与音乐分别索引）
         │
         ▼
 AudioService
@@ -27,7 +27,7 @@ SDL_mixer
   Mix_PlayChannel / Mix_PlayMusic / Mix_HaltChannel
 ```
 
-- `ResourceManager` 负责通过资源 key 查找已加载的 `Mix_Chunk`（音效）和 `Mix_Music`（音乐），不负责播放策略。
+- `ResourceManager` 负责通过资源 key 查找已加载的 `MIX_Audio`（音效预解码、音乐按需解码），不负责播放策略。
 - `AudioService` 是 gameplay 与 UI 的公开播放入口；它不依赖 `Scene`，也不持有场景对象。
 - `SoundPlaybackScheduler` 是 `AudioService` 的内部调度器，维护音效的待播放/活跃状态、`SoundHandle`、并发组、冷却和溢出策略。
 - SDL_mixer 负责实际 channel 和音乐播放。SDL 资源查找、停止 channel、设置 channel 音量仍由 `AudioService` 处理。

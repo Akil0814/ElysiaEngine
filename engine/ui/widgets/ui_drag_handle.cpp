@@ -3,7 +3,7 @@
 #include "../style/ui_style_defaults.h"
 #include "../../core/render/render_command.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <cmath>

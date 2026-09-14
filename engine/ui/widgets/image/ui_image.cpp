@@ -2,7 +2,7 @@
 
 #include "../../../core/render/render_command.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 namespace elysia::ui
 {

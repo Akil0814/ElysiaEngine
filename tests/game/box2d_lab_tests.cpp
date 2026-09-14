@@ -12,15 +12,15 @@
 #include "game/scene/demo/physics/box2d_lab_scene.h"
 #include "game/scene/example_scene_keys.h"
 #include "tests/support/test_assertions.h"
-#include <SDL.h>
-#include <SDL_image.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 #include <iostream>
 int main(int argc, char **argv)
 {
     using elysia::tests::require;
-    SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
-    require(SDL_Init(SDL_INIT_VIDEO) == 0, "SDL initializes");
-    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, 1280, 720, 32, SDL_PIXELFORMAT_RGBA32);
+    SDL_setenv_unsafe("SDL_VIDEO_DRIVER", "dummy", 1);
+    require(SDL_Init(SDL_INIT_VIDEO), "SDL initializes");
+    SDL_Surface *surface = SDL_CreateSurface(1280, 720, SDL_PIXELFORMAT_RGBA32);
     SDL_Renderer *renderer = SDL_CreateSoftwareRenderer(surface);
     require(renderer != nullptr, "Software renderer creates");
     {
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
         elysia::core::execute_render_commands(renderer, overlay);
         SDL_RenderPresent(renderer);
         if (argc > 1)
-            require(IMG_SavePNG(surface, argv[1]) == 0, "Lab preview saved");
+            require(IMG_SavePNG(surface, argv[1]), "Lab preview saved");
         scene.on_input({}, {{.control = elysia::input::RawInputControl::KeySpace,
                              .type = elysia::input::RawInputEventType::ControlPressed}});
         scene.on_update(1.0 / 60);
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
         scene.shutdown();
     }
     SDL_DestroyRenderer(renderer);
-    SDL_FreeSurface(surface);
+    SDL_DestroySurface(surface);
     SDL_Quit();
     std::cout << "Box2D lab scene smoke passed\n";
 }

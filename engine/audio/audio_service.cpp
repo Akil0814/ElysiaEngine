@@ -3,7 +3,7 @@
 
 #include "../resources/resource_service.h"
 
-#include <SDL_mixer.h>
+#include <SDL3_mixer/SDL_mixer.h>
 
 #include <algorithm>
 namespace elysia::audio
@@ -16,11 +16,7 @@ bool AudioService::initialize(const AudioSettings& settings)
     _settings.music_volume = clamp_volume(settings.music_volume);
     _settings.sound_volume = clamp_volume(settings.sound_volume);
 
-    if (Mix_AllocateChannels(static_cast<int>(kSoundChannelCount)) < static_cast<int>(kSoundChannelCount))
-    {
-        ELYSIA_LOG_WARN("audio","Audio service failed to allocate sound channels: " << Mix_GetError());
-        return false;
-    }
+    if (!detail::mixer_backend().initialize()) return false;
 
     _sound_scheduler.reset();
     _sound_group_volumes.fill(100);
@@ -55,7 +51,7 @@ SoundRequestResult AudioService::request_sound(const std::string_view& key, cons
         return {};
     }
 
-    Mix_Chunk* sound = ELYSIA_RESOURCES->find_sound(key);
+    MIX_Audio* sound = ELYSIA_RESOURCES->find_sound(key);
     if (!sound)
     {
         ELYSIA_LOG_WARN("audio","Play sound failed: sound does not exist: " << key);
@@ -67,13 +63,13 @@ SoundRequestResult AudioService::request_sound(const std::string_view& key, cons
         {
             return start_sound(scheduled_key,scheduled_loops,group,gain);
         },
-        [](int channel)
+        [this](int channel)
         {
-            return Mix_Playing(channel) != 0;
+            return channel_playing(channel);
         },
-        [](int channel)
+        [this](int channel)
         {
-            Mix_HaltChannel(channel);
+            halt_channel(channel);
         });
 }
 
@@ -87,13 +83,13 @@ void AudioService::update(double delta_seconds)
         {
             return start_sound(scheduled_key,scheduled_loops,group,gain);
         },
-        [](int channel)
+        [this](int channel)
         {
-            return Mix_Playing(channel) != 0;
+            return channel_playing(channel);
         },
-        [](int channel)
+        [this](int channel)
         {
-            Mix_HaltChannel(channel);
+            halt_channel(channel);
         },
         [this](int channel,SoundGroup group,double gain)
         {
@@ -108,13 +104,13 @@ bool AudioService::stop_sound(SoundHandle handle,std::chrono::milliseconds fade_
         return false;
 
     return _sound_scheduler.stop_sound(handle,
-        [](int channel)
+        [this](int channel)
         {
-            return Mix_Playing(channel) != 0;
+            return channel_playing(channel);
         },
-        [](int channel)
+        [this](int channel)
         {
-            Mix_HaltChannel(channel);
+            halt_channel(channel);
         },fade_out);
 }
 
@@ -180,13 +176,13 @@ void AudioService::stop_all_sounds(std::chrono::milliseconds fade_out)
     if (!_initialized) return;
     if (fade_out.count() <= 0)
     {
-        Mix_HaltChannel(-1);
+        halt_channel(-1);
         _sound_scheduler.clear_active_sounds();
     }
     else
         _sound_scheduler.stop_all_sounds(
-            [](int channel) { return Mix_Playing(channel) != 0; },
-            [](int channel) { Mix_HaltChannel(channel); },fade_out);
+            [this](int channel) { return channel_playing(channel); },
+            [this](int channel) { halt_channel(channel); },fade_out);
 }
 
 MusicPlaybackController::Backend AudioService::music_backend()
@@ -194,22 +190,22 @@ MusicPlaybackController::Backend AudioService::music_backend()
     return {
         [this](std::string_view key,int loops,double gain)
         {
-            Mix_Music* music = ELYSIA_RESOURCES->find_music(key);
+            MIX_Audio* music = ELYSIA_RESOURCES->find_music(key);
             if (!music)
             {
                 ELYSIA_LOG_WARN("audio","Music no longer exists: " << key);
                 return false;
             }
             apply_music_volume(gain);
-            if (Mix_PlayMusic(music,loops) != 0)
+            if (!play_track(_music_track,music,loops))
             {
-                ELYSIA_LOG_WARN("audio","Play music failed: " << key << " error: " << Mix_GetError());
+                ELYSIA_LOG_WARN("audio","Play music failed: " << key << " error: " << SDL_GetError());
                 return false;
             }
             return true;
         },
-        [] { Mix_HaltMusic(); },
-        [] { return Mix_PlayingMusic() != 0; },
+        [this] { if (_music_track) { MIX_StopTrack(_music_track,0); MIX_SetTrackAudio(_music_track,nullptr); } },
+        [this] { return _music_track && MIX_TrackPlaying(_music_track); },
         [this](double gain) { apply_music_volume(gain); }
     };
 }
@@ -217,7 +213,7 @@ MusicPlaybackController::Backend AudioService::music_backend()
 void AudioService::apply_music_volume(double gain) const
 {
     const double volume = _settings.master_volume * _settings.music_volume / 10000.0;
-    Mix_VolumeMusic(static_cast<int>(volume * gain * MIX_MAX_VOLUME));
+    MIX_SetTrackGain(_music_track,static_cast<float>(volume * gain));
 }
 
 void AudioService::set_master_volume(int volume)
@@ -245,7 +241,7 @@ const AudioSettings& AudioService::settings() const
 
 int AudioService::start_sound(const std::string_view& key, int loops, SoundGroup group,double gain)
 {
-    Mix_Chunk* sound = ELYSIA_RESOURCES->find_sound(key);
+    MIX_Audio* sound = ELYSIA_RESOURCES->find_sound(key);
     if (!sound)
     {
         ELYSIA_LOG_WARN("audio","Play sound failed: sound does not exist: " << key);
@@ -253,12 +249,12 @@ int AudioService::start_sound(const std::string_view& key, int loops, SoundGroup
     }
 
     int channel = 0;
-    while (channel < static_cast<int>(kSoundChannelCount) && Mix_Playing(channel)) ++channel;
+    while (channel < static_cast<int>(kSoundChannelCount) && channel_playing(channel)) ++channel;
     if (channel == static_cast<int>(kSoundChannelCount)) return -1;
     apply_sound_channel_volume(channel,group,gain);
-    channel = Mix_PlayChannel(channel,sound,loops);
+    if (!play_track(_tracks[channel],sound,loops)) channel = -1;
     if (channel < 0)
-        ELYSIA_LOG_WARN("audio","Play sound failed: " << key<< " error: " << Mix_GetError());
+        ELYSIA_LOG_WARN("audio","Play sound failed: " << key<< " error: " << SDL_GetError());
 
 
     return channel;
@@ -280,9 +276,9 @@ void AudioService::apply_sound_group_volume(SoundGroup group)
         return;
 
     _sound_scheduler.for_each_active_channel(group,
-        [](int channel)
+        [this](int channel)
         {
-            return Mix_Playing(channel) != 0;
+            return channel_playing(channel);
         },
         [this,group](int channel,double gain)
         {
@@ -294,7 +290,7 @@ void AudioService::apply_sound_channel_volume(int channel,SoundGroup group,doubl
 {
     const double effective_sound = (_settings.master_volume* _settings.sound_volume
         * _sound_group_volumes[sound_group_index(group)]) / 1000000.0;
-    Mix_Volume(channel,static_cast<int>(effective_sound * gain * MIX_MAX_VOLUME));
+    MIX_SetTrackGain(_tracks[channel],static_cast<float>(effective_sound * gain));
 }
 
 int AudioService::clamp_volume(int volume)
@@ -302,4 +298,25 @@ int AudioService::clamp_volume(int volume)
     return std::clamp(volume, 0, 100);
 }
 
+}
+
+namespace elysia::audio
+{
+bool AudioService::channel_playing(int channel) const
+{
+    return channel >= 0 && channel < static_cast<int>(_tracks.size()) && _tracks[channel] && MIX_TrackPlaying(_tracks[channel]);
+}
+void AudioService::halt_channel(int channel)
+{
+    if (channel == -1) { for (int i=0;i<static_cast<int>(_tracks.size());++i) halt_channel(i); return; }
+    if (channel >= 0 && channel < static_cast<int>(_tracks.size()) && _tracks[channel])
+    {
+        MIX_StopTrack(_tracks[channel],0);
+        MIX_SetTrackAudio(_tracks[channel],nullptr);
+    }
+}
+bool AudioService::play_track(MIX_Track* track,MIX_Audio* audio,int loops)
+{
+    return detail::MixerBackend::play(track,audio,loops);
+}
 }

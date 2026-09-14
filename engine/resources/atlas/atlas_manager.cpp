@@ -26,7 +26,7 @@ std::expected<TexturePtr,ResourceFailure> create_coverage_mask_texture(
 		renderer,
 		*prepared_result.coverage_mask_surface);
 	if (!texture
-		|| SDL_SetTextureBlendMode(texture.get(),SDL_BLENDMODE_BLEND) != 0)
+		|| !SDL_SetTextureBlendMode(texture.get(),SDL_BLENDMODE_BLEND))
 	{
 		return std::unexpected(make_resource_failure(
 			ResourceError::CreateFailed,"Create atlas coverage mask texture failed.",

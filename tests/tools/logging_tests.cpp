@@ -1,4 +1,4 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/animation/animation_service.h"
 #include "engine/animation/runtime/animation_manager.h"
@@ -12,7 +12,7 @@
 #include "engine/tools/logger.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <array>
 #include <cstdlib>
@@ -534,7 +534,7 @@ void test_path_manager_failure_logging()
     auto* logger = tools::Logger::instance();
     const std::filesystem::path original_working_directory = std::filesystem::current_path();
     const std::filesystem::path temporary_root = std::filesystem::temp_directory_path()
-        / ("elysia-path-manager-log-test-" + std::to_string(SDL_GetTicks64()));
+        / ("elysia-path-manager-log-test-" + std::to_string(SDL_GetTicks()));
     remove_test_path(temporary_root);
     std::filesystem::create_directories(temporary_root);
     std::filesystem::create_directories(temporary_root / "assets");

@@ -1,11 +1,11 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/application/presentation/application_sdl_presentation.h"
 #include "engine/input/input_system.h"
 #include "engine/ui/input/ui_input_router.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdlib>
 
@@ -25,24 +25,15 @@ public:
     InputSystemFixture()
     {
         require(
-            SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) == 0,
+            SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD),
             "pointer coordinate tests must initialize SDL");
 
-        _window = SDL_CreateWindow(
-            "InputSystem pointer coordinate tests",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            1280,
-            720,
-            SDL_WINDOW_HIDDEN);
+        _window = SDL_CreateWindow("InputSystem pointer coordinate tests", 1280, 720, SDL_WINDOW_HIDDEN);
         require(
             _window != nullptr,
             "pointer coordinate tests must create an SDL window");
 
-        _renderer = SDL_CreateRenderer(
-            _window,
-            -1,
-            SDL_RENDERER_SOFTWARE);
+        _renderer = SDL_CreateRenderer(_window, "software");
         require(
             _renderer != nullptr,
             "pointer coordinate tests must create an SDL renderer");
@@ -76,7 +67,7 @@ public:
         drain_events();
 
         SDL_Event event{};
-        event.type = SDL_MOUSEMOTION;
+        event.type = SDL_EVENT_MOUSE_MOTION;
         event.motion.windowID = SDL_GetWindowID(_window);
         event.motion.x = window_x;
         event.motion.y = window_y;
@@ -86,7 +77,7 @@ public:
 
         while (SDL_PollEvent(&event))
         {
-            if (event.type == SDL_MOUSEMOTION
+            if (event.type == SDL_EVENT_MOUSE_MOTION
                 && event.motion.windowID == SDL_GetWindowID(_window))
             {
                 return event;
@@ -135,10 +126,10 @@ public:
         int output_width = 0;
         int output_height = 0;
         require(
-            SDL_GetRendererOutputSize(
+            SDL_GetRenderOutputSize(
                 _renderer,
                 &output_width,
-                &output_height) == 0,
+                &output_height),
             "pointer coordinate tests must query renderer output size");
         require(
             output_width == width && output_height == height,
@@ -163,7 +154,7 @@ private:
 [[nodiscard]] SDL_Event mouse_motion_event(int x,int y)
 {
     SDL_Event event{};
-    event.type = SDL_MOUSEMOTION;
+    event.type = SDL_EVENT_MOUSE_MOTION;
     event.motion.x = x;
     event.motion.y = y;
     return event;
@@ -210,7 +201,7 @@ void require_native_size_coordinates(InputSystemFixture& fixture)
 
     input_system.begin_frame();
     input_system.process_event(
-        mouse_button_event(SDL_MOUSEBUTTONDOWN,640,360));
+        mouse_button_event(SDL_EVENT_MOUSE_BUTTON_DOWN,640,360));
     require_single_pointer_event(
         input_system,
         RawInputEventType::ControlPressed,
@@ -228,16 +219,16 @@ void require_scaled_coordinates_and_deltas(InputSystemFixture& fixture)
     const SDL_Event first_motion =
         fixture.filtered_mouse_motion(240,135);
     require(
-        first_motion.motion.x == 320
-            && first_motion.motion.y == 180,
-        "SDL must filter scaled mouse motion into logical coordinates");
+        first_motion.motion.x == 240
+            && first_motion.motion.y == 135,
+        "SDL3 must retain window coordinates until engine translation");
     input_system.process_event(first_motion);
     require_single_pointer_event(
         input_system,
         RawInputEventType::MouseMoved,
         320,
         180,
-        "InputSystem must not scale SDL logical mouse motion a second time");
+        "InputSystem must convert mouse motion exactly once");
 
     input_system.begin_frame();
     const SDL_Event second_motion =
@@ -261,18 +252,18 @@ void require_scaled_coordinates_and_deltas(InputSystemFixture& fixture)
 
     input_system.begin_frame();
     const SDL_Event button =
-        fixture.filtered_mouse_button(SDL_MOUSEBUTTONDOWN,480,270);
+        fixture.filtered_mouse_button(SDL_EVENT_MOUSE_BUTTON_DOWN,480,270);
     require(
-        button.button.x == 640
-            && button.button.y == 360,
-        "SDL must filter scaled mouse button positions into logical coordinates");
+        button.button.x == 480
+            && button.button.y == 270,
+        "SDL3 must retain mouse button window coordinates");
     input_system.process_event(button);
     require_single_pointer_event(
         input_system,
         RawInputEventType::ControlPressed,
         640,
         360,
-        "InputSystem must not scale SDL logical mouse clicks a second time");
+        "InputSystem must convert mouse clicks exactly once");
 }
 
 void require_letterbox_coordinates(InputSystemFixture& fixture)
@@ -309,7 +300,7 @@ void require_wheel_coordinates(InputSystemFixture& fixture)
     const auto previous_frame = input_system.frame();
 
     SDL_Event event{};
-    event.type = SDL_MOUSEWHEEL;
+    event.type = SDL_EVENT_MOUSE_WHEEL;
     event.wheel.y = 1;
 
     input_system.begin_frame();
@@ -334,8 +325,7 @@ void require_size_change_refresh(InputSystemFixture& fixture)
     input_system.process_event(mouse_motion_event(777,555));
 
     SDL_Event event{};
-    event.type = SDL_WINDOWEVENT;
-    event.window.event = SDL_WINDOWEVENT_SIZE_CHANGED;
+    event.type = SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
 
     input_system.begin_frame();
     input_system.process_event(event);

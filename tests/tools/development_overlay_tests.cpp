@@ -3,7 +3,7 @@
 #include "engine/tools/development_overlay_host.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <cstdlib>
 #include <memory>
@@ -101,18 +101,12 @@ class SdlFixture
 public:
     SdlFixture()
     {
-        require(SDL_Init(SDL_INIT_VIDEO) == 0,
+        require(SDL_Init(SDL_INIT_VIDEO),
             "overlay host tests must initialize SDL");
-        _window = SDL_CreateWindow(
-            "Development overlay host tests",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
-            320,
-            180,
-            SDL_WINDOW_HIDDEN);
+        _window = SDL_CreateWindow("Development overlay host tests", 320, 180, SDL_WINDOW_HIDDEN);
         require(_window != nullptr,
             "overlay host tests must create an SDL window");
-        _renderer = SDL_CreateRenderer(_window, -1, SDL_RENDERER_SOFTWARE);
+        _renderer = SDL_CreateRenderer(_window, "software");
         require(_renderer != nullptr,
             "overlay host tests must create an SDL renderer");
     }
@@ -136,7 +130,7 @@ private:
 {
     SDL_Event event{};
     event.type = type;
-    event.key.keysym.sym = key;
+    event.key.key = key;
     event.key.repeat = repeat;
     return event;
 }
@@ -167,7 +161,7 @@ void require_hidden_and_visible_lifecycle(SdlFixture& fixture)
     require(host.panel_registry() != nullptr,
         "an initialized overlay must publish its panel registry while hidden");
 
-    const SDL_Event ordinary_event = key_event(SDL_KEYDOWN, SDLK_a);
+    const SDL_Event ordinary_event = key_event(SDL_EVENT_KEY_DOWN, SDLK_A);
     require(!host.process_event(ordinary_event),
         "ordinary hidden events must not be consumed");
     host.begin_frame(0.25);
@@ -177,10 +171,10 @@ void require_hidden_and_visible_lifecycle(SdlFixture& fixture)
             && state->render_calls == 0,
         "a hidden overlay must perform no per-frame or backend event work");
 
-    require(host.process_event(key_event(SDL_KEYDOWN, SDLK_F2)),
+    require(host.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_F2)),
         "F2 down must be reserved by the overlay host");
     require(host.visible(), "F2 down must show the overlay");
-    require(host.process_event(key_event(SDL_KEYUP, SDLK_F2)),
+    require(host.process_event(key_event(SDL_EVENT_KEY_UP, SDLK_F2)),
         "F2 up must also be reserved by the overlay host");
     require(host.captured_input()
             == (DevelopmentInputCapture::Keyboard
@@ -198,10 +192,10 @@ void require_hidden_and_visible_lifecycle(SdlFixture& fixture)
     require(state->last_delta == 1.0 / 120.0,
         "the overlay host must forward frame delta");
 
-    require(host.process_event(key_event(SDL_KEYDOWN, SDLK_F2, 1)),
+    require(host.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_F2, 1)),
         "repeated F2 must remain consumed");
     require(host.visible(), "repeated F2 must not toggle visibility");
-    require(host.process_event(key_event(SDL_KEYDOWN, SDLK_F2)),
+    require(host.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_F2)),
         "a later F2 press must be consumed");
     require(!host.visible(), "a later F2 press must hide the overlay");
     require(host.captured_input() == DevelopmentInputCapture::None,

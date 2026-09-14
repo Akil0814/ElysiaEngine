@@ -3,7 +3,7 @@
 #include "../resource_failure.h"
 #include "../resource_types.h"
 
-#include <SDL_ttf.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <filesystem>
 #include <expected>

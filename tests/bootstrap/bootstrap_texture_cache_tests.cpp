@@ -1,4 +1,4 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/builtin/resources/builtin_resource_ids.h"
 #include "engine/builtin/resources/builtin_resources.h"
@@ -12,8 +12,8 @@
 #include "engine/builtin/scenes/startup_loading_scene.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
-#include <SDL_image.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 
 #include <cstdlib>
 #include <filesystem>
@@ -38,12 +38,10 @@ elysia::resources::TexturePtr make_texture(SDL_Renderer* renderer)
 void test_bootstrap_texture_cache_and_preload_lifetime()
 {
     using namespace elysia;
-    require(SDL_Init(SDL_INIT_VIDEO) == 0,"bootstrap texture tests must initialize SDL video");
-    require((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
-        "bootstrap texture tests must initialize PNG support");
+    require(SDL_Init(SDL_INIT_VIDEO),"bootstrap texture tests must initialize SDL video");
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0,128,128,32,SDL_PIXELFORMAT_RGBA32);
-    SDL_Surface* second_surface = SDL_CreateRGBSurfaceWithFormat(0,128,128,32,SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface* surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface* second_surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
     require(surface && second_surface,"bootstrap texture tests must create software surfaces");
     SDL_Renderer* renderer = SDL_CreateSoftwareRenderer(surface);
     SDL_Renderer* second_renderer = SDL_CreateSoftwareRenderer(second_surface);
@@ -245,9 +243,9 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
 
     SDL_DestroyRenderer(second_renderer);
     SDL_DestroyRenderer(renderer);
-    SDL_FreeSurface(second_surface);
-    SDL_FreeSurface(surface);
-    IMG_Quit();
+    SDL_DestroySurface(second_surface);
+    SDL_DestroySurface(surface);
+
     SDL_Quit();
 }
 }

@@ -1,3 +1,4 @@
+#include "engine/audio/mixer_backend.h"
 #include "audio_manager.h"
 #include "../../tools/logger.h"
 namespace elysia::resources
@@ -20,10 +21,10 @@ std::expected<void,ResourceFailure> AudioManager::load_sound(
 		return std::unexpected(make_resource_failure(
 			ResourceError::InvalidRequest,"Load sound failed: file path is empty.",key));
 
-	Mix_Chunk* sound = Mix_LoadWAV(file_path.string().c_str());
+	MIX_Audio* sound = MIX_LoadAudio(nullptr,file_path.string().c_str(),true);
 	if (!sound)
 		return std::unexpected(make_resource_failure(
-			ResourceError::DecodeFailed,std::string("Load sound failed: ") + Mix_GetError(),
+			ResourceError::DecodeFailed,std::string("Load sound failed: ") + SDL_GetError(),
 			key,file_path));
 
 	return store_sound(key, sound);
@@ -52,12 +53,12 @@ std::expected<void,ResourceFailure> AudioManager::load_sounds(
 }
 
 std::expected<void,ResourceFailure> AudioManager::store_sound(
-	const std::string& key,Mix_Chunk* sound)
+	const std::string& key,MIX_Audio* sound)
 {
 	if (key.empty())
 	{
 		if (sound)
-			Mix_FreeChunk(sound);
+			elysia::audio::detail::mixer_backend().destroy_audio(sound);
 		return std::unexpected(make_resource_failure(
 			ResourceError::InvalidRequest,"Store sound failed: key is empty."));
 	}
@@ -70,7 +71,7 @@ std::expected<void,ResourceFailure> AudioManager::store_sound(
 	if (iterator != _sound_pool.end())
 	{
 		if (iterator->second)
-			Mix_FreeChunk(iterator->second);
+			elysia::audio::detail::mixer_backend().destroy_audio(iterator->second);
 
 		iterator->second = sound;
 		return {};
@@ -80,7 +81,7 @@ std::expected<void,ResourceFailure> AudioManager::store_sound(
 	return {};
 }
 
-Mix_Chunk* AudioManager::find_sound(const std::string_view& key) const
+MIX_Audio* AudioManager::find_sound(const std::string_view& key) const
 {
 	if (key.empty())
 	{
@@ -112,10 +113,10 @@ std::expected<void,ResourceFailure> AudioManager::load_music(
 		return std::unexpected(make_resource_failure(
 			ResourceError::InvalidRequest,"Load music failed: file path is empty.",key));
 
-	Mix_Music* music = Mix_LoadMUS(file_path.string().c_str());
+	MIX_Audio* music = MIX_LoadAudio(nullptr,file_path.string().c_str(),false);
 	if (!music)
 		return std::unexpected(make_resource_failure(
-			ResourceError::DecodeFailed,std::string("Load music failed: ") + Mix_GetError(),
+			ResourceError::DecodeFailed,std::string("Load music failed: ") + SDL_GetError(),
 			key,file_path));
 
 	return store_music(key, music);
@@ -144,12 +145,12 @@ std::expected<void,ResourceFailure> AudioManager::load_music(
 }
 
 std::expected<void,ResourceFailure> AudioManager::store_music(
-	const std::string& key,Mix_Music* music)
+	const std::string& key,MIX_Audio* music)
 {
 	if (key.empty())
 	{
 		if (music)
-			Mix_FreeMusic(music);
+			elysia::audio::detail::mixer_backend().destroy_audio(music);
 		return std::unexpected(make_resource_failure(
 			ResourceError::InvalidRequest,"Store music failed: key is empty."));
 	}
@@ -162,7 +163,7 @@ std::expected<void,ResourceFailure> AudioManager::store_music(
 	if (iterator != _music_pool.end())
 	{
 		if (iterator->second)
-			Mix_FreeMusic(iterator->second);
+			elysia::audio::detail::mixer_backend().destroy_audio(iterator->second);
 
 		iterator->second = music;
 		return {};
@@ -172,7 +173,7 @@ std::expected<void,ResourceFailure> AudioManager::store_music(
 	return {};
 }
 
-Mix_Music* AudioManager::find_music(const std::string_view& key) const
+MIX_Audio* AudioManager::find_music(const std::string_view& key) const
 {
 	if (key.empty())
 	{
@@ -196,13 +197,13 @@ void AudioManager::clear()
 	for (SoundPool::value_type& sound : _sound_pool)
 	{
 		if (sound.second)
-			Mix_FreeChunk(sound.second);
+			elysia::audio::detail::mixer_backend().destroy_audio(sound.second);
 	}
 
 	for (MusicPool::value_type& music : _music_pool)
 	{
 		if (music.second)
-			Mix_FreeMusic(music.second);
+			elysia::audio::detail::mixer_backend().destroy_audio(music.second);
 	}
 
 	_sound_pool.clear();

@@ -1,10 +1,10 @@
-﻿#define SDL_MAIN_HANDLED
+#define SDL_MAIN_HANDLED
 
 #include "engine/input/action/input_action_map.h"
 #include "engine/input/input_system.h"
 #include "tests/support/test_assertions.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <cmath>
@@ -20,49 +20,48 @@ SDL_Event key_event(Uint32 type, SDL_Keycode key)
 {
     SDL_Event event{};
     event.type = type;
-    event.key.keysym.sym = key;
-    event.key.keysym.scancode = SDL_GetScancodeFromKey(key);
+    event.key.key = key;
+    event.key.scancode = SDL_GetScancodeFromKey(key, nullptr);
     return event;
 }
 
 SDL_Event controller_button_event(
     Uint32 type,
     SDL_JoystickID controller_id,
-    SDL_GameControllerButton button)
+    SDL_GamepadButton button)
 {
     SDL_Event event{};
     event.type = type;
-    event.cbutton.which = controller_id;
-    event.cbutton.button = static_cast<Uint8>(button);
+    event.gbutton.which = controller_id;
+    event.gbutton.button = static_cast<Uint8>(button);
     return event;
 }
 
 SDL_Event controller_axis_event(
     SDL_JoystickID controller_id,
-    SDL_GameControllerAxis axis,
+    SDL_GamepadAxis axis,
     Sint16 value)
 {
     SDL_Event event{};
-    event.type = SDL_CONTROLLERAXISMOTION;
-    event.caxis.which = controller_id;
-    event.caxis.axis = static_cast<Uint8>(axis);
-    event.caxis.value = value;
+    event.type = SDL_EVENT_GAMEPAD_AXIS_MOTION;
+    event.gaxis.which = controller_id;
+    event.gaxis.axis = static_cast<Uint8>(axis);
+    event.gaxis.value = value;
     return event;
 }
 
 SDL_Event controller_removed_event(SDL_JoystickID controller_id)
 {
     SDL_Event event{};
-    event.type = SDL_CONTROLLERDEVICEREMOVED;
-    event.cdevice.which = controller_id;
+    event.type = SDL_EVENT_GAMEPAD_REMOVED;
+    event.gdevice.which = controller_id;
     return event;
 }
 
 SDL_Event focus_lost_event()
 {
     SDL_Event event{};
-    event.type = SDL_WINDOWEVENT;
-    event.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+    event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
     return event;
 }
 
@@ -110,9 +109,9 @@ void test_disconnect_releases_button_and_cancels_action()
 
     input.begin_frame();
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONDOWN,
+        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
         Controller,
-        SDL_CONTROLLER_BUTTON_A));
+        SDL_GAMEPAD_BUTTON_SOUTH));
     require(
         input.frame().state.is_pressed(RawInputControl::GamepadSouth),
         "the first controller button must become pressed");
@@ -154,11 +153,11 @@ void test_disconnect_zeros_axes_and_trigger_button()
     input.begin_frame();
     input.process_event(controller_axis_event(
         Controller,
-        SDL_CONTROLLER_AXIS_TRIGGERLEFT,
+        SDL_GAMEPAD_AXIS_LEFT_TRIGGER,
         26000));
     input.process_event(controller_axis_event(
         Controller,
-        SDL_CONTROLLER_AXIS_LEFTX,
+        SDL_GAMEPAD_AXIS_LEFTX,
         20000));
 
     require(
@@ -197,7 +196,7 @@ void test_first_gamepad_input_survives_device_switch()
 
     InputSystem input;
     input.begin_frame();
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_w));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_W));
     require(
         input.current_device() == InputDevice::Keyboard
             && input.frame().state.is_pressed(RawInputControl::KeyW),
@@ -205,9 +204,9 @@ void test_first_gamepad_input_survives_device_switch()
 
     input.begin_frame();
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONDOWN,
+        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
         Controller,
-        SDL_CONTROLLER_BUTTON_A));
+        SDL_GAMEPAD_BUTTON_SOUTH));
     require(
         input.current_device() == InputDevice::Gamepad
             && input.frame().device_switched_this_frame,
@@ -221,7 +220,7 @@ void test_first_gamepad_input_survives_device_switch()
         "the button that switches to gamepad must be translated in the same frame");
 
     input.begin_frame();
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_k));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_K));
     require(
         input.current_device() == InputDevice::Keyboard
             && input.frame().device_switched_this_frame,
@@ -232,7 +231,7 @@ void test_first_gamepad_input_survives_device_switch()
         "switching back to keyboard must release gamepad state and translate the key");
 
     SDL_Event motion{};
-    motion.type = SDL_MOUSEMOTION;
+    motion.type = SDL_EVENT_MOUSE_MOTION;
     motion.motion.x = 10;
     motion.motion.y = 20;
     input.process_event(motion);
@@ -250,14 +249,14 @@ void test_axis_dead_zone_and_single_active_controller()
     InputSystem input;
     input.begin_frame();
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONDOWN,
+        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
         Remaining,
-        SDL_CONTROLLER_BUTTON_A));
+        SDL_GAMEPAD_BUTTON_SOUTH));
 
     input.begin_frame();
     input.process_event(controller_axis_event(
         Second,
-        SDL_CONTROLLER_AXIS_LEFTX,
+        SDL_GAMEPAD_AXIS_LEFTX,
         6000));
     require(
         input.events().empty()
@@ -265,9 +264,9 @@ void test_axis_dead_zone_and_single_active_controller()
         "sub-dead-zone drift from an inactive controller must be ignored");
 
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONDOWN,
+        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
         Second,
-        SDL_CONTROLLER_BUTTON_X));
+        SDL_GAMEPAD_BUTTON_WEST));
     require(
         !input.frame().state.is_pressed(RawInputControl::GamepadSouth)
             && input.frame().state.is_pressed(RawInputControl::GamepadWest),
@@ -296,9 +295,9 @@ void test_axis_dead_zone_and_single_active_controller()
 
     input.begin_frame();
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONDOWN,
+        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
         First,
-        SDL_CONTROLLER_BUTTON_A));
+        SDL_GAMEPAD_BUTTON_SOUTH));
     require(
         input.frame().state.is_pressed(RawInputControl::GamepadSouth)
             && input.current_device() == InputDevice::Gamepad,
@@ -311,11 +310,11 @@ void test_axis_can_activate_and_focus_loss_resets_selection()
 
     InputSystem input;
     input.begin_frame();
-    input.process_event(key_event(SDL_KEYDOWN, SDLK_d));
+    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_D));
     input.begin_frame();
     input.process_event(controller_axis_event(
         Controller,
-        SDL_CONTROLLER_AXIS_LEFTX,
+        SDL_GAMEPAD_AXIS_LEFTX,
         8000));
 
     require(
@@ -333,17 +332,17 @@ void test_axis_can_activate_and_focus_loss_resets_selection()
 
     input.begin_frame();
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONUP,
+        SDL_EVENT_GAMEPAD_BUTTON_UP,
         Controller,
-        SDL_CONTROLLER_BUTTON_A));
+        SDL_GAMEPAD_BUTTON_SOUTH));
     require(
         input.events().empty() && input.current_device() == InputDevice::Unknown,
         "a release after focus loss must not reactivate the controller");
 
     input.process_event(controller_button_event(
-        SDL_CONTROLLERBUTTONDOWN,
+        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
         Controller,
-        SDL_CONTROLLER_BUTTON_A));
+        SDL_GAMEPAD_BUTTON_SOUTH));
     require(
         input.frame().state.is_pressed(RawInputControl::GamepadSouth)
             && input.current_device() == InputDevice::Gamepad,
@@ -392,7 +391,7 @@ void test_input_and_controller_initialization_lifecycle()
 
 int main()
 {
-    require(SDL_Init(SDL_INIT_GAMECONTROLLER) == 0,
+    require(SDL_Init(SDL_INIT_GAMEPAD),
         "controller lifecycle tests must initialize SDL game controller support");
     test_input_and_controller_initialization_lifecycle();
     test_disconnect_releases_button_and_cancels_action();
