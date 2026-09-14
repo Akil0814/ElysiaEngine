@@ -2,6 +2,7 @@ player_data/
 logs/
 
 build/
+/build-linux/
 *build/
 build-web/
 .vs/

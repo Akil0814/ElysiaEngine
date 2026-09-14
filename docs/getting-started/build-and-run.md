@@ -60,6 +60,46 @@ ctest --test-dir build --output-on-failure
 
 该路径存在于当前 CMake 配置中，但本仓库不将 macOS 声明为与 Windows x64 同等级的持续验证平台。
 
+## Linux（Ubuntu 24.04 / WSL2）
+
+目标环境为 Ubuntu 24.04 x64 原生桌面或 WSL2，计划验证的工具链为 GCC 13。当前已补齐构建配置，但尚无 Linux 实机构建通过记录。
+
+在 Ubuntu 终端安装构建工具和系统 SDL2 开发包：
+
+```bash
+sudo apt update
+sudo apt install build-essential gcc-13 g++-13 cmake ninja-build pkg-config \
+  libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libsdl2-gfx-dev
+```
+
+Linux 通过 `pkg-config` 查找上述五个 SDL 模块，缺少任意一个会在 CMake 配置阶段报错。ENet、Box2D 和 ImGui 由仓库源码构建，无需单独安装；不使用 `thirdparty/SDL2/lib` 中的 Windows 二进制，也不需要 SDL_net。
+
+在仓库根目录执行以下命令。Linux 使用独立的 `build-linux` 目录，不复用 Windows 的 CMake 缓存；ImGui 默认开启：
+
+```bash
+cmake -S . -B build-linux -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_COMPILER=gcc-13 \
+  -DCMAKE_CXX_COMPILER=g++-13
+cmake --build build-linux --parallel
+ctest --test-dir build-linux --output-on-failure
+```
+
+在没有显示或音频设备的环境中，仅为测试进程设置 dummy 驱动：
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  ctest --test-dir build-linux --output-on-failure
+```
+
+这些变量不应设为游戏运行的默认环境。交互运行需要 Linux 图形桌面或 WSLg，并从仓库根目录启动：
+
+```bash
+./build-linux/ElysiaEngine
+```
+
+后续 Linux 实机验收需要完成 Debug 全量构建、完整 CTest、`ELYSIA_ENABLE_IMGUI=OFF` 构建，以及窗口、输入和音频的交互检查。无显示测试不能代替交互验证。
+
 ## 常见问题
 
 - 配置提示 SDL 库架构不匹配：删除错误架构的构建目录，使用 `-A x64` 重新配置。

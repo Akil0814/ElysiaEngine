@@ -40,7 +40,9 @@ cmake --build build --config Debug
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
-macOS 的 CMake 分支会从 Homebrew 常用路径查找 SDL2、SDL2_image、SDL2_mixer 和 SDL2_ttf；Box2D 与 ENet 由仓库随附源码构建。macOS 不与 Windows 同等级验证，当前 CMake 也没有完整配置 Linux 依赖查找流程。
+macOS 的 CMake 分支会从 Homebrew 常用路径查找 SDL2、SDL2_image、SDL2_mixer 和 SDL2_ttf；Box2D 与 ENet 由仓库随附源码构建。macOS 不与 Windows 同等级验证。
+
+Linux 已补齐通过 `pkg-config` 查找系统 SDL2、image、mixer、ttf 和 gfx 的配置；ENet、Box2D 和 ImGui 使用仓库源码。目标环境为 Ubuntu 24.04 x64（桌面或 WSL2），计划使用 GCC 13 验证；目前 Linux 实机编译、测试和交互运行仍待完成。安装与操作步骤见[Ubuntu / WSL2 构建指南](docs/getting-started/build-and-run.md#linuxubuntu-2404--wsl2)。
 
 更完整的环境与故障排查说明见[构建、运行与测试](docs/getting-started/build-and-run.md)。
 
