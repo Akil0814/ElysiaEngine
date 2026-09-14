@@ -3,6 +3,7 @@
 #include "collision/collision_contact.h"
 #include "collision/world_shape.h"
 #include "physics_object_handle.h"
+#include "body/body_definition.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -17,7 +18,8 @@ enum class PhysicsDebugCapture : std::uint8_t
     BroadPhase = 1u << 1,
     Contacts = 1u << 2,
     Velocities = 1u << 3,
-    All = (1u << 4) - 1u
+    Joints = 1u << 4,
+    All = (1u << 5) - 1u
 };
 
 [[nodiscard]] constexpr PhysicsDebugCapture operator|(
@@ -67,7 +69,16 @@ struct PhysicsDebugShape
     CollisionTarget target{};
     WorldColliderShape previous{WorldAabb{}};
     WorldColliderShape current{WorldAabb{}};
-    elysia::core::Rect swept_bounds{};
+    elysia::core::Rect native_bounds{};
+    PhysicsPose previous_pose{}, current_pose{};
+    bool sensor = false;
+    bool awake = true;
+};
+
+struct PhysicsDebugJoint
+{
+    elysia::core::Vector2 first_anchor{}, second_anchor{};
+    PhysicsPose first_previous{}, first_current{}, second_previous{}, second_current{};
 };
 
 struct PhysicsDebugVelocity
@@ -82,12 +93,15 @@ struct PhysicsDebugSnapshot
     std::vector<PhysicsDebugShape> shapes;
     std::vector<CollisionContact> contacts;
     std::vector<PhysicsDebugVelocity> velocities;
+    std::vector<PhysicsDebugJoint> joints;
+    float interpolation_alpha = 1;
 
     void clear() noexcept
     {
         shapes.clear();
         contacts.clear();
         velocities.clear();
+        joints.clear();
     }
 };
 }

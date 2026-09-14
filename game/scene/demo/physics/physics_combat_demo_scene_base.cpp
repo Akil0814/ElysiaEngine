@@ -67,8 +67,7 @@ void PhysicsCombatDemoSceneBase::on_enter(
         elysia::tools::DebugDrawCategory::PhysicsCollider
         | elysia::tools::DebugDrawCategory::PhysicsContact
         | elysia::tools::DebugDrawCategory::PhysicsContactNormal
-        | elysia::tools::DebugDrawCategory::PhysicsBroadPhase
-        | elysia::tools::DebugDrawCategory::PhysicsCcd
+        | elysia::tools::DebugDrawCategory::PhysicsJoint
         | elysia::tools::DebugDrawCategory::PhysicsVelocity
         | elysia::tools::DebugDrawCategory::Gameplay);
     if (!_built)
@@ -275,18 +274,21 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
                 selected ? bits | category_bits : bits & ~category_bits);
             debug_draw->set_enabled_categories(categories);
         };
-        category_checkbox("Collider",
+        category_checkbox("Collider (render pose)",
             elysia::tools::DebugDrawCategory::PhysicsCollider);
         category_checkbox("Contact",
             elysia::tools::DebugDrawCategory::PhysicsContact);
         category_checkbox("Contact normal",
             elysia::tools::DebugDrawCategory::PhysicsContactNormal);
-        category_checkbox("Broad phase",
+        category_checkbox("Native AABB (physics step)",
             elysia::tools::DebugDrawCategory::PhysicsBroadPhase);
-        category_checkbox("CCD",
-            elysia::tools::DebugDrawCategory::PhysicsCcd);
+        category_checkbox("Previous / current physics poses",
+            elysia::tools::DebugDrawCategory::PhysicsPoseHistory);
         category_checkbox("Velocity",
             elysia::tools::DebugDrawCategory::PhysicsVelocity);
+        category_checkbox("Joint anchors",
+            elysia::tools::DebugDrawCategory::PhysicsJoint);
+        ImGui::TextWrapped("Green: awake | Blue: asleep/static | Purple: sensor. Contacts and AABBs show the latest physics step.");
         category_checkbox("Gameplay",
             elysia::tools::DebugDrawCategory::Gameplay);
     }

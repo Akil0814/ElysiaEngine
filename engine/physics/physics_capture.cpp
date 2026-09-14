@@ -12,9 +12,15 @@ void PhysicsWorld::Impl::capture_debug()
         PhysicsDebugShape out;
         out.target = s.target;
         auto transform = b2Body_GetTransform(b2Shape_GetBody(s.native));
+        if (!b2Body_IsEnabled(b2Shape_GetBody(s.native)))
+            return;
+        out.sensor = b2Shape_IsSensor(s.native);
+        out.awake = b2Body_IsAwake(b2Shape_GetBody(s.native));
         auto previous_transform = transform;
         if (const auto *object = get(s.owner))
             previous_transform = {to(object->previous.position), b2MakeRot(object->previous.angle)};
+        out.previous_pose = {from(previous_transform.p), b2Rot_GetAngle(previous_transform.q)};
+        out.current_pose = {from(transform.p), b2Rot_GetAngle(transform.q)};
         if (b2Shape_GetType(s.native) == b2_circleShape)
         {
             auto c = b2Shape_GetCircle(s.native);
@@ -35,7 +41,7 @@ void PhysicsWorld::Impl::capture_debug()
             out.previous = p;
         }
         auto aabb = b2Shape_GetAABB(s.native);
-        out.swept_bounds =
+        out.native_bounds =
             elysia::core::Rect::from_points(from(aabb.lowerBound), from(aabb.upperBound));
         debug.shapes.push_back(out);
     };
@@ -49,6 +55,17 @@ void PhysicsWorld::Impl::capture_debug()
     }
     if (captures_physics_debug(capture, PhysicsDebugCapture::Contacts))
         debug.contacts.assign(cache.contacts().begin(), cache.contacts().end());
+    if (captures_physics_debug(capture, PhysicsDebugCapture::Joints))
+        for (const auto &[id, joint] : joints)
+        {
+            const auto *a = get(joint.first), *b = get(joint.second);
+            if (joint.removed || !a || !b || B2_IS_NULL(joint.native))
+                continue;
+            debug.joints.push_back(
+                {from(b2Body_GetWorldPoint(a->native, b2Joint_GetLocalAnchorA(joint.native))),
+                 from(b2Body_GetWorldPoint(b->native, b2Joint_GetLocalAnchorB(joint.native))),
+                 a->previous, a->current, b->previous, b->current});
+        }
     if (captures_physics_debug(capture, PhysicsDebugCapture::Velocities))
         for (auto &[id, o] : objects)
             debug.velocities.push_back(

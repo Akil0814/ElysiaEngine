@@ -87,8 +87,8 @@ int main()
             "Repeated capture mode preserves the snapshot between fixed steps");
     debug_world.set_debug_capture(static_cast<PhysicsDebugCapture>(0xff));
     require(debug_world.debug_capture() == PhysicsDebugCapture::All &&
-                debug_world.debug_snapshot().shapes.empty(),
-            "Capture mode masks unsupported bits and clears stale data on change");
+                debug_world.debug_snapshot().shapes.size() == 1,
+            "Capture mode masks unsupported bits and immediately refreshes paused diagnostics");
     step(debug_world);
     require(debug_world.debug_snapshot().shapes.size() == 1,
             "Changed capture mode produces a fresh snapshot");

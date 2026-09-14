@@ -928,7 +928,6 @@ std::uint32_t PhysicsWorld::advance(double dt)
             p.stats.registered_objects = registered_object_count();
             p.stats.registered_colliders = registered_collider_count();
             p.stats.contacts = contacts.size();
-            p.capture_debug();
             auto listeners = p.listeners;
             for (auto &e : events)
                 for (auto *l : listeners)
@@ -952,6 +951,8 @@ std::uint32_t PhysicsWorld::advance(double dt)
         }
         p.stats.dropped_fixed_steps = p.dropped;
         p.advancing = false;
+        p.capture_debug();
+        p.debug.interpolation_alpha = float(std::clamp(p.accumulator / p.config.fixed_delta_seconds, 0.0, 1.0));
         for (auto &[id, o] : p.objects)
         {
             auto pose = render_pose({id});
@@ -974,6 +975,8 @@ void PhysicsWorld::set_debug_capture(PhysicsDebugCapture c) noexcept
         return;
     _impl->capture = c;
     _impl->debug.clear();
+    _impl->capture_debug();
+    _impl->debug.interpolation_alpha = float(std::clamp(_impl->accumulator / _impl->config.fixed_delta_seconds, 0.0, 1.0));
 }
 PhysicsDebugCapture PhysicsWorld::debug_capture() const noexcept
 {

@@ -20,11 +20,12 @@ enum class DebugDrawCategory : std::uint32_t
     PhysicsContact = 1u << 1,
     PhysicsContactNormal = 1u << 2,
     PhysicsBroadPhase = 1u << 3,
-    PhysicsCcd = 1u << 4,
+    PhysicsPoseHistory = 1u << 4,
     PhysicsVelocity = 1u << 5,
     Camera = 1u << 6,
     Gameplay = 1u << 7,
-    All = (1u << 8) - 1u
+    PhysicsJoint = 1u << 8,
+    All = (1u << 9) - 1u
 };
 
 [[nodiscard]] constexpr DebugDrawCategory operator|(DebugDrawCategory first,DebugDrawCategory second) noexcept

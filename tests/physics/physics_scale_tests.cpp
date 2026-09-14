@@ -1,4 +1,6 @@
 #include "physics_test_support.h"
+#include "engine/physics/physics_debug_draw.h"
+#include "engine/tools/debug_draw.h"
 #include <array>
 #include <iostream>
 int main()
@@ -42,6 +44,26 @@ int main()
                     near(visual->position.x / scale, state->position.x / scale * 0.5f, 0.001f),
                 "Position interpolation");
         require(near(visual->angle, state->angle * 0.5f, 0.001f), "Angle interpolation");
+        world.set_debug_capture(PhysicsDebugCapture::Shapes);
+        auto *draw = elysia::tools::DebugDraw::instance();
+        draw->set_enabled(true);
+        draw->set_enabled_categories(elysia::tools::DebugDrawCategory::PhysicsCollider);
+        draw->clear();
+        submit_physics_debug_snapshot(world.debug_snapshot(), *draw);
+        require(draw->commands().size() == 4, "Rotated box draws four actual edges");
+        for (const auto &command : draw->commands())
+        {
+            const auto &edge = std::get<elysia::tools::DebugDrawLine>(command.primitive);
+            auto offset = edge.start - visual->position;
+            const float x = std::cos(visual->angle) * offset.x + std::sin(visual->angle) * offset.y;
+            const float y = -std::sin(visual->angle) * offset.x + std::cos(visual->angle) * offset.y;
+            require(near(std::abs(x), scale / 2, 0.001f) && near(std::abs(y), scale / 2, 0.001f),
+                    "Debug vertices follow rigid render interpolation at every scale");
+            require(near((edge.end - edge.start).length(), scale, 0.001f),
+                    "Interpolating rotation preserves collider edge length");
+        }
+        draw->set_enabled(false);
+        world.set_debug_capture(PhysicsDebugCapture::None);
         Probe fixed;
         fixed.definition.type = BodyType::Static;
         auto anchor = fixed.add(world);

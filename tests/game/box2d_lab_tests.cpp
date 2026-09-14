@@ -1,6 +1,7 @@
 #define SDL_MAIN_HANDLED
 #include "engine/camera/camera_manager.h"
 #include "engine/core/render/render_command.h"
+#include "engine/core/render/debug_draw_projection.h"
 #include "engine/core/render/render_command_projection.h"
 #include "engine/core/render/sdl_render_command_executor.h"
 #include "engine/io/loaders/asset_config_types.h"
@@ -33,6 +34,7 @@ int main(int argc, char **argv)
                          .return_route = {.target = example::scene_keys::PhysicsCombatGallery}}});
         for (int i = 0; i < 300; ++i)
             scene.on_update(1.0 / 60);
+        scene.on_update(1.0 / 120);
         auto objects = ELYSIA_OBJECT_QUERY->find_objects<>();
         elysia::physics::PhysicsWorld *world = nullptr;
         for (auto *object : objects)
@@ -43,6 +45,7 @@ int main(int argc, char **argv)
             }
         require(world && world->registered_object_count() > 20, "Lab registers physical bodies");
         require(world->last_step_stats().joints == 3, "Lab registers spring, pendulum and motor");
+        require(world->debug_snapshot().joints.size() == 3, "Debug capture includes all joint anchors");
         std::vector<elysia::core::RenderCommand> commands;
         for (auto *object : objects)
             object->submit_render_commands(commands);
@@ -55,6 +58,12 @@ int main(int argc, char **argv)
         SDL_SetRenderDrawColor(renderer, 24, 30, 42, 255);
         SDL_RenderClear(renderer);
         elysia::core::execute_render_commands(renderer, screen);
+        auto *debug = elysia::tools::DebugDraw::instance();
+        std::vector<elysia::core::UiRenderCommand> overlay;
+        elysia::core::append_projected_debug_draw_commands(debug->commands(), debug->enabled_categories(),
+            elysia::camera::CameraManager::instance()->camera(elysia::camera::CameraSlot::Main), overlay);
+        require(!overlay.empty(), "Debug overlay projects into the preview");
+        elysia::core::execute_render_commands(renderer, overlay);
         SDL_RenderPresent(renderer);
         if (argc > 1)
             require(IMG_SavePNG(surface, argv[1]) == 0, "Lab preview saved");

@@ -38,3 +38,10 @@ Use `body_state`, `render_pose` and `joint_state` for snapshots. Invalid handles
 Distance joints offer a rigid rest length or a spring with frequency and damping ratio. Revolute joints offer local anchors, reference/limit angles, motor speed and maximum torque. Connected bodies do not collide by default. Native constraints have finite stiffness: extremely large motor torques can push beyond nominal angle limits.
 
 The backend uses Box2D's native friction, contact, sleep and CCD behavior; old numerical trajectories are not compatibility guarantees.
+# Debug drawing
+
+The default collider overlay follows the same interpolated position and shortest-angle rotation as rendering. Green outlines indicate awake bodies, blue outlines indicate sleeping/static bodies, and purple outlines indicate sensors. Disabled bodies are omitted. Joint anchors use interpolated body poses too.
+
+The inspector exposes `Native AABB (physics step)` separately. These yellow axis-aligned boxes are Box2D bounds, not rotated collider outlines or swept CCD paths. `Previous / current physics poses` draws the preceding pose in gray and the latest simulated pose in white. Both overlays are off by default.
+
+Contact points, contact normals and velocity vectors describe the latest completed physics step. They are deliberately not interpolated. Capture refreshes after deferred mutations and on debug mode changes, including while paused. Rendering frames without a physics step still update the collider interpolation factor.

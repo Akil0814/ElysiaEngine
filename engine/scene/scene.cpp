@@ -1,4 +1,4 @@
-﻿#include "scene.h"
+#include "scene.h"
 
 #include "detail/scene_input_order.h"
 
@@ -39,7 +39,7 @@ void erase_destroyed_entries(std::vector<Entry>& entries)
 
     PhysicsDebugCapture capture = PhysicsDebugCapture::None;
     if (debug_draw.is_enabled(DebugDrawCategory::PhysicsCollider)
-        || debug_draw.is_enabled(DebugDrawCategory::PhysicsCcd))
+        || debug_draw.is_enabled(DebugDrawCategory::PhysicsPoseHistory))
     {
         capture |= PhysicsDebugCapture::Shapes;
     }
@@ -52,6 +52,8 @@ void erase_destroyed_entries(std::vector<Entry>& entries)
     }
     if (debug_draw.is_enabled(DebugDrawCategory::PhysicsVelocity))
         capture |= PhysicsDebugCapture::Velocities;
+    if (debug_draw.is_enabled(DebugDrawCategory::PhysicsJoint))
+        capture |= PhysicsDebugCapture::Joints;
     return capture;
 }
 }
@@ -136,8 +138,9 @@ void Scene::on_update(double delta)
         | elysia::tools::DebugDrawCategory::PhysicsContact
         | elysia::tools::DebugDrawCategory::PhysicsContactNormal
         | elysia::tools::DebugDrawCategory::PhysicsBroadPhase
-        | elysia::tools::DebugDrawCategory::PhysicsCcd
-        | elysia::tools::DebugDrawCategory::PhysicsVelocity;
+        | elysia::tools::DebugDrawCategory::PhysicsPoseHistory
+        | elysia::tools::DebugDrawCategory::PhysicsVelocity
+        | elysia::tools::DebugDrawCategory::PhysicsJoint;
     physics_debug_draw->clear_categories(physics_categories);
     if (debug_capture != elysia::physics::PhysicsDebugCapture::None)
         elysia::physics::submit_physics_debug_snapshot(
