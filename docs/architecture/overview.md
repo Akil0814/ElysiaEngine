@@ -23,7 +23,7 @@ main.cpp
 ElysiaEngine executable
   -> game_lib
        -> engine_lib
-            -> SDL2 libraries
+            -> SDL2 libraries, Box2D, ENet
 ```
 
 - `engine_lib`：可复用引擎实现。

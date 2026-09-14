@@ -3,6 +3,14 @@ project(ElysiaEngine LANGUAGES C CXX)
 
 include(CTest)
 add_subdirectory(thirdparty/box2d EXCLUDE_FROM_ALL)
+add_subdirectory(thirdparty/enet EXCLUDE_FROM_ALL)
+
+# ENet 1.3.18 links these libraries for MinGW itself. Add the equivalent
+# transitive dependencies for the bundled MSVC build.
+if(MSVC)
+    target_link_libraries(enet PUBLIC ws2_32 winmm)
+endif()
+
 option(ELYSIA_ENABLE_ASAN "Enable AddressSanitizer for project targets" OFF)
 option(ELYSIA_ENABLE_IMGUI "Build the optional Dear ImGui development overlay" ON)
 
@@ -35,7 +43,6 @@ if(WIN32)
         set(SDL2_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/SDL2/lib/msvc")
         set(SDL2_LIBRARIES
             "${SDL2_LIB_DIR}/SDL2.lib"
-            "${SDL2_LIB_DIR}/SDL2_net.lib"
             "${SDL2_LIB_DIR}/SDL2_gfx.lib"
             "${SDL2_LIB_DIR}/SDL2_image.lib"
             "${SDL2_LIB_DIR}/SDL2_mixer.lib"
@@ -43,7 +50,6 @@ if(WIN32)
         )
         set(SDL2_RUNTIME_FILES
             "${SDL2_LIB_DIR}/SDL2.dll"
-            "${SDL2_LIB_DIR}/SDL2_net.dll"
             "${SDL2_LIB_DIR}/SDL2_gfx.dll"
             "${SDL2_LIB_DIR}/SDL2_image.dll"
             "${SDL2_LIB_DIR}/SDL2_mixer.dll"
@@ -53,7 +59,6 @@ if(WIN32)
         set(SDL2_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/SDL2/lib/mingw")
         set(SDL2_LIBRARIES
             "${SDL2_LIB_DIR}/libSDL2.dll.a"
-            "${SDL2_LIB_DIR}/libSDL2_net.dll.a"
             "${SDL2_LIB_DIR}/libSDL2_gfx.dll.a"
             "${SDL2_LIB_DIR}/libSDL2_image.dll.a"
             "${SDL2_LIB_DIR}/libSDL2_mixer.dll.a"
@@ -61,7 +66,6 @@ if(WIN32)
         )
         set(SDL2_RUNTIME_FILES
             "${SDL2_LIB_DIR}/SDL2.dll"
-            "${SDL2_LIB_DIR}/SDL2_net.dll"
             "${SDL2_LIB_DIR}/SDL2_gfx.dll"
             "${SDL2_LIB_DIR}/SDL2_image.dll"
             "${SDL2_LIB_DIR}/SDL2_mixer.dll"
@@ -99,13 +103,6 @@ elseif(APPLE)
         REQUIRED
     )
     find_library(
-        SDL2_NET_LIBRARY
-        SDL2_net
-        HINTS ${SDL2_SEARCH_ROOTS}
-        PATH_SUFFIXES lib
-        REQUIRED
-    )
-    find_library(
         SDL2_MIXER_LIBRARY
         SDL2_mixer
         HINTS ${SDL2_SEARCH_ROOTS}
@@ -122,7 +119,6 @@ elseif(APPLE)
 
     set(SDL2_LIBRARIES
         ${SDL2_LIBRARY}
-        ${SDL2_NET_LIBRARY}
         ${SDL2_IMAGE_LIBRARY}
         ${SDL2_MIXER_LIBRARY}
         ${SDL2_TTF_LIBRARY}

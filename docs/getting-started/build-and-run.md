@@ -8,7 +8,7 @@
 - 支持 C++23 的 Visual Studio/MSVC 工具链；
 - x64 生成器平台。
 
-仓库已经在 `thirdparty/SDL2` 中提供 MSVC x64 的 SDL2、SDL2_image、SDL2_net、SDL2_mixer、SDL2_ttf 和 SDL2_gfx 头文件、导入库与运行时 DLL。配置阶段会拒绝 Win32 生成器。
+仓库已经在 `thirdparty/SDL2` 中提供 MSVC x64 的 SDL2、SDL2_image、SDL2_mixer、SDL2_ttf 和 SDL2_gfx 头文件、导入库与运行时 DLL。ENet 1.3.18 由 `thirdparty/enet` 的固定源码静态构建，不需要额外运行时 DLL。配置阶段会拒绝 Win32 生成器。
 
 ```powershell
 cmake -S . -B build -A x64
@@ -50,7 +50,7 @@ ctest --test-dir build-imgui -C Debug -L tools --output-on-failure
 
 ## macOS
 
-macOS 配置会在 `/opt/homebrew` 和 `/usr/local` 中查找 SDL2、SDL2_image、SDL2_net、SDL2_mixer 和 SDL2_ttf。安装依赖后可使用单配置构建：
+macOS 配置会在 `/opt/homebrew` 和 `/usr/local` 中查找 SDL2、SDL2_image、SDL2_mixer 和 SDL2_ttf；ENet 仍由仓库内的源码构建。安装依赖后可使用单配置构建：
 
 ```bash
 cmake -S . -B build
