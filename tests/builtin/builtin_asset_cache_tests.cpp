@@ -66,8 +66,22 @@ int main()
     AssistCacheFixture fixture;
     const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
     elysia::builtin::BuiltinAssetCatalog catalog(source_root);
-    elysia::builtin::BuiltinResources resources;
+    auto& resources = *elysia::builtin::BuiltinResources::instance();
     constexpr std::array default_point_sizes{10,20,30,40,50,60,70};
+
+    resources.shutdown();
+    require(&resources == elysia::builtin::BuiltinResources::instance(),
+        "all callers must share one built-in resource instance");
+    require(!resources.is_initialized()
+            && resources.find_texture(elysia::builtin::BuiltinTextureId::ElysiaWhite) == nullptr
+            && resources.find_font(elysia::builtin::BuiltinFontId::Latin,20) == nullptr
+            && resources.create_animation(elysia::builtin::BuiltinAnimationId::EngineCharacterIdle) == nullptr,
+        "uninitialized built-in resource queries must return empty results");
+    require(resources.play_sound(
+                static_cast<elysia::builtin::BuiltinSoundId>(255)) == -1
+            && !resources.play_music(
+                elysia::builtin::BuiltinMusicId::ElysianRealm),
+        "unbound built-in audio requests must fail safely");
 
     const auto initialized = resources.initialize(
         fixture.renderer(),
@@ -106,18 +120,6 @@ int main()
             "cache must reject every legacy locale spelling");
     }
 
-    elysia::builtin::BuiltinResources custom_size_resources;
-    constexpr std::array custom_point_sizes{24};
-    require(custom_size_resources.initialize(
-            fixture.renderer(),
-            catalog,
-            custom_point_sizes,
-            {}).has_value()
-            && custom_size_resources.font_count() == 5
-            && custom_size_resources.find_font(
-                elysia::builtin::BuiltinFontId::Latin,24) != nullptr,
-        "cache must dynamically load Application-requested point sizes");
-    custom_size_resources.shutdown();
     require(resources.find_translation(
             elysia::builtin::BuiltinLocaleId::Japanese,
             "engine.settings.title") != nullptr,
@@ -130,12 +132,6 @@ int main()
             && resources.find_music(elysia::builtin::BuiltinMusicId::ElysianRealm) != nullptr,
         "cache must distinguish registered and unregistered Engine audio keys");
 
-    elysia::builtin::BuiltinResources uninitialized_resources;
-    require(uninitialized_resources.play_sound(
-                static_cast<elysia::builtin::BuiltinSoundId>(255)) == -1
-            && !uninitialized_resources.play_music(
-                elysia::builtin::BuiltinMusicId::ElysianRealm),
-        "unbound built-in audio requests must fail safely");
     require(resources.audio_settings().master_volume == 100
             && resources.audio_settings().music_volume == 0
             && resources.audio_settings().sound_volume == 42,
@@ -146,94 +142,121 @@ int main()
     require(resources.play_music(elysia::builtin::BuiltinMusicId::ElysianRealm),
         "bound built-in audio player must play registered scene music");
     resources.stop_music();
-    const auto* idle_definition = resources.find_animation(
-        elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
-    const auto* move_definition = resources.find_animation(
-        elysia::builtin::BuiltinAnimationId::EngineCharacterMove);
-    require(idle_definition != nullptr && idle_definition->atlas != nullptr
-            && idle_definition->atlas->size() == 8 && idle_definition->fps == 8.0
-            && idle_definition->loop
-            && move_definition != nullptr && move_definition->atlas != nullptr
-            && move_definition->atlas->size() == 8 && move_definition->fps == 8.0
-            && move_definition->loop,
-        "cache must expose both complete Engine character animation definitions");
-    const auto* first_frame = idle_definition->atlas->frame_at(0);
-    const auto* last_frame = idle_definition->atlas->frame_at(7);
-    require(first_frame != nullptr && last_frame != nullptr
-            && first_frame->_coverage_mask != nullptr
-            && first_frame->_coverage_mask == last_frame->_coverage_mask
-            && first_frame->_source_rect.has_value() && last_frame->_source_rect.has_value()
-            && first_frame->_source_rect->width() == 32.0f && first_frame->_source_rect->height() == 32.0f
-            && last_frame->_source_rect->x() == 224.0f,
-        "Engine character animation atlases must expose eight 32 px source rectangles");
-    const auto animation = resources.create_animation(
-        elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
-    require(animation != nullptr && animation->current_frame_index() == 0
-            && animation->current_frame() == first_frame,
-        "cache must create an initialized Engine character animation instance");
+    {
+        const auto* idle_definition = resources.find_animation(
+            elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
+        const auto* move_definition = resources.find_animation(
+            elysia::builtin::BuiltinAnimationId::EngineCharacterMove);
+        require(idle_definition != nullptr && idle_definition->atlas != nullptr
+                && idle_definition->atlas->size() == 8 && idle_definition->fps == 8.0
+                && idle_definition->loop
+                && move_definition != nullptr && move_definition->atlas != nullptr
+                && move_definition->atlas->size() == 8 && move_definition->fps == 8.0
+                && move_definition->loop,
+            "cache must expose both complete Engine character animation definitions");
+        const auto* first_frame = idle_definition->atlas->frame_at(0);
+        const auto* last_frame = idle_definition->atlas->frame_at(7);
+        require(first_frame != nullptr && last_frame != nullptr
+                && first_frame->_coverage_mask != nullptr
+                && first_frame->_coverage_mask == last_frame->_coverage_mask
+                && first_frame->_source_rect.has_value() && last_frame->_source_rect.has_value()
+                && first_frame->_source_rect->width() == 32.0f && first_frame->_source_rect->height() == 32.0f
+                && last_frame->_source_rect->x() == 224.0f,
+            "Engine character animation atlases must expose eight 32 px source rectangles");
+        const auto animation = resources.create_animation(
+            elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
+        require(animation != nullptr && animation->current_frame_index() == 0
+                && animation->current_frame() == first_frame,
+            "cache must create an initialized Engine character animation instance");
 
-    elysia::ui::UiAnimation ui_animation(
-        elysia::core::Rect{ 0.0f,0.0f,32.0f,32.0f });
-    require(ui_animation.set_engine_animation(
-                resources,
-                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle)
-            && ui_animation.is_looping(),
-        "UiAnimation must bind looping built-in animations without AnimationManager");
-    ui_animation.set_opacity(128);
-    ui_animation.set_color_overlay(
-        elysia::core::Color{
-            elysia::core::colors::purple_500.r,
-            elysia::core::colors::purple_500.g,
-            elysia::core::colors::purple_500.b,
-            128 });
-    std::vector<elysia::core::UiRenderCommand> ui_commands;
-    ui_animation.submit_ui_render_commands(ui_commands);
-    require(ui_commands.size() == 2
-            && ui_commands[0].texture == first_frame->_texture
-            && ui_commands[1].texture == first_frame->_coverage_mask
-            && ui_commands[1].src_rect.nearly_equals(ui_commands[0].src_rect)
-            && ui_commands[1].alpha == 64
-            && ui_commands[1].texture_color_modulation
-                == elysia::core::TextureColorModulation{
-                    .r = elysia::core::colors::purple_500.r,
-                    .g = elysia::core::colors::purple_500.g,
-                    .b = elysia::core::colors::purple_500.b },
-        "Built-in UiAnimation must render base then a matching color mask");
+        elysia::ui::UiAnimation ui_animation(
+            elysia::core::Rect{ 0.0f,0.0f,32.0f,32.0f });
+        require(ui_animation.set_engine_animation(
+                    elysia::builtin::BuiltinAnimationId::EngineCharacterIdle)
+                && ui_animation.is_looping(),
+            "UiAnimation must bind looping built-in animations without AnimationManager");
+        ui_animation.set_opacity(128);
+        ui_animation.set_color_overlay(
+            elysia::core::Color{
+                elysia::core::colors::purple_500.r,
+                elysia::core::colors::purple_500.g,
+                elysia::core::colors::purple_500.b,
+                128 });
+        std::vector<elysia::core::UiRenderCommand> ui_commands;
+        ui_animation.submit_ui_render_commands(ui_commands);
+        require(ui_commands.size() == 2
+                && ui_commands[0].texture == first_frame->_texture
+                && ui_commands[1].texture == first_frame->_coverage_mask
+                && ui_commands[1].src_rect.nearly_equals(ui_commands[0].src_rect)
+                && ui_commands[1].alpha == 64
+                && ui_commands[1].texture_color_modulation
+                    == elysia::core::TextureColorModulation{
+                        .r = elysia::core::colors::purple_500.r,
+                        .g = elysia::core::colors::purple_500.g,
+                        .b = elysia::core::colors::purple_500.b },
+            "Built-in UiAnimation must render base then a matching color mask");
 
-    elysia::loading::clear_loaded_content();
-    require(resources.find_texture(
-            elysia::builtin::BuiltinTextureId::ElysiaWhite) != nullptr
-            && resources.find_font(elysia::builtin::BuiltinFontId::Latin, 20) != nullptr,
-        "clearing project content must not invalidate built-in resources");
-    require(resources.create_animation(
-                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle) != nullptr
-            && resources.create_animation(
-                elysia::builtin::BuiltinAnimationId::EngineCharacterMove) != nullptr,
-        "clearing project content must not invalidate built-in animations");
-    require(ui_animation.set_engine_animation(
-                resources,
-                elysia::builtin::BuiltinAnimationId::EngineCharacterIdle),
-        "UiAnimation built-in binding must survive project content cleanup");
+        elysia::loading::clear_loaded_content();
+        require(resources.find_texture(
+                elysia::builtin::BuiltinTextureId::ElysiaWhite) != nullptr
+                && resources.find_font(elysia::builtin::BuiltinFontId::Latin, 20) != nullptr,
+            "clearing project content must not invalidate built-in resources");
+        require(resources.create_animation(
+                    elysia::builtin::BuiltinAnimationId::EngineCharacterIdle) != nullptr
+                && resources.create_animation(
+                    elysia::builtin::BuiltinAnimationId::EngineCharacterMove) != nullptr,
+            "clearing project content must not invalidate built-in animations");
+        require(ui_animation.set_engine_animation(
+                    elysia::builtin::BuiltinAnimationId::EngineCharacterIdle),
+            "UiAnimation built-in binding must survive project content cleanup");
 
-    const std::filesystem::path missing_root = std::filesystem::temp_directory_path()
-        / ("elysia_assist_cache_missing_"
-            + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-    const auto failed_reinitialize = resources.initialize(
-        fixture.renderer(),
-        elysia::builtin::BuiltinAssetCatalog(missing_root),
-        default_point_sizes,
-        {});
-    require(!failed_reinitialize.has_value(),
-        "invalid built-in resources must reject initialization");
-    require(resources.texture_count() == 7 && resources.font_count() == 35 && resources.locale_count() == 5
-            && resources.animation_count() == 2 && resources.sound_count() == 0
-            && resources.music_count() == 1,
-        "a failed initialization must preserve the last complete cache transactionally");
+        const std::filesystem::path missing_root = std::filesystem::temp_directory_path()
+            / ("elysia_assist_cache_missing_"
+                + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        const auto failed_reinitialize = resources.initialize(
+            fixture.renderer(),
+            elysia::builtin::BuiltinAssetCatalog(missing_root),
+            default_point_sizes,
+            {});
+        require(!failed_reinitialize.has_value(),
+            "invalid built-in resources must reject initialization");
+        require(resources.texture_count() == 7 && resources.font_count() == 35 && resources.locale_count() == 5
+                && resources.animation_count() == 2 && resources.sound_count() == 0
+                && resources.music_count() == 1,
+            "a failed initialization must preserve the last complete cache transactionally");
+
+    }
 
     resources.shutdown();
     require(!resources.is_initialized() && resources.texture_count() == 0 && resources.font_count() == 0
             && resources.locale_count() == 0 && resources.animation_count() == 0
             && resources.sound_count() == 0 && resources.music_count() == 0,
         "cache shutdown must release all Engine-owned runtime resources");
+    resources.shutdown();
+    require(!resources.is_initialized() && resources.texture_count() == 0,
+        "repeated shutdown must be harmless");
+    const auto failed_initialize = resources.initialize(
+        fixture.renderer(),
+        elysia::builtin::BuiltinAssetCatalog(source_root / "missing_builtin_root"),
+        default_point_sizes,
+        {});
+    require(!failed_initialize && !resources.is_initialized() && resources.texture_count() == 0,
+        "failed initialization of an empty singleton must leave no published resources");
+
+    // Reinitialize the same singleton with a different font configuration.
+    constexpr std::array custom_point_sizes{24};
+    require(resources.initialize(
+            fixture.renderer(),
+            catalog,
+            custom_point_sizes,
+            {}).has_value()
+            && resources.font_count() == 5
+            && resources.find_font(
+                elysia::builtin::BuiltinFontId::Latin,24) != nullptr,
+        "cache must dynamically load Application-requested point sizes");
+    resources.shutdown();
+    require(!resources.is_initialized() && resources.font_count() == 0,
+        "explicit shutdown must leave the singleton ready for the next application");
+
     return 0;
 }

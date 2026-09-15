@@ -23,12 +23,6 @@ using elysia::scene::ScenePayload;
 using elysia::scene::SceneRoute;
 using elysia::scene::try_scene_payload;
 
-StartupLoadingScene::StartupLoadingScene(
-    const BuiltinResources& builtin_resources) noexcept
-    : _builtin_resources(&builtin_resources)
-{
-}
-
 namespace
 {
 constexpr double kEngineLogoFadeInSeconds = 1.0;
@@ -166,9 +160,7 @@ void StartupLoadingScene::on_input(
 
 bool StartupLoadingScene::create_presentation()
 {
-    SDL_Texture* engine_texture = _builtin_resources
-        ? _builtin_resources->find_texture(BuiltinTextureId::ElysiaWhite)
-        : nullptr;
+    SDL_Texture* engine_texture = elysia::builtin::BuiltinResources::instance()->find_texture(BuiltinTextureId::ElysiaWhite);
     if (!engine_texture)
     {
         handle_failure("Required Elysia startup logo is not available.");

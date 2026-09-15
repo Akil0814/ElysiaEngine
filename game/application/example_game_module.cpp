@@ -19,8 +19,6 @@
 #include "../../engine/tools/imgui/imgui_development_overlay.h"
 #endif
 
-#include <functional>
-
 namespace example::application
 {
 elysia::application::ApplicationDescriptor GameModule::descriptor() const
@@ -62,8 +60,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
 }
 
 void GameModule::register_scenes(
-    elysia::scene::SceneManager& scene_manager,
-    const elysia::application::GameSceneRegistrationContext& context) const
+    elysia::scene::SceneManager& scene_manager) const
 {
     scene_manager.register_game_scene<example::scene::MainMenuScene>(
         example::scene_keys::MainMenu);
@@ -82,11 +79,9 @@ void GameModule::register_scenes(
     scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
         example::scene_keys::DemoGallery);
     scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(
-        example::scene_keys::UiComponentGallery,
-        std::cref(context.builtin_resources()));
+        example::scene_keys::UiComponentGallery);
     scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
-        example::scene_keys::EngineFeatureLab,
-        std::cref(context.builtin_resources()));
+        example::scene_keys::EngineFeatureLab);
 }
 
 std::unique_ptr<elysia::tools::IDevelopmentOverlay>

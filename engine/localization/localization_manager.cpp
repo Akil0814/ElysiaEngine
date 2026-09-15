@@ -86,8 +86,7 @@ std::expected<void,LocalizationFailure> LocalizationManager::initialize(
 	SDL_Renderer* renderer,
 	const std::filesystem::path& manifest_path,
 	std::string initial_language,
-	const elysia::typography::FontResolver* font_resolver,
-	const elysia::builtin::BuiltinResources* builtin_resources
+	const elysia::typography::FontResolver* font_resolver
 )
 {
 	shutdown();
@@ -132,7 +131,6 @@ std::expected<void,LocalizationFailure> LocalizationManager::initialize(
 
 	_renderer = renderer;
 	_font_resolver = font_resolver;
-	_builtin_resources = builtin_resources;
 	_manifest_path = manifest_path;
 	_i18n_root = path_manager->assets() / "i18n";
 
@@ -173,7 +171,6 @@ void LocalizationManager::shutdown()
 	_i18n_root.clear();
 	_current_language.clear();
 	_font_resolver = nullptr;
-	_builtin_resources = nullptr;
 	_renderer = nullptr;
 	_initialized = false;
 }
@@ -214,16 +211,16 @@ LocalizationManager::TranslationResolution LocalizationManager::resolve_translat
 		}
 	}
 
-	if (key.starts_with("engine.") && _builtin_resources)
+	if (key.starts_with("engine."))
 	{
 		const auto current_locale =
 			elysia::builtin::builtin_locale_id(_current_language);
 		if (const std::string* translation =
-			_builtin_resources->find_translation(current_locale, key))
+			elysia::builtin::BuiltinResources::instance()->find_translation(current_locale, key))
 			return {*translation,true};
 		if (_current_language != "en")
 		{
-			if (const std::string* fallback = _builtin_resources->find_translation(
+			if (const std::string* fallback = elysia::builtin::BuiltinResources::instance()->find_translation(
 				elysia::builtin::BuiltinLocaleId::English, key))
 				return {*fallback,true};
 		}

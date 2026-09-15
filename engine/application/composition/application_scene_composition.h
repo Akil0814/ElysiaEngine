@@ -10,6 +10,5 @@ namespace elysia::application
 void compose_application_scenes(
     elysia::scene::SceneManager& scene_manager,
     const IGameModule& game_module,
-    const ApplicationDescriptor& descriptor,
-    const elysia::builtin::BuiltinResources& builtin_resources);
+    const ApplicationDescriptor& descriptor);
 }

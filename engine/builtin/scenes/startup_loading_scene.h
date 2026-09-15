@@ -23,14 +23,12 @@ class FontResolver;
 
 namespace elysia::builtin
 {
-class BuiltinResources;
-
 class StartupLoadingScene final : public elysia::scene::Scene
 {
     friend class StartupLoadingSceneTestAccess;
 
 public:
-    explicit StartupLoadingScene(const BuiltinResources& builtin_resources) noexcept;
+    StartupLoadingScene() = default;
     ~StartupLoadingScene() override = default;
 
     void on_enter(const elysia::scene::ScenePayload& payload) override;
@@ -65,7 +63,6 @@ private:
     void clear_state() noexcept;
 
 private:
-    const BuiltinResources* _builtin_resources = nullptr;
     StartupLoadingScenePayload _startup_payload;
     elysia::loading::GameContentLoader _content_loader;
 

@@ -61,7 +61,7 @@ void test_ui_number_uses_shared_localized_glyphs()
         typography::resolve_font_settings(typography::FontSettings{});
     require(resolved_font_settings.has_value(),
         "UI number default font settings must resolve");
-    builtin::BuiltinResources builtin_resources;
+    auto& builtin_resources = *elysia::builtin::BuiltinResources::instance();
     require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*paths),
@@ -74,12 +74,10 @@ void test_ui_number_uses_shared_localized_glyphs()
         renderer,
         paths->configs() / "manifests" / "i18n_manifest.json",
         "en",
-        &font_resolver,
-        &builtin_resources
+        &font_resolver
     ),"UI number tests must initialize localization");
     require(font_resolver.configure(
         *resolved_font_settings,
-        builtin_resources,
         *resources::ResourceService::instance(),
         localization->supported_languages()).has_value(),
         "UI number tests must configure Engine fonts");

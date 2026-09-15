@@ -1,6 +1,6 @@
 #include "ui_component_gallery_scene.h"
 
-#include "../../../engine/builtin/resources/builtin_resources.h"
+#include "../../../engine/builtin/resources/builtin_resource_ids.h"
 #include "../../../engine/scene/runtime/scene_runtime_context.h"
 #include "../../../engine/ui/composites/ui_tab_container.h"
 #include "../../../engine/ui/containers/ui_button_group.h"
@@ -239,11 +239,10 @@ UiComponentGalleryScene::build_media_page(SDL_Texture* image_texture)
         "ui_component_gallery.media.animation_description");
 
     // UiAnimation owns a playback instance but borrows persistent frame textures
-    // from BuiltinResources. Hidden tab pages suspend its update calls.
+    // from the built-in resource singleton. Hidden tab pages suspend its update calls.
     auto animation = std::make_unique<UiAnimation>(
         elysia::core::Rect{ 0,0,120,120 });
     if (!animation->set_engine_animation(
-            *_builtin_resources,
             elysia::builtin::BuiltinAnimationId::EngineCharacterMove))
     {
         throw std::logic_error(

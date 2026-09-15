@@ -133,8 +133,7 @@ void test_payload_contract()
     static_assert(elysia::scene::SceneKeys::is_engine(
         elysia::realm::detail::SceneKeys::RealmContent));
 
-    elysia::builtin::BuiltinResources resources;
-    elysia::realm::detail::ElysiaIntroScene scene(resources);
+    elysia::realm::detail::ElysiaIntroScene scene;
     require(throws_logic_error_containing(
             [&scene] { scene.on_enter({}); },
             "ElysiaRealmPayload"),
@@ -149,7 +148,7 @@ void test_payload_contract()
             "ElysiaRealmPayload"),
         "ElysiaIntroScene must reject an invalid return route");
 
-    elysia::realm::detail::ElysiaRealmScene realm_scene(resources);
+    elysia::realm::detail::ElysiaRealmScene realm_scene;
     require(throws_logic_error_containing(
             [&realm_scene] { realm_scene.on_enter({}); },
             "RealmContentPayload"),
@@ -159,7 +158,7 @@ void test_payload_contract()
 void test_sequence_escape_reuse_and_audio_lifecycle()
 {
     SdlFixture fixture;
-    elysia::builtin::BuiltinResources builtin_resources;
+    auto& builtin_resources = *elysia::builtin::BuiltinResources::instance();
     require(builtin_resources.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(
@@ -175,8 +174,7 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     elysia::scene::SceneManager scene_manager;
     scene_manager.set_runtime_context(context);
     elysia::realm::detail::register_realm_scenes(
-        scene_manager,
-        builtin_resources);
+        scene_manager);
     scene_manager.register_game_scene<ReturnScene>(1);
 
     const auto enter_intro = [&scene_manager](int marker) {

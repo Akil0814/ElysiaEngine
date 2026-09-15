@@ -64,8 +64,10 @@
 
 需要项目启动纹理时，每项都必须包含稳定资源 key 和相对文件名；路径基于 `assets/preload/`。manifest 中列出的每个纹理都是必需资源；文件缺失、无法解码或无法创建 SDL texture 都会使 phase2 失败，且不会发布部分缓存。
 
-`assets/engine` 由 Application 持有的 `BuiltinResources` 门面在 renderer 建立后事务式加载：七张 Engine 纹理、五套配置字号字体、五语 `engine.json`、两套动画和一首内建音乐都常驻到 Application shutdown，且不注册到项目 `ResourceManager`。固定资源通过 `BuiltinTextureId`、`BuiltinFontId`、`BuiltinAnimationId`、`BuiltinSoundId` 和 `BuiltinMusicId` 等分类 enum 查询；稳定字符串名称只用于日志和外部资源保留名校验。其中 `.elysia_engine_required` 是必需根标记，`OFL.txt` 仅为许可证文件。`GameContentLoader` 清理或重新加载项目内容不会影响 built-in 资源。
+`assets/engine` 由 `BuiltinResources` 单例管理，Application 在 renderer 建立后调用 `initialize()` 事务式加载：七张 Engine 纹理、五套配置字号字体、五语 `engine.json`、两套动画和一首内建音乐都常驻到 Application shutdown，且不注册到项目 `ResourceManager`。固定资源通过 `BuiltinTextureId`、`BuiltinFontId`、`BuiltinAnimationId`、`BuiltinSoundId` 和 `BuiltinMusicId` 等分类 enum 查询；稳定字符串名称只用于日志和外部资源保留名校验。其中 `.elysia_engine_required` 是必需根标记，`OFL.txt` 仅为许可证文件。`GameContentLoader` 清理或重新加载项目内容不会影响 built-in 资源。
 
-`SceneRuntimeContext` 不公开 `BuiltinResources`。引擎内置场景在 Application composition 阶段通过构造函数借用门面；项目场景默认不可见，确实需要展示引擎资源的场景必须在 `IGameModule::register_scenes()` 中通过只读 `GameSceneRegistrationContext` 显式选择并构造注入。门面生命周期覆盖 SceneManager，SceneManager shutdown 后 Application 才释放底层 SDL 资源。
+`BuiltinResources` 复用 `Singleton<T>`，`BuiltinResources::instance()` 返回同一个实例指针；首次访问只构造空门面，不加载 SDL 资源。引擎和项目代码均可包含资源头文件按需查询，无需通过注册上下文、场景构造函数或 `SceneRuntimeContext` 传递。`IGameModule::register_scenes(SceneManager&)` 只负责场景注册。
+
+Application 负责单例的运行期生命周期：先关闭 SceneManager、本地化、字体等使用者，再显式调用 `BuiltinResources::shutdown()`，最后销毁 renderer 并关闭 TTF 和 mixer。`shutdown()` 可重复调用，清理后可以重新初始化；正常释放不依赖进程退出时的静态析构。运行期只支持一个活动 Application。
 
 `BootstrapTextureCache` 仅持有项目 preload manifest 中的启动纹理。`find_preload_texture()` 返回可空的借用指针且查询本身不记录日志；其有效期截止到 `StartupLoadingScene::on_exit()`，Application shutdown 仍保留幂等兜底释放。

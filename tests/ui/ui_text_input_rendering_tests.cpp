@@ -66,7 +66,7 @@ void test_text_input_uses_private_editing_texture()
         typography::resolve_font_settings(typography::FontSettings{});
     require(resolved_font_settings.has_value(),
         "text input default font settings must resolve");
-    builtin::BuiltinResources builtin_resources;
+    auto& builtin_resources = *elysia::builtin::BuiltinResources::instance();
     require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*path_manager),
@@ -80,12 +80,10 @@ void test_text_input_uses_private_editing_texture()
             renderer,
             path_manager->configs() / "manifests" / "i18n_manifest.json",
             "en",
-            &font_resolver,
-            &builtin_resources),
+            &font_resolver),
         "text input texture test must initialize localization");
     require(font_resolver.configure(
         *resolved_font_settings,
-        builtin_resources,
         *resources::ResourceService::instance(),
         localization_service->supported_languages()).has_value(),
         "text input texture test must configure Engine fonts");

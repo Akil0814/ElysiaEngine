@@ -92,7 +92,7 @@ int main()
     auto* path_manager = elysia::io::PathManager::instance();
     require(path_manager->initialize(source_root), "localization fallback tests must initialize project paths");
 
-    elysia::builtin::BuiltinResources builtin_resources;
+    auto& builtin_resources = *elysia::builtin::BuiltinResources::instance();
     require(builtin_resources.initialize(
         fixture.renderer(),
         elysia::builtin::BuiltinAssetCatalog(source_root),
@@ -107,7 +107,7 @@ int main()
         "LocalizationManager must begin uninitialized");
 	const auto missing_manifest = localization_manager->initialize(
 		fixture.renderer(),source_root / "assets/configs/manifests/missing_i18n.json",
-		"en",&font_resolver,&builtin_resources);
+		"en",&font_resolver);
 	require(!missing_manifest
 		&& missing_manifest.error().error_code() == "LOCALIZATION-MANIFEST"
 		&& !missing_manifest.error().diagnostic.entries.empty()
@@ -129,7 +129,7 @@ int main()
 	std::streambuf* previous_log_buffer = std::clog.rdbuf(captured_warning.rdbuf());
 	const auto fallback_result = localization_manager->initialize(
 		fixture.renderer(),fallback_root / "assets/configs/manifests/i18n_manifest.json",
-		"zh-Hans",&font_resolver,&builtin_resources);
+		"zh-Hans",&font_resolver);
 	std::clog.rdbuf(previous_log_buffer);
 	require(fallback_result && localization->current_language() == "en",
 		"a requested locale failure must recover to the loaded default language");
@@ -147,8 +147,7 @@ int main()
         fixture.renderer(),
         source_root / "assets" / "configs" / "manifests" / "i18n_manifest.json",
         "en",
-        &font_resolver,
-        &builtin_resources),
+        &font_resolver),
         "LocalizationManager must initialize with built-in defaults");
     require(localization_manager->is_initialized(),
         "successful localization initialization must publish initialized state");
@@ -166,7 +165,6 @@ int main()
         "localization fallback font settings must resolve");
     require(font_resolver.configure(
         *resolved_font_settings,
-        builtin_resources,
         *elysia::resources::ResourceService::instance(),
         localization->supported_languages()).has_value(),
         "FontResolver must configure after localization publishes its languages");
@@ -356,8 +354,7 @@ int main()
             fixture.renderer(),
             resolution_root / "assets/configs/manifests/i18n_manifest.json",
             "en",
-            &font_resolver,
-            &builtin_resources),
+            &font_resolver),
         "translation resolution test must reinitialize localization");
 
     std::ostringstream resolution_warnings;

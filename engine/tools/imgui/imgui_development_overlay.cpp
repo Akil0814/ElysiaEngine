@@ -113,7 +113,7 @@ std::expected<void, std::string> ImGuiDevelopmentOverlay::initialize(
     {
         shutdown();
         return std::unexpected(
-            "Dear ImGui SDLRenderer2 backend initialization failed.");
+            "Dear ImGui SDLRenderer3 backend initialization failed.");
     }
     _sdl_renderer_initialized = true;
     return {};

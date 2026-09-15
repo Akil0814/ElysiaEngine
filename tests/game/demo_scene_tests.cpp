@@ -174,8 +174,7 @@ void click_mouse(
 
 void test_engine_feature_overlay_cycle()
 {
-    elysia::builtin::BuiltinResources resources;
-    example::scene::EngineFeatureLabScene scene(resources);
+    example::scene::EngineFeatureLabScene scene;
     require(scene.color_overlay_index() == 2,
         "Engine feature test must start with the blue overlay");
 
@@ -201,20 +200,19 @@ void test_engine_feature_overlay_cycle()
 
 void test_payload_contract_names_each_scene()
 {
-    elysia::builtin::BuiltinResources resources;
     example::scene::DemoGalleryScene home_scene;
     require(throws_logic_error_containing(
             [&home_scene] { home_scene.on_enter({}); },
             "DemoGalleryScene"),
         "DemoGalleryScene must name itself when the demo payload is missing");
 
-    example::scene::UiComponentGalleryScene ui_test_scene(resources);
+    example::scene::UiComponentGalleryScene ui_test_scene;
     require(throws_logic_error_containing(
             [&ui_test_scene] { ui_test_scene.on_enter({}); },
             "UiComponentGalleryScene"),
         "UiComponentGalleryScene must name itself when the demo payload is missing");
 
-    example::scene::EngineFeatureLabScene feature_test_scene(resources);
+    example::scene::EngineFeatureLabScene feature_test_scene;
     const elysia::scene::ScenePayload invalid_payload =
         example::scene::DemoScenePayload{
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
@@ -232,7 +230,7 @@ void test_escape_returns_the_full_caller_route()
         elysia::typography::resolve_font_settings(elysia::typography::FontSettings{});
     require(resolved_font_settings.has_value(),
         "Engine test scene tests must resolve default font settings");
-    elysia::builtin::BuiltinResources builtin_resources;
+    auto& builtin_resources = *elysia::builtin::BuiltinResources::instance();
     require(builtin_resources.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(std::filesystem::path{ ELYSIA_SOURCE_DIR }),
@@ -245,7 +243,6 @@ void test_escape_returns_the_full_caller_route()
     const std::array<std::string,1> supported_languages{ "en" };
     require(font_resolver.configure(
                 *resolved_font_settings,
-                builtin_resources,
                 *elysia::resources::ResourceService::instance(),
                 supported_languages)
                 .has_value(),
@@ -261,11 +258,9 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
         example::scene_keys::DemoGallery);
     scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(
-        example::scene_keys::UiComponentGallery,
-        std::cref(builtin_resources));
+        example::scene_keys::UiComponentGallery);
     scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
-        example::scene_keys::EngineFeatureLab,
-        std::cref(builtin_resources));
+        example::scene_keys::EngineFeatureLab);
     scene_manager.register_game_scene<FirstReturnScene>(1);
     scene_manager.register_game_scene<SecondReturnScene>(2);
     scene_manager.register_engine_scene<

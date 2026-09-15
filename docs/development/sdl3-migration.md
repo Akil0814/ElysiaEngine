@@ -1,6 +1,6 @@
 # SDL3 migration acceptance record
 
-Status: implementation and automated Windows validation are in place; final migration acceptance is pending manual checks. Do not mark the migration complete or remove the retained SDL2 vendor snapshot until the manual acceptance below is recorded.
+Status: SDL3 migration accepted on Windows MSVC x64. On 2026-09-14, the user confirmed that all functionality is normal and authorized removal of the old files. The retained SDL2 dependency and unused ImGui SDL2 backends have been removed. Linux, macOS and MinGW remain unverified.
 
 ## Implementation
 
@@ -9,7 +9,7 @@ Status: implementation and automated Windows validation are in place; final migr
 - Renderer commands retain SDL_Texture pointers, integer texture destinations, float world primitives, layer ordering and existing stroke geometry. SDL3 vertex colors are normalized floats.
 - Input translates raw SDL3 events after ImGui processing. Logical mouse positions are rounded at the conversion boundary; wheel events retain the existing cached-pointer contract. Gamepads use SDL device IDs. Text input and IME rectangles use the focused SDL window.
 - Audio uses one mixer, 24 sound tracks and one music track. Resource keys, groups, handles, loops, scheduler timing and fade controllers are retained. Sound is predecoded; music is streamed. Cache unload stops and detaches any referencing tracks before releasing MIX_Audio.
-- Active first-party source and CMake targets no longer depend on SDL2. Old vendor files and unused ImGui SDL2 backend source remain temporarily, as required by the post-acceptance cleanup order; neither is built or loaded.
+- Active first-party source and CMake targets no longer depend on SDL2. The old SDL2 vendor directory and the four unused ImGui SDL2 backend source/header files were removed after user acceptance.
 
 ## Baseline and evidence
 
@@ -40,9 +40,9 @@ No pre-existing pixel tolerance was widened.
 3. SDL3 readback is limited to the current viewport. The software test flushes, temporarily selects the full output and restores presentation to capture letterbox coordinates correctly.
 4. The new GPU alpha assertion allows one byte for UNORM blend rounding, based on the expected source-over result; this does not alter existing tests.
 
-## Manual acceptance still required
+## Manual acceptance
 
-Use the final Release executable from the repository root. Record each result rather than inferring it from CTest:
+On 2026-09-14, the user confirmed: “确认功能一切正常 可以删除旧文件”. This is user-reported functional acceptance, separate from automated test evidence. No per-device or per-DPI measurements were supplied. The acceptance checklist was:
 
 - Visual/gameplay: inspect existing UI, rounded corners, outlines, text and gameplay. Resize the window and switch fullscreen; compare clipping, texture transparency and animation against expected behavior.
 - Pointer/focus: at 100%, 125% and 150% Windows display scaling, click controls, drag sliders, scroll lists and change keyboard focus. Verify letterbox bars do not activate controls.
@@ -50,6 +50,15 @@ Use the final Release executable from the repository root. Record each result ra
 - Controller: connect, use and disconnect an actual controller while holding a button or axis. Verify release state and input-device switching.
 - Listening: overlap effects, adjust master/group volumes, switch music and scenes, exercise fades and close the application. Check for clipping, unexpected looping, stale audio or abrupt transitions.
 
-These visual, hearing and hardware results are currently unverified. A GPU screenshot exists at `out/build/sdl3-Debug/tests/sdl3-gpu-verification.png`; it is a focused diagnostic scene, not full gameplay acceptance. Linux, macOS and MinGW are unverified.
+The user accepted the functional result; detailed visual, hearing and hardware measurements were not independently recorded by the agent. A GPU screenshot exists at `out/build/sdl3-Debug/tests/sdl3-gpu-verification.png`; it is a focused diagnostic scene, not full gameplay acceptance. Linux, macOS and MinGW are unverified.
 
-After manual acceptance, remove `thirdparty/SDL2` and the unused `imgui_impl_sdl2` / `imgui_impl_sdlrenderer2` source files, check the active tree and runtime dependencies once more, and update this record. No commit, push or merge is performed automatically.
+Post-acceptance cleanup removed `thirdparty/SDL2`, `imgui_impl_sdl2.{cpp,h}` and `imgui_impl_sdlrenderer2.{cpp,h}`. Historical notes and ignored build/baseline artifacts are retained. Cleanup verification is recorded below. No commit, push or merge is performed automatically.
+
+
+## Post-cleanup verification (2026-09-14)
+
+- Removed 129 tracked files: the SDL2 dependency snapshot and four unused ImGui backend files. Corrected the remaining SDLRenderer2 name in an error message to SDLRenderer3.
+- All three build configurations succeeded after deletion. Full CTest reruns passed: Debug with ImGui 87/87, Release with ImGui 87/87, Release without ImGui 86/86, including actual GPU and application smoke tests.
+- Active engine/game/test sources and CMake inputs contain no SDL2 or SDLRenderer2 references. The Release application, SDL3 DLL and all 87 Release tests (89 binaries) have no SDL2 imports.
+- Evidence: `out/sdl3-migration/cleanup-build-*.log`, `cleanup-ctest-{debug,release,noimgui}.log` and `cleanup-runtime-dependencies.log`.
+- Windows migration acceptance and post-acceptance cleanup are complete. Linux, macOS and MinGW remain unverified.

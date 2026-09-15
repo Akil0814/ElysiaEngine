@@ -64,12 +64,11 @@ bool UiAnimation::set_animation_key(std::string_view animation_key)
 }
 
 bool UiAnimation::set_engine_animation(
-    const elysia::builtin::BuiltinResources& builtin_resources,
     elysia::builtin::BuiltinAnimationId animation_id)
 {
     std::unique_ptr<elysia::animation::Animation> animation =
-        builtin_resources.create_animation(animation_id);
-    const auto* definition = builtin_resources.find_animation(animation_id);
+        elysia::builtin::BuiltinResources::instance()->create_animation(animation_id);
+    const auto* definition = elysia::builtin::BuiltinResources::instance()->find_animation(animation_id);
     if (!animation || !definition)
     {
         _animation_key.clear();

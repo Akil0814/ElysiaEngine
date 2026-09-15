@@ -42,7 +42,6 @@ namespace
 
 std::expected<void,FontResolveError> FontResolver::configure(
     const ResolvedFontSettings& settings,
-    const elysia::builtin::BuiltinResources& builtin_resources,
     const elysia::resources::ResourceService& resource_service,
     std::span<const std::string> supported_languages)
 {
@@ -56,7 +55,6 @@ std::expected<void,FontResolveError> FontResolver::configure(
     }
 
     _settings = settings;
-    _builtin_resources = &builtin_resources;
     _resource_service = &resource_service;
     _supported_languages.assign(
         supported_languages.begin(),
@@ -76,7 +74,6 @@ std::expected<void,FontResolveError> FontResolver::configure(
 void FontResolver::shutdown() noexcept
 {
     _settings.reset();
-    _builtin_resources = nullptr;
     _resource_service = nullptr;
     _supported_languages.clear();
     _project_fonts_active = false;
@@ -262,9 +259,7 @@ std::expected<TTF_Font*,FontResolveError> FontResolver::find_font(
 
         const auto locale_id = elysia::builtin::builtin_locale_id(language);
         const auto font_id = elysia::builtin::builtin_font_id(locale_id);
-        TTF_Font* font = _builtin_resources
-            ? _builtin_resources->find_font(font_id,point_size)
-            : nullptr;
+        TTF_Font* font = elysia::builtin::BuiltinResources::instance()->find_font(font_id,point_size);
         if (font)
             return font;
     }

@@ -45,12 +45,6 @@ constexpr float kCodeListMargin = 16.0f;
 constexpr double kCodeLineIntervalSeconds = 0.5;
 }
 
-ElysiaIntroScene::ElysiaIntroScene(
-    const elysia::builtin::BuiltinResources& builtin_resources) noexcept
-    : _builtin_resources(&builtin_resources)
-{
-}
-
 void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
     const ElysiaRealmPayload* entry_payload =
@@ -61,7 +55,7 @@ void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
             "ElysiaIntroScene requires ElysiaRealmPayload with a valid return route.");
     }
 
-    if (!_builtin_resources || !_builtin_resources->is_initialized())
+    if (!elysia::builtin::BuiltinResources::instance()->is_initialized())
     {
         throw std::logic_error(
             "ElysiaIntroScene requires initialized BuiltinResources.");
@@ -81,7 +75,7 @@ void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
     _root_window->set_visible(true);
     _root_window->set_active(true);
 
-    if (!_builtin_resources->play_music(
+    if (!elysia::builtin::BuiltinResources::instance()->play_music(
             elysia::builtin::BuiltinMusicId::ElysianRealm))
     {
         destroy_ui();
@@ -105,7 +99,7 @@ void ElysiaIntroScene::on_exit()
 {
     stop_playback();
     if (!_music_handed_off)
-        _builtin_resources->stop_music();
+        elysia::builtin::BuiltinResources::instance()->stop_music();
 
     _music_handed_off = false;
     _paused = false;
@@ -131,7 +125,7 @@ void ElysiaIntroScene::reset()
 
 void ElysiaIntroScene::build_ui()
 {
-    SDL_Texture* texture = _builtin_resources->find_texture(
+    SDL_Texture* texture = elysia::builtin::BuiltinResources::instance()->find_texture(
         elysia::builtin::BuiltinTextureId::ElysiaDefault);
     if (!texture)
     {
