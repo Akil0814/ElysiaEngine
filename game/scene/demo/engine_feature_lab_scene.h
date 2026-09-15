@@ -15,7 +15,6 @@ class UiWindow;
 namespace elysia::builtin
 {
 class EngineCharacter;
-class BuiltinResources;
 }
 
 namespace example::scene
@@ -34,8 +33,7 @@ class EngineFeatureLabScene final : public elysia::scene::Scene
     };
 
 public:
-    explicit EngineFeatureLabScene(
-        const elysia::builtin::BuiltinResources& builtin_resources) noexcept;
+    EngineFeatureLabScene() = default;
     void on_update(double delta) override;
     void on_input(
         const elysia::input::RawInputFrame& input,
@@ -56,7 +54,6 @@ private:
     void refresh_character_debug_draw();
 
 private:
-    const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
     elysia::scene::SceneRoute _return_route;
     elysia::ui::UiAnimation* _primary_animation = nullptr;
     elysia::ui::UiAnimation* _secondary_animation = nullptr;

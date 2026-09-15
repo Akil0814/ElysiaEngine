@@ -13,11 +13,6 @@
 #include <string_view>
 #include <vector>
 
-namespace elysia::builtin
-{
-class BuiltinResources;
-}
-
 namespace elysia::resources
 {
 class ResourceService;
@@ -62,7 +57,6 @@ public:
 
     [[nodiscard]] std::expected<void,FontResolveError> configure(
         const ResolvedFontSettings& settings,
-        const elysia::builtin::BuiltinResources& builtin_resources,
         const elysia::resources::ResourceService& resource_service,
         std::span<const std::string> supported_languages);
     void shutdown() noexcept;
@@ -103,7 +97,6 @@ private:
 
 private:
     std::optional<ResolvedFontSettings> _settings;
-    const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
     const elysia::resources::ResourceService* _resource_service = nullptr;
     std::vector<std::string> _supported_languages;
     std::uint64_t _generation = 0;

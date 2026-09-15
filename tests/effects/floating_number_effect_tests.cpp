@@ -108,7 +108,7 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         typography::resolve_font_settings(typography::FontSettings{});
     require(resolved_font_settings.has_value(),
         "floating number default font settings must resolve");
-    builtin::BuiltinResources builtin_resources;
+    auto& builtin_resources = *elysia::builtin::BuiltinResources::instance();
     require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*path_manager),
@@ -120,11 +120,9 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         renderer,
         path_manager->configs() / "manifests" / "i18n_manifest.json",
         "en",
-        &font_resolver,
-        &builtin_resources), "floating number tests must initialize localization");
+        &font_resolver), "floating number tests must initialize localization");
     require(font_resolver.configure(
         *resolved_font_settings,
-        builtin_resources,
         *resources::ResourceService::instance(),
         localization_service->supported_languages()).has_value(),
         "floating number tests must configure Engine fonts");

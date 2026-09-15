@@ -1,6 +1,7 @@
 #pragma once
 
 #include "builtin_asset_cache.h"
+#include "../../tools/singleton.h"
 #include "../audio/builtin_audio_player.h"
 
 #include <expected>
@@ -13,10 +14,12 @@ struct SDL_Renderer;
 
 namespace elysia::builtin
 {
-class BuiltinResources
+// Application explicitly initializes and shuts down SDL resources. Accessing
+// instance() only constructs the empty facade; it does not load any assets.
+class BuiltinResources final : public elysia::tools::Singleton<BuiltinResources>
 {
+    friend elysia::tools::Singleton<BuiltinResources>;
 public:
-    BuiltinResources() = default;
     ~BuiltinResources();
 
     BuiltinResources(const BuiltinResources&) = delete;
@@ -61,6 +64,8 @@ public:
     [[nodiscard]] std::size_t music_count() const noexcept;
 
 private:
+    BuiltinResources() = default;
+
     BuiltinAssetCache _assets;
     BuiltinAudioPlayer _audio;
 };

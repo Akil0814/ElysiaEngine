@@ -19,11 +19,6 @@
 #include <unordered_set>
 #include <vector>
 
-namespace elysia::builtin
-{
-class BuiltinResources;
-}
-
 namespace elysia::typography
 {
 class FontResolver;
@@ -43,8 +38,7 @@ public:
 		SDL_Renderer* renderer,
 		const std::filesystem::path& manifest_path,
 		std::string initial_language,
-		const elysia::typography::FontResolver* font_resolver,
-		const elysia::builtin::BuiltinResources* builtin_resources = nullptr
+		const elysia::typography::FontResolver* font_resolver
 	);
 	void shutdown();
 	[[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
@@ -124,7 +118,6 @@ private:
 		MissingTranslationWarningKeyHash> _warned_missing_translations;
 	std::string _current_language;
 	const elysia::typography::FontResolver* _font_resolver = nullptr;
-	const elysia::builtin::BuiltinResources* _builtin_resources = nullptr;
 	bool _initialized = false;
 };
 

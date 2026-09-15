@@ -63,7 +63,7 @@ public:
         const std::filesystem::path source_root = ELYSIA_SOURCE_DIR;
         require(elysia::io::PathManager::instance()->initialize(source_root),
             "FontResolver tests must initialize project paths");
-        require(_builtin_resources.initialize(
+        require(elysia::builtin::BuiltinResources::instance()->initialize(
             _renderer,
             elysia::builtin::BuiltinAssetCatalog(source_root),
             std::array{10,20,24,30,40,50,60,70},
@@ -75,18 +75,13 @@ public:
     ~FontResolverFixture()
     {
         elysia::resources::ResourceManager::instance()->clear();
-        _builtin_resources.shutdown();
+        elysia::builtin::BuiltinResources::instance()->shutdown();
         SDL_DestroyRenderer(_renderer);
         SDL_DestroySurface(_surface);
         elysia::tests::close_test_mixer();
         TTF_Quit();
 
         SDL_Quit();
-    }
-
-    [[nodiscard]] elysia::builtin::BuiltinResources& builtin_resources() noexcept
-    {
-        return _builtin_resources;
     }
 
     [[nodiscard]] SDL_Renderer* renderer() const noexcept
@@ -107,7 +102,6 @@ public:
 private:
     SDL_Surface* _surface = nullptr;
     SDL_Renderer* _renderer = nullptr;
-    elysia::builtin::BuiltinResources _builtin_resources;
 };
 
 ResolvedFontSettings settings_with_size(
@@ -173,7 +167,6 @@ void test_engine_resolution_and_validation(FontResolverFixture& fixture)
             FontSource::EngineBuiltIn,
             FontSource::EngineBuiltIn,
             24),
-        fixture.builtin_resources(),
         fixture.resource_service(),
         languages);
     require(configured.has_value(),
@@ -241,7 +234,6 @@ void test_atomic_project_activation(FontResolverFixture& fixture)
             FontSource::Project,
             FontSource::Project,
             24),
-        fixture.builtin_resources(),
         fixture.resource_service(),
         languages);
     require(configured.has_value(),
@@ -396,7 +388,6 @@ void test_invalid_configuration(FontResolverFixture& fixture)
             FontSource::EngineBuiltIn,
             FontSource::EngineBuiltIn,
             20),
-        fixture.builtin_resources(),
         fixture.resource_service(),
         no_languages);
     require(!invalid

@@ -8,7 +8,6 @@
 #include "game/scene/demo/demo_scene_payload.h"
 #include "game/scene/demo/physics/physics_combat_layout.h"
 #include "engine/camera/camera_manager.h"
-#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
@@ -32,10 +31,8 @@ elysia::physics::PhysicsObjectHandle add_physics(elysia::physics::PhysicsWorld& 
 }
 void register_example_scenes(elysia::scene::SceneManager& scene_manager)
 {
-    static elysia::builtin::BuiltinResources builtin_resources;
     example::application::GameModule{}.register_scenes(
-        scene_manager,
-        elysia::application::GameSceneRegistrationContext(builtin_resources));
+        scene_manager);
 }
 
 class RegistrationProbeScene final : public elysia::scene::Scene

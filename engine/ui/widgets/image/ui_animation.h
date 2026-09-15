@@ -11,11 +11,6 @@
 #include <string>
 #include <string_view>
 
-namespace elysia::builtin
-{
-class BuiltinResources;
-}
-
 namespace elysia::ui
 {
 // Displays a registered frame animation inside the UI render pipeline.
@@ -34,7 +29,6 @@ public:
     bool set_animation_key(std::string_view animation_key);
     // Binds a persistent built-in animation without using the project AnimationManager.
     bool set_engine_animation(
-        const elysia::builtin::BuiltinResources& builtin_resources,
         elysia::builtin::BuiltinAnimationId animation_id);
     [[nodiscard]] const std::string& animation_key() const noexcept;
 

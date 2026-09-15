@@ -1,7 +1,6 @@
 #define SDL_MAIN_HANDLED
 
 #include "engine/builtin/resources/builtin_resource_ids.h"
-#include "engine/builtin/resources/builtin_resources.h"
 #include "engine/bootstrap/bootstrap_texture_cache.h"
 #include "engine/bootstrap/bootstrapper.h"
 #include "engine/bootstrap/startup_preload_loader.h"
@@ -230,8 +229,7 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
                     "project.logo") == nullptr,
             "bootstrap lifecycle test must accept an empty project preload");
 
-        builtin::BuiltinResources builtin_resources;
-        builtin::StartupLoadingScene startup_scene(builtin_resources);
+        builtin::StartupLoadingScene startup_scene;
         startup_scene.on_exit();
         require(
             bootstrapper->find_preload_texture("project.logo")

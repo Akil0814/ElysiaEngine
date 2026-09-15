@@ -85,20 +85,18 @@ elysia::core::RenderCommand render_character(
     return commands.front();
 }
 
-void test_animation_switching_and_facing(
-    elysia::builtin::BuiltinResources& resources)
+void test_animation_switching_and_facing()
 {
-    elysia::builtin::EngineCharacter character(resources);
+    elysia::builtin::EngineCharacter character;
     const auto idle_command = render_character(character);
-    const auto* idle_definition = resources.find_animation(
+    const auto* idle_definition = elysia::builtin::BuiltinResources::instance()->find_animation(
         elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
-    const auto* move_definition = resources.find_animation(
+    const auto* move_definition = elysia::builtin::BuiltinResources::instance()->find_animation(
         elysia::builtin::BuiltinAnimationId::EngineCharacterMove);
     require(idle_definition && move_definition
             && idle_command.texture == idle_definition->atlas->frame_at(0)->_texture,
         "EngineCharacter must render the idle animation by default");
     require(!character.set_animations(
-                resources,
                 elysia::builtin::BuiltinAnimationId::EngineCharacterIdle,
                 static_cast<elysia::builtin::BuiltinAnimationId>(255))
             && render_character(character).texture == idle_command.texture,
@@ -129,10 +127,9 @@ void test_animation_switching_and_facing(
         "left movement must use the native sprite orientation");
 }
 
-void test_movement_normalization_and_bounds(
-    elysia::builtin::BuiltinResources& resources)
+void test_movement_normalization_and_bounds()
 {
-    elysia::builtin::EngineCharacter character(resources);
+    elysia::builtin::EngineCharacter character;
     character.set_position(elysia::core::Vector2::zero());
     send_control(character, elysia::input::RawInputControl::KeyD, true);
     character.update(1.0);
@@ -173,10 +170,9 @@ void test_movement_normalization_and_bounds(
         "negative and non-finite deltas must not move EngineCharacter");
 }
 
-void test_collider_and_debug_draw(
-    elysia::builtin::BuiltinResources& resources)
+void test_collider_and_debug_draw()
 {
-    elysia::builtin::EngineCharacter character(resources);
+    elysia::builtin::EngineCharacter character;
     const auto colliders = character.colliders();
     require(colliders.size() == 1,
         "EngineCharacter must expose one debug collider");
@@ -221,7 +217,7 @@ void test_collider_and_debug_draw(
 int main()
 {
     SdlFixture fixture;
-    elysia::builtin::BuiltinResources resources;
+    auto& resources = *elysia::builtin::BuiltinResources::instance();
     require(resources.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(
@@ -231,9 +227,9 @@ int main()
                 .has_value(),
         "EngineCharacter tests must initialize built-in resources");
 
-    test_animation_switching_and_facing(resources);
-    test_movement_normalization_and_bounds(resources);
-    test_collider_and_debug_draw(resources);
+    test_animation_switching_and_facing();
+    test_movement_normalization_and_bounds();
+    test_collider_and_debug_draw();
 
     resources.shutdown();
     return EXIT_SUCCESS;

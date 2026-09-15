@@ -1,4 +1,5 @@
 #include "application.h"
+#include "../builtin/resources/builtin_resources.h"
 
 #include "composition/application_scene_composition.h"
 #include "lifecycle/application_event_boundary.h"
@@ -289,7 +290,7 @@ bool Application::initialize(
 
     const elysia::builtin::BuiltinAssetCatalog builtin_asset_catalog(
         *elysia::io::PathManager::instance());
-    if (const auto builtin_asset_result = _builtin_resources.initialize(
+    if (const auto builtin_asset_result = elysia::builtin::BuiltinResources::instance()->initialize(
             _renderer,
             builtin_asset_catalog,
             resolved_font_settings->engine_point_sizes(),
@@ -305,8 +306,7 @@ bool Application::initialize(
         _renderer,
         bootstrap_output.i18n_manifest_path,
         runtime_settings.user.language,
-        &_font_resolver,
-        &_builtin_resources);
+        &_font_resolver);
         !localization_result)
     {
         return startup_fail(localization_result.error());
@@ -314,7 +314,6 @@ bool Application::initialize(
 
     if (const auto font_result = _font_resolver.configure(
             *resolved_font_settings,
-            _builtin_resources,
             *elysia::resources::ResourceService::instance(),
             ELYSIA_LOCALIZATION->supported_languages());
         !font_result)
@@ -465,8 +464,7 @@ bool Application::enter_initial_scene(
         compose_application_scenes(
             _scene_manager,
             game_module,
-            descriptor,
-            _builtin_resources);
+            descriptor);
     }
     catch (const std::exception& error)
     {
@@ -630,7 +628,7 @@ void Application::shutdown()
     elysia::audio::AudioService::instance()->shutdown();
     elysia::loading::clear_loaded_content();
     _font_resolver.shutdown();
-    _builtin_resources.shutdown();
+    elysia::builtin::BuiltinResources::instance()->shutdown();
     if (_user_config_handler_registered)
     {
         elysia::config::UserConfigService::instance()
@@ -688,7 +686,7 @@ std::expected<void,elysia::config::UserConfigFailure>
 Application::apply_master_volume(int value)
 {
     elysia::audio::AudioService::instance()->set_master_volume(value);
-    _builtin_resources.set_master_volume(value);
+    elysia::builtin::BuiltinResources::instance()->set_master_volume(value);
     return {};
 }
 
@@ -696,7 +694,7 @@ std::expected<void,elysia::config::UserConfigFailure>
 Application::apply_music_volume(int value)
 {
     elysia::audio::AudioService::instance()->set_music_volume(value);
-    _builtin_resources.set_music_volume(value);
+    elysia::builtin::BuiltinResources::instance()->set_music_volume(value);
     return {};
 }
 
@@ -704,7 +702,7 @@ std::expected<void,elysia::config::UserConfigFailure>
 Application::apply_sound_volume(int value)
 {
     elysia::audio::AudioService::instance()->set_sound_volume(value);
-    _builtin_resources.set_sound_volume(value);
+    elysia::builtin::BuiltinResources::instance()->set_sound_volume(value);
     return {};
 }
 

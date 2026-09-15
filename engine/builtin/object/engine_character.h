@@ -15,8 +15,6 @@
 
 namespace elysia::builtin
 {
-class BuiltinResources;
-
 class EngineCharacter final : public elysia::core::GameObject,
     public elysia::input::RawInputEventReceiver,
     public elysia::core::Updatable
@@ -24,7 +22,7 @@ class EngineCharacter final : public elysia::core::GameObject,
 public:
     static constexpr float kMovementSpeed = 180.0f;
 
-    explicit EngineCharacter(const BuiltinResources& resources);
+    EngineCharacter();
     ~EngineCharacter() override = default;
 
     void update(double delta_seconds) override;
@@ -36,7 +34,6 @@ public:
     [[nodiscard]] std::span<const elysia::physics::Collider> colliders() const noexcept;
 
     [[nodiscard]] bool set_animations(
-        const BuiltinResources& resources,
         BuiltinAnimationId idle_id,
         BuiltinAnimationId move_id);
 

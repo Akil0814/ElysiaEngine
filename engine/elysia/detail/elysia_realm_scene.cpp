@@ -19,12 +19,6 @@ namespace
 }
 }
 
-ElysiaRealmScene::ElysiaRealmScene(
-    const elysia::builtin::BuiltinResources& builtin_resources) noexcept
-    : _builtin_resources(&builtin_resources)
-{
-}
-
 void ElysiaRealmScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
     const RealmContentPayload* realm_payload =
@@ -35,7 +29,7 @@ void ElysiaRealmScene::on_enter(const elysia::scene::ScenePayload& payload)
             "ElysiaRealmScene requires RealmContentPayload with a valid return route.");
     }
 
-    if (!_builtin_resources || !_builtin_resources->is_initialized())
+    if (!elysia::builtin::BuiltinResources::instance()->is_initialized())
     {
         throw std::logic_error(
             "ElysiaRealmScene requires initialized BuiltinResources.");
@@ -51,7 +45,7 @@ void ElysiaRealmScene::on_enter(const elysia::scene::ScenePayload& payload)
 
 void ElysiaRealmScene::on_exit()
 {
-    _builtin_resources->stop_music();
+    elysia::builtin::BuiltinResources::instance()->stop_music();
 
     _paused = false;
     if (_root_window && !_root_window->is_destroyed())
@@ -70,7 +64,7 @@ void ElysiaRealmScene::reset()
 
 void ElysiaRealmScene::build_ui()
 {
-    SDL_Texture* texture = _builtin_resources->find_texture(
+    SDL_Texture* texture = elysia::builtin::BuiltinResources::instance()->find_texture(
         elysia::builtin::BuiltinTextureId::ElysiaDefault);
     if (!texture)
     {

@@ -30,7 +30,7 @@ constexpr elysia::core::Rect kLocalColliderRect{24.0f, 16.0f, 48.0f, 72.0f};
 }
 }
 
-EngineCharacter::EngineCharacter(const BuiltinResources& resources)
+EngineCharacter::EngineCharacter()
     : GameObject(elysia::core::DepthLayer::Character)
 {
     set_world_rect(kDefaultWorldRect);
@@ -41,7 +41,6 @@ EngineCharacter::EngineCharacter(const BuiltinResources& resources)
     _collider.response = elysia::physics::CollisionResponse::Ignore;
 
     if (!set_animations(
-            resources,
             BuiltinAnimationId::EngineCharacterIdle,
             BuiltinAnimationId::EngineCharacterMove))
     {
@@ -149,14 +148,13 @@ EngineCharacter::colliders() const noexcept
 
 
 bool EngineCharacter::set_animations(
-    const BuiltinResources& resources,
     BuiltinAnimationId idle_id,
     BuiltinAnimationId move_id)
 {
     std::unique_ptr<elysia::animation::Animation> idle =
-        resources.create_animation(idle_id);
+        BuiltinResources::instance()->create_animation(idle_id);
     std::unique_ptr<elysia::animation::Animation> move =
-        resources.create_animation(move_id);
+        BuiltinResources::instance()->create_animation(move_id);
     if (!idle || !move)
         return false;
 
