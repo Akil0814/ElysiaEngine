@@ -178,5 +178,121 @@
       "note": "Theme names are stable engine identifiers.",
       "localized_sample": "Localized TextKey sample"
     }
+  },
+  "physics_tests": {
+    "title": "Physics test center",
+    "physics": "Physics & regression",
+    "combat": "Combat integration",
+    "stress": "Pressure tests",
+    "run": "Run / rerun",
+    "pause": "Pause / resume (P)",
+    "single_step": "Single step (N)",
+    "free_play": "Free play",
+    "reset": "Reset (R)",
+    "back": "Back (Esc)",
+    "ready": "Ready",
+    "running": "Running",
+    "passed": "Passed",
+    "failed": "Failed",
+    "paused": "Paused",
+    "steps": "Steps",
+    "objects": "Bodies / colliders",
+    "contacts": "Contacts",
+    "awake": "Awake",
+    "dropped": "Dropped steps",
+    "timing": "Median / P95 / Max ms",
+    "samples": "Samples",
+    "debug": "Debug geometry (F1)",
+    "mixed": "Mixed settings",
+    "on": "On",
+    "off": "Off",
+    "failure": "Failure",
+    "actual": "Actual",
+    "expected_value": "Expected",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "cases": {
+      "motion": {
+        "title": "Bodies, forces and mass",
+        "purpose": "Compare static, kinematic and dynamic bodies; gravity, damping and rotation.",
+        "expected": "Static bodies stay put; forces and impulses respond to mass; damping slows movement."
+      },
+      "materials": {
+        "title": "Contacts, materials and sleep",
+        "purpose": "Observe floor/wall/ceiling contacts, friction, bounce and stack wake-up.",
+        "expected": "Contacts identify each surface; friction changes sliding; a sleeping stack wakes after an impulse."
+      },
+      "ccd": {
+        "title": "Continuous collision regression",
+        "purpose": "Eight lanes compare discrete controls, runtime CCD, multiple colliders and bullet flags.",
+        "expected": "Continuous lanes stop at targets; discrete control lanes may tunnel."
+      },
+      "filters": {
+        "title": "Filters and sensor events",
+        "purpose": "Block / Overlap / Ignore, masks, groups and exactly one End after removal.",
+        "expected": "Masks and groups select pairs; sensors report Begin/Stay and one End on disable or removal."
+      },
+      "queries": {
+        "title": "Shape queries and casts",
+        "purpose": "Rays, segments, overlaps, sweeps, rotation, filtering and immediate teleport queries.",
+        "expected": "Queries return sorted, filtered hits and immediately observe teleports."
+      },
+      "one_way": {
+        "title": "Directional platforms",
+        "purpose": "Test allowed and blocked approaches for all four directions and combined rules.",
+        "expected": "Each direction blocks its solid side and permits passage from the opposite side."
+      },
+      "tiles": {
+        "title": "Tile seams and moving supports",
+        "purpose": "Stand across a seam, drop through both supports, reland, remove tiles and ride a platform.",
+        "expected": "Seam supports allow stable standing and drop-through; moving platforms carry riders."
+      },
+      "joints": {
+        "title": "Constraints, springs and motors",
+        "purpose": "Distance, spring settling, motor limits and invalidation after joint/body destruction.",
+        "expected": "Constraints remain bounded, springs settle, and destroyed joints become invalid."
+      },
+      "lifecycle": {
+        "title": "Lifecycle and ordered commands",
+        "purpose": "Callback registration/removal, XY writes, rotation + teleport, reset and angle stability.",
+        "expected": "Queued writes preserve order, teleports preserve angle, and reset invalidates old handles."
+      },
+      "timing": {
+        "title": "Fixed steps and interpolation",
+        "purpose": "Frame-rate independent movement, fractional steps, catch-up limits and render interpolation.",
+        "expected": "Fixed steps preserve motion across frame rates; interpolation and dropped-step counts match."
+      },
+      "combat_collider": {
+        "title": "Collider combat",
+        "purpose": "Real attack input: wind-up, hit window, deduplication, friendly filtering, death and jumping.",
+        "expected": "Two attacks deal 25 damage each; allies remain unharmed; jump and landing succeed."
+      },
+      "combat_platform": {
+        "title": "Platform tile combat",
+        "purpose": "Scripted jump, upward passage, seam landing, drop-through and short input taps.",
+        "expected": "Jump through the platform, land across the seam, drop through, and consume a short tap once."
+      },
+      "combat_topdown": {
+        "title": "Top-down tile combat",
+        "purpose": "Wall occlusion, enemy pursuit, hazard entry/exit and world boundary collisions.",
+        "expected": "Walls block sight and motion; opening a path enables pursuit; leaving the hazard stops damage."
+      },
+      "stress_bodies": {
+        "title": "Moving body load",
+        "purpose": "100 / 500 / 2000 bodies. Warm up 120 steps, sample 600; timing is informational.",
+        "expected": "All bodies remain finite and valid; collect 600 timing samples after 120 warm-up steps."
+      },
+      "stress_contacts": {
+        "title": "Dense contact load",
+        "purpose": "100 / 500 / 1000 shapes. Validate contact generation and finite state without speed thresholds.",
+        "expected": "Persistent contacts remain valid; report 600 timing samples without a speed threshold."
+      },
+      "stress_tiles": {
+        "title": "Tile world load",
+        "purpose": "64² / 128² / 256² cells, sparse obstacles, local updates and batched queries.",
+        "expected": "Tile updates and queries succeed; all states stay finite; report 600 timing samples."
+      }
+    }
   }
 }

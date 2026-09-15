@@ -13,6 +13,7 @@ public:
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
     void reset() override;
+    void on_update(double delta) override;
     void on_input(const elysia::input::RawInputFrame& input,
         const std::vector<elysia::input::RawInputEvent>& events) override;
 private:
@@ -21,5 +22,7 @@ private:
     [[nodiscard]] elysia::scene::SceneRoute make_menu_route() const;
     elysia::ui::UiWindow* _window = nullptr;
     elysia::scene::SceneRoute _return_route;
+    int _category=0, _pressure_tier=0;
+    bool _rebuild_requested=false;
 };
 }

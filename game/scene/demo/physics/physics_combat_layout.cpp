@@ -4,6 +4,16 @@
 
 namespace example::scene
 {
+PhysicsTestLayout make_physics_test_layout(float width,float height) noexcept
+{
+    PhysicsTestLayout l;
+    l.viewport={0,0,width,height};
+    l.title={16,12,width-32,32};l.purpose={16,48,width-32,28};l.expected={16,78,width-32,28};
+    const float button_width=(width-32-5*8)/6;
+    for(int i=0;i<6;++i)l.actions[i]={16+i*(button_width+8),116,button_width,38};
+    l.details={16,170,280,height-186};l.arena={312,170,width-328,height-186};
+    return l;
+}
 PhysicsCombatLayout make_physics_combat_layout(
     float logical_width,
     float logical_height) noexcept

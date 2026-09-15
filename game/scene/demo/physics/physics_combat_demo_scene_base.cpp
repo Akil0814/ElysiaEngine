@@ -1,5 +1,12 @@
 #include "physics_combat_demo_scene_base.h"
 #include "physics_combat_layout.h"
+#include "../../../demo/physics/physics_scenario_presentation.h"
+#include "../../example_scene_keys.h"
+#include "../../../../engine/physics/physics_debug_draw.h"
+#include "../../../../engine/ui/widgets/ui_button.h"
+#include "../../../../engine/ui/containers/ui_list_container.h"
+#include "../../../../engine/ui/containers/ui_scroll_container.h"
+#include "../../../../engine/localization/localization_service.h"
 
 #include "../../../../engine/camera/camera_manager.h"
 #include "../../../../engine/core/render/colors.h"
@@ -47,17 +54,31 @@ PhysicsCombatDemoSceneBase::~PhysicsCombatDemoSceneBase()
 void PhysicsCombatDemoSceneBase::on_enter(
     const elysia::scene::ScenePayload& payload)
 {
-    const DemoScenePayload* demo_payload =
-        elysia::scene::try_scene_payload<DemoScenePayload>(payload);
-    if (!demo_payload
-        || !elysia::scene::SceneKeys::is_supported(
-            demo_payload->return_route.target))
+    using namespace example::demo::physics;
+    const auto* test_payload=elysia::scene::try_scene_payload<PhysicsDemoPayload>(payload);
+    const auto* demo_payload=elysia::scene::try_scene_payload<DemoScenePayload>(payload);
+    if (test_payload)
+    {
+        _return_route=test_payload->return_route;
+        _scenario_id=test_payload->scenario_id;
+        _mode=test_payload->mode;
+        _pressure_tier=test_payload->pressure_tier;
+    }
+    else if (demo_payload)
+    {
+        _return_route=demo_payload->return_route;
+        _scenario_id=default_physics_scenario(_own_key);
+        _mode=_own_key==example::scene_keys::Box2DLab?ScenarioMode::Verify:ScenarioMode::FreePlay;
+    }
+    const auto* selected=find_physics_scenario(_scenario_id);
+    if ((!test_payload && !demo_payload) || !elysia::scene::SceneKeys::is_supported(_return_route.target)
+        || !selected || selected->scene!=_own_key || _pressure_tier<0 || _pressure_tier>2
+        || (_mode==ScenarioMode::FreePlay && _own_key==example::scene_keys::Box2DLab))
     {
         throw std::logic_error(
             _scene_name
             + " requires DemoScenePayload with a valid return route.");
     }
-    _return_route = demo_payload->return_route;
 
     auto* debug = elysia::tools::DebugDraw::instance();
     _previous_debug_enabled = debug->enabled();
@@ -72,11 +93,29 @@ void PhysicsCombatDemoSceneBase::on_enter(
         | elysia::tools::DebugDrawCategory::Gameplay);
     if (!_built)
     {
-        build_demo();
-        build_hud();
+        if (_mode==ScenarioMode::Verify)
+        {
+            _scenario=std::make_unique<PhysicsScenario>(_scenario_id,_pressure_tier);
+            create_and_add_object<PhysicsScenarioPresentation>(*_scenario);
+            if(selected->category==ScenarioCategory::Stress)debug->set_enabled(false);
+        }
+        else { build_demo(); build_hud(); }
+        build_test_hud();
         _built = true;
     }
     configure_fixed_camera();
+    if (_scenario)
+    {
+        const auto layout=make_physics_test_layout(float(runtime_context().logical_width()),float(runtime_context().logical_height()));
+        const auto bounds=_scenario->bounds();
+        const float zoom=std::min(layout.arena.width()/bounds.width(),layout.arena.height()/bounds.height())*.9f;
+        auto* cameras=elysia::camera::CameraManager::instance();
+        cameras->set_follow_strategy(elysia::camera::CameraSlot::Main,std::make_unique<elysia::camera::HardFollowStrategy>());
+        cameras->set_focus_rect(elysia::camera::CameraSlot::Main,std::nullopt);
+        cameras->set_world_bounds(elysia::camera::CameraSlot::Main,std::nullopt);
+        cameras->set_zoom(elysia::camera::CameraSlot::Main,zoom);
+        cameras->set_center(elysia::camera::CameraSlot::Main,bounds.center()-(layout.arena.center()-layout.viewport.center())/zoom);
+    }
     if (_tile_map && physics_world().tile_world() != _tile_map)
         (void)physics_world().set_tile_world(*_tile_map);
     register_physics_inspector();
@@ -84,6 +123,7 @@ void PhysicsCombatDemoSceneBase::on_enter(
 
 void PhysicsCombatDemoSceneBase::on_exit()
 {
+    if(_scenario)example::demo::physics::remember_scenario_result(_scenario_id,_pressure_tier,_scenario->result());
     unregister_physics_inspector();
     if (_tile_map && physics_world().tile_world() == _tile_map)
         (void)physics_world().clear_tile_world(*_tile_map);
@@ -102,14 +142,30 @@ void PhysicsCombatDemoSceneBase::reset()
 
 void PhysicsCombatDemoSceneBase::on_update(double delta)
 {
-    _combat.update(delta);
-    elysia::gameplay::GameplayScene::on_update(delta);
+    if(_scenario)
+    {
+        // Only the shared runner advances the verification world.
+        elysia::scene::Scene::on_update(delta);
+        auto* debug=elysia::tools::DebugDraw::instance();
+        _scenario->set_debug_geometry(debug->enabled());
+        _scenario->advance(delta);
+        if(debug->enabled())elysia::physics::submit_physics_debug_snapshot(_scenario->world().debug_snapshot(),*debug);
+        update_test_hud();
+        return;
+    }
+    const bool single=_test_single_step;
+    _test_single_step=false;
+    if(single)resume();
+    const double simulation_delta=single?1.0/60:(_test_paused?0:delta);
+    _combat.update(simulation_delta);
+    elysia::gameplay::GameplayScene::on_update(single?1.0/60:delta);
+    if(_test_paused)pause();
     _combat.flush_deaths();
     update_hud();
 
     if (_restart_remaining >= 0.0)
     {
-        _restart_remaining -= std::max(0.0, delta);
+        _restart_remaining -= std::max(0.0, simulation_delta);
         if (_restart_remaining <= 0.0)
             request_restart();
     }
@@ -138,8 +194,11 @@ void PhysicsCombatDemoSceneBase::on_input(
             auto* debug = elysia::tools::DebugDraw::instance();
             debug->set_enabled(!debug->enabled());
         }
+        if(event.control==elysia::input::RawInputControl::KeyP){toggle_test_pause();return;}
+        if(event.control==elysia::input::RawInputControl::KeyN){test_single_step();return;}
     }
-    elysia::gameplay::GameplayScene::on_input(input, events);
+    if(_scenario || _test_paused)elysia::scene::Scene::on_input(input,events);
+    else elysia::gameplay::GameplayScene::on_input(input, events);
 }
 
 std::optional<elysia::core::Rect>
@@ -208,7 +267,8 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
     ImGui::Text("Frame %.3f ms (%.1f FPS)",
         io.DeltaTime * 1000.0f, io.Framerate);
 
-    const auto& config = physics_world().config();
+    const auto& inspected = _scenario ? _scenario->world() : physics_world();
+    const auto& config = inspected.config();
     if (ImGui::CollapsingHeader(
             "World Configuration", ImGuiTreeNodeFlags_DefaultOpen))
     {
@@ -220,7 +280,7 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
         ImGui::Text("Sub-steps: %u", config.sub_steps);
     }
 
-    const auto& stats = physics_world().last_step_stats();
+    const auto& stats = inspected.last_step_stats();
     if (ImGui::CollapsingHeader(
             "Last Fixed Step", ImGuiTreeNodeFlags_DefaultOpen)
         && ImGui::BeginTable("physics_step_stats", 2,
@@ -244,7 +304,7 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
         ImGui::EndTable();
     }
 
-    const auto& snapshot = physics_world().debug_snapshot();
+    const auto& snapshot = inspected.debug_snapshot();
     if (ImGui::CollapsingHeader("Debug Snapshot"))
     {
         ImGui::Text("Shapes: %zu", snapshot.shapes.size());
@@ -427,7 +487,7 @@ void PhysicsCombatDemoSceneBase::request_restart()
     _restart_requested = true;
     request_scene_switch(
         _own_key,
-        DemoScenePayload{.return_route = _return_route},
+        PhysicsDemoPayload{.return_route = _return_route,.scenario_id=_scenario_id,.mode=_mode,.pressure_tier=_pressure_tier},
         elysia::scene::SceneReloadMode::Recreate);
 }
 

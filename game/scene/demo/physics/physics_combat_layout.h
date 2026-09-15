@@ -2,6 +2,7 @@
 
 #include "../../../../engine/core/geometry/rect.h"
 #include "../../../../engine/ui/layout/ui_layout_types.h"
+#include <array>
 
 namespace example::scene
 {
@@ -19,6 +20,12 @@ struct PhysicsCombatLayout
     elysia::core::Rect status;
     elysia::core::Rect menu_list;
 };
+struct PhysicsTestLayout
+{
+    elysia::core::Rect viewport, title, purpose, expected, details, arena;
+    std::array<elysia::core::Rect,6> actions;
+};
+[[nodiscard]] PhysicsTestLayout make_physics_test_layout(float width, float height) noexcept;
 
 [[nodiscard]] PhysicsCombatLayout make_physics_combat_layout(
     float logical_width,

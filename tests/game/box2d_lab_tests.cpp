@@ -10,6 +10,7 @@
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/scene/scene_manager.h"
 #include "game/scene/demo/physics/box2d_lab_scene.h"
+#include "game/demo/physics/physics_scenario_presentation.h"
 #include "game/scene/example_scene_keys.h"
 #include "tests/support/test_assertions.h"
 #include <SDL3/SDL.h>
@@ -32,24 +33,32 @@ int main(int argc, char **argv)
         scene.start({.target = example::scene_keys::Box2DLab,
                      .payload = example::scene::DemoScenePayload{
                          .return_route = {.target = example::scene_keys::PhysicsCombatGallery}}});
-        for (int i = 0; i < 300; ++i)
-            scene.on_update(1.0 / 60);
-        scene.on_update(1.0 / 120);
+        using example::demo::physics::PhysicsScenarioPresentation;
+        auto find_presentation=[](){
+            for(auto* o:ELYSIA_OBJECT_QUERY->find_objects<>())
+                if(auto* p=dynamic_cast<PhysicsScenarioPresentation*>(o))return p;
+            return static_cast<PhysicsScenarioPresentation*>(nullptr);
+        };
+        auto* presentation=find_presentation();
+        require(presentation!=nullptr,"Lab exposes the shared scenario presentation");
+        scene.on_update(1.0/60);
+        require(presentation->scenario().result().steps==0,"Lab waits for explicit run");
+        scene.on_input({},{{.control=elysia::input::RawInputControl::KeyN,.type=elysia::input::RawInputEventType::ControlPressed}});
+        scene.on_update(1.0/60);
+        require(presentation->scenario().result().steps==1&&presentation->scenario().paused(),"N executes one paused tick");
+        scene.on_update(1.0);
+        require(presentation->scenario().result().steps==1,"Pause prevents catch-up simulation");
+        scene.on_input({},{{.control=elysia::input::RawInputControl::KeyP,.type=elysia::input::RawInputEventType::ControlPressed}});
+        for(int i=0;i<120;++i)scene.on_update(1.0/60);
+        require(presentation->scenario().result().status==example::demo::physics::ScenarioStatus::Passed,
+                "Scene runs the same behavioral checks as the headless runner");
         auto objects = ELYSIA_OBJECT_QUERY->find_objects<>();
-        elysia::physics::PhysicsWorld *world = nullptr;
-        for (auto *object : objects)
-            if (auto *p = dynamic_cast<elysia::physics::PhysicsParticipant *>(object))
-            {
-                world = p->physics_world();
-                break;
-            }
-        require(world && world->registered_object_count() > 20, "Lab registers physical bodies");
-        require(world->last_step_stats().joints == 3, "Lab registers spring, pendulum and motor");
-        require(world->debug_snapshot().joints.size() == 3, "Debug capture includes all joint anchors");
+        const auto& world=presentation->scenario().world();
+        require(world.registered_object_count()>0,"Shared scenario owns live physical bodies");
         std::vector<elysia::core::RenderCommand> commands;
         for (auto *object : objects)
             object->submit_render_commands(commands);
-        require(commands.size() > 40, "Rotated geometry is submitted");
+        require(!commands.empty(), "Scenario geometry is submitted");
         std::vector<elysia::core::ScreenRenderCommand> screen;
         elysia::core::project_render_commands_to_screen(
             commands,
@@ -67,10 +76,12 @@ int main(int argc, char **argv)
         SDL_RenderPresent(renderer);
         if (argc > 1)
             require(IMG_SavePNG(surface, argv[1]), "Lab preview saved");
-        scene.on_input({}, {{.control = elysia::input::RawInputControl::KeySpace,
+        scene.on_input({}, {{.control = elysia::input::RawInputControl::KeyR,
                              .type = elysia::input::RawInputEventType::ControlPressed}});
         scene.on_update(1.0 / 60);
-        require(world->last_step_stats().awake_bodies > 10, "Space wakes and kicks the stack");
+        presentation=find_presentation();
+        require(presentation&&presentation->scenario().result().steps==0,
+                "R recreates the fixture and clears the old result");
         scene.shutdown();
     }
     SDL_DestroyRenderer(renderer);

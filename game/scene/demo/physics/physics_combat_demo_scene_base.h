@@ -3,6 +3,7 @@
 #include "../../../demo/physics/block_actor.h"
 #include "../../../demo/physics/demo_tile_map.h"
 #include "../demo_scene_payload.h"
+#include "physics_demo_payload.h"
 #include "../../../../engine/gameplay/scene/gameplay_scene.h"
 #include "../../../../engine/tools/debug_draw.h"
 #include "../../../../engine/tools/development_overlay.h"
@@ -15,6 +16,7 @@ namespace elysia::ui
 class UiBar;
 class UiLabel;
 class UiWindow;
+class UiListContainer;
 }
 
 namespace example::scene
@@ -58,6 +60,20 @@ protected:
     [[nodiscard]] example::demo::physics::DemoCombatSession& combat() noexcept { return _combat; }
 
 private:
+    void build_test_hud();
+    void update_test_hud();
+    void change_mode(example::demo::physics::ScenarioMode);
+    void toggle_test_pause();
+    void test_single_step();
+    std::unique_ptr<example::demo::physics::PhysicsScenario> _scenario;
+    std::string _scenario_id;
+    example::demo::physics::ScenarioMode _mode = example::demo::physics::ScenarioMode::FreePlay;
+    int _pressure_tier = 0;
+    bool _test_paused = false;
+    bool _test_single_step = false;
+    std::vector<elysia::ui::UiLabel*> _test_labels;
+    std::size_t _displayed_checks = 0;
+    elysia::ui::UiListContainer* _check_list = nullptr;
     void register_physics_inspector();
     void unregister_physics_inspector() noexcept;
 #if ELYSIA_ENABLE_IMGUI

@@ -121,6 +121,19 @@ void press_and_release_key(
     }
 }
 
+void click_at(elysia::scene::SceneManager& manager, int x, int y)
+{
+    manager.on_update(1.0 / 60);
+    manager.on_input({}, {{.type = elysia::input::RawInputEventType::MouseMoved,
+        .device = elysia::input::InputDevice::Mouse, .mouse_x = x, .mouse_y = y}});
+    for (const auto type : {elysia::input::RawInputEventType::ControlPressed,
+             elysia::input::RawInputEventType::ControlReleased})
+        manager.on_input({}, {{.control = elysia::input::RawInputControl::MouseLeft,
+            .type = type, .device = elysia::input::InputDevice::Mouse,
+            .mouse_button = 1, .mouse_x = x, .mouse_y = y}});
+    manager.on_update(1.0 / 60);
+}
+
 void test_health_contract()
 {
     example::demo::physics::Health health(50);
@@ -477,6 +490,15 @@ void test_physics_combat_layout_contract()
                 && options._margin.top == layout.stats.y()
                 && options._size_override == layout.stats.size(),
             "Physics demo elements must use explicit window layout metadata");
+        const auto tests=example::scene::make_physics_test_layout(logical_size.x,logical_size.y);
+        require(tests.viewport.contains(tests.details)&&tests.viewport.contains(tests.arena)
+                &&!tests.details.intersects(tests.arena),"Test detail panel stays outside the simulation area");
+        require(!tests.title.intersects(tests.purpose)&&!tests.purpose.intersects(tests.expected),
+                "Test instructions occupy separate rows");
+        for(std::size_t i=0;i<tests.actions.size();++i){
+            require(tests.viewport.contains(tests.actions[i])&&!tests.actions[i].intersects(tests.arena),"Test controls remain inside the viewport and outside simulation");
+            if(i)require(!tests.actions[i-1].intersects(tests.actions[i]),"Test buttons do not overlap");
+        }
     }
 }
 
@@ -588,11 +610,14 @@ void test_physics_demo_navigation_and_recreate_route()
             .return_route = caller},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse});
 
-    press_and_release_key(
-        scene_manager, elysia::input::RawInputControl::KeyEnter);
+    scene_manager.on_update(0);
+    click_at(scene_manager, 640, 75);
+    require(scene_manager.current_scene_key() == example::scene_keys::PhysicsCombatGallery,
+        "Selecting a category must not start a simulation");
+    click_at(scene_manager, 640, 129);
     require(scene_manager.current_scene_key()
             == example::scene_keys::ColliderCombatDemo,
-        "The first Physics menu entry must open Collider Combat");
+        "Combat category must open Collider Combat free play");
 
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyR);
@@ -684,3 +709,4 @@ int main()
     std::cout << "physics demo tests passed\n";
     return 0;
 }
+

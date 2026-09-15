@@ -25,6 +25,25 @@ endfunction()
 
 find_package(Threads REQUIRED)
 
+add_elysia_test(physics_scenario_tests
+    LABEL physics
+    SOURCES game/physics_scenario_tests.cpp
+    LIBRARIES game_lib
+)
+foreach(SCENARIO IN ITEMS motion materials ccd filters queries one_way tiles joints lifecycle timing combat_collider combat_platform combat_topdown stress_bodies stress_contacts stress_tiles)
+    add_test(NAME scenario_${SCENARIO} COMMAND physics_scenario_tests ${SCENARIO} 0)
+    set_tests_properties(scenario_${SCENARIO} PROPERTIES LABELS "physics;physics_scenario" TIMEOUT 180)
+endforeach()
+option(ELYSIA_ENABLE_FULL_PHYSICS_STRESS_TESTS "Register opt-in medium/high physics stress tests" OFF)
+if(ELYSIA_ENABLE_FULL_PHYSICS_STRESS_TESTS)
+    foreach(SCENARIO IN ITEMS stress_bodies stress_contacts stress_tiles)
+        foreach(TIER IN ITEMS 1 2)
+            add_test(NAME scenario_${SCENARIO}_${TIER} COMMAND physics_scenario_tests ${SCENARIO} ${TIER})
+            set_tests_properties(scenario_${SCENARIO}_${TIER} PROPERTIES LABELS "physics_stress" TIMEOUT 600 RUN_SERIAL TRUE)
+        endforeach()
+    endforeach()
+endif()
+
 add_elysia_test(sdl3_asset_decode_tests
     LABEL loading
     SOURCES loading/sdl3_asset_decode_tests.cpp

@@ -12,7 +12,5 @@ class Box2DLabScene final : public PhysicsCombatDemoSceneBase
   protected:
     void build_demo() override;
 
-  private:
-    std::vector<elysia::physics::PhysicsObjectHandle> _dynamic_bodies;
 };
 } // namespace example::scene
