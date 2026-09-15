@@ -258,6 +258,78 @@ void require_panel_exception_propagates(SdlFixture& fixture)
         "panel callback exceptions must propagate to the Application render boundary");
     overlay.shutdown();
 }
+
+void require_window_coordinate_rendering_after_resize(SdlFixture& fixture)
+{
+    ImGuiDevelopmentOverlay overlay;
+    auto& renderer = fixture.renderer();
+    require(overlay.initialize(fixture.window(), renderer).has_value(),
+        "resize test adapter must initialize");
+    bool hovered = false;
+    require(overlay.register_panel("resize.hit_target", [&]
+    {
+        ImGui::SetNextWindowPos(ImVec2(40, 40));
+        ImGui::SetNextWindowSize(ImVec2(200, 140));
+        ImGui::Begin("Resize target", nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoSavedSettings);
+        ImGui::SetCursorScreenPos(ImVec2(80, 80));
+        ImGui::InvisibleButton("target", ImVec2(40, 40));
+        hovered = ImGui::IsItemHovered();
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            ImVec2(80, 80), ImVec2(120, 120), IM_COL32(255, 0, 0, 255));
+        ImGui::End();
+    }).is_valid(), "resize test panel must register");
+
+    const SDL_Point sizes[] = {{640, 360}, {960, 540}, {800, 600}, {480, 270}, {640, 360}};
+    for (const auto size : sizes)
+    {
+        require(SDL_SetWindowSize(&fixture.window(), size.x, size.y),
+            "resize test must change window size");
+        SDL_SyncWindow(&fixture.window());
+        SDL_PumpEvents();
+        require(SDL_SetRenderLogicalPresentation(&renderer, 320, 180,
+                SDL_LOGICAL_PRESENTATION_LETTERBOX),
+            "resize test must configure game logical presentation");
+        SDL_SetRenderScale(&renderer, 1.25f, 0.75f);
+        SDL_SetRenderViewport(&renderer, nullptr);
+        SDL_SetRenderClipRect(&renderer, nullptr);
+
+        // The first frame establishes the window for ImGui's next hit test.
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            SDL_Event motion{};
+            motion.type = SDL_EVENT_MOUSE_MOTION;
+            motion.motion.windowID = SDL_GetWindowID(&fixture.window());
+            motion.motion.x = 100.0f;
+            motion.motion.y = 100.0f;
+            overlay.process_event(motion);
+            SDL_SetRenderDrawColor(&renderer, 0, 0, 0, 255);
+            SDL_RenderClear(&renderer);
+            overlay.begin_frame(1.0 / 60.0);
+            overlay.render(renderer);
+        }
+        require(hovered, "window-coordinate mouse input must hit the overlay target");
+        require(!SDL_RenderViewportSet(&renderer),
+            "the automatic viewport must remain automatic after overlay rendering");
+
+        // Read the physical framebuffer independently of the restored game viewport.
+        const ImVec2 framebuffer_scale = ImGui::GetIO().DisplayFramebufferScale;
+        SDL_SetRenderLogicalPresentation(&renderer, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
+        SDL_SetRenderScale(&renderer, 1.0f, 1.0f);
+        SDL_Surface* pixels = SDL_RenderReadPixels(&renderer, nullptr);
+        require(pixels != nullptr, "resize test must read rendered pixels");
+        Uint8 red = 0, green = 0, blue = 0, alpha = 0;
+        require(SDL_ReadSurfacePixel(pixels,
+                static_cast<int>(100 * framebuffer_scale.x),
+                static_cast<int>(100 * framebuffer_scale.y),
+                &red, &green, &blue, &alpha),
+            "resize test must sample the mouse target position");
+        SDL_DestroySurface(pixels);
+        require(red == 255 && green == 0 && blue == 0,
+            "the visible overlay target must coincide with its mouse hit position after resizing");
+    }
+}
 }
 
 int main()
@@ -266,5 +338,6 @@ int main()
     require_context_configuration_and_registry(fixture);
     require_renderer_state_restoration(fixture);
     require_panel_exception_propagates(fixture);
+    require_window_coordinate_rendering_after_resize(fixture);
     return EXIT_SUCCESS;
 }

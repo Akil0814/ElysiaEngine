@@ -218,15 +218,56 @@ void test_settings_panel_single_page_draft_and_actions()
             ui::SettingsWindowSize{ 1600,900 },
             ui::SettingsWindowSize{ 2560,1440 })
             == std::vector<ui::SettingsWindowSize>{
-                { 960,540 },{ 1280,720 },{ 1600,900 },{ 2560,1440 }
+                { 960,540 },{ 1280,720 },{ 1600,900 }
             },
-        "display bounds must filter presets while retaining the current value");
+        "display bounds must filter presets and an oversized saved value");
+    require(ui::make_settings_window_size_options(
+            ui::SettingsWindowSize{ 800,600 }, ui::SettingsWindowSize{ 1920,1080 })
+            == std::vector<ui::SettingsWindowSize>{{800,600}},
+        "small displays must retain a fitting window choice");
+    require(ui::make_settings_window_size_options(
+            ui::SettingsWindowSize{ 1600,900 }, ui::SettingsWindowSize{ 1366,768 })
+            == std::vector<ui::SettingsWindowSize>{{960,540},{1280,720},{1366,768},{1600,900}},
+        "custom sizes that fit the display must remain selectable");
     require(ui::make_settings_target_fps_options(60.0)
             == std::vector<double>{ 30.0,60.0,120.0,240.0 },
         "built-in FPS presets must omit 144 FPS");
     require(ui::make_settings_target_fps_options(144.0)
             == std::vector<double>{ 30.0,60.0,120.0,144.0,240.0 },
         "a valid custom current FPS must remain selectable");
+
+    {
+        ui::SettingsPanel filtered_panel;
+        ui::SettingsPanelDraft oversized;
+        oversized.window_size = {3840,2160};
+        oversized.target_fps = 300.0;
+        filtered_panel.set_draft(oversized);
+        filtered_panel.set_options({
+            .window_sizes = {{1280,720},{1920,1080},{3840,2160}},
+            .target_fps_values = {30,60,120,240},
+            .usable_window_size = ui::SettingsWindowSize{1600,900}
+        });
+        require(filtered_panel.options().window_sizes
+                == std::vector<ui::SettingsWindowSize>{{1280,720}},
+            "panel normalization must not reinsert oversized saved resolutions");
+        require(filtered_panel.draft().window_size == ui::SettingsWindowSize{1280,720},
+            "the visible draft must select a fitting resolution");
+        filtered_panel.set_draft(oversized);
+        require(filtered_panel.draft().window_size == ui::SettingsWindowSize{1280,720}
+                && filtered_panel.options().window_sizes.size() == 1,
+            "later draft refreshes must still respect display bounds");
+        require(filtered_panel.draft().target_fps == 300.0
+                && filtered_panel.options().target_fps_values.back() == 300.0,
+            "display constraints must not cap the target FPS");
+
+        ui::SettingsPanelVisibility hidden;
+        hidden.window_mode = false;
+        ui::SettingsPanel hidden_panel(core::Rect{0,0,700,680}, hidden);
+        hidden_panel.set_draft(oversized);
+        hidden_panel.set_options(filtered_panel.options());
+        require(hidden_panel.draft() == oversized,
+            "display filtering must preserve settings excluded by the host");
+    }
 
     ui::SettingsPanel panel(core::Rect{ 0,0,700,680 });
     require(panel.visibility() == ui::SettingsPanelVisibility{},

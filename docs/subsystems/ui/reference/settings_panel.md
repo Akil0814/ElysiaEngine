@@ -29,9 +29,10 @@ auto panel = std::make_unique<elysia::ui::SettingsPanel>(
 ## 数据与选项
 
 - `SettingsPanelDraft` 是面板当前编辑的完整草稿；`set_draft` 写入并同步已创建的控件，`draft` 返回借用的只读引用。
-- `SettingsPanelOptions` 提供窗口尺寸、帧率和语言候选项；`set_options` 会移除无效或重复值，并保留草稿中仍有效但未列出的当前值。
-- `make_settings_window_size_options(usable_size, current_size)` 返回不超过可用尺寸的预设，并确保包含当前窗口尺寸。
+- `SettingsPanelOptions` 提供窗口尺寸、帧率和语言候选项；`set_options` 会移除无效或重复值，并保留草稿中仍有效但未列出的当前值。可选的 `usable_window_size` 限制窗口尺寸，超出范围的旧值不会被重新加入；窗口字段可见时，超限草稿会改选列表中最大的可用尺寸，直到 Save 才由宿主应用。
+- `make_settings_window_size_options(usable_size, current_size)` 返回不超过可用尺寸的预设，当前自定义尺寸符合限制时也会保留；没有尺寸可选时使用可用区域尺寸。内置场景每次进入时查询游戏窗口所在显示器的工作区，无法确定窗口所在显示器时回退到主显示器。
 - `make_settings_target_fps_options(current_fps)` 返回 `30/60/120/240`，并确保包含当前合法帧率；144 FPS 不属于内置预设，但已有的 144 或其他自定义值不会丢失。
+- FPS 上限允许超过显示器刷新率，不根据显示器刷新率过滤。
 - `reset_navigation_state` 只将唯一滚动容器归顶，不修改草稿、候选项、可见性或回调。
 - 面板只维护草稿，不应用或持久化设置。Save 回调接收当前 `SettingsPanelDraft`，宿主负责验证、应用和保存。
 
