@@ -52,8 +52,49 @@ Vector2 run_one_way_case(PassThroughDirection directions, Vector2 start, Vector2
     return actor.position();
 }
 
+void runtime_continuous_detection()
+{
+    auto run = [](bool initial_continuous, bool final_continuous, bool explicit_bullet,
+                  bool other_continuous) {
+        Probe target, projectile;
+        target.collider.shape = AabbShape{{0, 0, 2, 40}};
+        target.set_position({50, -20});
+        projectile.definition.velocity = {6000, 0};
+        projectile.definition.bullet = explicit_bullet;
+        Collider colliders[2];
+        colliders[0].shape = CircleShape{{}, 1};
+        colliders[0].detection_mode = initial_continuous ? CollisionDetectionMode::Continuous
+                                                       : CollisionDetectionMode::Discrete;
+        colliders[1].enabled = false;
+        colliders[1].shape = CircleShape{{}, 1};
+        colliders[1].detection_mode = other_continuous ? CollisionDetectionMode::Continuous
+                                                     : CollisionDetectionMode::Discrete;
+        PhysicsWorld world;
+        target.add(world);
+        auto handle = world.register_object(projectile, projectile.definition, colliders);
+        require(handle.is_valid(), "CCD regression projectile registers");
+        // Exercise the deferred update path before the first simulation step.
+        projectile.tick = [&] {
+            colliders[0].detection_mode = final_continuous ? CollisionDetectionMode::Continuous
+                                                         : CollisionDetectionMode::Discrete;
+            require(world.update_collider(world.collider_id(handle, 0), colliders[0]),
+                    "Runtime detection mode update accepted");
+        };
+        step(world);
+        return world.body_state(handle)->position.x;
+    };
+    require(run(false, false, false, false) > 90, "Discrete reference crosses dynamic target");
+    require(run(true, true, false, false) < 60, "Registration enables continuous detection");
+    require(run(false, true, false, false) < 60, "Runtime update enables continuous detection");
+    require(run(true, false, false, false) > 90, "Runtime update disables continuous detection");
+    require(run(true, false, true, false) < 60, "Explicit bullet survives collider mode change");
+    require(run(true, false, false, true) < 60,
+            "Other continuous collider preserves CCD even when that collider is disabled");
+}
+
 int main()
 {
+    runtime_continuous_detection();
     {
         Tiles wall;
         wall.width = 3;
