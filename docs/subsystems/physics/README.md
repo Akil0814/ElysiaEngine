@@ -3,6 +3,7 @@ Elysia uses Box2D 3.1.1 for simulation and spatial queries. Gameplay uses Elysia
 
 ## Guide
 - [Units and public API](09-v1-implementation-reference.md)
+- [功能与接口总览](10-physics-features-and-api-guide.md)
 - [Architecture and ownership](02-target-architecture.md)
 - [Lifecycle and current limitations](01-current-state-audit.md)
 - [Responsibilities](03-class-responsibilities.md)
