@@ -55,45 +55,45 @@ void test_follow_strategies()
         1.0f
     };
 
-    const HardFollowStrategy hard;
-    require(hard.update_center(context, focus, 0.0) == Vector2(100.0f, 50.0f),
+    HardFollowStrategy hard;
+    require(hard.update(context, {focus, focus}, 0.0).center == Vector2(100.0f, 50.0f),
         "hard follow must select the focus center");
 
-    const SmoothFollowStrategy smooth(50.0);
+    SmoothFollowStrategy smooth(50.0);
     require(
-        smooth.update_center(context, focus, 1.0)
-            .nearly_equals(Vector2(44.72136f, 22.36068f), 0.0001f),
+        smooth.update(context, {focus, focus}, 1.0)
+            .center.nearly_equals(Vector2(44.72136f, 22.36068f), 0.0001f),
         "smooth follow must advance by speed times delta"
     );
 }
 
 void test_dead_zone_uses_screen_pixels()
 {
-    const DeadZoneFollowStrategy strategy(Rect(25.0f, 25.0f, 50.0f, 50.0f));
+    DeadZoneFollowStrategy strategy(Rect(25.0f, 25.0f, 50.0f, 50.0f));
     const Rect focus(15.0f, -5.0f, 10.0f, 10.0f);
 
-    const Vector2 at_one_x = strategy.update_center(
+    const auto at_one_x = strategy.update(
         CameraFollowContext{
             Vector2::zero(),
             Vector2(100.0f, 100.0f),
             1.0f
         },
-        focus,
+        {focus, focus},
         0.0
     );
-    require(at_one_x == Vector2::zero(),
+    require(at_one_x.center == Vector2::zero(),
         "focus on the pixel dead-zone edge must not move at 1x");
 
-    const Vector2 at_two_x = strategy.update_center(
+    const auto at_two_x = strategy.update(
         CameraFollowContext{
             Vector2::zero(),
             Vector2(100.0f, 100.0f),
             2.0f
         },
-        focus,
+        {focus, focus},
         0.0
     );
-    require(at_two_x.nearly_equals(Vector2(12.5f, 0.0f)),
+    require(at_two_x.center.nearly_equals(Vector2(12.5f, 0.0f)),
         "dead-zone screen correction must convert back to world units");
 }
 

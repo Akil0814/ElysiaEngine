@@ -159,7 +159,7 @@ void DemoGalleryScene::build_ui()
     const float list_width = std::min(
         420.0f, std::max(0.0f, logical_width - 40.0f));
     const float list_height = std::min(
-        620.0f, std::max(0.0f, logical_height - 40.0f));
+        660.0f, std::max(0.0f, logical_height - 40.0f));
     auto list = std::make_unique<elysia::ui::UiListContainer>(
         elysia::core::Rect{0.0f, 0.0f, list_width, list_height});
     list->set_item_spacing(12.0f);
@@ -225,6 +225,16 @@ void DemoGalleryScene::build_ui()
             _failure_confirmation->open();
     });
     list->add_back(std::move(failure));
+
+    auto camera_demo = std::make_unique<elysia::ui::UiButton>(
+        elysia::core::Rect{0.0f, 0.0f, 420.0f, 56.0f});
+    camera_demo->set_text_content(elysia::ui::ui_raw_text("Multi-target Camera"));
+    camera_demo->set_on_click([this]() {
+        request_scene_switch(example::scene_keys::MultiTargetCamera,
+            DemoScenePayload{.return_route = make_gallery_route()},
+            elysia::scene::SceneReloadMode::Reuse);
+    });
+    list->add_back(std::move(camera_demo));
 
     auto back = make_button("demo_gallery.back");
     back->set_on_click([this]() { return_to_caller(); });

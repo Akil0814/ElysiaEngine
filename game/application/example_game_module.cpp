@@ -1,4 +1,5 @@
 #include "example_game_module.h"
+#include "../scene/demo/multi_target_camera_scene.h"
 
 #include "../scene/main_menu_scene.h"
 #include "../scene/demo/animation_preview_scene.h"
@@ -62,6 +63,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
 void GameModule::register_scenes(
     elysia::scene::SceneManager& scene_manager) const
 {
+    scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(example::scene_keys::MultiTargetCamera);
     scene_manager.register_game_scene<example::scene::MainMenuScene>(
         example::scene_keys::MainMenu);
     scene_manager.register_game_scene<example::scene::AnimationPreviewScene>(
