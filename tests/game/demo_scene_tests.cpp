@@ -13,12 +13,15 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "game/scene/demo/demo_gallery_scene.h"
+#include "game/scene/demo/multi_target_camera_scene.h"
 #include "game/scene/demo/demo_scene_payload.h"
 #include "game/scene/demo/engine_feature_lab_scene.h"
 #include "game/scene/demo/ui_component_gallery_scene.h"
 #include "game/scene/example_scene_keys.h"
 #include "engine/tools/debug_draw.h"
 #include "engine/typography/font_resolver.h"
+#include "engine/localization/localization_manager.h"
+#include "engine/io/path/path_manager.h"
 #include "tests/support/test_assertions.h"
 
 #include <SDL3/SDL.h>
@@ -261,6 +264,8 @@ void test_escape_returns_the_full_caller_route()
         example::scene_keys::UiComponentGallery);
     scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
         example::scene_keys::EngineFeatureLab);
+    scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(
+        example::scene_keys::MultiTargetCamera);
     scene_manager.register_game_scene<FirstReturnScene>(1);
     scene_manager.register_game_scene<SecondReturnScene>(2);
     scene_manager.register_engine_scene<
@@ -441,9 +446,91 @@ void test_escape_returns_the_full_caller_route()
             == elysia::builtin::SceneKeys::ApplicationFailure,
         "Confirming the guarded Failure Test must enter the engine failure scene");
 
+    require(elysia::io::PathManager::instance()->initialize(ELYSIA_SOURCE_DIR),
+        "camera demo captures must resolve the asset root");
+    auto* localization = elysia::localization::LocalizationManager::instance();
+    require(localization->initialize(fixture.renderer(),
+        std::filesystem::path(ELYSIA_SOURCE_DIR) / "assets/configs/manifests/i18n_manifest.json",
+        "en", &font_resolver), "camera demo captures must initialize text rendering");
+    // Exercise the actual demo UI and optionally export deterministic render captures.
+    auto* cameras = elysia::camera::CameraManager::instance();
+    cameras->set_viewport_size(elysia::camera::CameraSlot::Main, {1280, 720});
+    auto enter_camera = [&] {
+        scene_manager.on_scene_request(elysia::scene::SceneRequest{
+            .type = elysia::scene::SceneRequestType::Switch,
+            .route = {.target = example::scene_keys::MultiTargetCamera,
+                .payload = example::scene::DemoScenePayload{.return_route = original_caller},
+                .reload_mode = elysia::scene::SceneReloadMode::Reuse}});
+        scene_manager.on_update(0);
+    };
+    auto render_camera = [&](const char* name) {
+        SDL_SetRenderDrawColor(fixture.renderer(), 20, 24, 32, 255);
+        SDL_RenderClear(fixture.renderer());
+        scene_manager.on_render(fixture.renderer());
+        if (const char* directory = SDL_getenv("ELYSIA_CAMERA_QA_DIR"))
+        {
+            std::filesystem::create_directories(directory);
+            SDL_Surface* capture = SDL_RenderReadPixels(fixture.renderer(), nullptr);
+            require(capture != nullptr, "camera demo capture must read rendered pixels");
+            const auto path = std::filesystem::path(directory) / (std::string(name) + ".png");
+            require(IMG_SavePNG(capture, path.string().c_str()), "camera demo capture must save PNG");
+            SDL_DestroySurface(capture);
+        }
+    };
+    enter_camera();
+    scene_manager.on_update(0.1);
+    render_camera("01_initial");
+    for (int frame = 0; frame < 180; ++frame) scene_manager.on_update(1.0 / 60.0);
+    require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() > 1.9f,
+        "demo close targets must zoom in after the settle delay");
+    render_camera("01b_zoomed_in");
+    click_mouse(scene_manager, 922, 52);
+    elysia::input::RawInputFrame movement;
+    movement.state.set_pressed(elysia::input::RawInputControl::KeyD, true);
+    scene_manager.on_input(movement, {});
+    for (int frame = 0; frame < 180; ++frame) scene_manager.on_update(1.0 / 60.0);
+    require(cameras->camera(elysia::camera::CameraSlot::Main).center().x > 100,
+        "WASD movement must move the tracked primary and its camera");
+    scene_manager.on_input({}, {});
+    click_mouse(scene_manager, 922, 52);
+    click_mouse(scene_manager, 502, 52); // Teleport the secondary target.
+    scene_manager.on_update(0.1);
+    const float first_zoom = cameras->camera(elysia::camera::CameraSlot::Main).zoom();
+    require(first_zoom > 0.5f && first_zoom < 1,
+        "demo teleport must trigger smooth outward zoom");
+    render_camera("02_teleport");
+    for (int frame = 0; frame < 360; ++frame) scene_manager.on_update(1.0 / 60.0);
+    require(std::abs(cameras->camera(elysia::camera::CameraSlot::Main).zoom() - 0.5f) < 0.001f,
+        "demo must settle at minimum zoom when targets separate too far");
+    render_camera("03_primary_only");
+    click_mouse(scene_manager, 922, 52); // Reset.
+    scene_manager.on_update(0);
+    require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1,
+        "demo reset must restore initial zoom");
+    click_mouse(scene_manager, 642, 52); // Manual zoom.
+    scene_manager.on_update(1);
+    require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1.5f,
+        "demo manual zoom must own its completion frame");
+    click_mouse(scene_manager, 82, 52); // DeadZone off.
+    click_mouse(scene_manager, 222, 52); // Swap primary.
+    click_mouse(scene_manager, 782, 52); // Bounds on.
+    scene_manager.on_update(0.1);
+    render_camera("04_controls");
+    click_mouse(scene_manager, 922, 52);
+    click_mouse(scene_manager, 362, 52); // Automatic separation and reunion.
+    for (int frame = 0; frame < 900; ++frame) scene_manager.on_update(1.0 / 60.0);
+    render_camera("05_reunion");
+    send_escape(scene_manager);
+    require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 41,
+        "camera demo must preserve the complete return route");
+    enter_camera();
+    require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1,
+        "camera demo re-entry must reset camera state");
+    render_camera("06_reentry");
     scene_manager.shutdown();
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         nullptr,nullptr);
+    localization->shutdown();
     font_resolver.shutdown();
     builtin_resources.shutdown();
 }

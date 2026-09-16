@@ -76,8 +76,8 @@ cameras->request_clear_effects(CameraSlot::Main);
 
 1. 按 FIFO 顺序处理所有待执行请求。
 2. 更新四个 CameraController。
-3. Controller 使用 Smoothstep 更新平滑变焦。
-4. Controller 计算跟随和缩放感知的世界边界限制。
+3. Controller 使用 Smoothstep 更新手动平滑变焦，该帧暂停策略的自动缩放。
+4. Controller 应用策略返回的中心与可选 zoom，然后按更新后的倍率限制世界边界。
 5. Controller 叠加震屏偏移。
 6. 最终中心写回 Camera，供随后渲染使用。
 
@@ -89,7 +89,7 @@ DeadZone 使用 viewport-local 屏幕像素定义。焦点会先按当前 zoom �
 
 Scene 不再拥有 Camera 或 CameraController。基础场景行为为：
 
-- `Scene::on_update` 每帧将 `resolve_camera_focus_rect()` 的结果写入 `Main`，然后更新 CameraManager 中的全部相机。
+- `Scene::on_update` 每帧将 `resolve_camera_focus()` 的结果写入 `Main`，然后更新 CameraManager 中的全部相机。新入口默认包装原来的 `resolve_camera_focus_rect()`。
 - `Scene::on_render` 默认使用 `Main` 投影世界渲染命令。
 - UI 命令仍直接使用屏幕坐标执行，不经过世界相机。
 - Scene 子类可以通过受保护的 `set_render_camera_slot()` 改用 `Cinematic`、`Auxiliary1` 或 `Auxiliary2` 渲染世界。
@@ -131,3 +131,100 @@ Main 重置会：
 - 当前不提供动态相机、分屏视口布局、辅助相机占用仲裁或通用多效果栈。
 - 旋转和裁剪属于 Camera 与渲染投影层的后续扩展，不应放入跟随策略。
 - InputSystem 不会自动把指针位置转换到世界坐标；业务需要按所用槽位显式调用 `screen_to_world`。
+
+## Multi-target framing
+
+`MultiTargetFollowStrategy` frames a group of rectangles and smoothly adjusts both
+center and zoom. It does not retain game objects. Submit presentation rectangles
+each frame after movement and physics interpolation:
+
+```cpp
+#include "engine/camera/multi_target_follow_strategy.h"
+
+// Configure once on scene entry.
+auto* cameras = elysia::camera::CameraManager::instance();
+cameras->set_follow_strategy(
+    elysia::camera::CameraSlot::Main,
+    std::make_unique<elysia::camera::MultiTargetFollowStrategy>());
+
+// Override the new scene hook. The existing single-rectangle hook still works.
+std::optional<elysia::camera::CameraFocus> MyScene::resolve_camera_focus() const
+{
+    const std::array rects{_player->render_rect(), _companion->render_rect()};
+    return elysia::camera::make_camera_focus(rects, 0); // Player is primary.
+}
+```
+
+For other slots, pass the helper result to `CameraManager::set_focus()`.
+`CameraFocus::bounds` contains the union; `primary` preserves the selected rectangle.
+Empty or entirely invalid lists return `nullopt`. Non-finite rectangles are skipped;
+an invalid primary index falls back to the first valid rectangle. Point and line
+targets are supported. Direct `set_focus()` rejects non-finite rectangles.
+
+### Configuration
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `dead_zone_enabled` | `true` | Move only as far as needed to enter the safe region; otherwise follow the group center. |
+| `safe_ratio` | `0.70` | Centered safe region as a fraction of viewport width and height. |
+| `inner_ratio` | `0.55` | Smaller region that starts the zoom-in delay. |
+| `min_zoom`, `max_zoom` | `0.5`, `2.0` | Automatic limits; smaller zoom shows more world. |
+| `movement_half_life` | `0.12 s` | Time to halve center error for a fixed destination. |
+| `zoom_out_half_life` | `0.10 s` | Fast outward response. |
+| `zoom_in_half_life` | `0.35 s` | Slower inward response. |
+| `settle_seconds` | `0.4 s` | Delay before zoom-in or leaving primary-only mode. |
+
+Pass `MultiTargetFollowConfig` to the constructor or use `set_config()`, which resets
+timers and mode. Ratios are constrained to `0 < inner_ratio < safe_ratio <= 1`.
+Zoom limits respect Camera's global range. Invalid half-lives or delay use defaults.
+
+The strategy calculates zoom from the group's width and height in the safe region.
+It zooms out immediately but smoothly when needed. Zoom-in starts after the bounds
+stay inside the inner region for the settle delay, then continues toward the safe
+region fit. New outward demand cancels zoom-in. Movement uses the same frame's
+blended zoom. Automatic updates never restart a manual zoom animation.
+
+If the group cannot fit at `min_zoom`, zoom approaches that limit and movement
+follows the primary. Group framing resumes once the group can fit inside the inner
+region at `min_zoom` for the settle delay. `primary_only()` exposes this state.
+A primary larger than the visible region is centered on axes that cannot fit.
+
+### Manual control and lifecycle
+
+```cpp
+cameras->request_zoom_to(elysia::camera::CameraSlot::Main, 1.5f, 1.0);
+```
+
+An active manual transition owns zoom through its final frame. Tracking continues
+using actual zoom; automatic zoom and its inward timer resume on the next frame.
+Immediate `set_zoom()` applies at once, with automatic zoom resuming next update.
+Values outside the automatic range return smoothly rather than snapping.
+
+Initial acquisition and reacquisition are smooth. Missing focus holds framing and
+resets timers; explicit manual effects still run. Replacing a strategy resets state.
+Explicit snap requests still snap the center to the group bounds. Legacy strategies
+retain immediate first acquisition and do not change zoom.
+
+`IFollowStrategy::update()` is non-const and returns `CameraFollowResult` with center
+and optional zoom. Custom strategies must migrate from `update_center()`.
+`automatic_zoom_enabled` in the context is false during manual transitions.
+`reset()` clears state; `snap_on_acquisition()` defaults to true, while the new
+strategy overrides it to false.
+
+Smooth tracking can temporarily leave targets outside the screen after rapid
+separation or teleportation. World bounds take priority; shake is applied after
+framing. Neither guarantees every target remains visible. Invalid viewports or
+non-positive/non-finite time steps do not advance the new strategy.
+
+### Demo and checks
+
+Open **Demo Gallery > Multi-target Camera**. The white outline marks the primary.
+WASD moves the primary; Q/E shifts the other block horizontally. Buttons toggle
+DeadZone, primary selection, automatic separation/reunion and world bounds, and
+provide teleport, manual zoom, reset and return. Blue outlines mark the safe region,
+green the inner region, gray the group bounds, and red optional world bounds.
+The HUD shows zoom and group/primary-only mode. No ImGui dependency is required.
+
+Run `ctest --test-dir out/build/sdl3-Debug -L camera --output-on-failure`.
+`demo_scene_tests` checks demo controls, return routing and re-entry. Set
+`ELYSIA_CAMERA_QA_DIR` to export rendered checkpoints as PNG files for inspection.

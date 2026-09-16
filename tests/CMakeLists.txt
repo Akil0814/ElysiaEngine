@@ -175,6 +175,11 @@ add_elysia_test(camera_projection_tests
     SOURCES camera/camera_projection_tests.cpp
 )
 
+add_elysia_test(multi_target_follow_tests
+    LABEL camera
+    SOURCES camera/multi_target_follow_tests.cpp
+)
+
 add_elysia_test(camera_controller_tests
     LABEL camera
     SOURCES camera/camera_controller_tests.cpp
