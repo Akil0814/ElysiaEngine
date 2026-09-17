@@ -12,6 +12,24 @@
 
 namespace elysia::physics
 {
+namespace detail
+{
+enum class ColliderValidationFailure : std::uint8_t
+{
+    Friction,
+    Restitution,
+    Density,
+    OneWayTolerance,
+    AabbPosition,
+    AabbSize,
+    CircleCenter,
+    CircleRadius
+};
+
+[[nodiscard]] std::optional<ColliderValidationFailure> collider_validation_failure(
+    const Collider& collider);
+} // namespace detail
+
 struct PhysicsWorld::Impl
 {
     struct Shape

@@ -1,5 +1,6 @@
 #include "physics_test_support.h"
 #include <iostream>
+#include <limits>
 struct Tiles : ITileCollisionWorld
 {
     int width = 1;
@@ -184,6 +185,29 @@ int main()
             w.advance(1.0 / fps);
         require(ticks == 60 && near(w.body_state(h)->velocity.x, 60, 0.01f),
                 "Force and callback count independent of render cadence");
+    }
+    {
+        Tiles material_tiles;
+        material_tiles.cell.material.restitution = 1.25f;
+        PhysicsWorld material_world;
+        require(material_world.set_tile_world(material_tiles), "Tile world attaches");
+        std::vector<CollisionOverlapQueryHit> tile_hits;
+        const auto tile_count = [&] {
+            tile_hits.clear();
+            material_world.overlap_aabb({{10, 105, 10, 10}, {}}, tile_hits);
+            return tile_hits.size();
+        };
+        require(tile_count() == 1, "Tile creation accepts restitution above one");
+        for (float invalid : {-0.5f, std::numeric_limits<float>::infinity(),
+                              std::numeric_limits<float>::quiet_NaN()})
+        {
+            material_tiles.cell.material.restitution = invalid;
+            require(material_world.update_tiles({0, 0}, {0, 0}), "Tile update accepted");
+            require(tile_count() == 0, "Invalid tile restitution skips shape creation");
+            material_tiles.cell.material.restitution = 1.5f;
+            require(material_world.update_tiles({0, 0}, {0, 0}), "Valid tile update accepted");
+            require(tile_count() == 1, "Tile update accepts restitution above one");
+        }
     }
     Tiles tiles;
     Probe o;

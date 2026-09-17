@@ -33,7 +33,7 @@ void PhysicsWorld::Impl::build_tiles(TileCoordinate begin, TileCoordinate end)
                                         : CollisionResponse::Block;
             if (cell.type == TileCollisionType::OneWay)
                 s.definition.one_way = cell.one_way;
-            if (!valid(s.definition))
+            if (detail::collider_validation_failure(s.definition))
                 continue;
             create_shape(s, tile_body);
             tile_shapes.emplace(coord, std::move(s));

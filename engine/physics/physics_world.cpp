@@ -12,6 +12,9 @@
 
 namespace elysia::physics
 {
+using detail::ColliderValidationFailure;
+using detail::collider_validation_failure;
+
 namespace
 {
 bool finite(elysia::core::Vector2 v)
@@ -23,19 +26,9 @@ bool nonnegative(float v)
     return std::isfinite(v) && v >= 0;
 }
 
-enum class ColliderValidationFailure : std::uint8_t
-{
-    Friction,
-    Restitution,
-    Density,
-    OneWayTolerance,
-    AabbPosition,
-    AabbSize,
-    CircleCenter,
-    CircleRadius
-};
+} // namespace
 
-[[nodiscard]] std::optional<ColliderValidationFailure> collider_validation_failure(
+std::optional<ColliderValidationFailure> detail::collider_validation_failure(
     const Collider& collider)
 {
     if (!nonnegative(collider.material.friction))
@@ -74,6 +67,8 @@ enum class ColliderValidationFailure : std::uint8_t
         collider.shape);
 }
 
+namespace
+{
 void append_collider_validation_detail(
     std::ostream& stream,
     ColliderValidationFailure failure,
