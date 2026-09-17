@@ -1,10 +1,14 @@
 #include "contracts/physics_step_participant.h"
 #include "detail/physics_world_impl.h"
+#include "../tools/logger.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
+#include <string>
+#include <typeinfo>
 
 namespace elysia::physics
 {
@@ -17,6 +21,134 @@ bool finite(elysia::core::Vector2 v)
 bool nonnegative(float v)
 {
     return std::isfinite(v) && v >= 0;
+}
+
+enum class ColliderValidationFailure : std::uint8_t
+{
+    Friction,
+    Restitution,
+    Density,
+    OneWayTolerance,
+    AabbPosition,
+    AabbSize,
+    CircleCenter,
+    CircleRadius
+};
+
+[[nodiscard]] std::optional<ColliderValidationFailure> collider_validation_failure(
+    const Collider& collider)
+{
+    if (!nonnegative(collider.material.friction))
+        return ColliderValidationFailure::Friction;
+    if (!nonnegative(collider.material.restitution))
+        return ColliderValidationFailure::Restitution;
+    if (!nonnegative(collider.density.kilograms_per_square_meter))
+        return ColliderValidationFailure::Density;
+    if (collider.one_way && !nonnegative(collider.one_way->tolerance))
+        return ColliderValidationFailure::OneWayTolerance;
+
+    return std::visit(
+        [](const auto& shape) -> std::optional<ColliderValidationFailure>
+        {
+            using Shape = std::decay_t<decltype(shape)>;
+            if constexpr (std::is_same_v<Shape, AabbShape>)
+            {
+                if (!finite(shape.local_rect.position()))
+                    return ColliderValidationFailure::AabbPosition;
+                if (!finite(shape.local_rect.size())
+                    || shape.local_rect.width() <= 0
+                    || shape.local_rect.height() <= 0)
+                {
+                    return ColliderValidationFailure::AabbSize;
+                }
+            }
+            else
+            {
+                if (!finite(shape.local_center))
+                    return ColliderValidationFailure::CircleCenter;
+                if (!std::isfinite(shape.radius) || shape.radius <= 0)
+                    return ColliderValidationFailure::CircleRadius;
+            }
+            return std::nullopt;
+        },
+        collider.shape);
+}
+
+void append_collider_validation_detail(
+    std::ostream& stream,
+    ColliderValidationFailure failure,
+    const Collider& collider)
+{
+    switch (failure)
+    {
+    case ColliderValidationFailure::Friction:
+        stream << "friction must be finite and non-negative; friction="
+               << collider.material.friction;
+        return;
+    case ColliderValidationFailure::Restitution:
+        stream << "restitution must be finite and non-negative; restitution="
+               << collider.material.restitution;
+        return;
+    case ColliderValidationFailure::Density:
+        stream << "density must be finite and non-negative; density="
+               << collider.density.kilograms_per_square_meter;
+        return;
+    case ColliderValidationFailure::OneWayTolerance:
+        stream << "one-way tolerance must be finite and non-negative; tolerance="
+               << collider.one_way->tolerance;
+        return;
+    case ColliderValidationFailure::AabbPosition:
+    case ColliderValidationFailure::AabbSize:
+    {
+        const auto& shape = std::get<AabbShape>(collider.shape);
+        stream << (failure == ColliderValidationFailure::AabbPosition
+                       ? "AABB position must be finite"
+                       : "AABB size must be finite and positive")
+               << "; position=(" << shape.local_rect.position().x << ','
+               << shape.local_rect.position().y << ") size=("
+               << shape.local_rect.width() << ',' << shape.local_rect.height() << ')';
+        return;
+    }
+    case ColliderValidationFailure::CircleCenter:
+    case ColliderValidationFailure::CircleRadius:
+    {
+        const auto& shape = std::get<CircleShape>(collider.shape);
+        stream << (failure == ColliderValidationFailure::CircleCenter
+                       ? "circle center must be finite"
+                       : "circle radius must be finite and positive")
+               << "; center=(" << shape.local_center.x << ',' << shape.local_center.y
+               << ") radius=" << shape.radius;
+        return;
+    }
+    }
+}
+
+void log_invalid_collider_registration(
+    const elysia::core::GameObject& owner,
+    std::size_t collider_index,
+    ColliderValidationFailure failure,
+    const Collider& collider)
+{
+    ELYSIA_LOG_WARN("physics", "Rejected collider registration: owner_type="
+        << typeid(owner).name() << ", collider_index=" << collider_index << ", "
+        << [&]() -> std::string {
+            std::ostringstream detail;
+            append_collider_validation_detail(detail, failure, collider);
+            return detail.str();
+        }());
+}
+
+void log_invalid_collider_update(
+    ColliderId id,
+    ColliderValidationFailure failure,
+    const Collider& collider)
+{
+    ELYSIA_LOG_WARN("physics", "Rejected collider update: collider_id=" << id << ", "
+        << [&]() -> std::string {
+            std::ostringstream detail;
+            append_collider_validation_detail(detail, failure, collider);
+            return detail.str();
+        }());
 }
 b2BodyType type(BodyType t)
 {
@@ -42,24 +174,6 @@ PhysicsWorld::Impl::Impl(PhysicsWorldConfig c) : config(c), units(c.units_per_me
 PhysicsWorld::Impl::~Impl()
 {
     b2DestroyWorld(world);
-}
-bool PhysicsWorld::Impl::valid(const Collider &c)
-{
-    if (!nonnegative(c.material.friction) || !nonnegative(c.material.restitution) ||
-        c.material.restitution > 1 || !nonnegative(c.density.kilograms_per_square_meter))
-        return false;
-    if (c.one_way && !nonnegative(c.one_way->tolerance))
-        return false;
-    return std::visit(
-        [](auto &s) {
-            using T = std::decay_t<decltype(s)>;
-            if constexpr (std::is_same_v<T, AabbShape>)
-                return finite(s.local_rect.position()) && finite(s.local_rect.size()) &&
-                       s.local_rect.width() > 0 && s.local_rect.height() > 0;
-            else
-                return finite(s.local_center) && std::isfinite(s.radius) && s.radius > 0;
-        },
-        c.shape);
 }
 void PhysicsWorld::Impl::create_shape(Shape &s, b2BodyId body)
 {
@@ -236,9 +350,16 @@ PhysicsObjectHandle PhysicsWorld::register_object(elysia::core::GameObject &owne
     if (owner.is_destroyed() || !finite(owner.position()) || !finite(d.velocity) ||
         !std::isfinite(d.angle) || !std::isfinite(d.angular_velocity) ||
         !std::isfinite(d.gravity_scale) || !nonnegative(d.linear_damping) ||
-        !nonnegative(d.angular_damping) || !std::isfinite(d.mass) || d.mass <= 0 ||
-        !std::ranges::all_of(cs, Impl::valid))
+        !nonnegative(d.angular_damping) || !std::isfinite(d.mass) || d.mass <= 0)
         return {};
+    for (std::size_t index = 0; index < cs.size(); ++index)
+    {
+        if (const auto failure = collider_validation_failure(cs[index]))
+        {
+            log_invalid_collider_registration(owner, index, *failure, cs[index]);
+            return {};
+        }
+    }
     for (auto &[id, o] : p.objects)
         if (o.owner == &owner)
             return o.removed ? PhysicsObjectHandle{} : PhysicsObjectHandle{id};
@@ -549,8 +670,15 @@ bool PhysicsWorld::set_transform(PhysicsObjectHandle h, PhysicsPose pose, Telepo
 bool PhysicsWorld::update_collider(ColliderId id, const Collider &c)
 {
     auto &p = *_impl;
-    if (!contains_collider(id) || !Impl::valid(c))
+    if (!contains_collider(id))
         return false;
+    if (const auto failure = collider_validation_failure(c))
+    {
+        const auto key = std::pair{id, static_cast<std::uint8_t>(*failure)};
+        if (p.logged_invalid_collider_updates.insert(key).second)
+            log_invalid_collider_update(id, *failure, c);
+        return false;
+    }
     p.enqueue([&p, id, c] {
         auto it = p.shapes.find(id);
         if (it == p.shapes.end())

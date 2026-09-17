@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
+#include <utility>
 
 namespace elysia::physics
 {
@@ -62,6 +63,7 @@ struct PhysicsWorld::Impl
     std::unordered_map<std::uint64_t, Snapshot> snapshot;
     std::set<CollisionPair> previous_blocking_contacts;
     std::set<CollisionPair> ignored;
+    std::set<std::pair<ColliderId, std::uint8_t>> logged_invalid_collider_updates;
     ContactCache cache;
     std::vector<ICollisionListener *> listeners;
     std::vector<std::function<void()>> commands;
@@ -125,6 +127,5 @@ struct PhysicsWorld::Impl
         auto it = mapping.find(b2StoreShapeId(id));
         return it == mapping.end() ? std::nullopt : std::optional(it->second.target);
     }
-    static bool valid(const Collider &);
 };
 } // namespace elysia::physics
