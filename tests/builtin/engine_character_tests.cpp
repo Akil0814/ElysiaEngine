@@ -1,7 +1,10 @@
+#include "tests/support/input_snapshot_builder.h"
+#include "game/input/gameplay_actions.h"
 #include "tests/support/sdl_audio_fixture.h"
 #define SDL_MAIN_HANDLED
 
 #include "engine/builtin/object/engine_character.h"
+#include "../../game/input/gameplay_input_map.h"
 #include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/tools/debug_draw.h"
@@ -60,19 +63,19 @@ private:
     SDL_Renderer* _renderer = nullptr;
 };
 
-void send_control(
-    elysia::builtin::EngineCharacter& character,
-    elysia::input::RawInputControl control,
-    bool pressed)
+elysia::tests::InputSnapshotBuilder character_input;
+void tick_character(elysia::builtin::EngineCharacter &character, double delta)
 {
-    require(character.on_raw_input_event(elysia::input::RawInputEvent{
-            .control = control,
-            .type = pressed
-                ? elysia::input::RawInputEventType::ControlPressed
-                : elysia::input::RawInputEventType::ControlReleased,
-            .device = elysia::input::InputDevice::Keyboard
-        }),
-        "EngineCharacter must consume movement key transitions");
+    auto map = example::input::make_default_gameplay_input_map();
+    auto r = map.resolve(character_input.take());
+    character.on_control_command({.state = std::move(r.frame), .events = std::move(r.events)}, delta);
+    character.update(delta);
+}
+void send_control(elysia::builtin::EngineCharacter &character, elysia::input::RawInputControl control,
+                  bool pressed)
+{
+    character_input.press(control, pressed);
+    tick_character(character, 0);
 }
 
 elysia::core::RenderCommand render_character(
@@ -87,7 +90,8 @@ elysia::core::RenderCommand render_character(
 
 void test_animation_switching_and_facing()
 {
-    elysia::builtin::EngineCharacter character;
+    character_input = {};
+    elysia::builtin::EngineCharacter character(example::input::actions::Move);
     const auto idle_command = render_character(character);
     const auto* idle_definition = elysia::builtin::BuiltinResources::instance()->find_animation(
         elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
@@ -103,7 +107,7 @@ void test_animation_switching_and_facing()
         "a partially invalid animation replacement must preserve the current animation set");
 
     send_control(character, elysia::input::RawInputControl::KeyD, true);
-    character.update(0.0);
+    tick_character(character, 0.0);
     const auto right_command = render_character(character);
     require(right_command.texture == move_definition->atlas->frame_at(0)->_texture
             && right_command.flip == elysia::core::SpriteFlip::Horizontal,
@@ -111,68 +115,73 @@ void test_animation_switching_and_facing()
 
     send_control(character, elysia::input::RawInputControl::KeyD, false);
     send_control(character, elysia::input::RawInputControl::KeyW, true);
-    character.update(0.0);
+    tick_character(character, 0.0);
     require(render_character(character).flip == elysia::core::SpriteFlip::Horizontal,
         "vertical-only movement must preserve the last horizontal facing");
 
     send_control(character, elysia::input::RawInputControl::KeyW, false);
-    character.update(0.0);
+    tick_character(character, 0.0);
     require(render_character(character).texture
             == idle_definition->atlas->frame_at(0)->_texture,
         "releasing every movement key must restore the idle animation");
 
     send_control(character, elysia::input::RawInputControl::KeyA, true);
-    character.update(0.0);
+    tick_character(character, 0.0);
     require(render_character(character).flip == elysia::core::SpriteFlip::None,
         "left movement must use the native sprite orientation");
 }
 
 void test_movement_normalization_and_bounds()
 {
-    elysia::builtin::EngineCharacter character;
+    character_input = {};
+    elysia::builtin::EngineCharacter character(example::input::actions::Move);
     character.set_position(elysia::core::Vector2::zero());
     send_control(character, elysia::input::RawInputControl::KeyD, true);
-    character.update(1.0);
+    tick_character(character, 1.0);
     const float single_axis_distance = character.position().length();
     require(std::fabs(single_axis_distance
             - elysia::builtin::EngineCharacter::kMovementSpeed) < 0.001f,
         "single-axis movement must use the configured units-per-second speed");
 
     character.clear_movement_input();
+    character_input = {};
     character.set_position(elysia::core::Vector2::zero());
     send_control(character, elysia::input::RawInputControl::KeyD, true);
     send_control(character, elysia::input::RawInputControl::KeyS, true);
-    character.update(1.0);
+    tick_character(character, 1.0);
     require(std::fabs(character.position().length() - single_axis_distance) < 0.001f,
         "diagonal movement must be normalized to the single-axis speed");
 
     character.clear_movement_input();
+    character_input = {};
     character.set_position(elysia::core::Vector2::zero());
     send_control(character, elysia::input::RawInputControl::KeyA, true);
     send_control(character, elysia::input::RawInputControl::KeyD, true);
-    character.update(1.0);
+    tick_character(character, 1.0);
     require(character.position() == elysia::core::Vector2::zero(),
         "opposing movement inputs must cancel");
 
     character.clear_movement_input();
+    character_input = {};
     character.set_position(elysia::core::Vector2::zero());
     character.set_movement_bounds(elysia::core::Rect{-50.0f, -50.0f, 200.0f, 200.0f});
     send_control(character, elysia::input::RawInputControl::KeyD, true);
     send_control(character, elysia::input::RawInputControl::KeyS, true);
-    character.update(10.0);
+    tick_character(character, 10.0);
     require(character.position() == elysia::core::Vector2{54.0f, 54.0f},
         "movement bounds must keep the complete 96 by 96 character rectangle inside the viewport");
 
     const elysia::core::Vector2 clamped_position = character.position();
-    character.update(-1.0);
-    character.update(std::numeric_limits<double>::quiet_NaN());
+    tick_character(character, -1.0);
+    tick_character(character, std::numeric_limits<double>::quiet_NaN());
     require(character.position() == clamped_position,
         "negative and non-finite deltas must not move EngineCharacter");
 }
 
 void test_collider_and_debug_draw()
 {
-    elysia::builtin::EngineCharacter character;
+    character_input = {};
+    elysia::builtin::EngineCharacter character(example::input::actions::Move);
     const auto colliders = character.colliders();
     require(colliders.size() == 1,
         "EngineCharacter must expose one debug collider");

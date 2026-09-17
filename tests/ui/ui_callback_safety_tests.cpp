@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+﻿#include "tests/support/input_snapshot_builder.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/application/lifecycle/application_event_boundary.h"
 #include "engine/scene/scene.h"
@@ -153,7 +154,10 @@ void test_callback_exceptions_reach_window_scene_and_boundary()
     const input::RawInputEvent raw_press{ .control=input::RawInputControl::KeyEnter,.type=input::RawInputEventType::ControlPressed,.device=input::InputDevice::Keyboard };
     const input::RawInputEvent raw_release{ .control=input::RawInputControl::KeyEnter,.type=input::RawInputEventType::ControlReleased,.device=input::InputDevice::Keyboard };
     bool scene_threw = false;
-    try { scene.on_input({}, { raw_press,raw_release }); }
+    try
+    {
+        scene.on_input(elysia::tests::events_snapshot({raw_press, raw_release}));
+    }
     catch (const std::runtime_error&) { scene_threw = true; }
     require(scene_threw,"callback exceptions must escape the full Scene UI input route");
 

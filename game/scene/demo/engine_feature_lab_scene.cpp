@@ -1,3 +1,4 @@
+#include "../../input/local_controls.h"
 #include "engine_feature_lab_scene.h"
 
 #include "../../../engine/builtin/resources/builtin_resources.h"
@@ -52,22 +53,23 @@ void EngineFeatureLabScene::on_update(double delta)
     refresh_character_debug_draw();
 }
 
-void EngineFeatureLabScene::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void EngineFeatureLabScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                         const std::vector<elysia::input::RawInputEvent> &events)
 {
-    elysia::scene::Scene::on_input(input,events);
+
     for (const elysia::input::RawInputEvent& event : events)
     {
         if (event.control == elysia::input::RawInputControl::KeyEscape
             && event.type == elysia::input::RawInputEventType::ControlPressed)
         {
+            consume_input(event);
             return_to_caller();
             return;
         }
         if (event.control == elysia::input::RawInputControl::KeySpace
             && event.type == elysia::input::RawInputEventType::ControlPressed)
         {
+            consume_input(event);
             _color_overlay_index =
                 (_color_overlay_index + 1) % kColorOverlays.size();
             apply_secondary_color_overlay();
@@ -89,7 +91,7 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
         throw std::logic_error("EngineFeatureLabScene requires initialized BuiltinResources.");
     if (!_character || _character->is_destroyed())
     {
-        _character = create_and_add_object<elysia::builtin::EngineCharacter>();
+        _character = create_and_add_object<elysia::builtin::EngineCharacter>(example::input::actions::Move);
         if (!_character)
         {
             throw std::runtime_error(
@@ -143,6 +145,8 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
 
     enable_character_debug_draw();
     refresh_character_debug_draw();
+    if (_character)
+        example::input::configure_scene_player(*this, _controller, *_character);
 }
 
 void EngineFeatureLabScene::on_exit()

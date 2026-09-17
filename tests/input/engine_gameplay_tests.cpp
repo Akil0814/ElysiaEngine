@@ -1,7 +1,9 @@
-﻿#define SDL_MAIN_HANDLED
+﻿#include "game/input/command_view.h"
+#include "tests/support/input_snapshot_builder.h"
+#define SDL_MAIN_HANDLED
 
-#include "engine/gameplay/input/gameplay_input_frame.h"
-#include "engine/gameplay/input/gameplay_input_map.h"
+#include "engine/gameplay/control/control_command.h"
+#include "../../game/input/gameplay_input_map.h"
 #include "tests/support/test_assertions.h"
 
 #include <iostream>
@@ -13,31 +15,31 @@ int main()
     using namespace elysia::gameplay;
     using namespace elysia::input;
 
-    InputActionMap map = make_default_gameplay_input_map();
+    InputActionMap map = example::input::make_default_gameplay_input_map();
     const InputActionId custom{"example.transform"};
     require(map.register_action({ custom, InputActionValueType::Button },
         { { custom, ButtonInputBinding{ RawInputControl::KeyT } } }),
         "Projects must be able to add custom gameplay actions");
 
-    RawInputFrame raw;
-    raw.state.set_pressed(RawInputControl::KeyW, true);
-    raw.state.set_pressed(RawInputControl::KeyD, true);
-    raw.state.set_pressed(RawInputControl::KeySpace, true);
-    raw.state.set_pressed(RawInputControl::KeyT, true);
-    auto result = map.resolve(raw);
-    GameplayInputFrame gameplay(std::move(result.frame));
-    require(gameplay.move() == elysia::core::Vector2(1.0f, -1.0f),
+    elysia::tests::InputSnapshotBuilder raw;
+    raw.press(RawInputControl::KeyW, true);
+    raw.press(RawInputControl::KeyD, true);
+    raw.press(RawInputControl::KeySpace, true);
+    raw.press(RawInputControl::KeyT, true);
+    auto result = map.resolve(raw.take());
+    ControlCommand gameplay{.state = std::move(result.frame), .events = std::move(result.events)};
+    require(example::input::CommandView(gameplay).move() == elysia::core::Vector2(1.0f, -1.0f),
         "Standard gameplay movement bindings must resolve");
-    require(gameplay.jump_pressed(), "Gameplay semantic accessors must expose standard actions");
-    require(gameplay.actions().is_just_pressed(custom),
+    require(example::input::CommandView(gameplay).jump_pressed(), "Gameplay semantic accessors must expose standard actions");
+    require(gameplay.state.is_just_pressed(custom),
         "Gameplay frames must retain custom action lookup");
 
-    require(map.replace_bindings(actions::Jump,
-        { { actions::Jump, ButtonInputBinding{ RawInputControl::KeyK } } }),
+    require(map.replace_bindings(example::input::actions::Jump,
+        { { example::input::actions::Jump, ButtonInputBinding{ RawInputControl::KeyK } } }),
         "Standard gameplay bindings must be replaceable");
-    raw.state.set_pressed(RawInputControl::KeySpace, false);
-    raw.state.set_pressed(RawInputControl::KeyK, true);
-    require(map.resolve(raw).frame.is_just_pressed(actions::Jump),
+    raw.press(RawInputControl::KeySpace, false);
+    raw.press(RawInputControl::KeyK, true);
+    require(map.resolve(raw.take()).frame.is_just_pressed(example::input::actions::Jump),
         "Rebound standard gameplay actions must resolve immediately");
 
     std::cout << "engine gameplay tests passed\n";

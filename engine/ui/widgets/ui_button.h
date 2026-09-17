@@ -97,6 +97,10 @@ public:
 
     ~UiButton() override = default;
 
+    void cancel_input_interaction() noexcept override
+    {
+        clear_pushed_state();
+    }
     void reset() noexcept override;
 
     void set_enabled(bool enabled) override;

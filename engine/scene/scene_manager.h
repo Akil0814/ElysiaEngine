@@ -25,7 +25,7 @@ class SceneManager
     , public SceneRequestObserver
 {
 public:
-    SceneManager() = default;
+    SceneManager();
     ~SceneManager();
     SceneManager(const SceneManager&) = delete;
     SceneManager& operator=(const SceneManager&) = delete;
@@ -43,10 +43,11 @@ public:
 
     void start(const SceneRoute& route);
 
-    void on_input(
-        const elysia::input::RawInputFrame& input,
-        const std::vector<elysia::input::RawInputEvent>& events
-    );
+    void on_input(const elysia::input::InputSnapshot &input);
+    elysia::input::LocalPlayerRegistry &local_players()
+    {
+        return _local_players;
+    }
 
     void on_update(double delta);
     void on_render(SDL_Renderer* renderer);
@@ -87,6 +88,7 @@ private:
     Scene* _current_scene = nullptr;
     SceneKey _current_scene_key = SceneKeys::Invalid;
 
+    elysia::input::LocalPlayerRegistry _local_players;
     SceneFactory _scene_factory;
     std::unordered_map<SceneKey, SceneProvider> _scene_providers;
     const SceneRuntimeContext* _runtime_context = nullptr;
@@ -147,6 +149,7 @@ void SceneManager::add_scene_provider(SceneKey scene_key, Args&&... args)
                 {
                     if (_current_scene == existing_scene)
                     {
+                        _current_scene->reset_input_routing();
                         detach_from_scene(_current_scene);
                         _current_scene->on_exit();
                         _current_scene->clear_runtime_context();

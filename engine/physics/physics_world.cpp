@@ -900,7 +900,7 @@ void PhysicsWorld::Impl::collect(std::vector<CollisionContact> &contacts)
     std::erase_if(mapping,
                   [&](auto &v) { return v.second.retire_after && v.second.retire_after <= epoch; });
 }
-std::uint32_t PhysicsWorld::advance(double dt)
+std::uint32_t PhysicsWorld::advance(double dt, const std::function<void(double)> &before_step)
 {
     auto &p = *_impl;
     if (!std::isfinite(dt) || dt <= 0 || p.advancing)
@@ -917,6 +917,12 @@ std::uint32_t PhysicsWorld::advance(double dt)
             p.accumulator -= p.config.fixed_delta_seconds;
             ++steps;
             auto start = std::chrono::steady_clock::now();
+            if (before_step)
+                before_step(p.config.fixed_delta_seconds);
+            const bool reset_before_step = p.pending_reset;
+            p.flush();
+            if (reset_before_step)
+                break;
             std::vector<std::uint64_t> participants;
             for (auto &[id, o] : p.objects)
                 participants.push_back(id);

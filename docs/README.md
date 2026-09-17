@@ -11,7 +11,7 @@
 
 - [架构总览](architecture/overview.md)：模块边界、依赖方向和运行时生命周期。
 - [仓库结构](architecture/repository-layout.md)：源码、资源、测试和示例层的职责。
-- [玩家主机联机与输入架构设计](architecture/player-host-networking-and-input-design.md)：目标设计／讨论记录，说明 Player Host、统一玩家命令、UI 输入分流与迁移边界，尚未实现。
+- [玩家主机联机与输入架构设计](architecture/player-host-networking-and-input-design.md)：目标设计／讨论记录，说明 Player Host 目标与迁移边界；本地输入路由已实施，网络模块尚未实现。
 - [子系统索引](subsystems/README.md)：UI、Input、资源加载、配置、音频、相机、存档、Physics、Development Overlay 与 Development Demos。
 
 ## 参与维护

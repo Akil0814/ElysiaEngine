@@ -6,8 +6,8 @@ class Box2DLabScene final : public PhysicsCombatDemoSceneBase
 {
   public:
     Box2DLabScene();
-    void on_input(const elysia::input::RawInputFrame &,
-                  const std::vector<elysia::input::RawInputEvent> &) override;
+    void on_shortcuts(const elysia::input::RawInputFrame &,
+                      const std::vector<elysia::input::RawInputEvent> &) override;
 
   protected:
     void build_demo() override;

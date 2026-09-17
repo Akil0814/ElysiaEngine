@@ -10,3 +10,13 @@
 | `UiScrollState` | `set_axis`、viewport/content size、offset、step、ratio、`scroll_by` | 计算并 clamp 独立滚动状态。 |
 
 `UiScrollContainer` 是场景层首选入口；只有实现新的滚动容器或输入桥接时才直接使用这些运行时对象。
+
+## 场景级输入协调
+
+Scene::on_input 委托 SceneInputRouter，先将公共 UI 所有者的输入交给 UiInputRouter，再将未消费的输入交给快捷操作与本地控制器。普通 Scene 无需控制器上下文即可处理 UI。UI 事件消费会阻止对应原始操作进入玩法，持续状态也会被屏蔽到释放或回中。
+
+`UiElement::input_capture()` 默认返回无捕获；UiChildHost 汇总有效子节点，焦点 UiTextInput 报告键盘捕获，UiWindow 的模态层和活动弹出层报告捕获。捕获默认只作用于公共 UI 所有者。
+
+`cancel_input_interaction()` 清除按钮按住、拖拽等临时交互而保留内容和焦点，用于失焦、设备断开及公共 UI 所有者切换。它与清空控件配置的 reset 不同。
+
+详细路由与生命周期见 [输入架构](../../input/architecture.md)。

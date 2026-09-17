@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../engine/scene/scene.h"
+#include "../../../engine/gameplay/scene/gameplay_scene.h"
 #include "../../../engine/tools/debug_draw.h"
 #include "demo_scene_payload.h"
 
@@ -20,7 +20,7 @@ class EngineCharacter;
 namespace example::scene
 {
 // Project-owned playground for runtime engine features such as animation.
-class EngineFeatureLabScene final : public elysia::scene::Scene
+class EngineFeatureLabScene final : public elysia::gameplay::GameplayScene
 {
     enum class FloatingNumberPreset
     {
@@ -35,15 +35,15 @@ class EngineFeatureLabScene final : public elysia::scene::Scene
 public:
     EngineFeatureLabScene() = default;
     void on_update(double delta) override;
-    void on_input(
-        const elysia::input::RawInputFrame& input,
-        const std::vector<elysia::input::RawInputEvent>& events) override;
+    void on_shortcuts(const elysia::input::RawInputFrame &input,
+                      const std::vector<elysia::input::RawInputEvent> &events) override;
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
     void reset() override;
     [[nodiscard]] std::size_t color_overlay_index() const noexcept;
 
 private:
+    elysia::gameplay::ControllerHandle _controller;
     void return_to_caller();
     void apply_secondary_color_overlay();
     void build_feature_controls();

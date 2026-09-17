@@ -1,4 +1,4 @@
-#include "controller_manager.h"
+#include "gamepad_device_manager.h"
 
 #include "../tools/logger.h"
 
@@ -6,12 +6,12 @@
 
 namespace elysia::input
 {
-ControllerManager::~ControllerManager()
+GamepadDeviceManager::~GamepadDeviceManager()
 {
     shutdown();
 }
 
-void ControllerManager::initialize()
+void GamepadDeviceManager::initialize()
 {
     if (_initialized)
     {
@@ -22,7 +22,7 @@ void ControllerManager::initialize()
     open_connected_controllers();
 }
 
-void ControllerManager::shutdown()
+void GamepadDeviceManager::shutdown()
 {
     if (!_initialized)
     {
@@ -33,7 +33,7 @@ void ControllerManager::shutdown()
     _initialized = false;
 }
 
-void ControllerManager::handle_event(const SDL_Event& event)
+void GamepadDeviceManager::handle_event(const SDL_Event& event)
 {
     switch (event.type)
     {
@@ -50,7 +50,7 @@ void ControllerManager::handle_event(const SDL_Event& event)
     }
 }
 
-void ControllerManager::open_connected_controllers()
+void GamepadDeviceManager::open_connected_controllers()
 {
     int count=0;
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
@@ -58,7 +58,7 @@ void ControllerManager::open_connected_controllers()
     SDL_free(ids);
 }
 
-void ControllerManager::open_controller(SDL_JoystickID joystick_id)
+void GamepadDeviceManager::open_controller(SDL_JoystickID joystick_id)
 {
     if (!SDL_IsGamepad(joystick_id))
     {
@@ -95,7 +95,7 @@ void ControllerManager::open_controller(SDL_JoystickID joystick_id)
     _controllers.push_back(controller);
 }
 
-void ControllerManager::close_controller(SDL_JoystickID joystick_id)
+void GamepadDeviceManager::close_controller(SDL_JoystickID joystick_id)
 {
     std::vector<SDL_Gamepad*>::iterator iter = std::remove_if(
         _controllers.begin(),
@@ -121,7 +121,7 @@ void ControllerManager::close_controller(SDL_JoystickID joystick_id)
     _controllers.erase(iter, _controllers.end());
 }
 
-void ControllerManager::close_all_controllers()
+void GamepadDeviceManager::close_all_controllers()
 {
     for (SDL_Gamepad* controller : _controllers)
     {

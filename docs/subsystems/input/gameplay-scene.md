@@ -1,149 +1,47 @@
-# GameplayScene 集成指南
+# GameplayScene 集成
 
-`elysia::gameplay::GameplayScene` 是可选的 Scene 基类。只有真正需要 Move、Jump、Attack 等语义输入的实际游玩场景才应继承它；Loading、Menu、Setting 和纯 UI 场景继续直接继承 `elysia::scene::Scene`。
+普通菜单和加载场景继承 Scene，使用 on_shortcuts 和既有 UI 控件，不需要创建控制器。GameplayScene 为可控制世界提供 control_context() 和固定步调度接入，控制器数量完全由游戏决定。
 
-## 最小场景
+## 显式创建与绑定
 
-```cpp
-class BattleScene final : public elysia::gameplay::GameplayScene
-{
-public:
-    void on_enter(const elysia::scene::ScenePayload&) override;
-    void on_exit() override;
-    void reset() override;
-};
-```
-
-若派生场景覆盖 `on_input`，必须显式调用 gameplay 基类，否则基础 Raw/UI 和 gameplay 两条分发链都会被跳过：
+游戏先开始会话。在场景进入后创建或查询控制器，再绑定当前场景对象：
 
 ```cpp
-void BattleScene::on_input(
-    const elysia::input::RawInputFrame& frame,
-    const std::vector<elysia::input::RawInputEvent>& events)
-{
-    elysia::gameplay::GameplayScene::on_input(frame, events);
-    // 场景自己的后处理。
+using namespace elysia::gameplay;
+auto* service = ControllerService::instance();
+// 游戏进入游玩流程时执行一次，并检查错误：
+auto session = service->begin_session();
+// 场景已经活动，character 已登记；map 由游戏构造：
+auto result = service->create<LocalPlayerController>(
+    {ControllerScope::Scene, control_context().token()},
+    elysia::input::PrimaryLocalPlayer, std::move(map));
+if (result) {
+    controller_handle = *result;
+    auto binding = service->bind_target(controller_handle, control_context(), *character);
+    // 游戏处理创建／绑定失败；不要丢弃错误而继续假定角色可控。
 }
 ```
 
-## Receiver 示例
+绑定拒绝错误场景、失效代次、销毁对象、非命令接收者和排他性冲突。跨场景控制器用 Session 作用域；新场景显式重新绑定。查询用句柄，不长期保存借用 Controller 指针。
 
-```cpp
-class PlayerInputController final
-    : public elysia::core::GameObject
-    , public elysia::gameplay::GameplayInputFrameReceiver
-    , public elysia::gameplay::GameplayInputEventReceiver
-{
-public:
-    PlayerInputController()
-        : GameObject(elysia::core::DepthLayer::Character) {}
+## 引擎保证的接入
 
-    void on_gameplay_input_frame(
-        const elysia::gameplay::GameplayInputFrame& input) override
-    {
-        _move = input.move();
-        _guarding = input.guard_held();
-    }
+SceneManager 激活、退出、Reset 和 Recreate 时协调上下文。离开清理命令并解绑，Reuse 保留配置，Reset 释放 Scene 作用域；Session 作用域保留到 end_session。仅 reset_input_routing() 是 UI 路由重置，不能替代世界生命周期操作；游戏重启应请求 SceneReloadMode::Reset／Recreate。
 
-    bool on_gameplay_input_event(
-        const elysia::input::ActionInputEvent& event) override
-    {
-        using namespace elysia::gameplay;
-        using namespace elysia::input;
+对象释放前 Manager 解绑。GameplayScene 的输入、移除和固定步接入为 final，游戏无需也不能手动调用基类调度。游戏扩展使用 `on_game_fixed_update(tick, delta)`、`on_control_target_removing(object)`。每次实际固定步先交付命令，再执行游戏扩展，最后物理参与者和物理推进。
 
-        if (event.action == actions::Jump
-            && event.phase == ActionInputPhase::Started)
-        {
-            request_jump();
-            return true;
-        }
-        return false;
-    }
+辅助工具通过游戏控制器显式处理；场景没有按玩家命令广播或转发钩子。多目标相机示例直接绑定实际可见 CameraActor，切换主目标显式换绑。
 
-private:
-    void request_jump();
-    elysia::core::Vector2 _move{};
-    bool _guarding = false;
-};
+## UI 与暂停
 
-void BattleScene::on_enter(const elysia::scene::ScenePayload&)
-{
-    create_and_add_object<PlayerInputController>();
-}
-```
+Scene::on_input 仍是统一输入阶段，委托 SceneInputRouter。on_shortcuts 只获取 UI 所有者未消费的操作，处理后 consume_input(event)。on_unassigned_input 返回 true 消费加入操作。
 
-对象必须通过 Scene 的 `add_object` 或 `create_and_add_object` 加入，GameplayScene 才会在 `on_scene_object_registered` 中发现 receiver 接口。
+set_ui_owner 转移公共 UI 操作权。set_all_gameplay_input_blocked 只屏蔽本地玩家玩法；pause 停止世界全部控制器并取消缓存。取消不是正常释放，恢复时按键和摇杆须满足释放／回中规则。
 
-## 分发顺序与事件消费
+## 演示会话与双玩家
 
-receiver 沿用 Scene 输入排序：
+Demo Gallery 显式确保游戏会话存在；返回 Main Menu 结束会话；演示之间切换保留会话。直接启动示例的测试自行开始会话。单机完全不需要 ENet 会话。
 
-1. UI receiver 优先于 GameObject。
-2. GameObject 中 depth layer 更高者优先。
-3. 同一 depth layer 中 `order_in_layer` 更高者优先。
+Local multiplayer 示例使用游戏保存的 Session 作用域句柄。进入场景显式绑定蓝／红角色，返回演示选择页后实例仍存在但解绑，再进入时重新绑定；会话结束后旧句柄失效。
 
-Frame 会发送给所有符合条件的 receiver，不支持消费。Event 按 Action event 外层、receiver 内层遍历；某 receiver 返回 `true` 只消费当前 event，下一个 Action event 仍从最高优先级 receiver 开始。
-
-GameplayScene 在每次输入分发前移除 destroyed receiver。inactive 对象不会接收；invisible 不影响输入资格。
-
-## 暂停行为
-
-GameplayScene 与基础 Scene 共用 `_paused`：
-
-- 场景未暂停时，所有 active receiver 都可以接收。
-- 场景暂停时，只有 `receive_input_when_paused() == true` 的对象接收。
-- `GameObject` 可调用 `set_receive_input_when_paused(true)`，适用于暂停菜单控制器等明确例外。
-
-```cpp
-pause_menu_controller->set_receive_input_when_paused(true);
-pause();
-```
-
-暂停不会停止 `InputActionMap::resolve`。因此允许暂停输入的 receiver 仍会得到连续 frame/event 状态；其他 receiver 只是被分发过滤。
-
-## 临时禁用 Gameplay Input
-
-`set_gameplay_input_enabled(false)` 完全跳过 Action resolve 和 gameplay receiver 分发，但 `Scene::on_input` 已经先执行，所以 Raw/UI 输入仍正常工作。
-
-```cpp
-void BattleScene::open_pause_overlay()
-{
-    set_gameplay_input_enabled(false);
-    pause();
-}
-
-void BattleScene::close_pause_overlay()
-{
-    resume();
-    set_gameplay_input_enabled(true);
-}
-```
-
-开关值发生变化时，GameplayScene 会调用 `InputActionMap::reset_state()`。如果玩家在重新启用时仍按住某个键，下一次 `resolve` 会把它视为从零进入 active 状态，产生 `is_just_pressed == true` 和 `Started`。调用方若不希望关闭菜单的按键立即触发角色动作，需要在 UI 流程中等待释放后再启用 gameplay 输入。
-
-重复设置相同 enabled 值不会再次 reset state。
-
-## 修改场景的 Action Map
-
-派生场景可通过 protected `gameplay_input_map()` 访问自身 map：
-
-```cpp
-gameplay_input_map().replace_bindings(
-    elysia::gameplay::actions::Dash,
-    {
-        { elysia::gameplay::actions::Dash,
-          elysia::input::ButtonInputBinding{
-              elysia::input::RawInputControl::GamepadEast } }
-    }
-);
-```
-
-每个 GameplayScene 构造时都创建独立默认 map；修改一个场景不会自动影响其他场景。当前没有共享 binding profile 或持久化服务。
-
-## 常见错误
-
-- 让 Menu/Setting 继承 GameplayScene：会无意义地产生 gameplay Actions，应保持基础 Scene。
-- 派生 `on_input` 只调用 `Scene::on_input`：UI 正常但 gameplay receiver 永远不运行。
-- 直接 new receiver 而不加入 Scene：不会触发 receiver 注册。
-- 把 Frame 引用保存到下一帧：GameplayScene 分发的是临时 `GameplayInputFrame`，回调结束后引用失效。
-- 认为 UI 消费会自动阻止 gameplay：两套消费链相互独立，应显式暂停或禁用 gameplay。
+键鼠默认控制玩家 1，未绑定手柄 Start 加入玩家 2。公共菜单可更换手柄、转移 UI 所有者并测试文本捕获。示例只展示两个角色，底层注册表与控制器管理不限制两人。共享相机，不含分屏、联网或个人焦点树。

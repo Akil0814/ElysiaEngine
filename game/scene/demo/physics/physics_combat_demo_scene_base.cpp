@@ -1,3 +1,4 @@
+#include "../../../input/local_controls.h"
 #include "physics_combat_demo_scene_base.h"
 #include "physics_combat_layout.h"
 #include "../../../demo/physics/physics_scenario_presentation.h"
@@ -103,6 +104,7 @@ void PhysicsCombatDemoSceneBase::on_enter(
         build_test_hud();
         _built = true;
     }
+    if (_player && !_player->is_destroyed()) configure_player_controller(*_player);
     configure_fixed_camera();
     if (_scenario)
     {
@@ -171,9 +173,8 @@ void PhysicsCombatDemoSceneBase::on_update(double delta)
     }
 }
 
-void PhysicsCombatDemoSceneBase::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void PhysicsCombatDemoSceneBase::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                              const std::vector<elysia::input::RawInputEvent> &events)
 {
     for (const auto& event : events)
     {
@@ -181,24 +182,35 @@ void PhysicsCombatDemoSceneBase::on_input(
             continue;
         if (event.control == elysia::input::RawInputControl::KeyR)
         {
+            consume_input(event);
             request_restart();
             return;
         }
         if (event.control == elysia::input::RawInputControl::KeyEscape)
         {
+            consume_input(event);
             return_to_caller();
             return;
         }
         if (event.control == elysia::input::RawInputControl::KeyF1)
         {
+            consume_input(event);
             auto* debug = elysia::tools::DebugDraw::instance();
             debug->set_enabled(!debug->enabled());
         }
-        if(event.control==elysia::input::RawInputControl::KeyP){toggle_test_pause();return;}
-        if(event.control==elysia::input::RawInputControl::KeyN){test_single_step();return;}
+        if (event.control == elysia::input::RawInputControl::KeyP)
+        {
+            consume_input(event);
+            toggle_test_pause();
+            return;
+        }
+        if (event.control == elysia::input::RawInputControl::KeyN)
+        {
+            consume_input(event);
+            test_single_step();
+            return;
+        }
     }
-    if(_scenario || _test_paused)elysia::scene::Scene::on_input(input,events);
-    else elysia::gameplay::GameplayScene::on_input(input, events);
 }
 
 std::optional<elysia::core::Rect>
@@ -210,10 +222,15 @@ PhysicsCombatDemoSceneBase::resolve_camera_focus_rect() const
     return _player->render_rect();
 }
 
+
+void PhysicsCombatDemoSceneBase::configure_player_controller(example::demo::physics::BlockCombatActor& player) {
+    if(dynamic_cast<elysia::gameplay::ControlCommandReceiver*>(&player)) example::input::configure_scene_player(*this,_controller,player);
+}
 void PhysicsCombatDemoSceneBase::set_player(
     example::demo::physics::BlockCombatActor& player) noexcept
 {
     _player = &player;
+
 }
 
 void PhysicsCombatDemoSceneBase::set_demo_camera_center(

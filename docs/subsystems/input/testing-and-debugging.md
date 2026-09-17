@@ -1,72 +1,46 @@
-# Input 测试与调试
+# 输入测试与调试
 
-## 自动测试入口
+## 自动化验证
 
-| 测试 | 覆盖重点 |
-| --- | --- |
-| [`input_action_mapping_tests.cpp`](../../../tests/input/input_action_mapping_tests.cpp) | ID 校验、多键绑定、同键多 Action、按钮边沿、事件去重、轴 dead zone、数字/模拟二维合成、运行时改绑 |
-| [`engine_gameplay_tests.cpp`](../../../tests/input/engine_gameplay_tests.cpp) | 标准默认 map、GameplayInputFrame 访问器、自定义 Action、标准 Action 换绑 |
-| [`gameplay_scene_input_tests.cpp`](../../../tests/input/gameplay_scene_input_tests.cpp) | 普通 Scene 与 GameplayScene 边界、receiver 顺序/消费、inactive、paused、禁用与 destroyed 清理 |
-
-只运行输入测试：
+- `controller_runtime_tests`：显式会话、作用域、上下文代次、回调内修改、自定义来源、映射替换及鼠标增量。
+- `input_system_controller_lifecycle_tests`：多个手柄按钮、摇杆、扳机独立；键鼠并行；移除与失焦通知。
+- `gameplay_scene_input_tests`：玩家绑定、目标排他性、快速点按、零／多 tick、屏蔽恢复、重绑、销毁、队列溢出与物理步前回调。
+- `development_input_capture_tests`：开发面板捕获、文本框捕获传播、逐玩家隔离、UI 操作权切换、按原始操作消费及失焦恢复。
+- `input_action_mapping_tests` 与 `engine_gameplay_tests`：动作注册、换绑、轴值和默认动作访问器。
+- 原有指针坐标、UI、场景、物理及角色测试继续覆盖迁移后的调用关系。
 
 ```powershell
-ctest --test-dir build -C Debug -L input --output-on-failure
+ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-failure
 ```
 
-修改 Input/Scene 公共头文件后仍应执行完整构建和全部 CTest，因为 UI、Scene、Camera 和 Effects 测试都可能间接包含这些类型。
+自动测试通过可控 SDL 输入事件复现多设备，不需要真实手柄。真实双手柄验收需要另行在硬件上确认，不能用合成输入测试替代实机结论。
 
-## 摇杆在小幅移动时没有输出
+## 排查顺序
 
-1. 确认 Raw 层收到正确的 `GamepadLeftX/Y` 或 `GamepadRightX/Y`。
-2. 检查 Action 使用 `Axis2DInputBinding` 还是两个 `AxisInputBinding`。
-3. 比较输入长度与 descriptor dead zone；标准 Move 是径向 `0.2`。
-4. 注意恰好等于 dead zone 仍被视为零，只有严格大于 dead zone 才产生贡献。
-5. 如果 frame 有值但没有 `is_pressed`，检查 actuation threshold；Move 默认是 `0.5`。
+1. 检查快照中源 ID 与物理状态，确认不同手柄没有混在一起。
+2. 检查 `LocalPlayerRegistry::owner(source)` 和角色绑定，未绑定输入不会控制角色。
+3. 检查 UI 所有者、捕获类别和回中门控，观察输入是否被 UI 消费。
+4. 检查 ControllerHandle、绑定代次、本地动作映射及命令 events／deltas，区分持续值与一次性动作。
+5. 检查实际执行 tick 和取消原因，不使用渲染帧数推断执行次数。
 
-## 按键有 Raw Input，但 Action 不触发
+命令事件每 tick 消费一次；同帧多次点击会保留多条事件。菜单关闭后仍按住的键不会立即恢复，需要先释放；这属于明确行为。若队列溢出，先检查模拟是否长期停步以及输入是否错误地重复注入。
 
-1. 使用 `map.contains(action)` 确认 Action 已注册。
-2. 检查 `map.bindings(action)` 是否为空，以及 binding 内的 Action ID 是否与 descriptor 完全一致。
-3. `AnyKey`、`AnyControl`、`None` 和 `Count` 不能作为 Action binding。
-4. 检查值类型兼容性：Axis binding 不能绑定 Button；二维 composite 只能绑定 Axis2D。
-5. 确认场景继承 `GameplayScene`，且覆盖 `on_input` 时调用了 `GameplayScene::on_input`。
+## 双玩家示例与硬件验收
 
-## 同一 Action 出现重复行为
+从 Demo Gallery 进入 **Local multiplayer / input routing**。默认键鼠属于玩家 1；未绑定手柄按 Start 加入玩家 2。加入按键会被消费，不会同时打开菜单。方向键／左摇杆控制对应角色，状态栏显示玩家、设备和 UI 所有者；该示例共享一台相机。
 
-Action Map 每个 Action 每帧最多生成一个 event；如果业务执行两次，优先检查：
+要测试双手柄，打开 **Players / menu**，选择 **Bind next Start controller to player 1**，再在另一只未绑定手柄按 Start。玩家 1 可以同时保留键鼠和手柄。需要交换已绑定手柄时，先选择 **Release controllers for reassignment**，再分别使用玩家 1 分配和玩家 2 重绑操作。拔掉手柄只解除该设备绑定，重新连接不会按设备名称恢复归属。
 
-- 同一对象是否同时在 frame 的 `is_just_pressed` 和 event 的 `Started` 中执行了相同命令；
-- 是否存在两个不同 receiver 都响应同一 event 且前者返回 `false`；
-- Action 是否以不同 ID 注册了语义重复的动作；
-- 派生 Scene 是否错误地调用了两次 `GameplayScene::on_input`。
+公共菜单可显式切换 UI 所有者。菜单打开时所有玩家的玩法输入被屏蔽，文本框用于检查输入不会穿透。关闭菜单后，持续按键必须释放，摇杆／扳机必须回中，才能恢复。切换 UI 所有者保留焦点，但旧所有者正在按住的确认操作不能在新所有者下完成。
 
-## 暂停后仍收到输入
+实机验收应覆盖键鼠＋手柄、双手柄同时移动、拔插、菜单确认／文本输入、所有者切换及恢复中立状态。当前自动化使用可控 SDL 事件；真实双手柄交互尚未执行。
 
-- 检查对象是否调用过 `set_receive_input_when_paused(true)`。
-- 暂停只过滤 receiver，不会停止 map 解析；这是为了让允许暂停输入的对象保持连续状态。
-- 若希望 gameplay 完全停止，调用 `set_gameplay_input_enabled(false)`，同时确认 UI 仍通过基础 Scene 正常接收。
+## 上一轮基线记录（不能作为本轮通过结论）
 
-## 重新启用时立即触发 Started
+2026-09-16，Windows / MSVC Debug，构建目录 `out/build/physics-scenarios-msvc`：
 
-切换 `set_gameplay_input_enabled` 会 reset Action Map 的 previous values。重新启用时仍处于按住状态的输入会被视为新的 Started。这是当前明确行为，不是 event 重复。
-
-可以在关闭 overlay 后等待相关 Raw Control 释放，再启用 gameplay；不要通过保存旧 `ActionInputFrame` 引用绕过状态机。
-
-## 改绑后边沿全部重置
-
-`replace_bindings`、`clear_bindings` 和 `reset_defaults` 当前都会重置整个 map 的 previous values，而不只目标 Action。换绑操作应放在设置流程边界，避免在正常 gameplay 帧中频繁调用。
-
-`add_binding` 不重置状态；如果在 Action 已 active 时追加 binding，下一次事件以现有 previous value 与新聚合结果比较。
-
-## 调试时应记录什么
-
-建议按层记录，而不是只打印最终动作：
-
-```text
-Raw: device, control/axis, raw value
-Action: id, value type, previous value, current value, phase
-Scene: enabled, paused, receiver object/order, consumed
-```
-
-这样可以区分平台翻译、binding、数值过滤和 receiver 分发四类问题。
+- 完整构建成功。
+- 完整 CTest：120 / 120 通过，包含 Input、UI、Scene、Physics、Builtin、示例和物理压力测试。
+- 双玩家示例经过可控 SDL 输入验证和软件渲染截图检查：角色可见、加入不触发菜单、两名玩家独立移动、模态菜单屏蔽玩法。
+- 修改文档的相对链接检查和 `git diff --check` 通过。
+- 未执行真实双手柄交互验收；没有实现或验证网络会话。

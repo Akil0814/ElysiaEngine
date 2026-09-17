@@ -524,10 +524,7 @@ ApplicationRunResult Application::run()
         if (resolve_exit())
             break;
 
-        if (!run_event_boundary("input",[this]()
-        {
-            _scene_manager.on_input(_input_system.frame(),_input_system.events());
-        }))
+        if (!run_event_boundary("input", [this]() { _scene_manager.on_input(_input_system.snapshot()); }))
         {
             stop_after_boundary_failure();
             break;

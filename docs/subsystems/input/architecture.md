@@ -1,89 +1,62 @@
-# Input 架构与一帧输入流
+# 输入架构与生命周期
 
-## 分层职责
+## 职责
 
-| 层 | 主要类型 | 职责 | 不负责 |
+| 模块 | 职责 |
+| --- | --- |
+| InputSystem | 按设备保存物理状态、帧初／帧末状态、有序事件、位移和设备变化；只输出快照 |
+| GamepadDeviceManager | SDL 手柄设备打开、关闭与设备实例管理 |
+| SceneInputRouter | UI 所有者、原始操作消费、捕获、快捷键、玩家分流和释放／回中门控 |
+| ControllerService | 游戏侧会话、创建、查询、配置、绑定和移除入口 |
+| ControllerManager | 唯一持有控制器、命令缓存、句柄和固定步调度；Service 不维护副本 |
+| SceneControlContext | 具体场景实例与代次，目标归属、活动性和模拟边界；不持有控制器 |
+| Controller | 来源无关的意图生产契约 |
+| LocalPlayerController | 本地玩家快照到游戏动作的转换 |
+| ControlCommandReceiver | 角色解释动作并执行玩法 |
+
+普通 Scene 只有输入路由与 UI，不创建控制器上下文。GameplayScene 提供上下文和调度接入，也不自动创建任何控制器。游戏决定控制器数量、类型、映射和目标。
+
+## 设备与玩家
+
+逻辑键鼠源为 `InputSourceId::keyboard_mouse()`；各 SDL 手柄实例拥有独立源和转换器，包括扳机阈值状态。最近使用的设备只影响提示，不清除其他源。
+
+SceneManager 持有应用级 LocalPlayerRegistry，默认玩家 1 绑定键鼠。一个源只属于一个玩家，每玩家最多一个键鼠源和一个手柄。使用 `create_player`、`bind_source`、`unbind_source`、`replace_gamepad` 显式配置。玩家身份独立于角色、控制器与设备。
+
+同玩家按钮取并集，持续轴按映射叠加限幅；不同玩家隔离。拔出设备只解除该源，重连按新实例处理。纯菜单可以用首个有效手柄操作认领玩家 1 的空手柄槽；GameplayScene 不自动认领。开发面板捕获按设备类别屏蔽，保留物理状态和绑定。
+
+## 生命周期
+
+SceneManager 在引擎侧初始化 Manager，关闭时结束会话并停用运行期；未初始化或关闭后 begin_session 返回 NotInitialized。
+
+所有控制器属于显式游戏会话。`begin_session()` 不隐式覆盖已有会话；没有会话时创建失败。`end_session()` 取消并释放全部控制器，应用关闭也清理。游戏会话只是本地对象生命周期边界，与 ENet 或连接无关。
+
+| 作用域 | 创建条件 | 离开场景／Reuse | Reset／Recreate／销毁 |
 | --- | --- | --- | --- |
-| 平台翻译 | `InputSystem`、各类 `InputTranslator` | 将 SDL 事件归一化为键盘、鼠标、手柄 Control/Axis | Jump、Attack 等游戏语义 |
-| Raw Input | `RawInputState`、`RawInputFrame`、`RawInputEvent` | 保存物理输入当前状态、设备和离散事件 | 可改键的逻辑 Action |
-| Action Input | `InputActionMap`、`ActionInputFrame`、`ActionInputEvent` | 将物理 Control/Axis 映射为稳定 Action ID 和统一值 | 项目特有玩法规则 |
-| Engine Gameplay | 标准 `actions`、`GameplayInputFrame` | 提供 Move、Jump、Primary 等可复用语义 | 角色具体如何响应动作 |
-| 场景分发 | `GameplayScene`、两个 receiver contract | 选择何时翻译，并按 SceneObject 顺序分发 | 输入配置持久化 |
+| Scene | 活动会话、有效所属上下文代次 | 取消、解绑，保留实例与配置 | 释放所属控制器 |
+| Session | 活动会话 | 取消、解绑，保留实例与配置 | 保留实例，清除目标与旧上下文引用 |
 
-```mermaid
-flowchart LR
-  SDL["SDL keyboard / mouse / controller event"] --> Translator["InputTranslator"]
-  Translator --> Raw["RawInputFrame + RawInputEvent[]"]
-  Raw --> BaseScene["Scene::on_input"]
-  BaseScene --> RawReceiver["Raw input receivers"]
-  BaseScene --> UiRouter["UiInputRouter"]
-  UiRouter --> UiReceiver["UI input receivers"]
-  Raw --> GameplayScene["GameplayScene::on_input"]
-  GameplayScene --> ActionMap["InputActionMap::resolve"]
-  ActionMap --> ActionResult["ActionInputFrame + ActionInputEvent[]"]
-  ActionResult --> GameplayFrame["GameplayInputFrame"]
-  GameplayFrame --> GameplayReceiver["Gameplay receivers"]
-```
+场景 token 包含实例身份与代次，不能用 SceneKey 替代。Reset 递增代次，Recreate 产生新实例。新场景必须由游戏显式绑定，不自动寻找同名角色。
 
-`GameplayScene::on_input` 内部首先调用 `Scene::on_input`，因此图中的基础 Scene 分支也会发生在 GameplayScene 中。普通 `Scene` 不持有 `InputActionMap`，不会发现或调用 gameplay receiver。
+ControllerHandle 含运行期代次和实例号。移除、结束会话后旧句柄无效；新会话不会复用有效旧句柄。长期引用保存句柄，`get<T>()` 返回借用指针，不能跨调度修改边界保存。
 
-## Frame 与 Event 是两种读取方式
+一个控制器最多一个目标，一个目标最多一个控制器。同一活动场景、同一玩家最多一个已绑定本地控制器；允许未绑定和缓存场景实例共存。目标必须是当前活动上下文登记的存活对象。失败绑定保留原绑定。
 
-`RawInputFrame` 和 `ActionInputFrame` 都描述“一整帧的状态”，适合移动、蓄力、持续防御等每帧查询。`RawInputEvent` 描述 SDL 翻译后的离散输入；`ActionInputEvent` 则由 `InputActionMap` 比较本次与上次 `resolve()` 的解析值后合成。
+回调内移除立即停止后续交付，实际析构延迟到安全边界；创建的新实例最早下一实际 tick 参与。回调内换绑和映射替换排队提交，目标若在提交前失效则不应用。离开、换绑、重置清空状态、事件和增量，推进绑定代次。
 
-这意味着 Action event 不是逐条转发 `RawInputEvent`：
+## 一帧与一个 tick
 
-- 多个物理键映射到同一 Action 时，只按最终 Action 值生成一次状态变化。
-- 调用方即使传给 `GameplayScene` 一个空的 Raw event 数组，只要 `RawInputFrame` 发生变化，仍能生成 Action event。
-- `InputActionMap` 必须按帧连续调用，才能保留正确的前后值和边沿。
+1. Scene::on_input 委托 SceneInputRouter，维护物理源与设备变化。
+2. UI 只接受所有者设备；逐操作前后重新检查捕获。
+3. 未消费的所有者操作进入场景快捷键；处理后 consume_input(event)。
+4. 剩余快照进入对应 LocalPlayerController，动作映射结果进入 Manager 缓存。
+5. PhysicsWorld 每次实际步前：自定义控制器产生意图、Manager 交付、游戏固定更新扩展、物理参与者更新及物理推进。
 
-```mermaid
-sequenceDiagram
-  participant App as Application
-  participant GS as GameplayScene
-  participant S as Scene
-  participant AM as InputActionMap
-  participant FR as Frame receivers
-  participant ER as Event receivers
+只使用已有 PhysicsWorld 累积器，无刚体也执行。零 tick 累计事件和增量，下一 tick 一次消费；补跑只保留持续值。丢弃的补步不消费输入。目标无效、inactive、上下文不活动时不积攒恢复后命令。
 
-  App->>GS: on_input(raw_frame, raw_events)
-  GS->>S: Scene::on_input(raw_frame, raw_events)
-  S-->>GS: raw/UI 分发完成
-  GS->>GS: prune destroyed receivers
-  alt gameplay input enabled
-    GS->>AM: resolve(raw_frame)
-    AM-->>GS: ActionInputResult
-    GS->>FR: GameplayInputFrame
-    loop 每个 ActionInputEvent
-      GS->>ER: on_gameplay_input_event(event)
-    end
-  end
-```
+## UI 与取消
 
-## 输入设备与坐标约定
+公共 UI 默认归玩家 1。文本框焦点捕获键盘，模态窗口和弹出层报告相应捕获。普通焦点不屏蔽整个设备。一次原始操作产生的任何 UI 事件被消费，该操作及对应持续控制都不能穿透到玩法。
 
-- 摇杆轴归一化到 `[-1, 1]`，扳机归一化到 `[0, 1]`。
-- 二维移动中 X 向右为正，Y 向下为正，因此 Up/W 贡献 `-1`。
-- Raw 层提供左/右摇杆 X/Y 与左右扳机；标准 gameplay map 只将左摇杆映射到 `gameplay.move`。
-- DPad 是四个按钮 Control，在 gameplay map 中通过 `Button2DInputBinding` 合成为二维移动。
-- 左右扳机还会以 `0.5` 按下、`0.4` 释放的迟滞阈值产生虚拟按钮，但标准 gameplay map 当前未绑定它们。
+捕获默认只取消相关本地控制器。`set_all_gameplay_input_blocked` 屏蔽所有本地玩法输入，但不自动干预 AI／远端等自定义来源。世界 `pause()` 取消并停止所有控制器；UI 继续处理。
 
-## 与 UI 输入的边界
-
-基础 `Scene` 始终先分发 Raw Input，再通过 `UiInputRouter` 分发 UI Input。GameplayScene 随后才分发 gameplay 输入，因此 UI event 的“已消费”状态不会自动阻止 gameplay Action。
-
-打开暂停菜单或 modal overlay 时，如果 gameplay 对象不应继续响应，应由 GameplayScene 调用 `set_gameplay_input_enabled(false)`，或暂停场景并只让明确选择 `receive_input_when_paused()` 的对象接收输入。
-
-鼠标位置、鼠标移动、滚轮、文本输入和 IME 编辑不进入 Action Mapping；这些信息继续使用 Raw/UI 输入 API。
-
-## 依赖方向
-
-```text
-gameplay scene
-  -> engine/gameplay
-       -> engine/input/action
-            -> engine/input/raw
-```
-
-`engine/application` 负责主循环和内建 Scene 注册；项目 Scene 由 `IGameModule` 注册。标准 gameplay input 不依赖项目的 `game/` 目录，也不依赖 UserConfig。
-
+失焦、屏蔽、设备重绑、目标或映射切换使用取消通知，不能伪造普通释放事件。每个被屏蔽按键必须释放，摇杆／扳机须回到中立区（绝对值不超过 0.2）再生效。UI 操作权转移保留焦点，清理按住、拖拽、重复和合成滚动状态。

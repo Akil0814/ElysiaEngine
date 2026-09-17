@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+﻿#include "tests/support/input_snapshot_builder.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/config/user_config_service.h"
 #include "engine/io/loaders/asset_config_types.h"
@@ -110,7 +111,7 @@ void send_cancel(elysia::scene::SceneManager& scene_manager)
             .device = elysia::input::InputDevice::Keyboard
         }
     };
-    scene_manager.on_input(frame,events);
+    scene_manager.on_input(elysia::tests::events_snapshot(events));
 }
 
 void send_control(
@@ -128,7 +129,7 @@ void send_control(
             .device = elysia::input::InputDevice::Keyboard
         }
     };
-    scene_manager.on_input(frame,events);
+    scene_manager.on_input(elysia::tests::events_snapshot(events));
 }
 
 void activate_focused_control(elysia::scene::SceneManager& scene_manager)

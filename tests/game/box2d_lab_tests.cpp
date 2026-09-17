@@ -1,3 +1,5 @@
+#include "engine/gameplay/control/controller_service.h"
+#include "tests/support/input_snapshot_builder.h"
 #define SDL_MAIN_HANDLED
 #include "engine/camera/camera_manager.h"
 #include "engine/core/render/render_command.h"
@@ -30,6 +32,8 @@ int main(int argc, char **argv)
         elysia::scene::SceneManager scene;
         scene.register_game_scene<example::scene::Box2DLabScene>(example::scene_keys::Box2DLab);
         scene.set_runtime_context(context);
+        if (!elysia::gameplay::ControllerService::instance()->session_active())
+            (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene.start({.target = example::scene_keys::Box2DLab,
                      .payload = example::scene::DemoScenePayload{
                          .return_route = {.target = example::scene_keys::PhysicsCombatGallery}}});
@@ -43,12 +47,16 @@ int main(int argc, char **argv)
         require(presentation!=nullptr,"Lab exposes the shared scenario presentation");
         scene.on_update(1.0/60);
         require(presentation->scenario().result().steps==0,"Lab waits for explicit run");
-        scene.on_input({},{{.control=elysia::input::RawInputControl::KeyN,.type=elysia::input::RawInputEventType::ControlPressed}});
+        scene.on_input(
+            elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyN,
+                                                .type = elysia::input::RawInputEventType::ControlPressed}}));
         scene.on_update(1.0/60);
         require(presentation->scenario().result().steps==1&&presentation->scenario().paused(),"N executes one paused tick");
         scene.on_update(1.0);
         require(presentation->scenario().result().steps==1,"Pause prevents catch-up simulation");
-        scene.on_input({},{{.control=elysia::input::RawInputControl::KeyP,.type=elysia::input::RawInputEventType::ControlPressed}});
+        scene.on_input(
+            elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyP,
+                                                .type = elysia::input::RawInputEventType::ControlPressed}}));
         for(int i=0;i<120;++i)scene.on_update(1.0/60);
         require(presentation->scenario().result().status==example::demo::physics::ScenarioStatus::Passed,
                 "Scene runs the same behavioral checks as the headless runner");
@@ -76,8 +84,9 @@ int main(int argc, char **argv)
         SDL_RenderPresent(renderer);
         if (argc > 1)
             require(IMG_SavePNG(surface, argv[1]), "Lab preview saved");
-        scene.on_input({}, {{.control = elysia::input::RawInputControl::KeyR,
-                             .type = elysia::input::RawInputEventType::ControlPressed}});
+        scene.on_input(
+            elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyR,
+                                                .type = elysia::input::RawInputEventType::ControlPressed}}));
         scene.on_update(1.0 / 60);
         presentation=find_presentation();
         require(presentation&&presentation->scenario().result().steps==0,

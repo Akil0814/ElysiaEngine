@@ -36,12 +36,10 @@ public:
     void reset() override;
 
     void on_update(double delta) override;
-    void on_input(
-        const elysia::input::RawInputFrame& input,
-        const std::vector<elysia::input::RawInputEvent>& events
-    ) override;
+    void on_shortcuts(const elysia::input::RawInputFrame &input,
+                      const std::vector<elysia::input::RawInputEvent> &events) override;
 
-private:
+  private:
     [[nodiscard]] static elysia::ui::UiTextContent
         make_start_prompt_content();
     bool create_presentation();

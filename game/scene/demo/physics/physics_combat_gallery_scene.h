@@ -14,9 +14,10 @@ public:
     void on_exit() override;
     void reset() override;
     void on_update(double delta) override;
-    void on_input(const elysia::input::RawInputFrame& input,
-        const std::vector<elysia::input::RawInputEvent>& events) override;
-private:
+    void on_shortcuts(const elysia::input::RawInputFrame &input,
+                      const std::vector<elysia::input::RawInputEvent> &events) override;
+
+  private:
     void build_ui();
     void return_to_caller();
     [[nodiscard]] elysia::scene::SceneRoute make_menu_route() const;

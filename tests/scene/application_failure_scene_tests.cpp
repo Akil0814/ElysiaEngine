@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+﻿#include "tests/support/input_snapshot_builder.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/builtin/builtin_scene_keys.h"
@@ -127,15 +128,8 @@ void send_control(
     int mouse_x = 0,
     int mouse_y = 0)
 {
-    scene_manager.on_input(
-        elysia::input::RawInputFrame{},
-        { elysia::input::RawInputEvent{
-            .control = control,
-            .type = type,
-            .device = device,
-            .mouse_x = mouse_x,
-            .mouse_y = mouse_y
-        } });
+    scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{
+            .control = control, .type = type, .device = device, .mouse_x = mouse_x, .mouse_y = mouse_y}}));
 }
 
 void activate_confirm(elysia::scene::SceneManager& scene_manager)

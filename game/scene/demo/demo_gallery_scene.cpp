@@ -1,3 +1,4 @@
+#include "../../../engine/gameplay/control/controller_service.h"
 #include "demo_gallery_scene.h"
 
 #include "../example_scene_keys.h"
@@ -43,9 +44,8 @@ std::unique_ptr<elysia::ui::UiButton> make_button(
 }
 }
 
-void DemoGalleryScene::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void DemoGalleryScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                    const std::vector<elysia::input::RawInputEvent> &events)
 {
     for (const elysia::input::RawInputEvent& event : events)
     {
@@ -53,6 +53,7 @@ void DemoGalleryScene::on_input(
             && event.type
                 == elysia::input::RawInputEventType::ControlPressed)
         {
+            consume_input(event);
             if (_root_window && _failure_confirmation
                 && _root_window->is_overlay_open(*_failure_confirmation))
             {
@@ -65,12 +66,12 @@ void DemoGalleryScene::on_input(
             return;
         }
     }
-
-    elysia::scene::Scene::on_input(input, events);
 }
 
 void DemoGalleryScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
+    auto* controllers = elysia::gameplay::ControllerService::instance();
+    if (!controllers->session_active()) (void)controllers->begin_session();
     const DemoScenePayload* demo_payload =
         elysia::scene::try_scene_payload<DemoScenePayload>(payload);
     if (!demo_payload || !is_valid_return_route(demo_payload->return_route))
@@ -235,6 +236,15 @@ void DemoGalleryScene::build_ui()
             elysia::scene::SceneReloadMode::Reuse);
     });
     list->add_back(std::move(camera_demo));
+
+    auto multiplayer = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{0, 0, list_width, 44});
+    multiplayer->set_text_content(elysia::ui::ui_raw_text("Local multiplayer / input routing"));
+    multiplayer->set_on_click([this] {
+        request_scene_switch(example::scene_keys::LocalMultiplayer,
+                             DemoScenePayload{.return_route = make_gallery_route()},
+                             elysia::scene::SceneReloadMode::Recreate);
+    });
+    list->add_back(std::move(multiplayer));
 
     auto back = make_button("demo_gallery.back");
     back->set_on_click([this]() { return_to_caller(); });

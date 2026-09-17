@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../input/action/input_action_map.h"
+#include "../../engine/input/action/input_action_map.h"
 
-namespace elysia::gameplay
+namespace example::input
 {
 [[nodiscard]] elysia::input::InputActionMap make_default_gameplay_input_map();
 }

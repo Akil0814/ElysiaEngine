@@ -5,7 +5,7 @@
 #include "colored_block_object.h"
 
 #include "../../../engine/core/interface/updatable.h"
-#include "../../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
+#include "../../../engine/gameplay/control/control_command.h"
 #include "../../../engine/physics/contracts/physics_participant.h"
 #include "../../../engine/physics/contracts/physics_step_participant.h"
 
@@ -106,32 +106,30 @@ private:
     bool _hit_box_active = false;
 };
 
-class PlatformPlayerCharacter final
-    : public BlockCombatActor
-    , public elysia::gameplay::GameplayInputFrameReceiver
+class PlatformPlayerCharacter final : public BlockCombatActor, public elysia::gameplay::ControlCommandReceiver
 {
 public:
     explicit PlatformPlayerCharacter(const elysia::core::Rect& rect);
     void fixed_update(double delta) override;
-    void on_gameplay_input_frame(
-        const elysia::gameplay::GameplayInputFrame& input) override;
-private:
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override;
+    void on_control_command(const elysia::gameplay::ControlCommand &input, double fixed_delta) override;
+
+  private:
     float _move_axis = 0.0f;
     bool _jump_requested = false;
     bool _drop_requested = false;
     bool _primary_requested = false;
 };
 
-class TopDownPlayerCharacter final
-    : public BlockCombatActor
-    , public elysia::gameplay::GameplayInputFrameReceiver
+class TopDownPlayerCharacter final : public BlockCombatActor, public elysia::gameplay::ControlCommandReceiver
 {
 public:
     explicit TopDownPlayerCharacter(const elysia::core::Rect& rect);
     void fixed_update(double delta) override;
-    void on_gameplay_input_frame(
-        const elysia::gameplay::GameplayInputFrame& input) override;
-private:
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override;
+    void on_control_command(const elysia::gameplay::ControlCommand &input, double fixed_delta) override;
+
+  private:
     elysia::core::Vector2 _move{};
     bool _primary_requested = false;
 };

@@ -50,8 +50,6 @@ InputDeviceUpdateResult InputDeviceTracker::process_event(const SDL_Event& event
     {
         _current_device = event_device;
         _device_switched_this_frame = true;
-        result.should_clear_state = true;
-        result.should_reset_gamepad_state = true;
         return result;
     }
 
@@ -60,8 +58,6 @@ InputDeviceUpdateResult InputDeviceTracker::process_event(const SDL_Event& event
         if (_current_device == InputDevice::Gamepad)
         {
             _device_switched_this_frame = true;
-            result.should_clear_state = true;
-            result.should_reset_gamepad_state = true;
         }
 
         _current_device = event_device;

@@ -1,5 +1,5 @@
 #include "physics_scenario_internal.h"
-#include "../../../engine/gameplay/input/gameplay_input_frame.h"
+#include "../../../engine/gameplay/control/control_command.h"
 #include <algorithm>
 
 namespace example::demo::physics
@@ -9,12 +9,21 @@ namespace
 using Key=elysia::input::RawInputControl;
 struct ScriptInput
 {
-    elysia::input::InputActionMap map=elysia::gameplay::make_default_gameplay_input_map();
-    void send(elysia::gameplay::GameplayInputFrameReceiver& player,std::initializer_list<Key> keys)
+    elysia::input::InputActionMap map=example::input::make_default_gameplay_input_map();
+    elysia::input::RawInputState previous;
+    void send(elysia::gameplay::ControlCommandReceiver &player, std::initializer_list<Key> keys)
     {
         elysia::input::RawInputFrame raw;
         for(auto key:keys)raw.state.set_pressed(key,true);
-        player.on_gameplay_input_frame(elysia::gameplay::GameplayInputFrame(map.resolve(raw).frame));
+        elysia::input::InputSnapshot snapshot{.sources={{elysia::input::InputSourceId::keyboard_mouse(),previous,raw}}};
+        for(int i=1;i<int(Key::Count);++i) {
+            auto key=static_cast<Key>(i);
+            if(previous.is_pressed(key)!=raw.state.is_pressed(key)) snapshot.events.push_back({.control=key,.type=raw.state.is_pressed(key)?elysia::input::RawInputEventType::ControlPressed:elysia::input::RawInputEventType::ControlReleased,.source=elysia::input::InputSourceId::keyboard_mouse()});
+        }
+        previous=raw.state;
+        auto result = map.resolve(snapshot);
+        player.on_control_command({.state = std::move(result.frame), .events = std::move(result.events)},
+                                 1.0 / 60.0);
     }
 };
 }

@@ -6,8 +6,6 @@ namespace elysia::input
 {
 namespace
 {
-constexpr float k_controller_activation_dead_zone = 0.22f;
-
 [[nodiscard]] bool has_mouse_position(const RawInputEvent& event) noexcept
 {
     return event.device == InputDevice::Mouse
@@ -20,13 +18,22 @@ constexpr float k_controller_activation_dead_zone = 0.22f;
 void InputSystem::initialize()
 {
     reset_input_lifecycle();
-    _controller_manager.initialize();
+    _gamepad_devices.initialize();
+    int count = 0;
+    SDL_JoystickID *ids = SDL_GetGamepads(&count);
+    for (int i = 0; i < count; ++i)
+    {
+        auto id = InputSourceId::gamepad(ids[i]);
+        _sources.try_emplace(id);
+        _connected.push_back(id);
+    }
+    SDL_free(ids);
     _initialized = true;
 }
 
 void InputSystem::shutdown()
 {
-    _controller_manager.shutdown();
+    _gamepad_devices.shutdown();
     reset_input_lifecycle();
     _initialized = false;
 }
@@ -34,38 +41,19 @@ void InputSystem::shutdown()
 void InputSystem::set_development_input_capture(
     DevelopmentInputCapture capture) noexcept
 {
-    const DevelopmentInputCapture previous = _development_input_capture;
     _development_input_capture = capture;
-
-    if (captures_development_input(capture, DevelopmentInputCapture::Keyboard)
-        && !captures_development_input(previous, DevelopmentInputCapture::Keyboard))
-    {
-        _state.clear_keyboard();
-    }
-    if (captures_development_input(capture, DevelopmentInputCapture::Pointer)
-        && !captures_development_input(previous, DevelopmentInputCapture::Pointer))
-    {
-        _state.clear_pointer();
-        _mouse_delta_x = 0;
-        _mouse_delta_y = 0;
-    }
-    if (captures_development_input(capture, DevelopmentInputCapture::Gamepad)
-        && !captures_development_input(previous, DevelopmentInputCapture::Gamepad))
-    {
-        _state.clear_gamepad();
-        _gamepad_translator.reset();
-    }
-
-    if (!captures_development_input(capture, DevelopmentInputCapture::Pointer)
-        && captures_development_input(previous, DevelopmentInputCapture::Pointer))
-    {
-        refresh_mouse_position();
-    }
 }
 
 void InputSystem::begin_frame()
 {
-    _state.begin_frame();
+    for (auto &[id, source] : _sources)
+    {
+        source.physical.begin_frame();
+        source.initial = source.physical;
+    }
+    _connected.clear();
+    _removed.clear();
+    _focus_lost = false;
     _events.clear();
     _device_tracker.begin_frame();
     _mouse_delta_x = 0;
@@ -78,110 +66,46 @@ void InputSystem::end_frame()
 
 void InputSystem::process_event(const SDL_Event& event)
 {
-    _controller_manager.handle_event(event);
+    _gamepad_devices.handle_event(event);
 
     if (event.type == SDL_EVENT_GAMEPAD_REMOVED)
     {
-        handle_controller_removed(event);
+        handle_gamepad_removed(event);
         return;
     }
 
+    if (event.type == SDL_EVENT_GAMEPAD_ADDED)
+    {
+        auto id = InputSourceId::gamepad(event.gdevice.which);
+        if (_sources.try_emplace(id).second)
+            _connected.push_back(id);
+        return;
+    }
     if (should_clear_state_for_event(event))
     {
-        _state.clear();
+        _focus_lost = true;
+            _events.clear();
         _device_tracker.reset();
-        _gamepad_translator.reset();
-        _active_controller_id.reset();
+        // Keep physical state until release so scene suppression can require neutral.
         return;
     }
-
     if (is_window_size_changed_event(event))
     {
         refresh_mouse_position();
         return;
     }
-
-    if ((event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN
-            || event.type == SDL_EVENT_GAMEPAD_BUTTON_UP
-            || event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION)
-        && !should_accept_controller_event(event))
-    {
+    const auto update = _device_tracker.process_event(event);
+    if (update.event_device == InputDevice::Unknown)
         return;
-    }
-
-    if (is_event_captured(event))
-        return;
-
-    const InputDevice previous_device = _device_tracker.current_device();
-    const InputDeviceUpdateResult device_update = _device_tracker.process_event(event);
-    if (device_update.should_clear_state)
-    {
-        if (previous_device == InputDevice::Gamepad)
-        {
-            release_gamepad_state();
-        }
-        else
-        {
-            _state.clear();
-        }
-    }
-
-    if (device_update.should_reset_gamepad_state)
-    {
-        _gamepad_translator.reset();
-    }
-
-    translate_event(event, device_update.event_device);
-}
-
-bool InputSystem::is_event_captured(const SDL_Event& event) const noexcept
-{
-    const auto captures = [this](DevelopmentInputCapture requested)
-    {
-        return captures_development_input(
-            _development_input_capture, requested);
-    };
-
-    switch (event.type)
-    {
-    case SDL_EVENT_KEY_DOWN:
-    case SDL_EVENT_KEY_UP:
-    case SDL_EVENT_TEXT_INPUT:
-    case SDL_EVENT_TEXT_EDITING:
-        return captures(DevelopmentInputCapture::Keyboard);
-
-    case SDL_EVENT_MOUSE_MOTION:
-    case SDL_EVENT_MOUSE_BUTTON_DOWN:
-    case SDL_EVENT_MOUSE_BUTTON_UP:
-    case SDL_EVENT_MOUSE_WHEEL:
-        return captures(DevelopmentInputCapture::Pointer);
-
-    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
-    case SDL_EVENT_GAMEPAD_BUTTON_UP:
-    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-        return captures(DevelopmentInputCapture::Gamepad);
-
-    default:
-        return false;
-    }
-}
-
-RawInputFrame InputSystem::frame() const
-{
-    return {
-        _state,
-        _device_tracker.current_device(),
-        _device_tracker.device_switched_this_frame(),
-        _mouse_x,
-        _mouse_y,
-        _mouse_delta_x,
-        _mouse_delta_y
-    };
-}
-
-const std::vector<RawInputEvent>& InputSystem::events() const
-{
-    return _events;
+    _translating_source =
+        update.event_device == InputDevice::Gamepad
+            ? InputSourceId::gamepad(event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION ? event.gaxis.which
+                                                                                 : event.gbutton.which)
+            : InputSourceId::keyboard_mouse();
+    if (_sources.try_emplace(_translating_source).second && _translating_source.is_gamepad())
+        _connected.push_back(_translating_source);
+    _sources[_translating_source].device = update.event_device;
+    translate_event(event, update.event_device);
 }
 
 InputDevice InputSystem::current_device() const
@@ -209,7 +133,9 @@ void InputSystem::translate_event(const SDL_Event& event, InputDevice event_devi
 
     for (const RawInputEvent& input_event : input_events)
     {
-        append_event(normalize_mouse_event(input_event));
+        auto sourced = normalize_mouse_event(input_event);
+        sourced.source = _translating_source;
+        append_event(sourced);
     }
 }
 
@@ -217,7 +143,7 @@ InputTranslator* InputSystem::select_translator(InputDevice device)
 {
     if (device == InputDevice::Gamepad)
     {
-        return &_gamepad_translator;
+        return &_sources[_translating_source].translator;
     }
 
     if (device == InputDevice::Keyboard || device == InputDevice::Mouse)
@@ -337,135 +263,55 @@ void InputSystem::convert_window_to_logical(float window_x, float window_y, int&
 
 void InputSystem::apply_event(const RawInputEvent& event)
 {
-    if (event.type == RawInputEventType::ControlPressed)
-    {
-        _state.set_pressed(event.control, true);
-        return;
-    }
-
-    if (event.type == RawInputEventType::ControlReleased)
-    {
-        _state.set_pressed(event.control, false);
-        return;
-    }
-
-    if (event.type == RawInputEventType::AxisChanged)
-    {
-        _state.set_axis(event.axis, event.axis_value);
-    }
+    apply_raw_event(_sources[event.source].physical, event);
 }
-
 void InputSystem::append_event(const RawInputEvent& event)
 {
     apply_event(event);
     update_mouse_frame_cache(event);
     _events.push_back(event);
 }
-
-bool InputSystem::should_accept_controller_event(const SDL_Event& event)
+void InputSystem::handle_gamepad_removed(const SDL_Event& event)
 {
-    const SDL_JoystickID controller_id =
-        event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION
-            ? event.gaxis.which
-            : event.gbutton.which;
-    const bool activation_event = is_controller_activation_event(event);
-
-    if (_active_controller_id && *_active_controller_id == controller_id)
-    {
-        return _device_tracker.current_device() == InputDevice::Gamepad
-            || activation_event;
-    }
-
-    if (!activation_event)
-    {
-        return false;
-    }
-
-    if (_active_controller_id)
-    {
-        release_gamepad_state();
-        _gamepad_translator.reset();
-    }
-
-    _active_controller_id = controller_id;
-    return true;
+    auto id = InputSourceId::gamepad(event.gdevice.which);
+    _sources.erase(id);
+    _removed.push_back(id);
+    std::erase_if(_events, [&](const auto &e) { return e.source == id; });
 }
-
-bool InputSystem::is_controller_activation_event(const SDL_Event& event) const
+InputSnapshot InputSystem::snapshot() const
 {
-    if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN)
+    InputSnapshot result;
+    result.events = _events;
+    result.connected = _connected;
+    result.removed = _removed;
+    result.focus_lost = _focus_lost;
+    result.capture = _development_input_capture;
+    for (const auto &[id, source] : _sources)
     {
-        return true;
-    }
-
-    if (event.type != SDL_EVENT_GAMEPAD_AXIS_MOTION)
-    {
-        return false;
-    }
-
-    const float normalized_value =
-        std::fabs(static_cast<float>(event.gaxis.value) / 32767.0f);
-    return normalized_value > k_controller_activation_dead_zone;
-}
-
-void InputSystem::handle_controller_removed(const SDL_Event& event)
-{
-    if (!_active_controller_id || *_active_controller_id != event.gdevice.which)
-    {
-        return;
-    }
-
-    release_gamepad_state();
-    _gamepad_translator.reset();
-    _active_controller_id.reset();
-    _device_tracker.deactivate(InputDevice::Gamepad);
-}
-
-void InputSystem::release_gamepad_state()
-{
-    for (int value = static_cast<int>(RawInputControl::GamepadSouth);
-        value <= static_cast<int>(RawInputControl::GamepadTouchpad);
-        ++value)
-    {
-        const RawInputControl control = static_cast<RawInputControl>(value);
-        if (!_state.is_pressed(control))
+        RawInputFrame frame;
+        frame.state = source.physical;
+        frame.active_device = source.device;
+        if (!id.is_gamepad())
         {
-            continue;
+            frame.mouse_x = _mouse_x;
+            frame.mouse_y = _mouse_y;
+            frame.mouse_delta_x = _mouse_delta_x;
+            frame.mouse_delta_y = _mouse_delta_y;
         }
-
-        RawInputEvent release_event;
-        release_event.control = control;
-        release_event.type = RawInputEventType::ControlReleased;
-        release_event.device = InputDevice::Gamepad;
-        append_event(release_event);
+        result.sources.push_back({id, source.initial, frame});
     }
-
-    for (int value = static_cast<int>(RawInputAxis::GamepadLeftX);
-        value < static_cast<int>(RawInputAxis::Count);
-        ++value)
-    {
-        const RawInputAxis axis = static_cast<RawInputAxis>(value);
-        if (_state.axis_value(axis) == 0.0f)
-        {
-            continue;
-        }
-
-        RawInputEvent axis_event;
-        axis_event.axis = axis;
-        axis_event.type = RawInputEventType::AxisChanged;
-        axis_event.device = InputDevice::Gamepad;
-        axis_event.axis_value = 0.0f;
-        append_event(axis_event);
-    }
+    return result;
 }
 
 void InputSystem::reset_input_lifecycle()
 {
-    _state.clear();
     _events.clear();
     _device_tracker.reset();
-    _gamepad_translator.reset();
-    _active_controller_id.reset();
+    _sources.clear();
+    _sources.emplace(InputSourceId::keyboard_mouse(), SourceState{});
+    _connected.clear();
+    _removed.clear();
+    _focus_lost = false;
     _mouse_x = 0;
     _mouse_y = 0;
     _mouse_delta_x = 0;

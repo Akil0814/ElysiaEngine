@@ -1436,4 +1436,9 @@ bool UiWindow::uses_pointer_focus_policy(elysia::input::InputDevice device) noex
 
 }
 
-
+elysia::input::InputCapture elysia::ui::UiWindow::input_capture() const noexcept
+{
+    if (active_modal_overlay() || active_transient_popup())
+        return elysia::input::AllInputCapture;
+    return UiChildHost::input_capture();
+}

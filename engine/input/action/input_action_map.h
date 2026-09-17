@@ -2,6 +2,7 @@
 
 #include "action_input_frame.h"
 #include "../raw_input_frame.h"
+#include "../input_snapshot.h"
 
 #include <span>
 #include <vector>
@@ -12,27 +13,27 @@ struct ActionInputResult
 {
     ActionInputFrame frame;
     std::vector<ActionInputEvent> events;
+    std::unordered_map<InputActionId, InputActionValue, InputActionIdHash> deltas;
 };
 
 class InputActionMap
 {
-public:
-    [[nodiscard]] bool register_action(
-        InputActionDescriptor descriptor,
-        std::vector<InputBinding> default_bindings = {});
+  public:
+    [[nodiscard]] bool register_action(InputActionDescriptor descriptor,
+                                       std::vector<InputBinding> default_bindings = {});
     [[nodiscard]] bool add_binding(InputBinding binding);
-    [[nodiscard]] bool replace_bindings(
-        const InputActionId& action,
-        std::vector<InputBinding> bindings);
-    [[nodiscard]] bool clear_bindings(const InputActionId& action);
+    [[nodiscard]] bool replace_bindings(const InputActionId &action, std::vector<InputBinding> bindings);
+    [[nodiscard]] bool clear_bindings(const InputActionId &action);
     void reset_defaults();
     void reset_state();
 
-    [[nodiscard]] bool contains(const InputActionId& action) const;
-    [[nodiscard]] std::span<const InputBinding> bindings(const InputActionId& action) const;
-    [[nodiscard]] ActionInputResult resolve(const RawInputFrame& raw_input);
+    [[nodiscard]] bool valid() const;
+    [[nodiscard]] bool contains(const InputActionId &action) const;
+    [[nodiscard]] std::span<const InputBinding> bindings(const InputActionId &action) const;
+    [[nodiscard]] ActionInputResult resolve(const InputSnapshot &input);
 
-private:
+  private:
+    ActionInputResult evaluate_state(const RawInputFrame &raw_input);
     struct Registration
     {
         InputActionDescriptor descriptor;
@@ -41,15 +42,13 @@ private:
         InputActionValue previous_value;
     };
 
-    [[nodiscard]] Registration* find(const InputActionId& action);
-    [[nodiscard]] const Registration* find(const InputActionId& action) const;
-    [[nodiscard]] static bool binding_valid_for(
-        const InputBinding& binding,
-        const InputActionDescriptor& descriptor);
-    [[nodiscard]] static InputActionValue resolve_value(
-        const Registration& registration,
-        const RawInputState& raw_state);
+    [[nodiscard]] Registration *find(const InputActionId &action);
+    [[nodiscard]] const Registration *find(const InputActionId &action) const;
+    [[nodiscard]] static bool binding_valid_for(const InputBinding &binding,
+                                                const InputActionDescriptor &descriptor);
+    [[nodiscard]] static InputActionValue resolve_value(const Registration &registration,
+                                                        const RawInputState &raw_state);
 
     std::vector<Registration> _registrations;
 };
-}
+} // namespace elysia::input

@@ -177,7 +177,8 @@ void require_single_pointer_event(
     int expected_y,
     const char* message)
 {
-    const auto& events = input_system.events();
+    const auto snapshot = input_system.snapshot();
+    const auto& events = snapshot.events;
     require(events.size() == 1, message);
     require(events.front().type == type, message);
     require(
@@ -234,7 +235,8 @@ void require_scaled_coordinates_and_deltas(InputSystemFixture& fixture)
     const SDL_Event second_motion =
         fixture.filtered_mouse_motion(480,270);
     input_system.process_event(second_motion);
-    const auto& events = input_system.events();
+    const auto snapshot = input_system.snapshot();
+    const auto& events = snapshot.events;
     require(
         events.size() == 1
             && events.front().mouse_x == 640
@@ -244,7 +246,7 @@ void require_scaled_coordinates_and_deltas(InputSystemFixture& fixture)
         events.back().mouse_delta_x == 320
             && events.back().mouse_delta_y == 180,
         "mouse deltas must be calculated in logical coordinates");
-    const auto frame = input_system.frame();
+    const auto frame = input_system.snapshot().find(elysia::input::InputSourceId::keyboard_mouse())->frame;
     require(
         frame.mouse_delta_x == 320
             && frame.mouse_delta_y == 180,
@@ -297,7 +299,7 @@ void require_letterbox_coordinates(InputSystemFixture& fixture)
 void require_wheel_coordinates(InputSystemFixture& fixture)
 {
     InputSystem& input_system = fixture.input_system();
-    const auto previous_frame = input_system.frame();
+    const auto previous_frame = input_system.snapshot().find(elysia::input::InputSourceId::keyboard_mouse())->frame;
 
     SDL_Event event{};
     event.type = SDL_EVENT_MOUSE_WHEEL;
@@ -312,8 +314,8 @@ void require_wheel_coordinates(InputSystemFixture& fixture)
         previous_frame.mouse_y,
         "mouse wheel events must use the cached logical pointer position");
     require(
-        input_system.frame().mouse_delta_x == 0
-            && input_system.frame().mouse_delta_y == 0,
+        input_system.snapshot().find(elysia::input::InputSourceId::keyboard_mouse())->frame.mouse_delta_x == 0
+            && input_system.snapshot().find(elysia::input::InputSourceId::keyboard_mouse())->frame.mouse_delta_y == 0,
         "mouse wheel events must not create mouse movement deltas");
 }
 
@@ -330,7 +332,8 @@ void require_size_change_refresh(InputSystemFixture& fixture)
     input_system.begin_frame();
     input_system.process_event(event);
 
-    const auto& events = input_system.events();
+    const auto snapshot = input_system.snapshot();
+    const auto& events = snapshot.events;
     require(
         events.size() == 1
             && events.front().type == RawInputEventType::MouseMoved,
@@ -340,7 +343,7 @@ void require_size_change_refresh(InputSystemFixture& fixture)
             && events.front().mouse_delta_y == 0,
         "viewport remapping must not create physical mouse deltas");
 
-    const auto frame = input_system.frame();
+    const auto frame = input_system.snapshot().find(elysia::input::InputSourceId::keyboard_mouse())->frame;
     require(
         frame.mouse_x == events.front().mouse_x
             && frame.mouse_y == events.front().mouse_y,

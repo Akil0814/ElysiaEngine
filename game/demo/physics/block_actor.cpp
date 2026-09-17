@@ -1,3 +1,4 @@
+#include "../../input/command_view.h"
 #include "block_actor.h"
 
 #include "../../../engine/core/render/colors.h"
@@ -249,16 +250,16 @@ PlatformPlayerCharacter::PlatformPlayerCharacter(
     set_attack_definition(PlayerAttack);
 }
 
-void PlatformPlayerCharacter::on_gameplay_input_frame(
-    const elysia::gameplay::GameplayInputFrame& input)
+void PlatformPlayerCharacter::on_control_command(const elysia::gameplay::ControlCommand &input,
+                                                double fixed_delta)
 {
-    _move_axis = std::clamp(input.move().x, -1.0f, 1.0f);
-    if (input.jump_pressed())
+    _move_axis = std::clamp(example::input::CommandView(input).move().x, -1.0f, 1.0f);
+    if (example::input::CommandView(input).jump_pressed())
     {
         _jump_requested = true;
-        _drop_requested = input.move().y > 0.5f;
+        _drop_requested = example::input::CommandView(input).move().y > 0.5f;
     }
-    if (input.primary_pressed())
+    if (example::input::CommandView(input).primary_pressed())
         _primary_requested = true;
 }
 
@@ -295,13 +296,13 @@ TopDownPlayerCharacter::TopDownPlayerCharacter(
     set_attack_definition(PlayerAttack);
 }
 
-void TopDownPlayerCharacter::on_gameplay_input_frame(
-    const elysia::gameplay::GameplayInputFrame& input)
+void TopDownPlayerCharacter::on_control_command(const elysia::gameplay::ControlCommand &input,
+                                               double fixed_delta)
 {
-    _move = input.move();
+    _move = example::input::CommandView(input).move();
     if (_move.length_squared() > 1.0f)
         _move.normalize_in_place();
-    if (input.primary_pressed())
+    if (example::input::CommandView(input).primary_pressed())
         _primary_requested = true;
 }
 
@@ -416,4 +417,19 @@ void TopDownChaseEnemy::fixed_update(double delta)
         set_velocity({});
     }
 }
+}
+
+void example::demo::physics::PlatformPlayerCharacter::on_control_cancelled(
+    elysia::gameplay::InputCancelReason)
+{
+    _move_axis = 0;
+    _jump_requested = false;
+    _drop_requested = false;
+    _primary_requested = false;
+}
+void example::demo::physics::TopDownPlayerCharacter::on_control_cancelled(
+    elysia::gameplay::InputCancelReason)
+{
+    _move = {};
+    _primary_requested = false;
 }

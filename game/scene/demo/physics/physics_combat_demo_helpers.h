@@ -2,7 +2,7 @@
 
 #include "../../../demo/physics/block_actor.h"
 #include "../../../demo/physics/demo_obstacle.h"
-#include "../../../../engine/gameplay/input/contracts/gameplay_input_frame_receiver.h"
+#include "../../../../engine/gameplay/control/control_command.h"
 
 namespace example::scene::detail
 {
@@ -13,19 +13,17 @@ namespace example::scene::detail
     const elysia::core::Rect& rect,
     elysia::core::Color color) noexcept;
 
-class QueryProbe final
-    : public elysia::core::GameObject
-    , public elysia::gameplay::GameplayInputFrameReceiver
+class QueryProbe final : public elysia::core::GameObject
 {
 public:
     QueryProbe(
         elysia::physics::PhysicsWorld& world,
         example::demo::physics::BlockCombatActor& player) noexcept;
 
-    void on_gameplay_input_frame(
-        const elysia::gameplay::GameplayInputFrame& input) override;
+    void execute();
+    void target_removed(const elysia::core::SceneObject& object) { if (_player == &object) _player = nullptr; }
 
-private:
+  private:
     elysia::physics::PhysicsWorld* _world = nullptr;
     example::demo::physics::BlockCombatActor* _player = nullptr;
 };

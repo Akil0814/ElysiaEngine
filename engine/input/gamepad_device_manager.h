@@ -6,17 +6,17 @@
 
 namespace elysia::input
 {
-class ControllerManager
+class GamepadDeviceManager
 {
 public:
-    ControllerManager() = default;
-    ~ControllerManager();
+    GamepadDeviceManager() = default;
+    ~GamepadDeviceManager();
 
-    ControllerManager(const ControllerManager&) = delete;
-    ControllerManager& operator=(const ControllerManager&) = delete;
+    GamepadDeviceManager(const GamepadDeviceManager&) = delete;
+    GamepadDeviceManager& operator=(const GamepadDeviceManager&) = delete;
 
-    ControllerManager(ControllerManager&&) = delete;
-    ControllerManager& operator=(ControllerManager&&) = delete;
+    GamepadDeviceManager(GamepadDeviceManager&&) = delete;
+    GamepadDeviceManager& operator=(GamepadDeviceManager&&) = delete;
 
     void initialize();
     void shutdown();

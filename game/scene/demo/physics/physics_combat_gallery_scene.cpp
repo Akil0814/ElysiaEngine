@@ -41,12 +41,17 @@ void PhysicsCombatGalleryScene::reset()
     if(_window)_window->destroy();
     _window=nullptr;_return_route={};_category=0;_pressure_tier=0;
 }
-void PhysicsCombatGalleryScene::on_input(const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void PhysicsCombatGalleryScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                             const std::vector<elysia::input::RawInputEvent> &events)
 {
     for(const auto& event:events)
-        if(event.type==elysia::input::RawInputEventType::ControlPressed&&event.control==elysia::input::RawInputControl::KeyEscape){return_to_caller();return;}
-    elysia::scene::Scene::on_input(input,events);
+        if (event.type == elysia::input::RawInputEventType::ControlPressed &&
+            event.control == elysia::input::RawInputControl::KeyEscape)
+        {
+            consume_input(event);
+            return_to_caller();
+            return;
+        }
 }
 void PhysicsCombatGalleryScene::build_ui()
 {
