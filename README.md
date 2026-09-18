@@ -4,6 +4,18 @@ Elysia Engine 是一个使用 C++23 与 SDL3 构建的二维游戏引擎。仓�
 
 当前项目仍处于开发阶段，适合用于研究和构建二维游戏运行时；它不是已经稳定发布的通用游戏引擎 SDK。现有实现包括应用生命周期、场景路由、输入映射、资源与配置加载、音频、相机、UI、存档、动画与特效等能力。物理模块已经提供基础契约和策略接口，但完整的场景级模拟闭环仍在设计与实现中。
 
+引擎早期开发提交位于仓库: [Moonline](https://github.com/Akil0814/Moonline)
+
+## 基于引擎的项目
+
+### [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero)
+
+基于该引擎的2D俯视角多人射击游戏 ---开发中
+
+### [Moonline](https://github.com/Akil0814/Moonline)
+
+基于MELTY BLOOD中出现角色开发的2D横板战斗游戏 ---停滞中
+
 ## 仓库组成
 
 - `engine/`：可复用的引擎实现，构建为 `engine_lib`。

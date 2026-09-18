@@ -6,7 +6,7 @@
 
 #include <string_view>
 
-#define ELYSIA_GAMEPLYA_COLLISION
+#define ELYSIA_GAMEPLYA_COLLISION (::elysia::gameplay::collision::GameplayCollisionService::instance())
 
 namespace elysia::gameplay::collision
 {
