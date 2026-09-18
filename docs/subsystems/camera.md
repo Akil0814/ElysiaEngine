@@ -90,7 +90,7 @@ DeadZone 使用 viewport-local 屏幕像素定义。焦点会先按当前 zoom �
 Scene 不再拥有 Camera 或 CameraController。基础场景行为为：
 
 - `Scene::on_update` 每帧将 `resolve_camera_focus()` 的结果写入 `Main`，然后更新 CameraManager 中的全部相机。新入口默认包装原来的 `resolve_camera_focus_rect()`。
-- `Scene::on_render` 默认使用 `Main` 投影世界渲染命令。
+- 场景内部渲染流程默认使用 `Main` 投影世界渲染命令。`Scene::on_render` 是由 `SceneManager` 调用的私有非虚函数；游戏对象和 UI 通过提交引擎绘制命令参与渲染，游戏场景不重写渲染入口。
 - UI 命令仍直接使用屏幕坐标执行，不经过世界相机。
 - Scene 子类可以通过受保护的 `set_render_camera_slot()` 改用 `Cinematic`、`Auxiliary1` 或 `Auxiliary2` 渲染世界。
 

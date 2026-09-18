@@ -55,7 +55,6 @@ class Scene : public elysia::core::Subject<SceneRequestObserver>,
     virtual void reset() = 0;
 
     virtual void on_update(double delta);
-    virtual void on_render(SDL_Renderer *renderer);
     void on_input(const elysia::input::InputSnapshot &input);
     void set_local_players(elysia::input::LocalPlayerRegistry &players)
     {
@@ -157,6 +156,8 @@ class Scene : public elysia::core::Subject<SceneRequestObserver>,
     friend class SceneFactory;
     friend class SceneManager;
 
+    // Rendering is driven exclusively by SceneManager; objects submit commands.
+    void on_render(SDL_Renderer *renderer);
     void bind_runtime_context(const SceneRuntimeContext &context) noexcept;
     void clear_runtime_context() noexcept;
     void register_scene_object_interfaces(elysia::core::SceneObject *object);

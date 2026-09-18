@@ -7,6 +7,7 @@
 #include "../../../engine/ui/widgets/label/ui_label.h"
 #include <cmath>
 #include <format>
+#include <limits>
 #include <stdexcept>
 
 namespace example::scene
@@ -31,13 +32,36 @@ public:
 };
 constexpr auto slot = CameraSlot::Main;
 const Rect world_bounds{-900, -700, 1800, 1400};
-void outline(SDL_Renderer* renderer, const Rect& rect, Color color)
+}
+
+class MultiTargetCameraScene::CameraOverlay final : public UiElement
 {
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    const SDL_FRect draw{rect.x(), rect.y(), rect.width(), rect.height()};
-    SDL_RenderRect(renderer, &draw);
-}
-}
+public:
+    explicit CameraOverlay(const MultiTargetCameraScene& scene)
+        : UiElement(Rect::zero(), std::numeric_limits<int>::max()), _scene(scene) {}
+
+    void submit_ui_render_commands(std::vector<UiRenderCommand>& commands) const override
+    {
+        const auto outline = [&](const Rect& rect, Color color) {
+            commands.push_back(make_ui_draw_rect_command(rect, color));
+        };
+        const auto& camera = _scene.camera();
+        const auto viewport = camera.viewport_size();
+        outline(Rect::from_center(viewport * 0.5f, viewport * 0.70f), {65, 180, 255});
+        outline(Rect::from_center(viewport * 0.5f, viewport * 0.55f), {100, 210, 130});
+        if (const auto focus = _scene.resolve_camera_focus())
+        {
+            outline(camera.world_to_screen(focus->bounds), {180, 180, 180});
+            auto primary = camera.world_to_screen(focus->primary);
+            primary = Rect::from_center(primary.center(), primary.size() + Vector2{8, 8});
+            outline(primary, {255, 255, 255});
+        }
+        if (_scene._bounds) outline(camera.world_to_screen(world_bounds), {240, 90, 90});
+    }
+
+private:
+    const MultiTargetCameraScene& _scene;
+};
 
 void MultiTargetCameraScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
@@ -54,6 +78,8 @@ void MultiTargetCameraScene::on_enter(const elysia::scene::ScenePayload& payload
             DepthLayer::Item, Rect{100, -20, 40, 40}, Color{255, 165, 65});
     }
     if (!_controls) build_controls();
+    if (!_overlay) _overlay = create_and_add_object<CameraOverlay>(*this);
+    _overlay->set_visible(true);
     _controls->set_visible(true);
     _controls->set_active(true);
     reset_demo();
@@ -104,6 +130,7 @@ void MultiTargetCameraScene::toggle_bounds()
 
 void MultiTargetCameraScene::on_exit()
 {
+    if (_overlay) _overlay->set_visible(false);
     _strategy = nullptr;
     if (_controls) { _controls->set_active(false); _controls->set_visible(false); }
 }
@@ -116,6 +143,8 @@ void MultiTargetCameraScene::reset()
     for (auto*& target : _targets) { if (target) target->destroy(); target = nullptr; }
     if (_controls) _controls->destroy();
     _controls = nullptr;
+    if (_overlay) _overlay->destroy();
+    _overlay = nullptr;
     _status = nullptr;
     _return_route = {};
 }
@@ -198,22 +227,4 @@ void MultiTargetCameraScene::build_controls()
     button("Back", [this] { return_to_caller(); });
 }
 
-void MultiTargetCameraScene::on_render(SDL_Renderer* renderer)
-{
-    Scene::on_render(renderer);
-    Uint8 r, g, b, a;
-    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-    const auto viewport = camera().viewport_size();
-    outline(renderer, Rect::from_center(viewport * 0.5f, viewport * 0.70f), {65, 180, 255});
-    outline(renderer, Rect::from_center(viewport * 0.5f, viewport * 0.55f), {100, 210, 130});
-    if (const auto focus = resolve_camera_focus())
-    {
-        outline(renderer, camera().world_to_screen(focus->bounds), {180, 180, 180});
-        auto primary = camera().world_to_screen(focus->primary);
-        primary = Rect::from_center(primary.center(), primary.size() + Vector2{8, 8});
-        outline(renderer, primary, {255, 255, 255});
-    }
-    if (_bounds) outline(renderer, camera().world_to_screen(world_bounds), {240, 90, 90});
-    SDL_SetRenderDrawColor(renderer, r, g, b, a);
-}
 }

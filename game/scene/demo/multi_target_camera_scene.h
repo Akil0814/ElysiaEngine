@@ -13,7 +13,6 @@ public:
     void on_exit() override;
     void reset() override;
     void on_update(double delta) override;
-    void on_render(SDL_Renderer* renderer) override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
 
@@ -25,6 +24,8 @@ public:
     void on_game_fixed_update(std::uint64_t tick, double delta) override;
 
   private:
+    class CameraOverlay;
+    CameraOverlay* _overlay = nullptr;
     elysia::gameplay::ControllerHandle _controller;
     void reset_demo();
     void install_strategy();
