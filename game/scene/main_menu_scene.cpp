@@ -40,11 +40,6 @@ void MainMenuScene::on_update(double delta)
     elysia::scene::Scene::on_update(delta);
 }
 
-void MainMenuScene::on_render(SDL_Renderer* renderer)
-{
-    elysia::scene::Scene::on_render(renderer);
-}
-
 void MainMenuScene::on_shortcuts(const elysia::input::RawInputFrame &input,
                                  const std::vector<elysia::input::RawInputEvent> &events)
 {

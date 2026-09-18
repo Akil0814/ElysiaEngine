@@ -38,7 +38,6 @@ public:
         if (mode.starts_with("exit_") || (mode == "timing" && frames.size() >= 190))
             request_quit();
     }
-    void on_render(SDL_Renderer*) override {}
 };
 class ThrowingOverlay final : public elysia::tools::IDevelopmentOverlay
 {

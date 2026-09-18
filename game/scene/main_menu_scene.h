@@ -27,7 +27,6 @@ public:
     ~MainMenuScene() override = default;
 
     void on_update(double delta) override;
-    void on_render(SDL_Renderer* renderer) override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
 
