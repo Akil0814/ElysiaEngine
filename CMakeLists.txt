@@ -7,6 +7,7 @@ add_subdirectory(thirdparty/enet EXCLUDE_FROM_ALL  )
 
 # ENet 1.3.18 links these libraries for MinGW itself. Add the equivalent
 # transitive dependencies for the bundled MSVC build.
+
 if(MSVC)
     target_link_libraries(enet PUBLIC ws2_32 winmm)
 endif()
