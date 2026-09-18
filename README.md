@@ -1,6 +1,7 @@
-# Elysia Engine
-
-![Elysia](assets/engine/textures/elysia.png)
+<div align="center">
+  <img src="assets/engine/textures/elysia.png" alt="Elysia Engine" width="300">
+  <h1>Elysia Engine</h1>
+</div>
 
 Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引擎与运行时框架。它提供应用生命周期、场景路由、资源与配置加载、输入、音频、相机、UI、存档、动画与特效等通用能力。
 
