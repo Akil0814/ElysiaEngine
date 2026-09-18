@@ -9,7 +9,7 @@ inline void configure_scene_player(elysia::gameplay::GameplayScene &scene,
                                    elysia::gameplay::ControllerHandle &handle,
                                    elysia::core::GameObject &target,
                                    elysia::input::LocalPlayerId player = elysia::input::PrimaryLocalPlayer,
-                                   elysia::input::InputActionMap map = make_default_gameplay_input_map())
+                                   elysia::input::InputActionMap map = make_gameplay_input_map())
 {
     using namespace elysia::gameplay;
     auto *service = ControllerService::instance();
@@ -34,7 +34,7 @@ inline elysia::gameplay::ControllerHandle session_player(elysia::input::LocalPla
     if (!service->get(handle))
     {
         auto result = service->create<LocalPlayerController>({ControllerScope::Session, {}}, player,
-                                                             make_default_gameplay_input_map());
+                                                             make_gameplay_input_map());
         if (!result)
             throw std::logic_error("Session player creation failed.");
         handle = *result;

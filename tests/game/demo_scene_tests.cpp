@@ -553,6 +553,19 @@ void test_escape_returns_the_full_caller_route()
         local_input.process_event(event);
     };
     local_input.begin_frame();
+    dispatch();
+    const auto keyboard_first = blocks[0]->position().x, keyboard_second = blocks[1]->position().x;
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_D);
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_LEFT);
+    dispatch();
+    require(blocks[0]->position().x > keyboard_first && blocks[1]->position().x < keyboard_second,
+            "Multiplayer defaults to independent WASD and arrow partitions without a gamepad");
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_UP, SDLK_D);
+    key_event(SDL_EVENT_KEY_UP, SDLK_LEFT);
+    dispatch();
+    local_input.begin_frame();
     pad_button(SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_START);
     dispatch();
     auto owner = scene_manager.local_players().owner(elysia::input::InputSourceId::gamepad(77));

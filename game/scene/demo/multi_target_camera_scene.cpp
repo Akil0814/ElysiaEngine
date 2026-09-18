@@ -60,7 +60,7 @@ void MultiTargetCameraScene::on_enter(const elysia::scene::ScenePayload& payload
     static_cast<CameraActor*>(_targets[0])->other=static_cast<CameraActor*>(_targets[1]);
     static_cast<CameraActor*>(_targets[1])->other=static_cast<CameraActor*>(_targets[0]);
     using namespace elysia::input;
-    auto map = example::input::make_default_gameplay_input_map();
+    auto map = example::input::make_gameplay_input_map();
     if (!map.contains(separation_action))
         (void)map.register_action(
             {separation_action, InputActionValueType::Axis1D},

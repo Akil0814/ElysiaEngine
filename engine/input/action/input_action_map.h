@@ -5,6 +5,7 @@
 #include "../input_snapshot.h"
 
 #include <span>
+#include <set>
 #include <vector>
 
 namespace elysia::input
@@ -28,6 +29,19 @@ class InputActionMap
     void reset_state();
 
     [[nodiscard]] bool valid() const;
+    [[nodiscard]] std::set<RawInputControl> keyboard_controls() const
+    {
+        std::set<RawInputControl> keys;
+        auto add=[&](RawInputControl key) { if(is_keyboard_control(key)) keys.insert(key); };
+        for (const auto &registration:_registrations)
+            for (const auto &binding:registration.current_bindings)
+            {
+                if (auto *button=std::get_if<ButtonInputBinding>(&binding.source)) add(button->control);
+                if (auto *buttons=std::get_if<Button2DInputBinding>(&binding.source))
+                    for(auto key:{buttons->left,buttons->right,buttons->up,buttons->down}) add(key);
+            }
+        return keys;
+    }
     [[nodiscard]] bool contains(const InputActionId &action) const;
     [[nodiscard]] std::span<const InputBinding> bindings(const InputActionId &action) const;
     [[nodiscard]] ActionInputResult resolve(const InputSnapshot &input);

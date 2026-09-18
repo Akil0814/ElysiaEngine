@@ -10,6 +10,15 @@ class Scene;
 }
 namespace elysia::input
 {
+enum class UiInteractionMode
+{
+    Pointer,
+    Navigation
+};
+struct UiDeviceAccess
+{
+    InputSourceId gamepad;
+};
 class SceneInputRouter
 {
   public:
@@ -24,15 +33,28 @@ class SceneInputRouter
     {
         return _consumed;
     }
-    void set_ui_owner(LocalPlayerId);
-    LocalPlayerId ui_owner() const
+    void set_ui_gamepad(InputSourceId);
+    InputSourceId ui_gamepad() const
     {
-        return _ui_owner;
+        return _ui_access->gamepad;
+    }
+    void set_ui_access(UiDeviceAccess &access)
+    {
+        _ui_access = &access;
+    }
+    void set_ui_interaction_mode(UiInteractionMode);
+    UiInteractionMode ui_interaction_mode() const
+    {
+        return _mode;
     }
     void set_all_gameplay_input_blocked(bool);
-    void set_menu_claim(bool enabled)
+    void set_auto_claim_ui_gamepad(bool enabled)
     {
-        _claim_first_gamepad = enabled;
+        _auto_claim_ui_gamepad = enabled;
+    }
+    void set_shortcut_devices(InputCapture devices)
+    {
+        _shortcut_devices = devices;
     }
     void set_cancel_handler(std::function<void(LocalPlayerId, InputCancelReason)> handler)
     {
@@ -46,12 +68,19 @@ class SceneInputRouter
             _cancel(player, reason);
     }
     InputCapture ui_capture() const;
+    bool ui_source(InputSourceId source) const;
+    bool ui_enabled(InputSourceId source) const;
+    void cancel_source(InputSourceId, InputCancelReason = InputCancelReason::Suppressed);
+    void reset_ui_interaction();
     void dispatch_ui_frame(const elysia::ui::UiInputFrame &input);
     elysia::scene::Scene &_scene;
-    bool _claim_first_gamepad = true;
+    bool _auto_claim_ui_gamepad = true;
+    UiDeviceAccess _standalone_ui_access;
+    UiDeviceAccess *_ui_access = &_standalone_ui_access;
+    UiInteractionMode _mode = UiInteractionMode::Navigation;
+    InputCapture _shortcut_devices = InputCapture::Keyboard | InputCapture::Gamepad;
     std::function<void(LocalPlayerId, InputCancelReason)> _cancel;
     elysia::input::InputDevice _ui_active_device = elysia::input::InputDevice::Keyboard;
-    elysia::input::LocalPlayerId _ui_owner = elysia::input::PrimaryLocalPlayer;
     elysia::ui::UiInputState _last_ui_state;
     bool _await_initial_input = true;
     std::vector<elysia::input::InputSourceId> _previous_ui_sources;

@@ -89,6 +89,7 @@ private:
     SceneKey _current_scene_key = SceneKeys::Invalid;
 
     elysia::input::LocalPlayerRegistry _local_players;
+    elysia::input::UiDeviceAccess _ui_device_access;
     SceneFactory _scene_factory;
     std::unordered_map<SceneKey, SceneProvider> _scene_providers;
     const SceneRuntimeContext* _runtime_context = nullptr;

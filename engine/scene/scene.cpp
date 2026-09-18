@@ -67,7 +67,6 @@ bool Scene::contains_object_address(const elysia::core::SceneObject* object) con
     return false;
 }
 void Scene::on_input(const InputSnapshot& input) { _input_router.route(input); }
-void Scene::set_ui_owner(LocalPlayerId owner) { _input_router.set_ui_owner(owner); }
 void Scene::set_all_gameplay_input_blocked(bool blocked) { _input_router.set_all_gameplay_input_blocked(blocked); }
 void Scene::reset_input_routing() { _input_router.reset(); }
 void Scene::consume_input(const RawInputEvent& event) { _input_router.consume_input(event); }

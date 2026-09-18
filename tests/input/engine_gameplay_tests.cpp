@@ -15,7 +15,7 @@ int main()
     using namespace elysia::gameplay;
     using namespace elysia::input;
 
-    InputActionMap map = example::input::make_default_gameplay_input_map();
+    InputActionMap map = example::input::make_gameplay_input_map();
     const InputActionId custom{"example.transform"};
     require(map.register_action({ custom, InputActionValueType::Button },
         { { custom, ButtonInputBinding{ RawInputControl::KeyT } } }),

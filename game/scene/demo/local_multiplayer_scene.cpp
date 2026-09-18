@@ -46,12 +46,28 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         throw std::logic_error("LocalMultiplayerScene requires a valid DemoScenePayload return route.");
     _return_route = route->return_route;
     _assign_to = {};
-    for (auto player : local_players().players())
-        if (player != PrimaryLocalPlayer)
-        {
-            _second_player = player;
-            break;
-        }
+    if (!local_players().contains(_second_player))
+    {
+        _second_player = {};
+        for (auto player : local_players().players())
+            if (player != PrimaryLocalPlayer)
+            {
+                _second_player = player;
+                break;
+            }
+        if (!_second_player.value)
+            _second_player = local_players().create_player();
+    }
+    _first_controller = example::input::session_player(PrimaryLocalPlayer);
+    _second_controller = example::input::session_player(_second_player);
+    if (!_saved_devices)
+    {
+        _saved_devices = local_players().configuration();
+        _wasd = *local_players().create_partition(
+            "WASD", example::input::keyboard_keys(example::input::KeyboardScheme::Wasd));
+        _arrows = *local_players().create_partition(
+            "Arrows", example::input::keyboard_keys(example::input::KeyboardScheme::Arrows));
+    }
     if (!_first)
     {
         _first = create_and_add_object<PlayerBlock>(Rect{-150, 0, 48, 48}, elysia::core::colors::blue_500);
@@ -60,7 +76,7 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         _window->set_style_overrides({.draw_background = false, .draw_border = false});
         auto instructions = std::make_unique<UiLabel>(
             Rect{0, 0, 1248, 28}, 0,
-            ui_raw_text("WASD: player 1 | Unassigned pad Start: join player 2 | Left stick / D-pad: move"));
+            ui_raw_text("WASD: P1 | Arrows: P2 | Unassigned pad Start: add to P2 | Mouse: independent"));
         _window->add_child(std::move(instructions), {._margin = {16, 12, 0, 0}});
         auto status = std::make_unique<UiLabel>(Rect{0, 0, 1248, 28});
         _status = status.get();
@@ -69,11 +85,11 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         open->set_text_content(ui_raw_text("Players / menu"));
         open->set_on_click([this] { open_menu(); });
         _window->add_child(std::move(open), {._margin = {16, 80, 0, 0}});
-        auto menu = std::make_unique<UiListContainer>(Rect{0, 0, 520, 450});
+        auto menu = std::make_unique<UiListContainer>(Rect{0, 0, 600, 600});
         _menu = menu.get();
-        _menu->set_item_spacing(8);
+        _menu->set_item_spacing(6);
         auto add = [&](const char *title, auto callback) {
-            auto b = std::make_unique<UiButton>(Rect{0, 0, 500, 42});
+            auto b = std::make_unique<UiButton>(Rect{0, 0, 580, 38});
             b->set_text_content(ui_raw_text(title));
             b->set_on_click(callback);
             _menu->add_back(std::move(b));
@@ -93,15 +109,21 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
                 for (auto source : local_players().sources(player))
                     if (source.is_gamepad())
                         local_players().unbind_source(source);
-            set_ui_owner(PrimaryLocalPlayer);
+            set_ui_gamepad({});
             close_menu();
         });
-        add("UI owner: player 1", [this] { set_ui_owner(PrimaryLocalPlayer); });
-        add("UI owner: player 2", [this] {
-            if (_second_player.value)
-                set_ui_owner(_second_player);
+        add("Keyboard: WASD P1 / Arrows P2", [this] { configure_keyboard(false); });
+        add("Keyboard: Arrows P1 / WASD P2", [this] { configure_keyboard(true); });
+        add("Mouse: player 1",
+            [this] { local_players().transfer_source(PrimaryLocalPlayer, InputSourceId::mouse()); });
+        add("Mouse: player 2",
+            [this] { local_players().transfer_source(_second_player, InputSourceId::mouse()); });
+        add("UI pad: player 1's gamepad", [this] {
+            set_ui_gamepad(local_players().configuration().bindings.at(PrimaryLocalPlayer).gamepad);
         });
-        auto text = std::make_unique<UiTextInput>(Rect{0, 0, 500, 42});
+        add("UI pad: player 2's gamepad",
+            [this] { set_ui_gamepad(local_players().configuration().bindings.at(_second_player).gamepad); });
+        auto text = std::make_unique<UiTextInput>(Rect{0, 0, 580, 38});
         text->set_placeholder_content(ui_raw_text("Type here: typing must not move players"));
         _menu->add_back(std::move(text));
         add("Resume", [this] { close_menu(); });
@@ -109,16 +131,65 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         _window->add_child(std::move(menu), {._anchor = elysia::ui::UiLayoutAnchor::Center});
         (void)_window->register_overlay(*_menu, {.open = false, .modal = true});
     }
-    (void)elysia::gameplay::ControllerService::instance()->bind_target(example::input::session_player(PrimaryLocalPlayer), control_context(), *_first);
-    if (_second_player.value && local_players().contains(_second_player))
-        (void)elysia::gameplay::ControllerService::instance()->bind_target(example::input::session_player(_second_player), control_context(), *_second);
+    configure_keyboard(_swapped);
     _window->set_visible(true);
     _window->set_active(true);
     elysia::camera::CameraManager::instance()->set_center(elysia::camera::CameraSlot::Main, {0, 0});
 }
+void LocalMultiplayerScene::bind_players()
+{
+    auto *service = elysia::gameplay::ControllerService::instance();
+    for (auto player : {PrimaryLocalPlayer, _second_player})
+        if (!service->bind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller),
+                                  control_context(), player == PrimaryLocalPlayer ? *_first : *_second))
+            throw std::logic_error("Multiplayer controller binding failed");
+}
+void LocalMultiplayerScene::configure_keyboard(bool swapped)
+{
+    auto *service = elysia::gameplay::ControllerService::instance();
+    for (auto player : {PrimaryLocalPlayer, _second_player})
+        service->unbind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller));
+    auto next = local_players().configuration();
+    for (auto &[player, binding] : next.bindings)
+        binding.keyboard = {};
+    next.bindings[PrimaryLocalPlayer].keyboard = swapped ? _arrows : _wasd;
+    next.bindings[_second_player].keyboard = swapped ? _wasd : _arrows;
+    if (!local_players().apply_configuration(std::move(next)))
+        throw std::logic_error("Invalid multiplayer partitions");
+    _swapped = swapped;
+    for (auto player : {PrimaryLocalPlayer, _second_player})
+    {
+        bool wasd = (player == PrimaryLocalPlayer) != swapped;
+        if (!service->replace_input_map(
+                (player == PrimaryLocalPlayer ? _first_controller : _second_controller),
+                example::input::make_gameplay_input_map(
+                    {wasd ? example::input::KeyboardScheme::Wasd : example::input::KeyboardScheme::Arrows,
+                     true, true})))
+            throw std::logic_error("Invalid multiplayer mapping");
+    }
+    bind_players();
+}
+void LocalMultiplayerScene::restore_devices()
+{
+    if (!_saved_devices)
+        return;
+    auto *service = elysia::gameplay::ControllerService::instance();
+    for (auto player : {PrimaryLocalPlayer, _second_player})
+        service->unbind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller));
+    auto saved = *_saved_devices;
+    std::erase_if(saved.bindings, [&](const auto &entry) { return !local_players().contains(entry.first); });
+    for (auto player : local_players().players())
+        saved.bindings[player].gamepad = local_players().configuration().bindings.at(player).gamepad;
+    if (!local_players().apply_configuration(std::move(saved)))
+        throw std::logic_error("Cannot restore input configuration");
+    _saved_devices.reset();
+    _wasd = {};
+    _arrows = {};
+}
 void LocalMultiplayerScene::on_exit()
 {
     close_menu();
+    restore_devices();
     if (_window)
     {
         _window->set_visible(false);
@@ -127,6 +198,7 @@ void LocalMultiplayerScene::on_exit()
 }
 void LocalMultiplayerScene::open_menu()
 {
+    set_ui_interaction_mode(UiInteractionMode::Navigation);
     _window->open_overlay(*_menu);
     set_all_gameplay_input_blocked(true);
 }
@@ -135,6 +207,7 @@ void LocalMultiplayerScene::close_menu()
     if (_window && _menu)
         _window->close_overlay(*_menu);
     set_all_gameplay_input_blocked(false);
+    set_ui_interaction_mode(UiInteractionMode::Pointer);
 }
 bool LocalMultiplayerScene::on_unassigned_input(const RawInputEvent &event)
 {
@@ -149,7 +222,7 @@ bool LocalMultiplayerScene::on_unassigned_input(const RawInputEvent &event)
     const auto player = _assign_to;
     if (!local_players().replace_gamepad(player, event.source))
         return false;
-    (void)elysia::gameplay::ControllerService::instance()->bind_target(example::input::session_player(player), control_context(), player == PrimaryLocalPlayer ? *_first : *_second);
+    bind_players();
     _assign_to = {};
     return true;
 }
@@ -167,21 +240,30 @@ void LocalMultiplayerScene::on_shortcuts(const RawInputFrame &, const std::vecto
 void LocalMultiplayerScene::on_update(double dt)
 {
     if (_menu && !_window->is_overlay_open(*_menu))
+    {
         set_all_gameplay_input_blocked(false);
+        set_ui_interaction_mode(UiInteractionMode::Pointer);
+    }
     GameplayScene::on_update(dt);
     std::ostringstream out;
     for (auto player : {PrimaryLocalPlayer, _second_player})
         if (player.value)
         {
             out << "P" << player.value << (player == PrimaryLocalPlayer ? " -> blue [" : " -> red [");
-            auto sources = local_players().sources(player);
-            if (sources.empty())
-                out << "disconnected";
-            for (auto source : sources)
-                out << (source.is_gamepad() ? "pad " : "keyboard ") << source.value << " ";
+            const auto &binding = local_players().configuration().bindings.at(player);
+            if (binding.keyboard.value)
+                out << local_players().configuration().partitions.at(binding.keyboard).name << " ";
+            if (binding.mouse)
+                out << "mouse ";
+            if (binding.gamepad.value)
+                out << "pad " << binding.gamepad.value << " ";
+            else
+                out << "pad: disconnected ";
             out << "] ";
         }
-    out << "UI: P" << ui_owner().value;
+    out << "UI: keyboard + mouse";
+    if (ui_gamepad().value)
+        out << " + pad " << ui_gamepad().value;
     if (_assign_to.value)
         out << " | Press Start on an unassigned pad for P" << _assign_to.value;
     _status->set_text_content(ui_raw_text(out.str()));

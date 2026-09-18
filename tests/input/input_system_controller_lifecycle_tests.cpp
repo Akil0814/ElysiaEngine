@@ -36,7 +36,15 @@ int main()
     key.key.key = SDLK_A;
     key.key.scancode = SDL_SCANCODE_A;
     input.process_event(key);
+    SDL_Event mouse{};
+    mouse.type=SDL_EVENT_MOUSE_BUTTON_DOWN;
+    mouse.button.button=SDL_BUTTON_LEFT;
+    input.process_event(mouse);
     auto s = input.snapshot();
+    require(s.find(InputSourceId::mouse())->frame.state.is_pressed(RawInputControl::MouseLeft) &&
+            !s.find(InputSourceId::keyboard())->frame.state.is_pressed(RawInputControl::MouseLeft) &&
+            !s.find(InputSourceId::mouse())->frame.state.is_pressed(RawInputControl::KeyA),
+            "Keyboard and mouse must be separate physical snapshots");
     auto *a = s.find(InputSourceId::gamepad(7));
     auto *b = s.find(InputSourceId::gamepad(8));
     require(a && b, "Each controller needs an independent frame");
@@ -49,7 +57,7 @@ int main()
     require(a->frame.state.is_pressed(RawInputControl::GamepadLeftTriggerButton) &&
                 !b->frame.state.is_pressed(RawInputControl::GamepadLeftTriggerButton),
             "Trigger hysteresis must be per device");
-    require(s.find(InputSourceId::keyboard_mouse())->frame.state.is_pressed(RawInputControl::KeyA),
+    require(s.find(InputSourceId::keyboard())->frame.state.is_pressed(RawInputControl::KeyA),
             "Keyboard must coexist with gamepads");
     input.begin_frame();
     SDL_Event removed{};

@@ -65,7 +65,7 @@ private:
         InputDevice device = InputDevice::Unknown;
     };
     std::map<InputSourceId, SourceState> _sources;
-    InputSourceId _translating_source = InputSourceId::keyboard_mouse();
+    InputSourceId _translating_source = InputSourceId::keyboard();
     std::vector<InputSourceId> _connected, _removed;
     bool _focus_lost = false;
     int _mouse_x = 0;

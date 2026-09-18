@@ -8,7 +8,8 @@ GameplayScene::GameplayScene() : GameplayScene(elysia::physics::PhysicsWorldConf
 GameplayScene::GameplayScene(elysia::physics::PhysicsWorldConfig config)
     : Scene(config), _collision_runtime(physics_world())
 {
-    input_router().set_menu_claim(false);
+    input_router().set_auto_claim_ui_gamepad(false);
+    set_ui_interaction_mode(elysia::input::UiInteractionMode::Pointer);
     input_router().set_cancel_handler([this](auto player, auto reason) {
         ControllerManager::instance()->cancel_local(_control_context, player, reason);
     });

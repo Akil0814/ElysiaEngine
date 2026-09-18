@@ -185,6 +185,7 @@ void SceneManager::switch_to_scene(
         throw std::logic_error("SceneManager::switch_to_scene received a null scene from provider.");
 
     next_scene->set_local_players(_local_players);
+    next_scene->set_ui_device_access(_ui_device_access);
     if (_runtime_context)
         next_scene->bind_runtime_context(*_runtime_context);
 
@@ -298,6 +299,7 @@ bool SceneManager::shutdown() noexcept
     cleanup([&] { _scene_factory.destroy_all_scene(); });
     _scene_providers.clear();
     _local_players.reset();
+    _ui_device_access = {};
     _runtime_context = nullptr;
 
     _pending_request = SceneRequest{};

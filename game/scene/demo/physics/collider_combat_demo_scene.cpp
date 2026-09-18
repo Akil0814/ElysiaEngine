@@ -15,7 +15,7 @@ class QueryPlayerController final : public elysia::gameplay::LocalPlayerControll
   public:
     QueryPlayerController(detail::QueryProbe &probe)
         : LocalPlayerController(elysia::input::PrimaryLocalPlayer,
-                                example::input::make_default_gameplay_input_map()),
+                                example::input::make_gameplay_input_map()),
           _probe(&probe)
     {
     }

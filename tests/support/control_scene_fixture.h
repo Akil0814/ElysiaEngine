@@ -24,7 +24,7 @@ inline gameplay::ControllerHandle local_controller(gameplay::GameplayScene &scen
 {
     auto result = gameplay::ControllerService::instance()->create<gameplay::LocalPlayerController>(
         {gameplay::ControllerScope::Scene, scene.control_context().token()}, player,
-        example::input::make_default_gameplay_input_map());
+        example::input::make_gameplay_input_map());
     require(bool(result), "Explicit local controller creation");
     return *result;
 }

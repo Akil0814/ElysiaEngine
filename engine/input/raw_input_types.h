@@ -214,7 +214,7 @@ struct RawInputEvent
     // Trigger axes: [0.0f, 1.0f]
     float axis_value = 0.0f;
     std::string text;
-    InputSourceId source = InputSourceId::keyboard_mouse();
+    InputSourceId source{};
     // Assigned by Scene for exact operation consumption within one snapshot.
     std::uint64_t routing_id = 0;
 };

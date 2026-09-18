@@ -6,7 +6,7 @@
 | --- | --- |
 | InputSystem | 按设备保存物理状态、帧初／帧末状态、有序事件、位移和设备变化；只输出快照 |
 | GamepadDeviceManager | SDL 手柄设备打开、关闭与设备实例管理 |
-| SceneInputRouter | UI 所有者、原始操作消费、捕获、快捷键、玩家分流和释放／回中门控 |
+| SceneInputRouter | 独立 UI 设备访问、原始操作消费、捕获、快捷键、玩家分流和释放／回中门控 |
 | ControllerService | 游戏侧会话、创建、查询、配置、绑定和移除入口 |
 | ControllerManager | 唯一持有控制器、命令缓存、句柄和固定步调度；Service 不维护副本 |
 | SceneControlContext | 具体场景实例与代次，目标归属、活动性和模拟边界；不持有控制器 |
@@ -18,11 +18,15 @@
 
 ## 设备与玩家
 
-逻辑键鼠源为 `InputSourceId::keyboard_mouse()`；各 SDL 手柄实例拥有独立源和转换器，包括扳机阈值状态。最近使用的设备只影响提示，不清除其他源。
+物理源分为 `InputSourceId::keyboard()`、`mouse()` 和 `gamepad(instance)`，类别由 InputSourceKind 表达，不由编号范围推断。只有一个逻辑键盘和一个逻辑鼠标，不区分多个实体键鼠。各手柄转换器和扳机阈值独立；最近使用设备只影响提示。
 
-SceneManager 持有应用级 LocalPlayerRegistry，默认玩家 1 绑定键鼠。一个源只属于一个玩家，每玩家最多一个键鼠源和一个手柄。使用 `create_player`、`bind_source`、`unbind_source`、`replace_gamepad` 显式配置。玩家身份独立于角色、控制器与设备。
+SceneManager 持有应用级 LocalPlayerRegistry。默认 P1 绑定完整键盘分区和鼠标。键盘分区是游戏配置，不是物理设备；每个玩家最多一个分区、一个鼠标源和一台手柄。分区之间不能占用同一个键，鼠标整体独占，玩家身份独立于设备和角色。
 
-同玩家按钮取并集，持续轴按映射叠加限幅；不同玩家隔离。拔出设备只解除该源，重连按新实例处理。纯菜单可以用首个有效手柄操作认领玩家 1 的空手柄槽；GameplayScene 不自动认领。开发面板捕获按设备类别屏蔽，保留物理状态和绑定。
+`create_partition`／`update_partition`／`remove_partition` 管理分区，`bind_keyboard` 绑定分区；`bind_source`／`unbind_source`／`transfer_source` 管理鼠标或手柄，`replace_gamepad` 替换玩家的手柄。`configuration` 提供只读配置，`apply_configuration` 原子提交批量变化，返回 InputBindingError；失败不改变绑定和版本。已绑定分区不能删除，活动控制器的键盘映射不能引用分区外按键。
+
+每玩家 binding_version 在归属或分区内容变化时更新，输入阶段与实际 tick 前均检测。受影响玩家取消旧命令并要求持续控制释放／回中，其他玩家继续操作。鼠标转移丢弃待消费增量，不从当前位置合成位移。移除手柄只解绑该实例，重连不自动恢复。
+
+同玩家按钮取并集、持续轴按映射叠加限幅；分区过滤帧初／帧末状态和有序事件。UI 消费始终按原始物理源和事件标识处理，再分流给玩家。
 
 ## 生命周期
 
@@ -46,8 +50,8 @@ ControllerHandle 含运行期代次和实例号。移除、结束会话后旧句
 ## 一帧与一个 tick
 
 1. Scene::on_input 委托 SceneInputRouter，维护物理源与设备变化。
-2. UI 只接受所有者设备；逐操作前后重新检查捕获。
-3. 未消费的所有者操作进入场景快捷键；处理后 consume_input(event)。
+2. UI 接受键鼠及指定 UI 手柄，与游戏绑定无关；逐操作前后重新检查捕获。
+3. 未消费操作进入设备加入与场景快捷键；快捷操作用 set_shortcut_devices 声明设备类别，处理后 consume_input(event)。
 4. 剩余快照进入对应 LocalPlayerController，动作映射结果进入 Manager 缓存。
 5. PhysicsWorld 每次实际步前：自定义控制器产生意图、Manager 交付、游戏固定更新扩展、物理参与者更新及物理推进。
 
@@ -55,7 +59,9 @@ ControllerHandle 含运行期代次和实例号。移除、结束会话后旧句
 
 ## UI 与取消
 
-公共 UI 默认归玩家 1。文本框焦点捕获键盘，模态窗口和弹出层报告相应捕获。普通焦点不屏蔽整个设备。一次原始操作产生的任何 UI 事件被消费，该操作及对应持续控制都不能穿透到玩法。
+公共 UI 接受键盘、鼠标及最多一台独立指定的手柄。set_ui_gamepad 不修改游戏设备归属；纯菜单可以认领首个有效手柄按下作为 UI 手柄并消费该操作。玩法场景不自动认领。
+
+普通 Scene 默认 Navigation；GameplayScene 默认 Pointer，HUD 的普通焦点不消费键盘／手柄导航。打开交互菜单使用 set_ui_interaction_mode(Navigation)，关闭恢复 Pointer。文本框获得焦点后即使处于 Pointer 模式也捕获整个物理键盘，影响所有键盘分区；鼠标捕获影响鼠标所属玩家，手柄捕获只影响指定 UI 手柄。一次原始操作产生的任何 UI 事件被消费，该操作及对应持续控制都不能穿透到玩法。
 
 捕获默认只取消相关本地控制器。`set_all_gameplay_input_blocked` 屏蔽所有本地玩法输入，但不自动干预 AI／远端等自定义来源。世界 `pause()` 取消并停止所有控制器；UI 继续处理。
 
