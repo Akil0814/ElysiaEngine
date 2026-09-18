@@ -2,7 +2,7 @@
 
 ## 自动化验证
 
-- `controller_runtime_tests`：显式会话、作用域、上下文代次、回调内修改、自定义来源、映射替换及鼠标增量。
+- `controller_runtime_tests`：显式会话、作用域、上下文代次、回调内修改、自定义来源、映射替换及鼠标增量；键盘分区冲突、配置版本、映射权限和鼠标转移。
 - `input_system_controller_lifecycle_tests`：多个手柄按钮、摇杆、扳机独立；键鼠并行；移除与失焦通知。
 - `gameplay_scene_input_tests`：玩家绑定、目标排他性、快速点按、零／多 tick、屏蔽恢复、重绑、销毁、队列溢出与物理步前回调。
 - `development_input_capture_tests`：开发面板捕获、文本框捕获传播、逐玩家隔离、UI 操作权切换、按原始操作消费及失焦恢复。
@@ -18,8 +18,8 @@ ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-
 ## 排查顺序
 
 1. 检查快照中源 ID 与物理状态，确认不同手柄没有混在一起。
-2. 检查 `LocalPlayerRegistry::owner(source)` 和角色绑定，未绑定输入不会控制角色。
-3. 检查 UI 所有者、捕获类别和回中门控，观察输入是否被 UI 消费。
+2. 检查 `configuration()` 的键盘分区、`owner(source)` 的鼠标／手柄归属及角色绑定，未绑定输入不会控制角色。
+3. 检查 UI 手柄、交互模式、捕获类别和回中门控，观察输入是否被 UI 消费。
 4. 检查 ControllerHandle、绑定代次、本地动作映射及命令 events／deltas，区分持续值与一次性动作。
 5. 检查实际执行 tick 和取消原因，不使用渲染帧数推断执行次数。
 
@@ -27,13 +27,13 @@ ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-
 
 ## 双玩家示例与硬件验收
 
-从 Demo Gallery 进入 **Local multiplayer / input routing**。默认键鼠属于玩家 1；未绑定手柄按 Start 加入玩家 2。加入按键会被消费，不会同时打开菜单。方向键／左摇杆控制对应角色，状态栏显示玩家、设备和 UI 所有者；该示例共享一台相机。
+从 Demo Gallery 进入 **Local multiplayer / input routing**。默认 WASD 控制 P1 蓝方块，方向键控制 P2 红方块；不需要手柄加入即可双人操作。鼠标默认属于 P1。未绑定手柄按 Start 加入 P2，方向键仍可用，加入不会打开菜单。
 
-要测试双手柄，打开 **Players / menu**，选择 **Bind next Start controller to player 1**，再在另一只未绑定手柄按 Start。玩家 1 可以同时保留键鼠和手柄。需要交换已绑定手柄时，先选择 **Release controllers for reassignment**，再分别使用玩家 1 分配和玩家 2 重绑操作。拔掉手柄只解除该设备绑定，重新连接不会按设备名称恢复归属。
+打开 **Players / menu** 可交换两套键盘方案，转移鼠标，选择 **Bind next Start controller to player 1** 或 **Rebind player 2 controller** 后按未绑定手柄的 Start 分配。交换已绑定手柄先使用 **Release controllers for reassignment**。断开只解除该实例，重连不按名称恢复。
 
-公共菜单可显式切换 UI 所有者。菜单打开时所有玩家的玩法输入被屏蔽，文本框用于检查输入不会穿透。关闭菜单后，持续按键必须释放，摇杆／扳机必须回中，才能恢复。切换 UI 所有者保留焦点，但旧所有者正在按住的确认操作不能在新所有者下完成。
+UI pad 按钮独立选择公共 UI 手柄，不改变游戏玩家绑定；键鼠始终能操作菜单。菜单打开时启用 Navigation 并屏蔽所有玩家；关闭恢复 Pointer。文本框捕获整个键盘，两个分区都不能移动。持续按键须释放、摇杆和扳机须回中后恢复。
 
-实机验收应覆盖键鼠＋手柄、双手柄同时移动、拔插、菜单确认／文本输入、所有者切换及恢复中立状态。当前自动化使用可控 SDL 事件；真实双手柄交互尚未执行。
+状态栏分别显示分区、鼠标归属、手柄连接情况和 UI 手柄。实机验收应覆盖键盘双人多键同时按下（受键盘硬件能力限制）、键鼠＋手柄、双手柄、拔插、文本捕获及 UI 手柄切换。当前自动化使用可控 SDL 事件，真实双手柄和键盘多键硬件验收未执行。
 
 ## 上一轮基线记录（不能作为本轮通过结论）
 
@@ -45,7 +45,7 @@ ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-
 - 修改文档的相对链接检查和 `git diff --check` 通过。
 - 未执行真实双手柄交互验收；没有实现或验证网络会话。
 
-## 本轮控制器子系统重构验证记录
+## 控制器子系统重构历史验证记录
 
 2026-09-17，Windows / MSVC Debug，构建目录 `out/build/physics-scenarios-msvc`：
 
@@ -57,3 +57,14 @@ ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-
 - 使用可控 SDL 输入重新运行 `demo_scene_tests` 并导出软件渲染截图至 `out/controller-routing-qa`。已检查双玩家运行画面、公共模态菜单及多目标相机画面，设备归属提示、角色和控件显示正常。
 - 本轮涉及文档的 28 个本地链接有效；旧玩家命令、输入广播、场景控制目标接口和活动手柄排他字段扫描无残留；`git diff --check` 通过。
 - 真实双手柄交互未执行。合成 SDL 输入与软件渲染检查不代表实机验收；本轮不包含 ENet 会话或网络复制实现。
+
+## 键盘分区与独立 UI 路由验证记录
+
+2026-09-17，Windows / MSVC Debug：
+
+- 键盘、鼠标和手柄独立快照；默认双键盘分区、冲突拒绝、配置版本变化、映射权限、鼠标转移与文本捕获已加入自动化验证。
+- 完整构建成功；最终完整 CTest 121 / 121 通过，用时 100.55 秒，日志为 `out/partition-full-tests.log`。
+- 11 项专项测试通过。双玩家示例额外验证菜单交换键盘方案、独立转移鼠标及离开后恢复外部键盘／鼠标配置。
+- 软件渲染截图位于 `out/keyboard-partition-qa`，已检查双玩家运行画面与完整公共菜单；菜单布局避开顶部设备归属提示。
+- 输入、UI 与联机设计文档的 17 个本地链接有效；旧合并键鼠源、UI 玩家所有者接口和旧默认映射入口扫描无残留；`git diff --check` 通过。
+- 真实双手柄和键盘多键硬件验收未执行；本轮使用可控 SDL 输入，不包含网络实现。

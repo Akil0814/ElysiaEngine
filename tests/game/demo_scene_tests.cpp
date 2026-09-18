@@ -553,6 +553,19 @@ void test_escape_returns_the_full_caller_route()
         local_input.process_event(event);
     };
     local_input.begin_frame();
+    dispatch();
+    const auto keyboard_first = blocks[0]->position().x, keyboard_second = blocks[1]->position().x;
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_D);
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_LEFT);
+    dispatch();
+    require(blocks[0]->position().x > keyboard_first && blocks[1]->position().x < keyboard_second,
+            "Multiplayer defaults to independent WASD and arrow partitions without a gamepad");
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_UP, SDLK_D);
+    key_event(SDL_EVENT_KEY_UP, SDLK_LEFT);
+    dispatch();
+    local_input.begin_frame();
     pad_button(SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_START);
     dispatch();
     auto owner = scene_manager.local_players().owner(elysia::input::InputSourceId::gamepad(77));
@@ -575,6 +588,15 @@ void test_escape_returns_the_full_caller_route()
     require(blocks[0]->position() == paused_first && blocks[1]->position() == paused_second,
             "Demo modal menu blocks both players");
     render_camera("08_local_multiplayer_menu");
+    click_mouse(scene_manager, 640, 285); // Swap keyboard partitions while the modal menu is open.
+    const auto &swapped_bindings=scene_manager.local_players().configuration();
+    require(swapped_bindings.partitions.at(swapped_bindings.bindings.at(elysia::input::PrimaryLocalPlayer).keyboard).name=="Arrows" &&
+            swapped_bindings.partitions.at(swapped_bindings.bindings.at(owner).keyboard).name=="WASD",
+            "Menu atomically swaps partitions and rebinds controller maps");
+    click_mouse(scene_manager, 640, 373); // Give the single mouse to P2 without changing UI access.
+    require(scene_manager.local_players().owner(elysia::input::InputSourceId::mouse())==owner,
+            "Mouse ownership can be transferred from the shared UI");
+
     auto* controls=elysia::gameplay::ControllerService::instance();
     auto first_controller=example::input::session_player(elysia::input::PrimaryLocalPlayer);
     auto second_controller=example::input::session_player(owner);
@@ -583,6 +605,11 @@ void test_escape_returns_the_full_caller_route()
     require(controls->get(first_controller) && !controls->describe(first_controller)->bound &&
             controls->get(second_controller) && !controls->describe(second_controller)->bound,
             "Menu transition preserves session controller instances but clears targets");
+    const auto &restored_bindings=scene_manager.local_players().configuration();
+    require(restored_bindings.partitions.at(restored_bindings.bindings.at(elysia::input::PrimaryLocalPlayer).keyboard).name=="Full keyboard" &&
+            scene_manager.local_players().owner(elysia::input::InputSourceId::mouse())==elysia::input::PrimaryLocalPlayer,
+            "Leaving multiplayer restores external keyboard and mouse configuration");
+
     scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
         .route={.target=example::scene_keys::LocalMultiplayer,
                 .payload=example::scene::DemoScenePayload{.return_route=original_caller},.reload_mode=elysia::scene::SceneReloadMode::Recreate}});

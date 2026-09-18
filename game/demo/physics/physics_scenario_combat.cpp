@@ -9,16 +9,16 @@ namespace
 using Key=elysia::input::RawInputControl;
 struct ScriptInput
 {
-    elysia::input::InputActionMap map=example::input::make_default_gameplay_input_map();
+    elysia::input::InputActionMap map=example::input::make_gameplay_input_map();
     elysia::input::RawInputState previous;
     void send(elysia::gameplay::ControlCommandReceiver &player, std::initializer_list<Key> keys)
     {
         elysia::input::RawInputFrame raw;
         for(auto key:keys)raw.state.set_pressed(key,true);
-        elysia::input::InputSnapshot snapshot{.sources={{elysia::input::InputSourceId::keyboard_mouse(),previous,raw}}};
+        elysia::input::InputSnapshot snapshot{.sources={{elysia::input::InputSourceId::keyboard(),previous,raw}}};
         for(int i=1;i<int(Key::Count);++i) {
             auto key=static_cast<Key>(i);
-            if(previous.is_pressed(key)!=raw.state.is_pressed(key)) snapshot.events.push_back({.control=key,.type=raw.state.is_pressed(key)?elysia::input::RawInputEventType::ControlPressed:elysia::input::RawInputEventType::ControlReleased,.source=elysia::input::InputSourceId::keyboard_mouse()});
+            if(previous.is_pressed(key)!=raw.state.is_pressed(key)) snapshot.events.push_back({.control=key,.type=raw.state.is_pressed(key)?elysia::input::RawInputEventType::ControlPressed:elysia::input::RawInputEventType::ControlReleased,.source=elysia::input::InputSourceId::keyboard()});
         }
         previous=raw.state;
         auto result = map.resolve(snapshot);

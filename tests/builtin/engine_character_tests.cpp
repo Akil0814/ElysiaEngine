@@ -66,7 +66,7 @@ private:
 elysia::tests::InputSnapshotBuilder character_input;
 void tick_character(elysia::builtin::EngineCharacter &character, double delta)
 {
-    auto map = example::input::make_default_gameplay_input_map();
+    auto map = example::input::make_gameplay_input_map();
     auto r = map.resolve(character_input.take());
     character.on_control_command({.state = std::move(r.frame), .events = std::move(r.events)}, delta);
     character.update(delta);

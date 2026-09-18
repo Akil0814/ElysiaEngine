@@ -25,6 +25,13 @@ class LocalMultiplayerScene final : public elysia::gameplay::GameplayScene
     elysia::scene::SceneRoute _return_route;
     void open_menu();
     void close_menu();
+    void configure_keyboard(bool swapped);
+    void bind_players();
+    void restore_devices();
+    bool _swapped = false;
+    elysia::gameplay::ControllerHandle _first_controller, _second_controller;
+    std::optional<elysia::input::PlayerInputConfiguration> _saved_devices;
+    elysia::input::KeyboardPartitionId _wasd, _arrows;
     elysia::core::GameObject *_first = nullptr;
     elysia::core::GameObject *_second = nullptr;
     elysia::input::LocalPlayerId _second_player{};

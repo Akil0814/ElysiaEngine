@@ -152,7 +152,8 @@ int main()
     south(SDL_EVENT_GAMEPAD_BUTTON_UP);
     step();
     require(clicks == 0 && other->presses == 1, "Non-owner gamepad controls its actor, never the shared UI");
-    scene.set_ui_owner(second);
+    scene.set_ui_interaction_mode(UiInteractionMode::Navigation);
+    scene.set_ui_gamepad(InputSourceId::gamepad(9));
     input.begin_frame();
     south(SDL_EVENT_GAMEPAD_BUTTON_DOWN);
     step();
@@ -163,7 +164,7 @@ int main()
     input.begin_frame();
     south(SDL_EVENT_GAMEPAD_BUTTON_DOWN);
     step();
-    scene.set_ui_owner(PrimaryLocalPlayer);
+    scene.set_ui_gamepad(InputSourceId::gamepad(7));
     input.begin_frame();
     south(SDL_EVENT_GAMEPAD_BUTTON_UP);
     step();
@@ -212,6 +213,8 @@ int main()
         once->set_visible(false);
         once->set_active(false);
     });
+    exact.set_ui_interaction_mode(UiInteractionMode::Navigation);
+    exact.set_ui_gamepad(InputSourceId::gamepad(9));
     exact_input.begin_frame();
     for (int tap = 0; tap < 2; ++tap)
     {
@@ -228,6 +231,7 @@ int main()
     exact_fixture.manager.shutdown();
     elysia::tests::ControlSceneFixture<CaptureScene> frame_scene_fixture;
     auto& frame_scene=*frame_scene_fixture.scene;
+    frame_scene.set_ui_interaction_mode(UiInteractionMode::Navigation);
     InputSystem frame_input;
     auto *probe = frame_scene.create_and_add_object<UiFrameProbe>();
     frame_input.begin_frame();

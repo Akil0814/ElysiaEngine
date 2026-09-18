@@ -6,6 +6,8 @@
 #include "tests/support/input_snapshot_builder.h"
 #include "tests/support/test_assertions.h"
 #include <functional>
+#include "engine/ui/widgets/ui_text_input.h"
+#include "engine/ui/widgets/ui_button.h"
 #include <limits>
 #include <iostream>
 using namespace elysia::gameplay;
@@ -44,8 +46,11 @@ struct SyntheticController final : Controller
         ActionInputResult input;
         input.frame.set(Motion, InputActionValueType::Axis1D, {value, 0});
         if (tap)
-            input.events.push_back(
-                {Fire, InputActionValueType::Button, ActionInputPhase::Started, {1, 0}, {previous_event_value, 0}});
+            input.events.push_back({Fire,
+                                    InputActionValueType::Button,
+                                    ActionInputPhase::Started,
+                                    {1, 0},
+                                    {previous_event_value, 0}});
         submit(std::move(input));
     }
 };
@@ -134,6 +139,119 @@ void route(elysia::scene::SceneManager &manager, int key,
         {.type = elysia::scene::SceneRequestType::Switch,
          .route = {.target = static_cast<elysia::scene::SceneKey>(key), .reload_mode = reload}});
     manager.on_update(0);
+}
+void test_keyboard_partitions_and_ui()
+{
+    elysia::scene::SceneManager manager;
+    auto *service = ControllerService::instance();
+    require(bool(service->begin_session()), "Partition test session");
+    World<10> *world = nullptr;
+    manager.register_game_scene<World<10>>(910, &world);
+    manager.start({.target = 910});
+    auto &players = world->local_players();
+    auto p2 = players.create_player();
+    auto wasd = *players.create_partition("P1", {RawInputControl::KeyD, RawInputControl::KeySpace});
+    auto arrows = *players.create_partition("P2", {RawInputControl::KeyRight});
+    auto config = players.configuration();
+    config.bindings[PrimaryLocalPlayer].keyboard = wasd;
+    config.bindings[p2].keyboard = arrows;
+    require(bool(players.apply_configuration(config)), "Atomic split of full keyboard");
+    auto v1 = players.binding_version(PrimaryLocalPlayer), v2 = players.binding_version(p2);
+    auto bad = config;
+    bad.partitions[arrows].keys.insert(RawInputControl::KeyD);
+    require(!players.apply_configuration(bad) && players.binding_version(p2) == v2,
+            "Overlap rejected atomically");
+    require(!players.remove_partition(wasd), "Cannot delete bound partition");
+    auto *a = world->create_and_add_object<Actor>(), *b = world->create_and_add_object<Actor>();
+    auto first =
+        service->create<LocalPlayerController>({ControllerScope::Session, {}}, PrimaryLocalPlayer, map());
+    auto second_map = map();
+    require(second_map.replace_bindings(Motion, {{Motion, ButtonInputBinding{RawInputControl::KeyRight}}}),
+            "P2 arrow map");
+    require(second_map.clear_bindings(Fire), "P2 does not share space");
+    auto second =
+        service->create<LocalPlayerController>({ControllerScope::Session, {}}, p2, std::move(second_map));
+    require(bool(service->bind_target(*first, world->control_context(), *a)) &&
+                bool(service->bind_target(*second, world->control_context(), *b)),
+            "Bind partition controllers");
+    bad = config;
+    bad.partitions[wasd].keys.erase(RawInputControl::KeyD);
+    require(!players.apply_configuration(bad), "Partition changes reject a map using removed keys");
+    require(!service->replace_input_map(*second, map()), "Mapping cannot reference another partition");
+    elysia::tests::InputSnapshotBuilder devices;
+    auto tick = [&] {
+        world->on_input(devices.take());
+        manager.on_update(1.0 / 60);
+    };
+    tick();
+    auto *button = world->create_and_add_object<elysia::ui::UiButton>(elysia::core::Rect{0, 0, 100, 40});
+    button->set_focused(true);
+    devices.press(RawInputControl::KeyD, true);
+    devices.press(RawInputControl::KeyRight, true);
+    tick();
+    require(a->commands.back().state.axis1d(Motion) == 1 && b->commands.back().state.axis1d(Motion) == 1,
+            "Pointer HUD focus cannot eat either keyboard player's movement");
+    devices.press(RawInputControl::KeyD, false);
+    tick();
+    require(a->commands.back().state.axis1d(Motion) == 0 && b->commands.back().state.axis1d(Motion) == 1,
+            "Keyboard partition release isolation");
+    devices.press(RawInputControl::KeyD, true);
+    world->on_input(devices.take());
+    auto before = a->commands.size(), other_before = b->commands.size();
+    auto changed = players.configuration().partitions.at(wasd);
+    changed.keys.insert(RawInputControl::KeyA);
+    require(bool(players.update_partition(changed)), "Valid bound partition update");
+    manager.on_update(1.0 / 60);
+    require(a->commands.size() == before && b->commands.size() == other_before + 1,
+            "Partition version detected between input and tick, other player unaffected");
+    tick();
+    require(a->commands.back().state.axis1d(Motion) == 0, "Held reassigned key waits for release");
+    devices.press(RawInputControl::KeyD, false);
+    tick();
+    devices.press(RawInputControl::KeyD, true);
+    tick();
+    require(a->commands.back().state.axis1d(Motion) == 1, "Reassigned key resumes after release");
+    auto *text = world->create_and_add_object<elysia::ui::UiTextInput>(elysia::core::Rect{0, 50, 200, 40});
+    text->set_focused(true);
+    tick();
+    require(a->commands.back().state.axis1d(Motion) == 0 && b->commands.back().state.axis1d(Motion) == 0,
+            "Text capture covers whole physical keyboard");
+    text->set_focused(false);
+    tick();
+    require(a->commands.back().state.axis1d(Motion) == 0 && b->commands.back().state.axis1d(Motion) == 0,
+            "Ending text capture does not resume held movement");
+    devices.press(RawInputControl::KeyD, false);
+    devices.press(RawInputControl::KeyRight, false);
+    tick();
+    devices.event({.type = RawInputEventType::MouseMoved, .device = InputDevice::Mouse, .mouse_delta_x = 12});
+    world->on_input(devices.take());
+    require(players.transfer_source(p2, InputSourceId::mouse()),
+            "Mouse ownership transfer independent of keyboard");
+    manager.on_update(1.0 / 60);
+    tick();
+    require(a->commands.back().deltas.empty() && b->commands.back().deltas.empty(),
+            "Mouse transfer discards queued deltas");
+    devices.event({.type = RawInputEventType::MouseMoved, .device = InputDevice::Mouse, .mouse_delta_x = 7});
+    tick();
+    require(b->commands.back().deltas.at(Look).x == 7 && a->commands.back().deltas.empty(),
+            "Mouse routes only to its new player");
+    auto gamepad = InputSourceId::gamepad(42);
+    require(players.bind_source(p2, gamepad), "Gamepad belongs to P2");
+    world->set_ui_gamepad(gamepad);
+    require(players.owner(gamepad) == p2, "UI selection never changes gameplay ownership");
+    manager.shutdown();
+    Menu menu;
+    menu.local_players().unbind_source(InputSourceId::mouse());
+    require(bool(menu.local_players().bind_keyboard(PrimaryLocalPlayer, {})),
+            "UI needs no gameplay bindings");
+    elysia::tests::InputSnapshotBuilder menu_devices;
+    menu_devices.event({.control = RawInputControl::GamepadSouth,
+                        .type = RawInputEventType::ControlPressed,
+                        .device = InputDevice::Gamepad,
+                        .source = gamepad});
+    menu.on_input(menu_devices.take());
+    require(menu.ui_gamepad() == gamepad && !menu.local_players().owner(gamepad).value,
+            "Menu claims UI pad without claiming gameplay player");
 }
 int main()
 {
@@ -275,11 +393,12 @@ int main()
     devices.press(RawInputControl::KeySpace, true);
     first->on_input(devices.take());
     auto queued_count = a->commands.size();
-    first->local_players().unbind_source(InputSourceId::keyboard_mouse());
+    auto full_keyboard = first->local_players().configuration().bindings.at(PrimaryLocalPlayer).keyboard;
+    (void)first->local_players().bind_keyboard(PrimaryLocalPlayer, {});
     manager.on_update(1.0 / 60);
     require(a->commands.size() == queued_count,
             "Device reassignment between input and tick cannot deliver stale command");
-    require(first->local_players().bind_source(PrimaryLocalPlayer, InputSourceId::keyboard_mouse()),
+    require(bool(first->local_players().bind_keyboard(PrimaryLocalPlayer, full_keyboard)),
             "Restore keyboard ownership");
     service->unbind_target(*local);
     require(bool(service->bind_target(*session, first->control_context(), *a)), "Non-device takeover");
@@ -343,12 +462,13 @@ int main()
     service->get<SyntheticController>(created)->value = std::numeric_limits<float>::quiet_NaN();
     manager.on_update(1.0 / 60);
     require(b->commands.back().state.finite(), "Non-finite custom state never reaches command cache");
-    auto* invalid_event_controller=service->get<SyntheticController>(created);
-    invalid_event_controller->value=0.75f;
-    invalid_event_controller->tap=true;
-    invalid_event_controller->previous_event_value=std::numeric_limits<float>::infinity();
-    manager.on_update(1.0/60);
-    require(b->commands.back().events.empty(),"Non-finite previous event values are rejected as well as current values");
+    auto *invalid_event_controller = service->get<SyntheticController>(created);
+    invalid_event_controller->value = 0.75f;
+    invalid_event_controller->tap = true;
+    invalid_event_controller->previous_event_value = std::numeric_limits<float>::infinity();
+    manager.on_update(1.0 / 60);
+    require(b->commands.back().events.empty(),
+            "Non-finite previous event values are rejected as well as current values");
     b->destroy();
     manager.on_update(1.0 / 60);
     require(!service->describe(created)->bound, "Object released only after target unregister");
@@ -362,5 +482,7 @@ int main()
     require(restarted->runtime != created.runtime && !service->get(created),
             "Runtime generation rejects old handles");
     service->end_session();
+    restarted_manager.shutdown();
+    test_keyboard_partitions_and_ui();
     std::cout << "controller runtime tests passed\n";
 }

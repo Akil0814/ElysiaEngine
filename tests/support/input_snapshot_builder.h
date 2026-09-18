@@ -15,7 +15,8 @@ class InputSnapshotBuilder
             event.source =
                 is_gamepad_button_control(event.control) || event.type == RawInputEventType::AxisChanged
                     ? InputSourceId::gamepad(7)
-                    : InputSourceId::keyboard_mouse();
+                    : (is_mouse_button_control(event.control) || event.type == RawInputEventType::MouseMoved || event.type == RawInputEventType::MouseWheel
+                        ? InputSourceId::mouse() : InputSourceId::keyboard());
         if (event.device == InputDevice::Unknown)
             event.device = event.source.is_gamepad() ? InputDevice::Gamepad
                                                      : (is_mouse_button_control(event.control) ||
@@ -37,7 +38,7 @@ class InputSnapshotBuilder
     {
         using namespace elysia::input;
         auto source =
-            is_gamepad_button_control(control) ? InputSourceId::gamepad(7) : InputSourceId::keyboard_mouse();
+            is_gamepad_button_control(control) ? InputSourceId::gamepad(7) : (is_mouse_button_control(control) ? InputSourceId::mouse() : InputSourceId::keyboard());
         if (_sources[source].frame.state.is_pressed(control) != pressed)
             event({.control = control,
                    .type = pressed ? RawInputEventType::ControlPressed : RawInputEventType::ControlReleased,
@@ -54,7 +55,8 @@ class InputSnapshotBuilder
     {
         using namespace elysia::input;
         InputSnapshot result;
-        _sources[InputSourceId::keyboard_mouse()].source = InputSourceId::keyboard_mouse();
+        _sources[InputSourceId::keyboard()].source = InputSourceId::keyboard();
+        _sources[InputSourceId::mouse()].source = InputSourceId::mouse();
         for (auto &[id, source] : _sources)
         {
             result.sources.push_back(source);

@@ -128,6 +128,10 @@ void ControllerManager::cancel(Entry &e, InputCancelReason reason)
 }
 void ControllerManager::detach(Entry &e, InputCancelReason reason)
 {
+    if (auto *local = dynamic_cast<LocalPlayerController *>(e.controller.get()))
+        if (auto it = _contexts.find(e.bound_scene.instance);
+            it != _contexts.end() && it->second->token() == e.bound_scene)
+            it->second->_scene.local_players().clear_keyboard_requirement(local->player());
     // Detach before callbacks so reentrant operations cannot deliver to this target.
     auto *receiver = std::exchange(e.receiver, nullptr);
     e.target = nullptr;
@@ -185,6 +189,9 @@ std::expected<void, ControllerError> ControllerManager::validate_binding(Entry &
     auto *local = dynamic_cast<LocalPlayerController *>(e.controller.get());
     if (local && !ctx->_scene.local_players().contains(local->player()))
         return std::unexpected(ControllerError::InvalidPlayer);
+    if (local &&
+        !ctx->_scene.local_players().accepts_keyboard_map(local->player(), local->_map.keyboard_controls()))
+        return std::unexpected(ControllerError::InvalidMap);
     for (auto &[id, other] : _entries)
     {
         if (&e == &other || other.removed || (!other.target && !other.reserved_target))
@@ -239,7 +246,9 @@ std::expected<void, ControllerError> ControllerManager::bind(ControllerHandle h,
     if (auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get()))
     {
         auto &scene = context(token)->_scene;
+        scene.local_players().set_keyboard_requirement(local->player(), local->_map.keyboard_controls());
         local->_sources = scene.local_players().sources(local->player());
+        local->_binding_version = scene.local_players().binding_version(local->player());
         scene.input_router().suppress(local->player());
     }
     return {};
@@ -306,12 +315,13 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
             continue;
         }
         auto sources = players.sources(player);
-        if (sources != local->_sources)
+        if (sources != local->_sources || players.binding_version(player) != local->_binding_version)
         {
-            bool added = std::ranges::any_of(sources, [&](auto source) {
-                return std::ranges::find(local->_sources, source) == local->_sources.end();
-            });
+            bool added = sources == local->_sources || std::ranges::any_of(sources, [&](auto source) {
+                             return std::ranges::find(local->_sources, source) == local->_sources.end();
+                         });
             local->_sources = sources;
+            local->_binding_version = players.binding_version(player);
             cancel(*e, InputCancelReason::SourceChanged);
             if (added)
             {
@@ -324,7 +334,7 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
         std::erase_if(e->command.deltas, [&](const auto &pending) {
             for (const auto &operation : ctx._scene.input_router().consumed_operations())
             {
-                if (players.owner(operation.source) != player)
+                if (!players.owns(player, operation))
                     continue;
                 for (const auto &binding : local->_map.bindings(pending.first))
                 {
@@ -340,13 +350,34 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
             }
             return false;
         });
-        InputSnapshot filtered;
-        for (auto &source : input.sources)
-            if (players.owner(source.source) == player)
-                filtered.sources.push_back(source);
-        for (auto &event : input.events)
-            if (players.owner(event.source) == player)
-                filtered.events.push_back(event);
+        std::erase_if(e->command.events, [&](const auto &pending) {
+            for (const auto &operation : ctx._scene.input_router().consumed_operations())
+            {
+                if (!players.owns(player, operation))
+                    continue;
+                for (const auto &binding : local->_map.bindings(pending.action))
+                {
+                    if (auto *button = std::get_if<ButtonInputBinding>(&binding.source);
+                        button && button->control == operation.control &&
+                        operation.control != RawInputControl::None)
+                        return true;
+                    if (auto *buttons = std::get_if<Button2DInputBinding>(&binding.source);
+                        buttons && operation.control != RawInputControl::None)
+                        for (auto key : {buttons->left, buttons->right, buttons->up, buttons->down})
+                            if (key == operation.control)
+                                return true;
+                    if (auto *axis = std::get_if<AxisInputBinding>(&binding.source);
+                        axis && axis->axis == operation.axis && operation.axis != RawInputAxis::None)
+                        return true;
+                    if (auto *axes = std::get_if<Axis2DInputBinding>(&binding.source);
+                        axes && operation.axis != RawInputAxis::None &&
+                        (axes->x_axis == operation.axis || axes->y_axis == operation.axis))
+                        return true;
+                }
+            }
+            return false;
+        });
+        auto filtered = players.for_player(player, input);
         local->process_input(filtered);
     }
 }
@@ -418,9 +449,11 @@ void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, do
         {
             auto &players = ctx._scene.local_players();
             auto sources = players.sources(local->player());
-            if (!players.contains(local->player()) || sources != local->_sources)
+            if (!players.contains(local->player()) || sources != local->_sources ||
+                players.binding_version(local->player()) != local->_binding_version)
             {
                 local->_sources = std::move(sources);
+                local->_binding_version = players.binding_version(local->player());
                 cancel(*e, InputCancelReason::SourceChanged);
                 ctx._scene.input_router().suppress(local->player());
                 continue;
@@ -447,6 +480,10 @@ std::expected<void, ControllerError> ControllerManager::replace_map(ControllerHa
         return std::unexpected(ControllerError::InvalidHandle);
     if (!map.valid() || !dynamic_cast<LocalPlayerController *>(e->controller.get()))
         return std::unexpected(ControllerError::InvalidMap);
+    if (auto *ctx = context(e->bound_scene))
+        if (!ctx->_scene.local_players().accepts_keyboard_map(
+                static_cast<LocalPlayerController *>(e->controller.get())->player(), map.keyboard_controls()))
+            return std::unexpected(ControllerError::InvalidMap);
     if (_depth)
     {
         _pending.push_back(
@@ -459,7 +496,11 @@ std::expected<void, ControllerError> ControllerManager::replace_map(ControllerHa
     map.reset_state();
     local->_map = std::move(map);
     if (auto *ctx = context(e->bound_scene))
+    {
+        ctx->_scene.local_players().set_keyboard_requirement(local->player(),
+                                                             local->_map.keyboard_controls());
         ctx->_scene.input_router().suppress(local->player());
+    }
     return {};
 }
 SceneControlContext::SceneControlContext(GameplayScene &scene) : _scene(scene)

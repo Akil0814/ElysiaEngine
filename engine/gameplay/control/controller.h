@@ -67,5 +67,6 @@ class LocalPlayerController : public Controller
     elysia::input::LocalPlayerId _player;
     elysia::input::InputActionMap _map;
     std::vector<elysia::input::InputSourceId> _sources;
+    std::uint64_t _binding_version = 0;
 };
 } // namespace elysia::gameplay

@@ -295,7 +295,7 @@ void test_input_is_latched_until_a_fixed_step()
     (void)world.advance(1.0 / 60);
     require(combat.is_grounded(player), "Player starts grounded");
 
-    auto input_map = example::input::make_default_gameplay_input_map();
+    auto input_map = example::input::make_gameplay_input_map();
     elysia::tests::InputSnapshotBuilder raw;
     raw.press(elysia::input::RawInputControl::KeySpace, true);
     raw.press(elysia::input::RawInputControl::KeyJ, true);

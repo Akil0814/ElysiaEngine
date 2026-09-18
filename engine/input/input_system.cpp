@@ -101,7 +101,7 @@ void InputSystem::process_event(const SDL_Event& event)
         update.event_device == InputDevice::Gamepad
             ? InputSourceId::gamepad(event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION ? event.gaxis.which
                                                                                  : event.gbutton.which)
-            : InputSourceId::keyboard_mouse();
+            : (update.event_device == InputDevice::Mouse ? InputSourceId::mouse() : InputSourceId::keyboard());
     if (_sources.try_emplace(_translating_source).second && _translating_source.is_gamepad())
         _connected.push_back(_translating_source);
     _sources[_translating_source].device = update.event_device;
@@ -229,6 +229,7 @@ void InputSystem::refresh_mouse_position()
     RawInputEvent mouse_event;
     mouse_event.type = RawInputEventType::MouseMoved;
     mouse_event.device = InputDevice::Mouse;
+    mouse_event.source = InputSourceId::mouse();
     float window_x=0,window_y=0;
     SDL_GetMouseState(&window_x,&window_y);
 
@@ -291,7 +292,7 @@ InputSnapshot InputSystem::snapshot() const
         RawInputFrame frame;
         frame.state = source.physical;
         frame.active_device = source.device;
-        if (!id.is_gamepad())
+        if (id.is_mouse())
         {
             frame.mouse_x = _mouse_x;
             frame.mouse_y = _mouse_y;
@@ -308,7 +309,8 @@ void InputSystem::reset_input_lifecycle()
     _events.clear();
     _device_tracker.reset();
     _sources.clear();
-    _sources.emplace(InputSourceId::keyboard_mouse(), SourceState{});
+    _sources.emplace(InputSourceId::keyboard(), SourceState{});
+    _sources.emplace(InputSourceId::mouse(), SourceState{});
     _connected.clear();
     _removed.clear();
     _focus_lost = false;

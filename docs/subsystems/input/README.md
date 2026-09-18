@@ -1,10 +1,10 @@
 # Elysia Engine Input
 
-输入子系统支持多设备并行、玩家归属、公共 UI 协调和固定 tick 命令交付。控制器由游戏显式创建；单机需要游戏会话来限定生命周期，不需要网络会话。
+输入子系统支持键盘分区、独立鼠标、多设备并行、玩家归属、公共 UI 协调和固定 tick 命令交付。控制器由游戏显式创建；单机需要游戏会话来限定生命周期，不需要网络会话。
 
 ```text
 SDL → InputSystem::snapshot()
-    → SceneInputRouter：公共 UI → 快捷操作 → 玩家输入
+    → SceneInputRouter：独立 UI → 消费／捕获 → 快捷操作 → 键盘分区与设备分流
     → LocalPlayerController：游戏动作映射
     → ControllerManager：缓存 → 实际固定 tick → ControlCommandReceiver
 

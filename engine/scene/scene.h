@@ -65,11 +65,11 @@ class Scene : public elysia::core::Subject<SceneRequestObserver>,
     {
         return *_players;
     }
-    void set_ui_owner(elysia::input::LocalPlayerId owner);
-    elysia::input::LocalPlayerId ui_owner() const
-    {
-        return _input_router.ui_owner();
-    }
+    void set_ui_gamepad(elysia::input::InputSourceId source) { _input_router.set_ui_gamepad(source); }
+    elysia::input::InputSourceId ui_gamepad() const { return _input_router.ui_gamepad(); }
+    void set_ui_device_access(elysia::input::UiDeviceAccess &access) { _input_router.set_ui_access(access); }
+    void set_ui_interaction_mode(elysia::input::UiInteractionMode mode) { _input_router.set_ui_interaction_mode(mode); }
+    void set_shortcut_devices(elysia::input::InputCapture devices) { _input_router.set_shortcut_devices(devices); }
     void set_all_gameplay_input_blocked(bool blocked);
     void reset_input_routing();
     void consume_input(const elysia::input::RawInputEvent &event);

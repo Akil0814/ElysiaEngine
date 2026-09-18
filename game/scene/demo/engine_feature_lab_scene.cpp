@@ -79,6 +79,8 @@ void EngineFeatureLabScene::on_shortcuts(const elysia::input::RawInputFrame &inp
 
 void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
+    // This lab is an always-open interactive control panel, rather than a passive HUD.
+    set_ui_interaction_mode(elysia::input::UiInteractionMode::Navigation);
     const example::scene::DemoScenePayload* test_payload =
         elysia::scene::try_scene_payload<
             example::scene::DemoScenePayload>(payload);
