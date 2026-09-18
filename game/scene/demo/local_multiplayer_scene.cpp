@@ -85,7 +85,7 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         open->set_text_content(ui_raw_text("Players / menu"));
         open->set_on_click([this] { open_menu(); });
         _window->add_child(std::move(open), {._margin = {16, 80, 0, 0}});
-        auto menu = std::make_unique<UiListContainer>(Rect{0, 0, 600, 600});
+        auto menu = std::make_unique<UiListContainer>(Rect{0, 0, 600, 540});
         _menu = menu.get();
         _menu->set_item_spacing(6);
         auto add = [&](const char *title, auto callback) {
@@ -109,7 +109,6 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
                 for (auto source : local_players().sources(player))
                     if (source.is_gamepad())
                         local_players().unbind_source(source);
-            set_ui_gamepad({});
             close_menu();
         });
         add("Keyboard: WASD P1 / Arrows P2", [this] { configure_keyboard(false); });
@@ -131,6 +130,8 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         _window->add_child(std::move(menu), {._anchor = elysia::ui::UiLayoutAnchor::Center});
         (void)_window->register_overlay(*_menu, {.open = false, .modal = true});
     }
+    if (!local_players().transfer_source(PrimaryLocalPlayer, InputSourceId::mouse()))
+        throw std::logic_error("Multiplayer mouse assignment failed");
     configure_keyboard(_swapped);
     _window->set_visible(true);
     _window->set_active(true);
