@@ -1,8 +1,8 @@
 # Elysia Engine
 
-Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引擎与运行时框架。它提供应用生命周期、场景路由、资源与配置加载、输入、音频、相机、UI、存档、动画与特效等通用能力。
+![Elysia](assets/engine/textures/elysia.png)
 
-引擎早期开发提交位于仓库: [Moonline](https://github.com/Akil0814/Moonline)
+Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引擎与运行时框架。它提供应用生命周期、场景路由、资源与配置加载、输入、音频、相机、UI、存档、动画与特效等通用能力。
 
 ## 基于引擎的项目
 
@@ -36,7 +36,7 @@ ElysiaEngine executable -> game_lib -> engine_lib
 
 ## 构建与运行
 
-当前项目以通过 Windows MSVC/GCC MacOS编译测试，环境需要 CMake 3.24 或更高版本和 C++23 工具链。SDL3、image、ttf、mixer、gfx 及所需编解码器均使用仓库内固定源码构建，配置和构建不下载依赖。渲染使用 SDL3 GPU renderer，创建失败时明确退出。
+当前项目已通过 Windows MSVC/GCC MacOS编译测试，环境需要 CMake 3.24 或更高版本和 C++23 工具链。SDL3、image、ttf、mixer、gfx 及所需编解码器均使用仓库内固定源码构建，配置和构建不下载依赖。渲染使用 SDL3 GPU renderer，创建失败时明确退出。
 
 ```powershell
 cmake -S . -B out/build/sdl3-Debug -A x64
@@ -52,11 +52,20 @@ ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
 ## 文档
 
 - [开发者文档总入口](docs/README.md)
-- [快速开始](docs/getting-started/README.md)
-- [引擎架构](docs/architecture/overview.md)
-- [子系统文档](docs/subsystems/README.md)
-- [开发与维护](docs/development/README.md)
+
+
+## 历史版本
+
+引擎早期开发提交位于仓库: [Moonline](https://github.com/Akil0814/Moonline)
+
+早期原型开发位于仓库: [Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary)
 
 ## License
 
-本项目使用 [MIT License](LICENSE.txt)。
+本项目使用 [MIT License](LICENSE)。
+
+第三方源码声明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
+
+Elysia 图标版权归属 © miHoYo 所有
+Elysia Engine 为独立开发项目，与 miHoYo 无官方关联，也未获得其官方认可或赞助。
+Elysia Engine is an independent project and is not affiliated with or endorsed by miHoYo.
