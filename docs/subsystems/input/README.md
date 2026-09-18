@@ -15,6 +15,7 @@ SDL → InputSystem::snapshot()
 - [动作映射](action-mapping.md)：状态、事件、鼠标增量与映射切换。
 - [控制器与命令](engine-gameplay.md)：游戏 API、自定义来源与角色契约。
 - [场景集成](gameplay-scene.md)：会话、显式绑定、固定步与示例。
+- [本轮迁移说明](migration.md)：破坏性 API 变更与结果处理。
 - [测试与调试](testing-and-debugging.md)：自动化覆盖与硬件验收。
 
 本轮一次性替换旧场景输入控制接口，不提供兼容别名、旧入口转发或双路广播。外部项目需要迁移。AI 决策、网络传输、个人焦点树、分屏及输入配置持久化不在当前范围。

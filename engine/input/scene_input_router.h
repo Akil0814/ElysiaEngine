@@ -1,7 +1,7 @@
 #pragma once
+#include "../ui/input/ui_input_router.h"
 #include "input_suppression.h"
 #include "local_player_registry.h"
-#include "../ui/input/ui_input_router.h"
 #include <functional>
 #include <map>
 namespace elysia::scene
@@ -62,11 +62,10 @@ class SceneInputRouter
     }
 
   private:
-    void cancel(LocalPlayerId player, InputCancelReason reason = InputCancelReason::Suppressed)
-    {
-        if (_cancel)
-            _cancel(player, reason);
-    }
+    void cancel(LocalPlayerId player, InputCancelReason reason = InputCancelReason::Suppressed);
+    void flush_cancellations();
+    InputCapture gameplay_capture(InputSourceId source, InputCapture external, bool focus_lost,
+                                  InputCapture additional = InputCapture::None) const;
     InputCapture ui_capture() const;
     bool ui_source(InputSourceId source) const;
     bool ui_enabled(InputSourceId source) const;
@@ -89,6 +88,8 @@ class SceneInputRouter
     elysia::input::InputSnapshot _last_input;
     std::vector<elysia::input::RawInputEvent> _consumed;
     bool _block_gameplay = false;
+    bool _routing = false;
+    std::map<LocalPlayerId, InputCancelReason> _pending_cancellations;
     elysia::ui::UiInputRouter _ui_input_router;
 };
 } // namespace elysia::input

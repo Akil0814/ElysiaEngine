@@ -5,6 +5,7 @@
 #include "../../../engine/ui/window/ui_window.h"
 #include "../../../engine/ui/widgets/ui_button.h"
 #include "../../../engine/ui/widgets/label/ui_label.h"
+#include "../../../engine/tools/logger.h"
 #include <cmath>
 #include <format>
 #include <limits>
@@ -103,11 +104,26 @@ void MultiTargetCameraScene::install_strategy()
     CameraManager::instance()->set_follow_strategy(slot, std::move(strategy));
 }
 
+void MultiTargetCameraScene::request_primary(std::size_t index)
+{
+    if (!_targets[index]) return;
+    _requested_primary = index;
+    _primary_request = elysia::gameplay::ControllerService::instance()->bind_target(
+        _controller, control_context(), *_targets[index]);
+    finish_primary_request();
+}
+void MultiTargetCameraScene::finish_primary_request()
+{
+    if (!_primary_request || _primary_request->pending()) return;
+    if (_primary_request->succeeded()) _primary = _requested_primary;
+    else elysia::tools::Logger::instance()->warn("input", "Camera target switch failed; primary unchanged.");
+    _primary_request.reset();
+}
+
 void MultiTargetCameraScene::reset_demo()
 {
-    _primary = 0;
-    if(elysia::gameplay::ControllerService::instance()->get(_controller))
-        (void)elysia::gameplay::ControllerService::instance()->bind_target(_controller,control_context(),*_targets[0]);
+    if (elysia::gameplay::ControllerService::instance()->get(_controller)) request_primary(0);
+    else _primary = 0;
     _time = 0;
     _automatic = _bounds = false;
     _dead_zone = true;
@@ -159,6 +175,7 @@ std::optional<CameraFocus> MultiTargetCameraScene::resolve_camera_focus() const
 void MultiTargetCameraScene::on_update(double delta)
 {
     Scene::on_update(delta);
+    finish_primary_request();
     refresh_status();
 }
 void MultiTargetCameraScene::on_control_target_removing(elysia::core::SceneObject& object) {
@@ -218,7 +235,7 @@ void MultiTargetCameraScene::build_controls()
         x += 140;
     };
     button("DeadZone", [this] { _dead_zone = !_dead_zone; install_strategy(); });
-    button("Swap primary", [this] { _primary = 1 - _primary; (void)elysia::gameplay::ControllerService::instance()->bind_target(_controller,control_context(),*_targets[_primary]); });
+    button("Swap primary", [this] { request_primary(1 - _primary); });
     button("Auto motion", [this] { _automatic = !_automatic; _time = 0; });
     button("Teleport", [this] { _targets[1 - _primary]->set_center(_targets[_primary]->center() + Vector2{3600, 900}); });
     button("Zoom to 1.5", [] { CameraManager::instance()->request_zoom_to(slot, 1.5f, 1.0); });

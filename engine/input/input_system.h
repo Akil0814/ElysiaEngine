@@ -3,8 +3,7 @@
 #include "input_snapshot.h"
 #include "input_suppression.h"
 #include <map>
-#include "development_input_capture.h"
-#include "input_device_tracker.h"
+#include "input_capture.h"
 #include "gamepad_device_manager.h"
 
 #include "translator/gamepad_input_translator.h"
@@ -24,16 +23,14 @@ public:
     void shutdown();
     [[nodiscard]] bool is_initialized() const noexcept { return _initialized; }
     void begin_frame();
-    void end_frame();
     void process_event(const SDL_Event& event);
     void set_development_input_capture(
-        DevelopmentInputCapture capture) noexcept;
-    [[nodiscard]] DevelopmentInputCapture development_input_capture() const noexcept
+        InputCapture capture) noexcept;
+    [[nodiscard]] InputCapture development_input_capture() const noexcept
     {
         return _development_input_capture;
     }
     InputSnapshot snapshot() const;
-    InputDevice current_device() const;
     void set_renderer(SDL_Renderer* renderer);
 
 private:
@@ -55,7 +52,6 @@ private:
 private:
     std::vector<RawInputEvent> _events;
     GamepadDeviceManager _gamepad_devices;
-    InputDeviceTracker _device_tracker;
     SDL_Renderer* _renderer = nullptr;
     KeyboardMouseInputTranslator _keyboard_mouse_translator;
     struct SourceState
@@ -75,8 +71,8 @@ private:
     bool _has_mouse_position = false;
 
     bool _initialized = false;
-    DevelopmentInputCapture _development_input_capture =
-        DevelopmentInputCapture::None;
+    InputCapture _development_input_capture =
+        InputCapture::None;
 };
 
 }

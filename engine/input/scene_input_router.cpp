@@ -3,6 +3,35 @@
 #include <algorithm>
 namespace elysia::input
 {
+InputCapture SceneInputRouter::gameplay_capture(InputSourceId source, InputCapture external, bool focus_lost,
+                                                InputCapture additional) const
+{
+    if (_scene._paused || _block_gameplay || focus_lost)
+        return AllInputCapture;
+    return external | (ui_source(source) ? (ui_capture() | additional) : InputCapture::None);
+}
+void SceneInputRouter::cancel(LocalPlayerId player, InputCancelReason reason)
+{
+    if (!_routing)
+    {
+        if (_cancel)
+            _cancel(player, reason);
+        return;
+    }
+    auto priority = [](InputCancelReason r) {
+        return r == InputCancelReason::FocusLost ? 3 : r == InputCancelReason::SourceChanged ? 2 : 1;
+    };
+    auto [it, inserted] = _pending_cancellations.try_emplace(player, reason);
+    if (!inserted && priority(reason) > priority(it->second))
+        it->second = reason;
+}
+void SceneInputRouter::flush_cancellations()
+{
+    auto pending = std::exchange(_pending_cancellations, {});
+    for (auto [player, reason] : pending)
+        if (_cancel)
+            _cancel(player, reason);
+}
 InputCapture SceneInputRouter::ui_capture() const
 {
     auto mask = InputCapture::None;
@@ -19,7 +48,6 @@ void SceneInputRouter::suppress(LocalPlayerId player)
                 source.source.is_keyboard() ? _scene._players->filter_keyboard(player, source.frame.state)
                                             : source.frame.state,
                 AllInputCapture);
-    cancel(player);
 }
 bool SceneInputRouter::ui_source(InputSourceId source) const
 {
@@ -74,7 +102,10 @@ void SceneInputRouter::set_all_gameplay_input_blocked(bool blocked)
         return;
     _block_gameplay = blocked;
     for (auto player : _scene._players->players())
+    {
         suppress(player);
+        cancel(player);
+    }
 }
 void SceneInputRouter::reset()
 {
@@ -96,6 +127,15 @@ void SceneInputRouter::consume_input(const RawInputEvent &event)
 }
 void SceneInputRouter::route(const InputSnapshot &snapshot)
 {
+    _routing = true;
+    struct Guard
+    {
+        bool &routing;
+        ~Guard()
+        {
+            routing = false;
+        }
+    } guard{_routing};
     InputSnapshot input = snapshot;
     for (std::size_t index = 0; index < input.events.size(); ++index)
         input.events[index].routing_id = index + 1;
@@ -104,7 +144,7 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
                        : source.is_mouse()  ? InputCapture::Pointer
                                             : InputCapture::Gamepad);
         auto &previous = _previous_capture[source];
-        if (previous != mask && mask != InputCapture::None)
+        if (!_scene._paused && !_block_gameplay && previous != mask && mask != InputCapture::None)
             cancel_source(source);
         previous = mask;
     };
@@ -124,7 +164,7 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
         }
         if (source == ui_gamepad())
             set_ui_gamepad({});
-        _scene._players->unbind_source(source);
+        (void)_scene._players->unbind_source(source);
         _previous_capture.erase(source);
         _suppression.erase(source);
         _ui_suppression.erase(source);
@@ -170,16 +210,23 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
     for (auto &source : routed.sources)
     {
         physical[source.source] = source.initial_state;
-        auto mask = input.capture;
-        if (ui_source(source.source))
-            mask = mask | ui_capture();
-        if (_scene._paused || _block_gameplay || input.focus_lost)
-            mask = AllInputCapture;
+        auto mask = gameplay_capture(source.source, input.capture, input.focus_lost);
         update_capture(source.source, mask);
+        _suppression[source.source].observe(source.initial_state, mask);
+        _ui_suppression[source.source].observe(source.initial_state, input.capture);
         source.initial_state = _suppression[source.source].filter(source.initial_state, mask);
         if (ui_enabled(source.source))
         {
-            auto state = _ui_suppression[source.source].filter(source.frame.state, input.capture);
+            auto preview = _ui_suppression[source.source];
+            auto preview_state = physical[source.source];
+            for (const auto &event : input.events)
+                if (event.source == source.source)
+                {
+                    apply_raw_event(preview_state, event);
+                    preview.observe(preview_state, input.capture);
+                }
+            preview.observe(source.frame.state, input.capture);
+            auto state = preview.filter(source.frame.state, input.capture);
             merge_raw_state(ui_frame.state, state);
 
             if (source.source.is_mouse())
@@ -204,6 +251,7 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
         auto before = ui_capture();
         bool consumed =
             std::ranges::any_of(_consumed, [&](const auto &e) { return e.routing_id == event.routing_id; });
+        _ui_suppression[event.source].observe(state, input.capture);
         const auto ui_state = _ui_suppression[event.source].filter(state, input.capture);
         bool suppressed =
             (event.type == RawInputEventType::ControlPressed && !ui_state.is_pressed(event.control)) ||
@@ -219,20 +267,18 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
         if (!consumed && ui_enabled(event.source) && !captured(input.capture, event.device) && !suppressed &&
             !input.focus_lost)
             consumed = _scene.dispatch_ui_events(_ui_input_router.route_event(event));
-        auto mask = input.capture;
-        if (ui_source(event.source))
-            mask = mask | before | ui_capture();
+        auto mask = input.capture | (ui_source(event.source) ? before | ui_capture() : InputCapture::None);
         if (!consumed && !captured(mask, event.device) && !input.focus_lost && event.source.is_gamepad() &&
             !_scene._players->owner(event.source).value)
             consumed = _scene.on_unassigned_input(event);
         if (!consumed && ui_source(event.source) && captured(_shortcut_devices, event.device) &&
             !captured(mask, event.device) && !suppressed && !input.focus_lost)
             shortcut_events.push_back(event);
-        if (_scene._paused || _block_gameplay || input.focus_lost)
-            mask = AllInputCapture;
+        mask = gameplay_capture(event.source, input.capture, input.focus_lost, before);
         if (consumed)
             consume_input(event);
         update_capture(event.source, mask);
+        _suppression[event.source].observe(state, mask);
         auto filtered = _suppression[event.source].filter(state, mask);
         bool allowed = !consumed && !captured(mask, event.device);
         if (event.type == RawInputEventType::ControlPressed)
@@ -278,11 +324,9 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
     shortcuts.state.clear();
     for (auto &source : routed.sources)
     {
-        auto mask = input.capture;
-        if (ui_source(source.source))
-            mask = mask | ui_capture();
-        if (_scene._paused || _block_gameplay || input.focus_lost)
-            mask = AllInputCapture;
+        auto mask = gameplay_capture(source.source, input.capture, input.focus_lost);
+        _suppression[source.source].observe(source.frame.state, mask);
+        _ui_suppression[source.source].observe(source.frame.state, input.capture);
         source.frame.state = _suppression[source.source].filter(source.frame.state, mask);
         if (ui_source(source.source))
             merge_raw_state(shortcuts.state, source.frame.state);
@@ -294,14 +338,13 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
     });
     for (auto &source : routed.sources)
     {
-        auto mask = input.capture;
-        if (ui_source(source.source))
-            mask = mask | ui_capture();
-        if (_scene._paused || _block_gameplay || input.focus_lost)
-            mask = AllInputCapture;
+        auto mask = gameplay_capture(source.source, input.capture, input.focus_lost);
         // Always observe physical state, never feed already filtered zeros back into a latch.
         if (const auto *physical_source = input.find(source.source))
+        {
+            _suppression[source.source].observe(physical_source->frame.state, mask);
             source.frame.state = _suppression[source.source].filter(physical_source->frame.state, mask);
+        }
         update_capture(source.source, mask);
         if (mask != InputCapture::None)
         {
@@ -317,6 +360,8 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
     }
     if (_scene._paused || _block_gameplay)
         routed.events.clear();
+    _routing = false;
+    flush_cancellations();
     _scene.on_routed_input(routed);
 }
 

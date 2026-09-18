@@ -206,8 +206,8 @@ struct RawInputEvent
     int mouse_y = 0;
     int mouse_delta_x = 0;
     int mouse_delta_y = 0;
-    int wheel_x = 0;
-    int wheel_y = 0;
+    float wheel_x = 0;
+    float wheel_y = 0;
     int composition_start = 0;
     int composition_length = 0;
     // Stick axes: [-1.0f, 1.0f]

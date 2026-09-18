@@ -76,14 +76,14 @@ int main()
     auto *a = scene.create_and_add_object<Actor>();
     auto *b = scene.create_and_add_object<Actor>();
     auto p2 = scene.local_players().create_player();
-    require(scene.local_players().bind_source(p2, InputSourceId::gamepad(7)), "Bind second player");
-    require(!scene.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(7)),
+    require(bool(scene.local_players().bind_source(p2, InputSourceId::gamepad(7))), "Bind second player");
+    require(bool(!scene.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(7))),
             "A source cannot own two players");
     auto first=elysia::tests::local_controller(scene,PrimaryLocalPlayer);
     auto second=elysia::tests::local_controller(scene,p2);
-    require(service->bind_target(first,scene.control_context(),*a) && service->bind_target(second,scene.control_context(),*b),
+    require(service->bind_target(first,scene.control_context(),*a).succeeded() && service->bind_target(second,scene.control_context(),*b).succeeded(),
             "Bind independent targets");
-    require(!service->bind_target(second,scene.control_context(),*a), "Target ownership must be exclusive");
+    require(!service->bind_target(second,scene.control_context(),*a).succeeded(), "Target ownership must be exclusive");
     input.begin_frame();
     key(input, SDL_EVENT_KEY_DOWN, SDLK_D);
     key(input, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
@@ -133,7 +133,7 @@ int main()
     scene.step();
     require(a->presses == 4, "Paused commands must not accumulate");
     auto *c = scene.create_and_add_object<Actor>();
-    require(bool(service->bind_target(first,scene.control_context(),*c)), "Rebind target");
+    require(bool(service->bind_target(first,scene.control_context(),*c).succeeded()), "Rebind target");
     input.begin_frame();
     scene.on_input(input.snapshot());
     scene.step();
@@ -153,10 +153,10 @@ int main()
     auto& merged=*merged_fixture.scene;
     InputSystem mixed;
     auto *target = merged.create_and_add_object<Actor>();
-    require(merged.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(7)),
+    require(bool(merged.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(7))),
             "P1 can own keyboard plus pad");
     auto merged_controller=elysia::tests::local_controller(merged,PrimaryLocalPlayer);
-    require(bool(service->bind_target(merged_controller,merged.control_context(),*target)), "Bind merged player");
+    require(bool(service->bind_target(merged_controller,merged.control_context(),*target).succeeded()), "Bind merged player");
     mixed.begin_frame();
     key(mixed, SDL_EVENT_KEY_DOWN, SDLK_D);
     pad(mixed, SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
@@ -183,7 +183,7 @@ int main()
     require(target->presses == 0 && target->move.is_zero(), "Overflow must cancel all queued actions");
     // Scene reset must detach targets even when the object remains cached.
     auto ticks = target->ticks;
-    service->unbind_target(merged_controller);
+    service->unbind_target(merged_controller).succeeded();
     merged.step();
     require(target->ticks == ticks, "Explicit unbinding detaches the target");
     // Step hooks run before physics participants, once per simulated step.
@@ -200,7 +200,7 @@ int main()
     require(hook_count == 3 && participant_count == 3, "One callback per physics step");
     world.unregister_object(handle);
     // Dropped catchup steps do not replay edges.
-    require(bool(service->bind_target(merged_controller,merged.control_context(),*target)), "Rebind cached target");
+    require(bool(service->bind_target(merged_controller,merged.control_context(),*target).succeeded()), "Rebind cached target");
     mixed.begin_frame();
     key(mixed, SDL_EVENT_KEY_UP, SDLK_D);
     merged.on_input(mixed.snapshot());
@@ -218,15 +218,15 @@ int main()
     auto& twins=*twins_fixture.scene;
     InputSystem pads;
     const auto twin_player = twins.local_players().create_player();
-    require(twins.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(8)),
+    require(bool(twins.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(8))),
             "First pad binding");
-    require(twins.local_players().bind_source(twin_player, InputSourceId::gamepad(7)), "Second pad binding");
+    require(bool(twins.local_players().bind_source(twin_player, InputSourceId::gamepad(7))), "Second pad binding");
     auto *left = twins.create_and_add_object<Actor>();
     auto *right = twins.create_and_add_object<Actor>();
     auto left_controller=elysia::tests::local_controller(twins,PrimaryLocalPlayer);
     auto right_controller=elysia::tests::local_controller(twins,twin_player);
-    (void)service->bind_target(left_controller,twins.control_context(),*left);
-    (void)service->bind_target(right_controller,twins.control_context(),*right);
+    require(service->bind_target(left_controller,twins.control_context(),*left).succeeded(), "Test controller binding completes successfully");
+    require(service->bind_target(right_controller,twins.control_context(),*right).succeeded(), "Test controller binding completes successfully");
     pads.begin_frame();
     SDL_Event axis{};
     axis.type = SDL_EVENT_GAMEPAD_AXIS_MOTION;
@@ -267,9 +267,9 @@ int main()
     elysia::tests::ControlSceneFixture<TestScene> rebuilt_fixture;
     auto& rebuilt=*rebuilt_fixture.scene;
     auto *fresh = rebuilt.create_and_add_object<Actor>();
-    rebuilt.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(8));
+    require(bool(rebuilt.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(8))), "Rebuilt gamepad binding succeeds");
     auto fresh_controller=elysia::tests::local_controller(rebuilt,PrimaryLocalPlayer);
-    (void)service->bind_target(fresh_controller,rebuilt.control_context(),*fresh);
+    require(service->bind_target(fresh_controller,rebuilt.control_context(),*fresh).succeeded(), "Test controller binding completes successfully");
     pads.begin_frame();
     rebuilt.on_input(pads.snapshot());
     rebuilt.step();

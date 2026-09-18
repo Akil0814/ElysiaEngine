@@ -6,6 +6,33 @@ namespace elysia::input
 {
 namespace
 {
+InputDevice detect_event_device(const SDL_Event& event)
+{
+    switch (event.type)
+    {
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_TEXT_EDITING:
+    case SDL_EVENT_TEXT_INPUT:
+        return InputDevice::Keyboard;
+
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+        return InputDevice::Mouse;
+
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        return InputDevice::Gamepad;
+
+    default:
+        return InputDevice::Unknown;
+    }
+}
+
+
 [[nodiscard]] bool has_mouse_position(const RawInputEvent& event) noexcept
 {
     return event.device == InputDevice::Mouse
@@ -39,7 +66,7 @@ void InputSystem::shutdown()
 }
 
 void InputSystem::set_development_input_capture(
-    DevelopmentInputCapture capture) noexcept
+    InputCapture capture) noexcept
 {
     _development_input_capture = capture;
 }
@@ -55,13 +82,8 @@ void InputSystem::begin_frame()
     _removed.clear();
     _focus_lost = false;
     _events.clear();
-    _device_tracker.begin_frame();
     _mouse_delta_x = 0;
     _mouse_delta_y = 0;
-}
-
-void InputSystem::end_frame()
-{
 }
 
 void InputSystem::process_event(const SDL_Event& event)
@@ -84,8 +106,7 @@ void InputSystem::process_event(const SDL_Event& event)
     if (should_clear_state_for_event(event))
     {
         _focus_lost = true;
-            _events.clear();
-        _device_tracker.reset();
+        _events.clear();
         // Keep physical state until release so scene suppression can require neutral.
         return;
     }
@@ -94,23 +115,18 @@ void InputSystem::process_event(const SDL_Event& event)
         refresh_mouse_position();
         return;
     }
-    const auto update = _device_tracker.process_event(event);
-    if (update.event_device == InputDevice::Unknown)
+    const auto event_device = detect_event_device(event);
+    if (event_device == InputDevice::Unknown)
         return;
     _translating_source =
-        update.event_device == InputDevice::Gamepad
+        event_device == InputDevice::Gamepad
             ? InputSourceId::gamepad(event.type == SDL_EVENT_GAMEPAD_AXIS_MOTION ? event.gaxis.which
                                                                                  : event.gbutton.which)
-            : (update.event_device == InputDevice::Mouse ? InputSourceId::mouse() : InputSourceId::keyboard());
+            : (event_device == InputDevice::Mouse ? InputSourceId::mouse() : InputSourceId::keyboard());
     if (_sources.try_emplace(_translating_source).second && _translating_source.is_gamepad())
         _connected.push_back(_translating_source);
-    _sources[_translating_source].device = update.event_device;
-    translate_event(event, update.event_device);
-}
-
-InputDevice InputSystem::current_device() const
-{
-    return _device_tracker.current_device();
+    _sources[_translating_source].device = event_device;
+    translate_event(event, event_device);
 }
 
 void InputSystem::set_renderer(SDL_Renderer* renderer)
@@ -307,7 +323,6 @@ InputSnapshot InputSystem::snapshot() const
 void InputSystem::reset_input_lifecycle()
 {
     _events.clear();
-    _device_tracker.reset();
     _sources.clear();
     _sources.emplace(InputSourceId::keyboard(), SourceState{});
     _sources.emplace(InputSourceId::mouse(), SourceState{});
@@ -319,7 +334,7 @@ void InputSystem::reset_input_lifecycle()
     _mouse_delta_x = 0;
     _mouse_delta_y = 0;
     _has_mouse_position = false;
-    _development_input_capture = DevelopmentInputCapture::None;
+    _development_input_capture = InputCapture::None;
 }
 
 bool InputSystem::should_clear_state_for_event(const SDL_Event& event) const

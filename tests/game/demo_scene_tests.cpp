@@ -630,7 +630,7 @@ void test_escape_returns_the_full_caller_route()
     require(!controls->get(first_controller) && !controls->get(second_controller),"Explicit session end invalidates demo handles");
 
 
-    scene_manager.shutdown();
+    require(scene_manager.shutdown(), "Demo shutdown after session end restores devices without errors");
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         nullptr,nullptr);
     localization->shutdown();

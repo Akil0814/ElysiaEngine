@@ -20,11 +20,11 @@ ControllerService 与 ControllerManager 复用引擎的 `elysia::tools::Singleto
 
 ## 设备与玩家
 
-物理源分为 `InputSourceId::keyboard()`、`mouse()` 和 `gamepad(instance)`，类别由 InputSourceKind 表达，不由编号范围推断。只有一个逻辑键盘和一个逻辑鼠标，不区分多个实体键鼠。各手柄转换器和扳机阈值独立；最近使用设备只影响提示。
+物理源分为 `InputSourceId::keyboard()`、`mouse()` 和 `gamepad(instance)`，类别由 InputSourceKind 表达，不由编号范围推断。只有一个逻辑键盘和一个逻辑鼠标，不区分多个实体键鼠。各手柄转换器和扳机阈值独立；UI 自行记录活动设备用于提示；InputSystem 不提供全局 current_device 查询。
 
 SceneManager 持有应用级 LocalPlayerRegistry。默认 P1 绑定完整键盘分区和鼠标。键盘分区是游戏配置，不是物理设备；每个玩家最多一个分区、一个鼠标源和一台手柄。分区之间不能占用同一个键，鼠标整体独占，玩家身份独立于设备和角色。
 
-`create_partition`／`update_partition`／`remove_partition` 管理分区，`bind_keyboard` 绑定分区；`bind_source`／`unbind_source`／`transfer_source` 管理鼠标或手柄，`replace_gamepad` 替换玩家的手柄。`configuration` 提供只读配置，`apply_configuration` 原子提交批量变化，返回 InputBindingError；失败不改变绑定和版本。已绑定分区不能删除，活动控制器的键盘映射不能引用分区外按键。
+`create_partition`／`update_partition`／`remove_partition` 管理分区，`bind_keyboard` 绑定分区；`bind_source`／`unbind_source`／`transfer_source` 管理鼠标或手柄，`replace_gamepad` 替换玩家的手柄。上述设备变更统一返回 `expected<void, InputBindingError>`，有效但未分配的设备重复解绑成功，非法玩家或设备返回具体错误。`configuration` 提供只读配置，`apply_configuration` 原子提交批量变化，返回 InputBindingError；失败不改变绑定和版本。已绑定分区不能删除，活动控制器的键盘映射不能引用分区外按键。
 
 每玩家 binding_version 在归属或分区内容变化时更新，输入阶段与实际 tick 前均检测。受影响玩家取消旧命令并要求持续控制释放／回中，其他玩家继续操作。鼠标转移丢弃待消费增量，不从当前位置合成位移。移除手柄只解绑该实例，重连不自动恢复。
 
@@ -45,9 +45,9 @@ SceneManager 在引擎侧初始化 Manager，关闭时结束会话并停用运�
 
 ControllerHandle 含运行期代次和实例号。移除、结束会话后旧句柄无效；新会话不会复用有效旧句柄。长期引用保存句柄，`get<T>()` 返回借用指针，不能跨调度修改边界保存。
 
-一个控制器最多一个目标，一个目标最多一个控制器。同一活动场景、同一玩家最多一个已绑定本地控制器；允许未绑定和缓存场景实例共存。目标必须是当前活动上下文登记的存活对象。失败绑定保留原绑定。
+一个控制器最多一个目标，一个目标最多一个控制器。同一活动场景、同一玩家最多一个已绑定本地控制器；允许未绑定和缓存场景实例共存。目标必须是当前活动上下文登记的存活对象。提交前校验失败保留原绑定；旧目标已收到取消后，若回调使新目标失效，则保持解绑并报告失败，不恢复旧命令。
 
-回调内移除立即停止后续交付，实际析构延迟到安全边界；创建的新实例最早下一实际 tick 参与。回调内换绑和映射替换排队提交，目标若在提交前失效则不应用。离开、换绑、重置清空状态、事件和增量，推进绑定代次。
+回调内移除立即停止后续交付，实际析构延迟到安全边界；创建的新实例最早下一实际 tick 参与。回调内换绑、解绑和映射替换返回 Pending 操作结果，并在安全边界提交。入队与提交均校验，取消回调后再次校验；对象移除通知使待绑定请求立即失败。离开、换绑、重置清空状态、事件和增量，推进绑定代次。
 
 ## 一帧与一个 tick
 
@@ -68,3 +68,9 @@ ControllerHandle 含运行期代次和实例号。移除、结束会话后旧句
 捕获默认只取消相关本地控制器。`set_all_gameplay_input_blocked` 屏蔽所有本地玩法输入，但不自动干预 AI／远端等自定义来源。世界 `pause()` 取消并停止所有控制器；UI 继续处理。
 
 失焦、屏蔽、设备重绑、目标或映射切换使用取消通知，不能伪造普通释放事件。每个被屏蔽按键必须释放，摇杆／扳机须回到中立区（绝对值不超过 0.2）再生效。UI 操作权转移保留焦点，清理按住、拖拽、重复和合成滚动状态。
+
+## 捕获与门控
+
+通用 `InputCapture` 定义于 `engine/input/input_capture.h`，开发覆盖层和 UI 共用该类型。捕获期间匹配设备的持续值无条件清零，轴死区不能绕过捕获。解除捕获后，已有锁定仍需按键释放或每轴绝对值不超过 0.2 才能恢复。
+
+`InputSuppression::observe` 仅按物理状态顺序更新门控，`filter` 是 const 查询；UI 帧预计算使用门控副本，不提前推进事件路由的真实门控。屏蔽本身不发送取消；路由按玩家合并取消，在映射前通知，原因优先级为 FocusLost、SourceChanged、Suppressed。暂停、解绑与不可用由控制器生命周期负责，持续不可用不重复通知。

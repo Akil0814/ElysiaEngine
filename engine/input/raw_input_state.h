@@ -132,7 +132,7 @@ private:
 
     static constexpr bool is_trackable_axis(RawInputAxis axis)
     {
-        return axis != RawInputAxis::None && axis != RawInputAxis::Count;
+        return axis > RawInputAxis::None && axis < RawInputAxis::Count;
     }
 
     static constexpr std::size_t index(RawInputControl control)

@@ -68,7 +68,7 @@ int main()
     InputSystem input;
     auto *actor = scene.create_and_add_object<CaptureActor>();
     auto controller=elysia::tests::local_controller(scene,PrimaryLocalPlayer);
-    require(bool(service->bind_target(controller,scene.control_context(),*actor)), "Bind actor");
+    require(bool(service->bind_target(controller,scene.control_context(),*actor).succeeded()), "Bind actor");
     auto step = [&] {
         scene.on_input(input.snapshot());
         scene.on_update(1.0 / 60);
@@ -77,14 +77,14 @@ int main()
     key(input, SDL_EVENT_KEY_DOWN, SDLK_D);
     step();
     require(actor->move.x > 0, "Baseline movement");
-    input.set_development_input_capture(DevelopmentInputCapture::Keyboard);
+    input.set_development_input_capture(InputCapture::Keyboard);
     input.begin_frame();
     step();
     require(actor->move.is_zero(), "Capture cancels held movement");
     key(input, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
     step();
     require(actor->presses == 0, "Captured attack must not enter command queue");
-    input.set_development_input_capture(DevelopmentInputCapture::None);
+    input.set_development_input_capture(InputCapture::None);
     input.begin_frame();
     step();
     require(actor->move.is_zero() && actor->presses == 0, "Capture exit requires neutral");
@@ -112,7 +112,7 @@ int main()
     auto *other = scene.create_and_add_object<CaptureActor>();
     auto second_controller=elysia::tests::local_controller(scene,second);
     require(scene.local_players().bind_source(second, InputSourceId::gamepad(9)) &&
-                bool(service->bind_target(second_controller,scene.control_context(),*other)),
+                bool(service->bind_target(second_controller,scene.control_context(),*other).succeeded()),
             "Second player");
     text->set_focused(true);
     input.begin_frame();
@@ -182,10 +182,10 @@ int main()
     auto& partial=*partial_fixture.scene;
     InputSystem partial_input;
     auto *partial_actor = partial.create_and_add_object<CaptureActor>();
-    partial.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9));
+    require(bool(partial.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9))), "Partial capture gamepad binding succeeds");
     auto partial_controller=elysia::tests::local_controller(partial,PrimaryLocalPlayer);
-    (void)service->bind_target(partial_controller,partial.control_context(),*partial_actor);
-    partial_input.set_development_input_capture(DevelopmentInputCapture::Keyboard);
+    require(service->bind_target(partial_controller,partial.control_context(),*partial_actor).succeeded(), "Test controller binding completes successfully");
+    partial_input.set_development_input_capture(InputCapture::Keyboard);
     partial_input.begin_frame();
     SDL_Event down{};
     down.type = SDL_EVENT_GAMEPAD_BUTTON_DOWN;
@@ -204,9 +204,9 @@ int main()
     auto& exact=*exact_fixture.scene;
     InputSystem exact_input;
     auto *exact_actor = exact.create_and_add_object<CaptureActor>();
-    exact.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9));
+    require(bool(exact.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9))), "Exact capture gamepad binding succeeds");
     auto exact_controller=elysia::tests::local_controller(exact,PrimaryLocalPlayer);
-    (void)service->bind_target(exact_controller,exact.control_context(),*exact_actor);
+    require(service->bind_target(exact_controller,exact.control_context(),*exact_actor).succeeded(), "Test controller binding completes successfully");
     auto *once = exact.create_and_add_object<elysia::ui::UiButton>(elysia::core::Rect{0, 0, 100, 40});
     once->set_focused(true);
     once->set_on_click([&] {

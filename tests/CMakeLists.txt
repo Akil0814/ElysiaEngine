@@ -112,6 +112,7 @@ target_compile_definitions(engine_character_tests
 
 foreach(INPUT_TEST_TARGET IN ITEMS
     controller_runtime_tests
+    input_regression_tests
     development_input_capture_tests
     input_action_mapping_tests
     input_system_controller_lifecycle_tests

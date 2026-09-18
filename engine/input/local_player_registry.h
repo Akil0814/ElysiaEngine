@@ -77,6 +77,7 @@ class LocalPlayerRegistry
             return false;
         std::erase(_players, id);
         _configuration.bindings.erase(id);
+        _required_keys.erase(id);
         ++_versions[id];
         ++_revision;
         return true;
@@ -134,7 +135,7 @@ class LocalPlayerRegistry
             if (binding.mouse && std::exchange(mouse, true))
                 return std::unexpected(InputBindingError::Overlap);
             if (binding.gamepad.value &&
-                (!binding.gamepad.is_gamepad() || !pads.insert(binding.gamepad).second))
+                (!binding.gamepad.is_gamepad() || !valid_source(binding.gamepad) || !pads.insert(binding.gamepad).second))
                 return std::unexpected(InputBindingError::InvalidSource);
         }
         for (auto player : _players)
@@ -189,54 +190,45 @@ class LocalPlayerRegistry
         next.bindings[player].keyboard = id;
         return apply_configuration(std::move(next));
     }
-    bool bind_source(LocalPlayerId player, InputSourceId source)
+    std::expected<void, InputBindingError> bind_source(LocalPlayerId player, InputSourceId source)
     {
-        if (!contains(player) || !source.value || source.is_keyboard())
-            return false;
-        if (owner(source).value && owner(source) != player)
-            return false;
+        if (!contains(player)) return std::unexpected(InputBindingError::InvalidPlayer);
+        if (!valid_source(source)) return std::unexpected(InputBindingError::InvalidSource);
+        if (owner(source).value && owner(source) != player) return std::unexpected(InputBindingError::InUse);
         auto next = _configuration;
         auto &binding = next.bindings[player];
-        if (source.is_mouse())
-            binding.mouse = true;
-        else if (source.is_gamepad() && (!binding.gamepad.value || binding.gamepad == source))
-            binding.gamepad = source;
-        else
-            return false;
-        return bool(apply_configuration(std::move(next)));
+        if (source.is_mouse()) binding.mouse = true;
+        else if (!binding.gamepad.value || binding.gamepad == source) binding.gamepad = source;
+        else return std::unexpected(InputBindingError::InUse);
+        return apply_configuration(std::move(next));
     }
-    bool unbind_source(InputSourceId source)
+    std::expected<void, InputBindingError> unbind_source(InputSourceId source)
     {
+        if (!valid_source(source)) return std::unexpected(InputBindingError::InvalidSource);
         auto player = owner(source);
-        if (!player.value)
-            return false;
+        if (!player.value) return {};
         auto next = _configuration;
-        if (source.is_mouse())
-            next.bindings[player].mouse = false;
-        else
-            next.bindings[player].gamepad = {};
-        return bool(apply_configuration(std::move(next)));
+        if (source.is_mouse()) next.bindings[player].mouse = false;
+        else next.bindings[player].gamepad = {};
+        return apply_configuration(std::move(next));
     }
-    bool transfer_source(LocalPlayerId player, InputSourceId source)
+    std::expected<void, InputBindingError> transfer_source(LocalPlayerId player, InputSourceId source)
     {
-        if (!contains(player) || !source.value || source.is_keyboard())
-            return false;
+        if (!contains(player)) return std::unexpected(InputBindingError::InvalidPlayer);
+        if (!valid_source(source)) return std::unexpected(InputBindingError::InvalidSource);
         auto next = _configuration;
         for (auto &[id, b] : next.bindings)
-            if (source.is_mouse())
-                b.mouse = false;
-            else if (b.gamepad == source)
-                b.gamepad = {};
-        if (source.is_mouse())
-            next.bindings[player].mouse = true;
-        else
-            next.bindings[player].gamepad = source;
-        return bool(apply_configuration(std::move(next)));
+            if (source.is_mouse()) b.mouse = false;
+            else if (b.gamepad == source) b.gamepad = {};
+        if (source.is_mouse()) next.bindings[player].mouse = true;
+        else next.bindings[player].gamepad = source;
+        return apply_configuration(std::move(next));
     }
-    bool replace_gamepad(LocalPlayerId player, InputSourceId source)
+    std::expected<void, InputBindingError> replace_gamepad(LocalPlayerId player, InputSourceId source)
     {
-        if (!source.is_gamepad() || (owner(source).value && owner(source) != player))
-            return false;
+        if (!contains(player)) return std::unexpected(InputBindingError::InvalidPlayer);
+        if (!source.is_gamepad() || !valid_source(source)) return std::unexpected(InputBindingError::InvalidSource);
+        if (owner(source).value && owner(source) != player) return std::unexpected(InputBindingError::InUse);
         return transfer_source(player, source);
     }
     LocalPlayerId owner(InputSourceId source) const
@@ -325,6 +317,10 @@ class LocalPlayerRegistry
     }
 
   private:
+    static bool valid_source(InputSourceId source)
+    {
+        return source == InputSourceId::mouse() || (source.is_gamepad() && source.value > 0 && source.value <= UINT32_MAX);
+    }
     std::map<LocalPlayerId, std::set<RawInputControl>> _required_keys;
     std::vector<LocalPlayerId> _players;
     PlayerInputConfiguration _configuration;

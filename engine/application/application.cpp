@@ -515,7 +515,6 @@ ApplicationRunResult Application::run()
                     _normal_exit_requested = true;
             }
 
-            _input_system.end_frame();
         }))
         {
             stop_after_boundary_failure();

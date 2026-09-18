@@ -1,4 +1,5 @@
 #include "scene_manager.h"
+#include "../gameplay/control/controller_manager.h"
 
 #include "../camera/camera_manager.h"
 #include "../effects/runtime/effect_manager.h"

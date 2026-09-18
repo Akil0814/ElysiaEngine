@@ -13,7 +13,7 @@
 
 namespace
 {
-using elysia::input::DevelopmentInputCapture;
+using elysia::input::InputCapture;
 using elysia::tests::require;
 using elysia::tools::DevelopmentOverlayHost;
 using elysia::tools::DevelopmentPanelHandle;
@@ -30,8 +30,8 @@ struct FakeOverlayState
     int render_calls = 0;
     int shutdown_calls = 0;
     double last_delta = 0.0;
-    DevelopmentInputCapture capture =
-        DevelopmentInputCapture::Keyboard | DevelopmentInputCapture::Pointer;
+    InputCapture capture =
+        InputCapture::Keyboard | InputCapture::Pointer;
 };
 
 class FakeOverlay final : public IDevelopmentOverlay
@@ -75,7 +75,7 @@ public:
         ++_state->shutdown_calls;
     }
 
-    DevelopmentInputCapture captured_input() const noexcept override
+    InputCapture captured_input() const noexcept override
     {
         return _state->capture;
     }
@@ -144,7 +144,7 @@ void require_empty_host_is_noop(SdlFixture& fixture)
     require(!host.initialized(), "an empty overlay host must remain uninitialized");
     require(host.panel_registry() == nullptr,
         "an empty overlay host must not publish a panel registry");
-    require(host.captured_input() == DevelopmentInputCapture::None,
+    require(host.captured_input() == InputCapture::None,
         "an empty overlay host must not capture input");
 }
 
@@ -177,8 +177,8 @@ void require_hidden_and_visible_lifecycle(SdlFixture& fixture)
     require(host.process_event(key_event(SDL_EVENT_KEY_UP, SDLK_F2)),
         "F2 up must also be reserved by the overlay host");
     require(host.captured_input()
-            == (DevelopmentInputCapture::Keyboard
-                | DevelopmentInputCapture::Pointer),
+            == (InputCapture::Keyboard
+                | InputCapture::Pointer),
         "a visible host must publish the adapter's completed-frame capture");
 
     require(!host.process_event(ordinary_event),
@@ -198,7 +198,7 @@ void require_hidden_and_visible_lifecycle(SdlFixture& fixture)
     require(host.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_F2)),
         "a later F2 press must be consumed");
     require(!host.visible(), "a later F2 press must hide the overlay");
-    require(host.captured_input() == DevelopmentInputCapture::None,
+    require(host.captured_input() == InputCapture::None,
         "a hidden overlay must immediately release input capture");
 
     host.shutdown();

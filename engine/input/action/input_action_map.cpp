@@ -62,9 +62,13 @@ bool InputActionMap::binding_valid_for(const InputBinding &binding, const InputA
     return std::visit(
         [&](const auto &source) {
             using Source = std::decay_t<decltype(source)>;
+            if constexpr (requires { source.component; })
+                if (source.component != InputActionComponent::X && source.component != InputActionComponent::Y)
+                    return false;
             if constexpr (std::is_same_v<Source, PointerDeltaBinding>)
             {
-                return descriptor.semantics == InputValueSemantics::Delta &&
+                return source.axis >= PointerDeltaAxis::MouseX && source.axis <= PointerDeltaAxis::WheelY &&
+                       descriptor.semantics == InputValueSemantics::Delta &&
                        descriptor.value_type != InputActionValueType::Button && std::isfinite(source.scale) &&
                        (descriptor.value_type == InputActionValueType::Axis2D ||
                         source.component == InputActionComponent::X);
@@ -76,13 +80,13 @@ bool InputActionMap::binding_valid_for(const InputBinding &binding, const InputA
                 if (!is_keyboard_control(source.control) && !is_mouse_button_control(source.control) &&
                     !is_gamepad_button_control(source.control))
                     return false;
-                return descriptor.value_type != InputActionValueType::Button ||
+                return descriptor.value_type == InputActionValueType::Axis2D ||
                        source.component == InputActionComponent::X;
             }
             else if constexpr (std::is_same_v<Source, AxisInputBinding>)
             {
                 return std::isfinite(source.scale) && descriptor.value_type != InputActionValueType::Button &&
-                       source.axis != RawInputAxis::None && source.axis != RawInputAxis::Count &&
+                       source.axis > RawInputAxis::None && source.axis < RawInputAxis::Count &&
                        (descriptor.value_type == InputActionValueType::Axis2D ||
                         source.component == InputActionComponent::X);
             }
@@ -90,8 +94,8 @@ bool InputActionMap::binding_valid_for(const InputBinding &binding, const InputA
             {
                 return std::isfinite(source.x_scale) && std::isfinite(source.y_scale) &&
                        descriptor.value_type == InputActionValueType::Axis2D &&
-                       source.x_axis != RawInputAxis::None && source.y_axis != RawInputAxis::None &&
-                       source.x_axis != RawInputAxis::Count && source.y_axis != RawInputAxis::Count;
+                       source.x_axis > RawInputAxis::None && source.y_axis > RawInputAxis::None &&
+                       source.x_axis < RawInputAxis::Count && source.y_axis < RawInputAxis::Count;
             }
             else
             {
@@ -109,7 +113,9 @@ bool InputActionMap::binding_valid_for(const InputBinding &binding, const InputA
 bool InputActionMap::register_action(InputActionDescriptor descriptor,
                                      std::vector<InputBinding> default_bindings)
 {
-    if (!std::isfinite(descriptor.actuation_threshold) || !std::isfinite(descriptor.dead_zone) ||
+    if (descriptor.value_type < InputActionValueType::Button || descriptor.value_type > InputActionValueType::Axis2D ||
+        (descriptor.semantics != InputValueSemantics::State && descriptor.semantics != InputValueSemantics::Delta) ||
+        !std::isfinite(descriptor.actuation_threshold) || !std::isfinite(descriptor.dead_zone) ||
         (descriptor.semantics == InputValueSemantics::Delta &&
          descriptor.value_type == InputActionValueType::Button))
         return false;

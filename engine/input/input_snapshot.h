@@ -1,6 +1,6 @@
 #pragma once
 #include "raw_input_frame.h"
-#include "development_input_capture.h"
+#include "input_capture.h"
 #include <vector>
 #include <algorithm>
 namespace elysia::input
@@ -17,7 +17,7 @@ struct InputSnapshot
     std::vector<RawInputEvent> events;
     std::vector<InputSourceId> connected, removed;
     bool focus_lost = false;
-    DevelopmentInputCapture capture = DevelopmentInputCapture::None;
+    InputCapture capture = InputCapture::None;
     [[nodiscard]] const InputSourceFrame *find(InputSourceId id) const
     {
         for (const auto &source : sources)

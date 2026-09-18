@@ -1,6 +1,6 @@
 #include "controller_manager.h"
-#include "../scene/gameplay_scene.h"
 #include "../../tools/logger.h"
+#include "../scene/gameplay_scene.h"
 #include <algorithm>
 #include <cmath>
 namespace elysia::gameplay
@@ -34,12 +34,17 @@ void ControllerManager::end_session()
 {
     Boundary boundary(*this);
     _session = false;
+    for (const auto &r : _requests)
+    {
+        r->operation.finish(ControllerError::NoSession);
+        release_reservation(*r);
+    }
     std::vector<ControllerHandle> handles;
     for (auto &[id, e] : _entries)
         if (!e.removed)
             handles.push_back(e.command.controller);
     for (auto h : handles)
-        remove(h);
+        (void)remove(h);
 }
 ControllerManager::Entry *ControllerManager::find(ControllerHandle h)
 {
@@ -60,9 +65,13 @@ std::expected<ControllerHandle, ControllerError> ControllerManager::add(
         return std::unexpected(ControllerError::NoSession);
     if (info.scope == ControllerScope::Scene && !context(info.scene))
         return std::unexpected(ControllerError::InvalidContext);
-    if (auto *local = dynamic_cast<LocalPlayerController *>(controller.get());
-        local && (!local->player().value || !local->input_map().valid()))
-        return std::unexpected(ControllerError::InvalidMap);
+    if (auto *local = dynamic_cast<LocalPlayerController *>(controller.get()))
+    {
+        if (!local->player().value)
+            return std::unexpected(ControllerError::InvalidPlayer);
+        if (!local->input_map().valid())
+            return std::unexpected(ControllerError::InvalidMap);
+    }
     auto h = ControllerHandle{_runtime, _next_id++};
     controller->_handle = h;
     controller->_submit = [this, h](ActionInputResult input) {
@@ -95,12 +104,15 @@ void ControllerManager::flush()
     {
         auto operation = std::move(_pending.front());
         _pending.pop_front();
-        operation();
+        if (operation->operation.pending())
+            commit(operation);
     }
+    std::erase_if(_requests, [](const auto &r) { return !r->operation.pending(); });
     std::erase_if(_entries, [](auto &item) { return item.second.removed; });
 }
 void ControllerManager::cancel(Entry &e, InputCancelReason reason)
 {
+    ++e.cancel_generation;
     e.command.state = {};
     e.command.events.clear();
     e.command.deltas.clear();
@@ -129,48 +141,36 @@ void ControllerManager::detach(Entry &e, InputCancelReason reason)
             it->second->_scene.local_players().clear_keyboard_requirement(local->player());
     // Detach before callbacks so reentrant operations cannot deliver to this target.
     auto *receiver = std::exchange(e.receiver, nullptr);
+    auto *old_target = e.target;
+    const auto old_scene = e.bound_scene;
     e.target = nullptr;
     e.bound_scene = {};
     e.available = false;
     ++e.command.binding_generation;
-    e.reserved_target = nullptr;
-    e.reserved_scene = {};
-    ++e.request_generation;
     cancel(e, reason);
-    if (receiver)
+    // A controller callback may have released the old receiver.
+    auto old_context = _contexts.find(old_scene.instance);
+    if (receiver && old_context != _contexts.end() && old_context->second->token() == old_scene &&
+        old_context->second->_scene.contains_control_target(old_target))
         receiver->on_control_cancelled(reason);
 }
-bool ControllerManager::remove(ControllerHandle h)
+std::expected<void, ControllerError> ControllerManager::remove(ControllerHandle h)
 {
     auto *e = find(h);
     if (!e)
-        return false;
+        return std::unexpected(ControllerError::InvalidHandle);
     Boundary boundary(*this);
+    fail_requests(h, ControllerError::InvalidHandle);
     e->removed = true;
     detach(*e, InputCancelReason::Unbound);
-    return true;
+    return {};
 }
-bool ControllerManager::unbind(ControllerHandle h)
+ControllerOperation ControllerManager::unbind(ControllerHandle h)
 {
-    auto *e = find(h);
-    if (!e)
-        return false;
-    if (!e->target && !e->reserved_target)
-        return true;
-    if (_depth)
-    {
-        auto request = ++e->request_generation;
-        e->reserved_target = nullptr;
-        e->reserved_scene = {};
-        _pending.push_back([this, h, request] {
-            if (auto *current = find(h); current && current->request_generation == request)
-                unbind(h);
-        });
-        return true;
-    }
-    Boundary boundary(*this);
-    detach(*e, InputCancelReason::Unbound);
-    return true;
+    auto r = std::make_shared<Request>();
+    r->kind = RequestKind::Unbind;
+    r->handle = h;
+    return request(std::move(r));
 }
 std::expected<void, ControllerError> ControllerManager::validate_binding(Entry &e, SceneControlToken token,
                                                                          elysia::core::GameObject &target)
@@ -200,57 +200,186 @@ std::expected<void, ControllerError> ControllerManager::validate_binding(Entry &
     }
     return {};
 }
-std::expected<void, ControllerError> ControllerManager::bind(ControllerHandle h, SceneControlToken token,
-                                                             elysia::core::GameObject &target)
+ControllerOperation ControllerManager::bind(ControllerHandle h, SceneControlToken token,
+                                            elysia::core::GameObject &target)
 {
-    auto *e = find(h);
-    if (!e)
-        return std::unexpected(ControllerError::InvalidHandle);
-    auto result = validate_binding(*e, token, target);
-    if (!result)
-        return result;
-    if (_depth)
+    auto r = std::make_shared<Request>();
+    r->kind = RequestKind::Bind;
+    r->handle = h;
+    r->scene = token;
+    r->target = &target;
+    return request(std::move(r));
+}
+void ControllerManager::release_reservation(const Request &r)
+{
+    if (r.kind == RequestKind::Map)
+        return;
+    if (auto *e = find(r.handle); e && e->reserved_target == r.target && e->reserved_scene == r.scene)
     {
-        auto *ptr = &target;
-        auto request = ++e->request_generation;
-        e->reserved_target = ptr;
-        e->reserved_scene = token;
-        _pending.push_back([this, h, token, ptr, request] {
-            // Membership is checked without dereferencing a potentially released target.
-            auto *current = find(h);
-            if (!current || current->request_generation != request)
-                return;
-            current->reserved_target = nullptr;
-            current->reserved_scene = {};
-            auto *ctx = context(token);
-            if (ctx && ctx->_scene.contains_control_target(ptr))
-                (void)bind(h, token, *ptr);
-        });
-        return {};
+        e->reserved_target = nullptr;
+        e->reserved_scene = {};
     }
+}
+void ControllerManager::fail_requests(ControllerHandle handle, ControllerError error)
+{
+    for (const auto &r : _requests)
+        if (r->handle == handle && r->operation.pending())
+        {
+            r->operation.finish(error);
+            release_reservation(*r);
+        }
+}
+ControllerOperation ControllerManager::request(std::shared_ptr<Request> r)
+{
+    auto *e = find(r->handle);
+    auto reject = [&](ControllerError error) {
+        r->operation.finish(error);
+        return r->operation;
+    };
+    if (!e)
+        return reject(ControllerError::InvalidHandle);
+    if (r->kind == RequestKind::Bind)
+    {
+        auto result = validate_binding(*e, r->scene, *r->target);
+        if (!result)
+            return reject(result.error());
+    }
+    if (r->kind == RequestKind::Map)
+    {
+        auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
+        if (!local || !r->map.valid())
+            return reject(ControllerError::InvalidMap);
+        if (auto *ctx = context(e->bound_scene))
+            if (!ctx->_scene.local_players().accepts_keyboard_map(local->player(),
+                                                                  r->map.keyboard_controls()))
+                return reject(ControllerError::InvalidMap);
+        r->scene = e->bound_scene;
+    }
+    else
+    {
+        if (r->kind == RequestKind::Unbind)
+            r->scene = e->bound_scene;
+        // Only accepted requests supersede older target operations.
+        for (const auto &old : _requests)
+            if (old->handle == r->handle && old->kind != RequestKind::Map && old->operation.pending())
+            {
+                old->operation.finish(ControllerError::Superseded);
+                release_reservation(*old);
+            }
+        e->reserved_target = r->target;
+        e->reserved_scene = r->scene;
+    }
+    _requests.push_back(r);
+    if (_depth)
+        _pending.push_back(r);
+    else
+    {
+        Boundary boundary(*this);
+        commit(r);
+    }
+    return r->operation;
+}
+void ControllerManager::commit(const std::shared_ptr<Request> &r)
+{
     Boundary boundary(*this);
-    if (e->target == &target && e->bound_scene == token)
-        return {};
+    auto fail = [&](ControllerError error) {
+        r->operation.finish(error);
+        release_reservation(*r);
+    };
+    auto *e = find(r->handle);
+    if (!e)
+    {
+        fail(ControllerError::InvalidHandle);
+        return;
+    }
+    if (r->kind == RequestKind::Unbind)
+    {
+        if (e->target)
+            detach(*e, InputCancelReason::Unbound);
+        release_reservation(*r);
+        r->operation.finish();
+        return;
+    }
+    if (r->kind == RequestKind::Map)
+    {
+        auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
+        auto valid = [&] {
+            auto *ctx = context(e->bound_scene);
+            return !ctx || ctx->_scene.local_players().accepts_keyboard_map(local->player(),
+                                                                            r->map.keyboard_controls());
+        };
+        if (!valid())
+        {
+            fail(ControllerError::InvalidMap);
+            return;
+        }
+        cancel(*e, InputCancelReason::SourceChanged);
+        if (!r->operation.pending())
+            return;
+        if (!valid())
+        {
+            fail(ControllerError::InvalidMap);
+            return;
+        }
+        r->map.reset_state();
+        local->_map = std::move(r->map);
+        if (auto *ctx = context(e->bound_scene))
+        {
+            ctx->_scene.local_players().set_keyboard_requirement(local->player(),
+                                                                 local->_map.keyboard_controls());
+            ctx->_scene.input_router().suppress(local->player());
+        }
+        r->operation.finish();
+        return;
+    }
+    auto validate = [&]() -> std::expected<void, ControllerError> {
+        auto *ctx = context(r->scene);
+        if (!ctx)
+            return std::unexpected(ControllerError::InvalidContext);
+        if (!ctx->_scene.contains_control_target(r->target))
+            return std::unexpected(ControllerError::InvalidTarget);
+        return validate_binding(*e, r->scene, *r->target);
+    };
+    auto valid = validate();
+    if (!valid)
+    {
+        fail(valid.error());
+        return;
+    }
+    if (e->target == r->target && e->bound_scene == r->scene)
+    {
+        release_reservation(*r);
+        r->operation.finish();
+        return;
+    }
     detach(*e, InputCancelReason::Unbound);
-    if (e->removed || !context(token))
-        return std::unexpected(ControllerError::InvalidHandle);
-    e->target = &target;
-    e->receiver = dynamic_cast<ControlCommandReceiver *>(&target);
-    e->bound_scene = token;
-    e->available = target.is_active();
+    if (!r->operation.pending())
+        return;
+    valid = validate();
+    if (!valid)
+    {
+        fail(valid.error());
+        return;
+    }
+    e->target = r->target;
+    e->receiver = dynamic_cast<ControlCommandReceiver *>(r->target);
+    e->bound_scene = r->scene;
+    e->available = r->target->is_active();
     if (auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get()))
     {
-        auto &scene = context(token)->_scene;
+        auto &scene = context(r->scene)->_scene;
         scene.local_players().set_keyboard_requirement(local->player(), local->_map.keyboard_controls());
         local->_sources = scene.local_players().sources(local->player());
         local->_binding_version = scene.local_players().binding_version(local->player());
         scene.input_router().suppress(local->player());
     }
-    return {};
+    release_reservation(*r);
+    r->operation.finish();
 }
 void ControllerManager::ingest(Entry &e, ActionInputResult input)
 {
-    if (!e.target || !e.available || e.removed)
+    if (!e.target || !e.available || e.removed || e.cancelling ||
+        (e.producing_generation && *e.producing_generation != e.cancel_generation))
         return;
     auto *ctx = context(e.bound_scene);
     if (!ctx || !ctx->_active || ctx->_scene._paused || !e.target->is_active() || e.target->is_destroyed())
@@ -298,14 +427,17 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
         auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
         if (!local)
             continue;
+        const bool already_cancelled = std::exchange(e->source_cancelled, false);
         auto &players = ctx._scene.local_players();
         auto player = local->player();
         bool available = ctx._active && !ctx._scene._paused && e->target && e->target->is_active() &&
                          !e->target->is_destroyed() && players.contains(player);
         if (!available || !e->available)
         {
+            const bool became_unavailable = e->available && !available;
             e->available = available;
-            cancel(*e, InputCancelReason::Unavailable);
+            if (became_unavailable && !ctx._scene._paused)
+                cancel(*e, InputCancelReason::Unavailable);
             ctx._scene.input_router().suppress(player);
             continue;
         }
@@ -317,7 +449,8 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
                          });
             local->_sources = sources;
             local->_binding_version = players.binding_version(player);
-            cancel(*e, InputCancelReason::SourceChanged);
+            if (!already_cancelled)
+                cancel(*e, InputCancelReason::SourceChanged);
             if (added)
             {
                 ctx._scene.input_router().suppress(player);
@@ -373,7 +506,9 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
             return false;
         });
         auto filtered = players.for_player(player, input);
+        e->producing_generation = e->cancel_generation;
         local->process_input(filtered);
+        e->producing_generation.reset();
     }
 }
 void ControllerManager::cancel_local(SceneControlContext &ctx, LocalPlayerId player, InputCancelReason reason)
@@ -383,7 +518,17 @@ void ControllerManager::cancel_local(SceneControlContext &ctx, LocalPlayerId pla
         if (!e.removed && e.bound_scene == ctx.token())
             if (auto *local = dynamic_cast<LocalPlayerController *>(e.controller.get());
                 local && local->player() == player)
-                cancel(e, reason);
+            {
+                e.source_cancelled = true;
+                const auto &players = ctx._scene.local_players();
+                const auto effective_reason =
+                    reason == InputCancelReason::Suppressed &&
+                            (players.sources(player) != local->_sources ||
+                             players.binding_version(player) != local->_binding_version)
+                        ? InputCancelReason::SourceChanged
+                        : reason;
+                cancel(e, effective_reason);
+            }
 }
 void ControllerManager::pause(SceneControlContext &ctx)
 {
@@ -395,12 +540,19 @@ void ControllerManager::pause(SceneControlContext &ctx)
 void ControllerManager::leave(SceneControlContext &ctx, bool release)
 {
     Boundary boundary(*this);
+    for (const auto &r : _requests)
+        if (r->scene == ctx.token() && r->operation.pending())
+        {
+            r->operation.finish(ControllerError::InvalidContext);
+            release_reservation(*r);
+        }
     for (auto &[id, e] : _entries)
     {
         if (e.removed)
             continue;
         if (release && e.scope == ControllerScope::Scene && e.owner == ctx.token())
         {
+            fail_requests(e.command.controller, ControllerError::InvalidContext);
             e.removed = true;
             detach(e, InputCancelReason::Unbound);
         }
@@ -411,6 +563,12 @@ void ControllerManager::leave(SceneControlContext &ctx, bool release)
 void ControllerManager::object_removed(SceneControlContext &ctx, elysia::core::GameObject &target)
 {
     Boundary boundary(*this);
+    for (const auto &r : _requests)
+        if (r->scene == ctx.token() && r->target == &target && r->operation.pending())
+        {
+            r->operation.finish(ControllerError::InvalidTarget);
+            release_reservation(*r);
+        }
     for (auto &[id, e] : _entries)
         if (!e.removed && e.bound_scene == ctx.token() && e.target == &target)
             detach(e, InputCancelReason::Unbound);
@@ -434,8 +592,9 @@ void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, do
             continue;
         if (!e->target || e->target->is_destroyed() || !e->target->is_active())
         {
+            if (e->available)
+                cancel(*e, InputCancelReason::Unavailable);
             e->available = false;
-            cancel(*e, InputCancelReason::Unavailable);
             continue;
         }
         if (!e->available && dynamic_cast<LocalPlayerController *>(e->controller.get()))
@@ -447,6 +606,8 @@ void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, do
             if (!players.contains(local->player()) || sources != local->_sources ||
                 players.binding_version(local->player()) != local->_binding_version)
             {
+                if (!players.contains(local->player()))
+                    e->available = false;
                 local->_sources = std::move(sources);
                 local->_binding_version = players.binding_version(local->player());
                 cancel(*e, InputCancelReason::SourceChanged);
@@ -455,7 +616,12 @@ void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, do
             }
         }
         e->available = true;
+        e->producing_generation = e->cancel_generation;
         e->controller->produce_intent(tick, delta);
+        const bool cancelled_during_production = *e->producing_generation != e->cancel_generation;
+        e->producing_generation.reset();
+        if (cancelled_during_production)
+            continue;
         if (!ctx._active || ctx._scene._paused || e->removed || !e->receiver || !e->target->is_active() ||
             e->target->is_destroyed())
             continue;
@@ -468,35 +634,13 @@ void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, do
         e->receiver->on_control_command(command, delta);
     }
 }
-std::expected<void, ControllerError> ControllerManager::replace_map(ControllerHandle h, InputActionMap map)
+ControllerOperation ControllerManager::replace_map(ControllerHandle h, InputActionMap map)
 {
-    auto *e = find(h);
-    if (!e)
-        return std::unexpected(ControllerError::InvalidHandle);
-    if (!map.valid() || !dynamic_cast<LocalPlayerController *>(e->controller.get()))
-        return std::unexpected(ControllerError::InvalidMap);
-    if (auto *ctx = context(e->bound_scene))
-        if (!ctx->_scene.local_players().accepts_keyboard_map(
-                static_cast<LocalPlayerController *>(e->controller.get())->player(), map.keyboard_controls()))
-            return std::unexpected(ControllerError::InvalidMap);
-    if (_depth)
-    {
-        _pending.push_back(
-            [this, h, map = std::move(map)]() mutable { (void)replace_map(h, std::move(map)); });
-        return {};
-    }
-    Boundary boundary(*this);
-    cancel(*e, InputCancelReason::SourceChanged);
-    auto *local = static_cast<LocalPlayerController *>(e->controller.get());
-    map.reset_state();
-    local->_map = std::move(map);
-    if (auto *ctx = context(e->bound_scene))
-    {
-        ctx->_scene.local_players().set_keyboard_requirement(local->player(),
-                                                             local->_map.keyboard_controls());
-        ctx->_scene.input_router().suppress(local->player());
-    }
-    return {};
+    auto r = std::make_shared<Request>();
+    r->kind = RequestKind::Map;
+    r->handle = h;
+    r->map = std::move(map);
+    return request(std::move(r));
 }
 SceneControlContext::SceneControlContext(GameplayScene &scene) : _scene(scene)
 {

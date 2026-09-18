@@ -11,7 +11,7 @@
 
 namespace
 {
-using elysia::input::DevelopmentInputCapture;
+using elysia::input::InputCapture;
 using elysia::tests::require;
 using elysia::tools::IDevelopmentPanelRegistry;
 using elysia::tools::ImGuiDevelopmentOverlay;
@@ -121,18 +121,18 @@ void require_context_configuration_and_registry(SdlFixture& fixture)
         "draw-time registry mutations must not change the current snapshot");
     require(observed_delta == static_cast<float>(1.0 / 60.0),
         "the adapter must apply the host frame delta before panel drawing");
-    require(elysia::input::captures_development_input(
-                overlay.captured_input(), DevelopmentInputCapture::Keyboard)
-            && elysia::input::captures_development_input(
-                overlay.captured_input(), DevelopmentInputCapture::Pointer),
+    require(elysia::input::captures_input(
+                overlay.captured_input(), InputCapture::Keyboard)
+            && elysia::input::captures_input(
+                overlay.captured_input(), InputCapture::Pointer),
         "completed ImGui frames must publish keyboard and pointer capture");
 
     overlay.begin_frame(1.0 / 120.0);
     overlay.render(fixture.renderer());
     require(first_draws == 2 && second_draws == 1 && pending_draws == 1,
         "draw-time registry mutations must become visible on the next frame");
-    require(!elysia::input::captures_development_input(
-            overlay.captured_input(), DevelopmentInputCapture::Gamepad),
+    require(!elysia::input::captures_input(
+            overlay.captured_input(), InputCapture::Gamepad),
         "the ImGui adapter must never capture gamepad input");
 
     require(overlay.unregister_panel(first_handle),

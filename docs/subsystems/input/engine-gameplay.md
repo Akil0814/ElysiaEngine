@@ -9,9 +9,9 @@
 | begin_session / end_session / session_active | 显式本地游戏会话 |
 | create<T>(create_info, args...) | 创建并登记，返回 expected<ControllerHandle, ControllerError> |
 | get<T>(handle) / describe(handle) | 借用查询与绑定描述 |
-| remove(handle) | 移除并立即停止后续交付 |
-| bind_target / unbind_target | 显式绑定活动场景对象 |
-| replace_input_map | 验证并受控替换本地映射 |
+| remove(handle) | 返回 expected<void, ControllerError>，立即停止后续交付 |
+| bind_target / unbind_target | 返回 ControllerOperation，显式绑定或解绑 |
+| replace_input_map | 返回 ControllerOperation，受控替换本地映射 |
 
 所有 Service 调用与控制器回调均在引擎主线程执行；未来网络工作线程应排队提交到主线程，不直接调用这些接口。
 
@@ -51,3 +51,23 @@ private:
 本地控制器可以专门处理游戏工具操作；Collider 示例的查询控制器在固定 tick 执行查询，并通过对象移除通知清理工具引用。角色仍由 Manager 的统一命令入口驱动。
 
 测试控制器验证了无玩家、无输入系统的来源以及接管目标。AI 决策、网络接收、远端命令验证和网络超时策略仍未实现。
+
+## 配置操作结果
+
+`ControllerOperation` 没有 bool 转换，提供 `status()`、`error()` 及 `pending()`／`succeeded()`／`failed()`。三种状态为 Pending、Succeeded、Failed。回调外调用在执行完成后返回终态；回调内允许延迟提交，Pending 只表示请求已受理。
+
+```cpp
+// 保存结果，在主线程更新中检查；只在 Succeeded 后更新依赖绑定的游戏状态。
+std::optional<elysia::gameplay::ControllerOperation> pending_binding;
+pending_binding = service->bind_target(handle, context, target);
+// 在后续 update 中：
+if (pending_binding && !pending_binding->pending()) {
+    if (pending_binding->succeeded()) { /* 应用依赖绑定的状态 */ }
+    else { /* 处理 *pending_binding->error() */ }
+    pending_binding.reset();
+}
+```
+
+同一控制器的有效换绑／解绑请求覆盖尚未提交的旧目标请求，旧请求以 Superseded 失败；被拒绝的新请求不覆盖旧请求。映射替换按 FIFO 提交。目标和玩家排他性在排队期间同样保留。等待期间控制器被移除时，请求以 InvalidHandle 失败；上下文失效返回 InvalidContext，目标移除返回 InvalidTarget，会话结束返回 NoSession；所有待执行请求均会终结。
+
+结果对象只共享小型状态，不持有控制器或场景；丢弃结果不撤销操作，已完成结果可跨会话继续查询。无全局历史表或完成回调。取消期间拒绝 submit；观察映射或生产意图期间若发生取消，该次旧输入不会重新写入命令缓存。

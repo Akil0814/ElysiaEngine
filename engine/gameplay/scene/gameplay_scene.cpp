@@ -1,4 +1,5 @@
 #include "gameplay_scene.h"
+#include "../control/controller_manager.h"
 #include "../collision/gameplay_collision_service.h"
 namespace elysia::gameplay
 {

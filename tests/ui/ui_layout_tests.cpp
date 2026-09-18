@@ -39,7 +39,7 @@ public:
     }
 };
 
-elysia::ui::UiInputEvent mouse_wheel_event(int wheel_y)
+elysia::ui::UiInputEvent mouse_wheel_event(float wheel_y)
 {
     return elysia::ui::UiInputEvent{
         .type = elysia::ui::UiInputEventType::MouseWheel,

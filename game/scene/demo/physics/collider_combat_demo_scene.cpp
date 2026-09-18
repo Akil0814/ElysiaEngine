@@ -135,6 +135,6 @@ void example::scene::ColliderCombatDemoScene::configure_player_controller(
             throw std::logic_error("Query controller creation failed.");
         player_controller() = *controller;
     }
-    if (!service->bind_target(player_controller(), control_context(), player))
+    if (!service->bind_target(player_controller(), control_context(), player).succeeded())
         throw std::logic_error("Query controller binding failed.");
 }

@@ -1,5 +1,6 @@
 #define SDL_MAIN_HANDLED
 #include "engine/gameplay/scene/gameplay_scene.h"
+#include "engine/gameplay/control/controller_manager.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/input/input_system.h"
 #include "engine/ui/core/ui_element.h"
@@ -178,13 +179,13 @@ void test_keyboard_partitions_and_ui()
     require(second_map.clear_bindings(Fire), "P2 does not share space");
     auto second =
         service->create<LocalPlayerController>({ControllerScope::Session, {}}, p2, std::move(second_map));
-    require(bool(service->bind_target(*first, world->control_context(), *a)) &&
-                bool(service->bind_target(*second, world->control_context(), *b)),
+    require(bool(service->bind_target(*first, world->control_context(), *a).succeeded()) &&
+                bool(service->bind_target(*second, world->control_context(), *b).succeeded()),
             "Bind partition controllers");
     bad = config;
     bad.partitions[wasd].keys.erase(RawInputControl::KeyD);
     require(!players.apply_configuration(bad), "Partition changes reject a map using removed keys");
-    require(!service->replace_input_map(*second, map()), "Mapping cannot reference another partition");
+    require(!service->replace_input_map(*second, map()).succeeded(), "Mapping cannot reference another partition");
     elysia::tests::InputSnapshotBuilder devices;
     auto tick = [&] {
         world->on_input(devices.take());
@@ -232,7 +233,7 @@ void test_keyboard_partitions_and_ui()
     tick();
     devices.event({.type = RawInputEventType::MouseMoved, .device = InputDevice::Mouse, .mouse_delta_x = 12});
     world->on_input(devices.take());
-    require(players.transfer_source(p2, InputSourceId::mouse()),
+    require(bool(players.transfer_source(p2, InputSourceId::mouse())),
             "Mouse ownership transfer independent of keyboard");
     manager.on_update(1.0 / 60);
     tick();
@@ -243,12 +244,12 @@ void test_keyboard_partitions_and_ui()
     require(b->commands.back().deltas.at(Look).x == 7 && a->commands.back().deltas.empty(),
             "Mouse routes only to its new player");
     auto gamepad = InputSourceId::gamepad(42);
-    require(players.bind_source(p2, gamepad), "Gamepad belongs to P2");
+    require(bool(players.bind_source(p2, gamepad)), "Gamepad belongs to P2");
     world->set_ui_gamepad(gamepad);
     require(players.owner(gamepad) == p2, "UI selection never changes gameplay ownership");
     manager.shutdown();
     Menu menu;
-    menu.local_players().unbind_source(InputSourceId::mouse());
+    require(bool(menu.local_players().unbind_source(InputSourceId::mouse())), "Menu mouse unbinding succeeds");
     require(bool(menu.local_players().bind_keyboard(PrimaryLocalPlayer, {})),
             "UI needs no gameplay bindings");
     elysia::tests::InputSnapshotBuilder menu_devices;
@@ -281,7 +282,7 @@ int main()
     auto custom =
         service->create<SyntheticController>({ControllerScope::Scene, first->control_context().token()});
     require(bool(custom), "Create non-device controller without a player");
-    require(bool(service->bind_target(*custom, first->control_context(), *a)), "Bind custom controller");
+    require(bool(service->bind_target(*custom, first->control_context(), *a).succeeded()), "Bind custom controller");
     first->check = [&] { require(!a->commands.empty(), "Commands precede game fixed extension"); };
     manager.on_update(1.0 / 60);
     first->check = {};
@@ -289,12 +290,12 @@ int main()
             "Non-device intention uses common command pipeline");
     require(!service->begin_session() && service->get(*custom),
             "Duplicate session begin preserves live controllers");
-    require(!service->replace_input_map(*custom, map()) && service->describe(*custom)->bound,
+    require(!service->replace_input_map(*custom, map()).succeeded() && service->describe(*custom)->bound,
             "Mapping replacement rejects non-local controller without changing its binding");
     auto session = service->create<SyntheticController>({ControllerScope::Session, {}});
-    require(!service->bind_target(*session, first->control_context(), *a), "Exclusive targets");
-    require(bool(service->bind_target(*session, first->control_context(), *b)), "Bind session controller");
-    require(!service->bind_target(*custom, first->control_context(), *b) && service->describe(*custom)->bound,
+    require(!service->bind_target(*session, first->control_context(), *a).succeeded(), "Exclusive targets");
+    require(bool(service->bind_target(*session, first->control_context(), *b).succeeded()), "Bind session controller");
+    require(!service->bind_target(*custom, first->control_context(), *b).succeeded() && service->describe(*custom)->bound,
             "Failed binding keeps original target");
     auto old_generation = service->describe(*custom)->binding_generation;
     route(manager, 3);
@@ -305,13 +306,13 @@ int main()
     require(a->commands.size() == count, "Pure menu never schedules cached worlds");
     route(manager, 2);
     auto *foreign = second->create_and_add_object<Actor>();
-    require(!service->bind_target(*custom, second->control_context(), *foreign),
+    require(!service->bind_target(*custom, second->control_context(), *foreign).succeeded(),
             "Scene-owned controller cannot move to another scene");
-    require(!service->bind_target(*session, second->control_context(), *a),
+    require(!service->bind_target(*session, second->control_context(), *a).succeeded(),
             "Foreign target rejected even with active context");
-    require(!service->bind_target(*session, first->control_context(), *a),
+    require(!service->bind_target(*session, first->control_context(), *a).succeeded(),
             "Inactive scene context rejects binding");
-    require(bool(service->bind_target(*session, second->control_context(), *foreign)),
+    require(bool(service->bind_target(*session, second->control_context(), *foreign).succeeded()),
             "Session controller binds a different active world");
     manager.on_update(1.0 / 60);
     require(foreign->commands.size() == 1, "Second world consumes session controller command");
@@ -319,7 +320,7 @@ int main()
     require(service->get(*custom) && service->get(*session), "Reuse preserves instances");
     require(service->describe(*custom)->binding_generation > old_generation,
             "Leaving invalidates binding generation");
-    require(bool(service->bind_target(*session, first->control_context(), *a)),
+    require(bool(service->bind_target(*session, first->control_context(), *a).succeeded()),
             "Game explicitly rebinds reused world");
     auto old_context = first->control_context().token();
     route(manager, 1, elysia::scene::SceneReloadMode::Reset);
@@ -335,10 +336,10 @@ int main()
     b = first->create_and_add_object<Actor>();
     auto local = service->create<LocalPlayerController>(
         {ControllerScope::Scene, first->control_context().token()}, PrimaryLocalPlayer, map());
-    require(bool(service->bind_target(*local, first->control_context(), *a)), "Local controller target");
+    require(bool(service->bind_target(*local, first->control_context(), *a).succeeded()), "Local controller target");
     auto duplicate =
         service->create<LocalPlayerController>({ControllerScope::Session, {}}, PrimaryLocalPlayer, map());
-    require(!service->bind_target(*duplicate, first->control_context(), *b),
+    require(!service->bind_target(*duplicate, first->control_context(), *b).succeeded(),
             "One bound local controller per player per scene");
     elysia::tests::InputSnapshotBuilder devices;
     devices.event({.type = RawInputEventType::MouseMoved, .mouse_delta_x = 40, .mouse_delta_y = -9});
@@ -387,7 +388,7 @@ int main()
     first->on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().state.axis1d(Motion) == 1, "Held movement");
-    require(bool(service->replace_input_map(*local, map())), "Replace validated mapping");
+    require(bool(service->replace_input_map(*local, map()).succeeded()), "Replace validated mapping");
     first->on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().state.axis1d(Motion) == 0, "Replacing map requires held control release");
@@ -407,8 +408,8 @@ int main()
             "Device reassignment between input and tick cannot deliver stale command");
     require(bool(first->local_players().bind_keyboard(PrimaryLocalPlayer, full_keyboard)),
             "Restore keyboard ownership");
-    service->unbind_target(*local);
-    require(bool(service->bind_target(*session, first->control_context(), *a)), "Non-device takeover");
+    service->unbind_target(*local).succeeded();
+    require(bool(service->bind_target(*session, first->control_context(), *a).succeeded()), "Non-device takeover");
     first->set_all_gameplay_input_blocked(true);
     manager.on_update(1.0 / 60);
     require(a->commands.back().state.axis1d(Motion) == 0.75f,
@@ -419,13 +420,13 @@ int main()
     require(a->commands.size() == count, "World pause stops every controller");
     first->resume();
     // Removing a later controller from a callback must stop its delivery in the same tick.
-    service->remove(*session);
+    require(bool(service->remove(*session)), "Session controller removal succeeds");
     auto driver =
         service->create<SyntheticController>({ControllerScope::Scene, first->control_context().token()});
     auto victim =
         service->create<SyntheticController>({ControllerScope::Scene, first->control_context().token()});
-    (void)service->bind_target(*driver, first->control_context(), *a);
-    (void)service->bind_target(*victim, first->control_context(), *b);
+    require(service->bind_target(*driver, first->control_context(), *a).succeeded(), "Test controller binding completes successfully");
+    require(service->bind_target(*victim, first->control_context(), *b).succeeded(), "Test controller binding completes successfully");
     ControllerHandle created;
     bool once = false;
     auto competitor = service->create<SyntheticController>({ControllerScope::Session, {}});
@@ -433,11 +434,11 @@ int main()
         if (once)
             return;
         once = true;
-        service->remove(*victim);
+        require(bool(service->remove(*victim)), "Callback controller removal succeeds");
         created = *service->create<SyntheticController>({ControllerScope::Session, {}});
-        require(bool(service->bind_target(created, first->control_context(), *b)),
+        require(bool(service->bind_target(created, first->control_context(), *b).pending()),
                 "Callback binding accepted at safe boundary");
-        require(!service->bind_target(*competitor, first->control_context(), *b),
+        require(!service->bind_target(*competitor, first->control_context(), *b).succeeded(),
                 "Pending bindings reserve exclusive target ownership");
     };
     manager.on_update(1.0 / 60);
@@ -449,7 +450,7 @@ int main()
     auto *replacement = first->create_and_add_object<Actor>();
     auto generation = service->describe(created)->binding_generation;
     b->callback = [&] {
-        require(bool(service->bind_target(created, first->control_context(), *replacement)),
+        require(bool(service->bind_target(created, first->control_context(), *replacement).pending()),
                 "Callback rebind");
     };
     manager.on_update(1.0 / 60);

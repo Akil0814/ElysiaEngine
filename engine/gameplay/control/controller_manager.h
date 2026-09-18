@@ -1,48 +1,18 @@
 #pragma once
-#include "controller.h"
 #include "../../tools/singleton.h"
+#include "controller.h"
+#include "controller_types.h"
 #include "scene_control_context.h"
-#include <expected>
-#include <memory>
-#include <map>
 #include <deque>
+#include <expected>
+#include <map>
+#include <memory>
 namespace elysia::scene
 {
 class SceneManager;
 }
 namespace elysia::gameplay
 {
-enum class ControllerScope
-{
-    Scene,
-    Session
-};
-enum class ControllerError
-{
-    NotInitialized,
-    NoSession,
-    SessionAlreadyActive,
-    InvalidHandle,
-    InvalidContext,
-    InvalidTarget,
-    TargetBusy,
-    PlayerBusy,
-    InvalidPlayer,
-    InvalidMap
-};
-struct ControllerCreateInfo
-{
-    ControllerScope scope = ControllerScope::Scene;
-    SceneControlToken scene;
-};
-struct ControllerDescription
-{
-    ControllerHandle handle;
-    ControllerScope scope;
-    SceneControlToken owner, bound_scene;
-    std::uint64_t binding_generation;
-    bool bound;
-};
 class ControllerService;
 class ControllerManager final : public elysia::tools::Singleton<ControllerManager>
 {
@@ -65,7 +35,9 @@ class ControllerManager final : public elysia::tools::Singleton<ControllerManage
         bool removed = false, available = false, cancelling = false;
         elysia::core::GameObject *reserved_target = nullptr;
         SceneControlToken reserved_scene;
-        std::uint64_t request_generation = 0;
+        std::uint64_t cancel_generation = 0;
+        std::optional<std::uint64_t> producing_generation;
+        bool source_cancelled = false;
         std::uint64_t eligible_dispatch = 0;
     };
     struct Boundary
@@ -88,12 +60,11 @@ class ControllerManager final : public elysia::tools::Singleton<ControllerManage
     std::expected<ControllerHandle, ControllerError> add(ControllerCreateInfo, std::unique_ptr<Controller>);
     Entry *find(ControllerHandle);
     SceneControlContext *context(SceneControlToken);
-    std::expected<void, ControllerError> bind(ControllerHandle, SceneControlToken,
-                                              elysia::core::GameObject &);
+    ControllerOperation bind(ControllerHandle, SceneControlToken, elysia::core::GameObject &);
     std::expected<void, ControllerError> validate_binding(Entry &, SceneControlToken,
                                                           elysia::core::GameObject &);
-    bool remove(ControllerHandle);
-    bool unbind(ControllerHandle);
+    std::expected<void, ControllerError> remove(ControllerHandle);
+    ControllerOperation unbind(ControllerHandle);
     void detach(Entry &, InputCancelReason);
     void cancel(Entry &, InputCancelReason);
     void ingest(Entry &, elysia::input::ActionInputResult);
@@ -103,13 +74,33 @@ class ControllerManager final : public elysia::tools::Singleton<ControllerManage
     void leave(SceneControlContext &, bool release);
     void object_removed(SceneControlContext &, elysia::core::GameObject &);
     void advance(SceneControlContext &, std::uint64_t, double);
-    std::expected<void, ControllerError> replace_map(ControllerHandle, elysia::input::InputActionMap);
+    ControllerOperation replace_map(ControllerHandle, elysia::input::InputActionMap);
+    enum class RequestKind
+    {
+        Bind,
+        Unbind,
+        Map
+    };
+    struct Request
+    {
+        RequestKind kind;
+        ControllerHandle handle;
+        SceneControlToken scene;
+        elysia::core::GameObject *target = nullptr;
+        elysia::input::InputActionMap map;
+        ControllerOperation operation;
+    };
+    ControllerOperation request(std::shared_ptr<Request>);
+    void commit(const std::shared_ptr<Request> &);
+    void fail_requests(ControllerHandle, ControllerError);
+    void release_reservation(const Request &);
     void flush();
     bool _initialized = false, _session = false, _flushing = false;
     std::uint64_t _runtime = 1, _next_id = 1, _dispatch = 0;
     unsigned _depth = 0;
     std::map<std::uint64_t, Entry> _entries;
     std::map<std::uint64_t, SceneControlContext *> _contexts;
-    std::deque<std::function<void()>> _pending;
+    std::deque<std::shared_ptr<Request>> _pending;
+    std::vector<std::shared_ptr<Request>> _requests;
 };
 } // namespace elysia::gameplay

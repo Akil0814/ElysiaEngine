@@ -28,6 +28,10 @@ public:
     CameraOverlay* _overlay = nullptr;
     elysia::gameplay::ControllerHandle _controller;
     void reset_demo();
+    void request_primary(std::size_t index);
+    void finish_primary_request();
+    std::optional<elysia::gameplay::ControllerOperation> _primary_request;
+    std::size_t _requested_primary = 0;
     void install_strategy();
     void toggle_bounds();
     void return_to_caller();

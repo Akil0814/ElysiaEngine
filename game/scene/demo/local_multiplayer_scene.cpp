@@ -108,15 +108,15 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
             for (auto player : local_players().players())
                 for (auto source : local_players().sources(player))
                     if (source.is_gamepad())
-                        local_players().unbind_source(source);
+                        if (!local_players().unbind_source(source)) throw std::logic_error("Cannot unbind input source");
             close_menu();
         });
         add("Keyboard: WASD P1 / Arrows P2", [this] { configure_keyboard(false); });
         add("Keyboard: Arrows P1 / WASD P2", [this] { configure_keyboard(true); });
         add("Mouse: player 1",
-            [this] { local_players().transfer_source(PrimaryLocalPlayer, InputSourceId::mouse()); });
+            [this] { if (!local_players().transfer_source(PrimaryLocalPlayer, InputSourceId::mouse())) throw std::logic_error("Cannot transfer mouse"); });
         add("Mouse: player 2",
-            [this] { local_players().transfer_source(_second_player, InputSourceId::mouse()); });
+            [this] { if (!local_players().transfer_source(_second_player, InputSourceId::mouse())) throw std::logic_error("Cannot transfer mouse"); });
         add("UI pad: player 1's gamepad", [this] {
             set_ui_gamepad(local_players().configuration().bindings.at(PrimaryLocalPlayer).gamepad);
         });
@@ -142,14 +142,15 @@ void LocalMultiplayerScene::bind_players()
     auto *service = elysia::gameplay::ControllerService::instance();
     for (auto player : {PrimaryLocalPlayer, _second_player})
         if (!service->bind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller),
-                                  control_context(), player == PrimaryLocalPlayer ? *_first : *_second))
+                                  control_context(), player == PrimaryLocalPlayer ? *_first : *_second).succeeded())
             throw std::logic_error("Multiplayer controller binding failed");
 }
 void LocalMultiplayerScene::configure_keyboard(bool swapped)
 {
     auto *service = elysia::gameplay::ControllerService::instance();
     for (auto player : {PrimaryLocalPlayer, _second_player})
-        service->unbind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller));
+        if (!service->unbind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller)).succeeded())
+            throw std::logic_error("Multiplayer configuration requires completed unbinding");
     auto next = local_players().configuration();
     for (auto &[player, binding] : next.bindings)
         binding.keyboard = {};
@@ -165,7 +166,7 @@ void LocalMultiplayerScene::configure_keyboard(bool swapped)
                 (player == PrimaryLocalPlayer ? _first_controller : _second_controller),
                 example::input::make_gameplay_input_map(
                     {wasd ? example::input::KeyboardScheme::Wasd : example::input::KeyboardScheme::Arrows,
-                     true, true})))
+                     true, true})).succeeded())
             throw std::logic_error("Invalid multiplayer mapping");
     }
     bind_players();
@@ -175,8 +176,9 @@ void LocalMultiplayerScene::restore_devices()
     if (!_saved_devices)
         return;
     auto *service = elysia::gameplay::ControllerService::instance();
-    for (auto player : {PrimaryLocalPlayer, _second_player})
-        service->unbind_target((player == PrimaryLocalPlayer ? _first_controller : _second_controller));
+    for (auto handle : {_first_controller, _second_controller})
+        if (service->get(handle) && !service->unbind_target(handle).succeeded())
+            throw std::logic_error("Multiplayer configuration requires completed unbinding");
     auto saved = *_saved_devices;
     std::erase_if(saved.bindings, [&](const auto &entry) { return !local_players().contains(entry.first); });
     for (auto player : local_players().players())

@@ -3,7 +3,6 @@
 #include <cmath>
 namespace elysia::input
 {
-using InputCapture = DevelopmentInputCapture;
 inline InputCapture capture_for(InputDevice device)
 {
     if (device == InputDevice::Keyboard)
@@ -16,7 +15,7 @@ inline InputCapture capture_for(InputDevice device)
 }
 inline bool captured(InputCapture mask, InputDevice device)
 {
-    return captures_development_input(mask, capture_for(device));
+    return captures_input(mask, capture_for(device));
 }
 class InputSuppression
 {
@@ -47,24 +46,40 @@ class InputSuppression
         if (event.type == RawInputEventType::AxisChanged && std::abs(event.axis_value) > 0.2f)
             _blocked.set_axis(event.axis, 1.f);
     }
-    RawInputState filter(const RawInputState &physical, InputCapture mask = InputCapture::None)
+    // Advance only from physical state, in event order. Filtering is a pure query.
+    void observe(const RawInputState &physical, InputCapture mask = InputCapture::None)
     {
-        block(physical, mask);
-        RawInputState out = physical;
         for (int i = 1; i < int(RawInputControl::Count); ++i)
         {
             auto c = static_cast<RawInputControl>(i);
             if (!physical.is_pressed(c))
                 _blocked.set_pressed(c, false);
-            if (_blocked.is_pressed(c))
-                out.set_pressed(c, false);
         }
         for (int i = 1; i < int(RawInputAxis::Count); ++i)
         {
             auto a = static_cast<RawInputAxis>(i);
             if (std::abs(physical.axis_value(a)) <= 0.2f)
                 _blocked.set_axis(a, 0.f);
-            if (_blocked.axis_value(a) != 0)
+        }
+        block(physical, mask);
+    }
+    [[nodiscard]] RawInputState filter(const RawInputState &physical,
+                                       InputCapture mask = InputCapture::None) const
+    {
+        RawInputState out = physical;
+        for (int i = 1; i < int(RawInputControl::Count); ++i)
+        {
+            auto c = static_cast<RawInputControl>(i);
+            auto device = is_keyboard_control(c)       ? InputDevice::Keyboard
+                          : is_mouse_button_control(c) ? InputDevice::Mouse
+                                                       : InputDevice::Gamepad;
+            if (_blocked.is_pressed(c) || captured(mask, device))
+                out.clear_control(c);
+        }
+        for (int i = 1; i < int(RawInputAxis::Count); ++i)
+        {
+            auto a = static_cast<RawInputAxis>(i);
+            if (_blocked.axis_value(a) != 0 || captured(mask, InputDevice::Gamepad))
                 out.set_axis(a, 0.f);
         }
         return out;

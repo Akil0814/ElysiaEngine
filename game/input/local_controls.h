@@ -21,7 +21,7 @@ inline void configure_scene_player(elysia::gameplay::GameplayScene &scene,
             throw std::logic_error("Demo requires an explicit controller session and valid scene context.");
         handle = *result;
     }
-    if (!service->bind_target(handle, scene.control_context(), target))
+    if (!service->bind_target(handle, scene.control_context(), target).succeeded())
         throw std::logic_error("Demo controller target binding failed.");
 }
 // Game-owned session choices survive scene recreation; expired engine handles are replaced.

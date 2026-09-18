@@ -563,7 +563,7 @@ void test_query_controller_uses_active_mapping_and_fixed_tick() {
     elysia::scene::SceneManager manager;
     register_example_scenes(manager); manager.set_runtime_context(context);
     require(bool(elysia::gameplay::ControllerService::instance()->begin_session()),"Explicit query demo session");
-    require(manager.local_players().bind_source(PrimaryLocalPlayer,InputSourceId::gamepad(7)),"Query pad ownership");
+    require(bool(manager.local_players().bind_source(PrimaryLocalPlayer,InputSourceId::gamepad(7))),"Query pad ownership");
     const elysia::scene::SceneRoute route{
         .target=example::scene_keys::ColliderCombatDemo,
         .payload=example::scene::DemoScenePayload{.return_route={.target=example::scene_keys::MainMenu}}};
