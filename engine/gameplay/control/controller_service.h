@@ -1,16 +1,13 @@
 #pragma once
 #include "controller_manager.h"
+#include "../../tools/singleton.h"
 #include <optional>
 namespace elysia::gameplay
 {
-class ControllerService
+class ControllerService final : public elysia::tools::Singleton<ControllerService>
 {
+    friend class elysia::tools::Singleton<ControllerService>;
   public:
-    static ControllerService *instance()
-    {
-        static ControllerService service;
-        return &service;
-    }
     std::expected<void, ControllerError> begin_session()
     {
         return manager().begin_session();

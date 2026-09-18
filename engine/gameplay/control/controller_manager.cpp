@@ -6,11 +6,6 @@
 namespace elysia::gameplay
 {
 using namespace elysia::input;
-ControllerManager *ControllerManager::instance()
-{
-    static ControllerManager manager;
-    return &manager;
-}
 void ControllerManager::initialize()
 {
     if (!_initialized)

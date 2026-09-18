@@ -14,6 +14,8 @@
 | LocalPlayerController | 本地玩家快照到游戏动作的转换 |
 | ControlCommandReceiver | 角色解释动作并执行玩法 |
 
+ControllerService 与 ControllerManager 复用引擎的 `elysia::tools::Singleton<T>`，使用继承的 `instance()`，禁止复制和移动；构造仍为私有，仅 Singleton 模板可创建实例。
+
 普通 Scene 只有输入路由与 UI，不创建控制器上下文。GameplayScene 提供上下文和调度接入，也不自动创建任何控制器。游戏决定控制器数量、类型、映射和目标。
 
 ## 设备与玩家

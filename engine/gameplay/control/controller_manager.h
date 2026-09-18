@@ -1,5 +1,6 @@
 #pragma once
 #include "controller.h"
+#include "../../tools/singleton.h"
 #include "scene_control_context.h"
 #include <expected>
 #include <memory>
@@ -43,10 +44,9 @@ struct ControllerDescription
     bool bound;
 };
 class ControllerService;
-class ControllerManager
+class ControllerManager final : public elysia::tools::Singleton<ControllerManager>
 {
-  public:
-    static ControllerManager *instance();
+    friend class elysia::tools::Singleton<ControllerManager>;
 
   private:
     ControllerManager() = default;

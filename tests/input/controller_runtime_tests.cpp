@@ -6,6 +6,7 @@
 #include "tests/support/input_snapshot_builder.h"
 #include "tests/support/test_assertions.h"
 #include <functional>
+#include <type_traits>
 #include "engine/ui/widgets/ui_text_input.h"
 #include "engine/ui/widgets/ui_button.h"
 #include <limits>
@@ -13,6 +14,12 @@
 using namespace elysia::gameplay;
 using namespace elysia::input;
 using elysia::tests::require;
+static_assert(std::is_base_of_v<elysia::tools::Singleton<ControllerService>, ControllerService>);
+static_assert(std::is_base_of_v<elysia::tools::Singleton<ControllerManager>, ControllerManager>);
+static_assert(!std::is_copy_constructible_v<ControllerService> && !std::is_copy_assignable_v<ControllerService>);
+static_assert(!std::is_move_constructible_v<ControllerService> && !std::is_move_assignable_v<ControllerService>);
+static_assert(!std::is_copy_constructible_v<ControllerManager> && !std::is_copy_assignable_v<ControllerManager>);
+static_assert(!std::is_move_constructible_v<ControllerManager> && !std::is_move_assignable_v<ControllerManager>);
 const InputActionId Motion{"test.motion"}, Look{"test.look"}, Wheel{"test.wheel"}, Fire{"test.fire"};
 struct Actor final : elysia::core::GameObject, ControlCommandReceiver
 {
