@@ -57,13 +57,13 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_AUDIO` | 音频服务 | [音频服务](../architecture/subsystems/audio.md) | [audio_service.h](../../../engine/audio/audio_service.h) |
 | `ELYSIA_CAMERA` | 相机管理 | [相机工作流](../architecture/subsystems/camera.md) | [camera_manager.h](../../../engine/camera/camera_manager.h) |
 | `ELYSIA_USER_CONFIG` | 用户配置管理 | [运行时配置](../architecture/subsystems/runtime-config.md) | [user_config_service.h](../../../engine/config/user_config_service.h) |
-| `ELYSIA_TIME` | 时间相关功能 | — | [time.h](../../../engine/core/time.h) |
+| `ELYSIA_TIME` | 时间相关功能 | [时间与计时器](time-and-timers.md) | [time.h](../../../engine/core/time.h) |
 | `ELYSIA_EFFECTS` | 特效服务 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) | [effect_service.h](../../../engine/effects/effect_service.h) |
-| `ELYSIA_LOCALIZATION` | 本地化服务 | — | [localization_service.h](../../../engine/localization/localization_service.h) |
-| `ELYSIA_OBJECT_QUERY` | 游戏对象查询 | — | [game_object_query_service.h](../../../engine/object_query/game_object_query_service.h) |
+| `ELYSIA_LOCALIZATION` | 本地化服务 | [本地化与文本](localization.md) | [localization_service.h](../../../engine/localization/localization_service.h) |
+| `ELYSIA_OBJECT_QUERY` | 游戏对象查询 | [游戏对象查询](object-query.md) | [game_object_query_service.h](../../../engine/object_query/game_object_query_service.h) |
 | `ELYSIA_RESOURCES` | 资源管理 | [资源加载与配置格式](../architecture/subsystems/resources/README.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
 | `ELYSIA_SAVE` | 存档管理 | [存档服务](../architecture/subsystems/save.md) | [save_service.h](../../../engine/save/save_service.h) |
-| `ELYSIA_DEBUG_DRAW` | 调试绘制 | — | [debug_draw.h](../../../engine/tools/debug_draw.h) |
+| `ELYSIA_DEBUG_DRAW` | 调试绘制 | [调试绘制](debug-draw.md) | [debug_draw.h](../../../engine/tools/debug_draw.h) |
 
 控制器功能通过 `elysia::gameplay::ControllerService::instance()` 访问，公开接口定义见 [controller_service.h](../../../engine/gameplay/control/controller_service.h)，使用方式见[控制器与控制命令](gameplay/control.md)。
 
@@ -77,6 +77,8 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_LOG_INFO` | Info | 普通运行信息 |
 | `ELYSIA_LOG_WARN` | Warn | 警告信息 |
 | `ELYSIA_LOG_ERROR` | Error | 错误信息 |
+
+日志分类、流式消息与错误处理约定见[随机数与日志工具](utilities.md)。
 
 基本用法：
 
@@ -103,7 +105,7 @@ Elysia Engine 提供内置应用错误场景，用于处理无法在当前场景
 | `RandomGenerator` | 随机数生成 | [random_generator.h](../../../engine/tools/random_generator.h) |
 | `Timer` | 计时功能 | [timer.h](../../../engine/tools/timer.h) |
 
-具体接口及使用约定请参考对应头文件。
+随机数的范围、种子和错误条件见[随机数与日志工具](utilities.md)；Timer 的驱动与生命周期见[时间与计时器](time-and-timers.md)。
 
 ## 引擎内置场景
 
