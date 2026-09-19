@@ -1,23 +1,33 @@
 # Elysia Engine 开发者文档
 
-本目录是 Elysia Engine 当前开发者文档的统一入口。除明确标注的实现指南外，文档应以仓库当前代码、配置和测试为事实来源。
+Elysia Engine 的文档按照使用目的分为以下三个部分。
 
-## 开始使用
+## 使用 Elysia Engine
 
-- [快速开始](getting-started/README.md)：了解依赖、构建、运行和示例集成方式。
-- [构建、运行与测试](getting-started/build-and-run.md)：Windows x64 命令、构建产物和测试入口。
+[引擎使用指南](user-guide/README.md)
 
-## 理解引擎
+面向使用 Elysia Engine 开发游戏的开发者。
 
-- [架构总览](architecture/overview.md)：模块边界、依赖方向和运行时生命周期。
-- [仓库结构](architecture/repository-layout.md)：源码、资源、测试和示例层的职责。
-- [子系统索引](subsystems/README.md)：UI、Input、资源加载、配置、音频、相机、存档、Physics、Development Overlay 与 Development Demos。
+包括环境配置、构建运行、核心概念、子系统使用方法、API 参考及示例。
 
-## 开发与维护
+## 了解引擎架构与模块设计
 
-- [C++ 代码规范](development/coding-standard.md)
-- [未来开发方向](development/roadmap.md)
-- [C++11+ 语言特性盘点](development/cpp-language-features.md)
-- [测试指南](development/testing.md)
-- [文档维护规则](development/documentation.md)
-- [玩家主机联机与输入架构设计](architecture/player-host-networking-and-input-design.md)：目标设计／讨论记录，说明 Player Host 目标与迁移边界；本地输入路由已实施，网络模块尚未实现。
+[引擎架构]()
+
+## 参与引擎开发
+
+[引擎开发与贡献指南](contributing/README.md)
+
+面向希望理解、维护或扩展 Elysia Engine 的开发者。
+
+包括内部架构、仓库结构、代码规范、测试流程和文档维护要求。
+
+## 设计与开发计划
+
+[设计文档与开发路线](design/README.md)
+
+记录计划中的功能、架构设计、技术讨论及尚未完成的迁移工作。
+
+此部分内容可能尚未实现，不代表当前引擎已提供相应功能。
+
+
