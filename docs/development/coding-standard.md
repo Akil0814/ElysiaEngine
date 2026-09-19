@@ -1,13 +1,33 @@
-# C++ 代码规范
+# Elysia 引擎层代码规范
 
 ## 代码命名规范
 
-- 类、枚举、结构体使用 `NameName`（PascalCase）
-- 成员变量使用 `_name_name`
-- 局部变量使用 `name_name`
-- 函数参数使用 `name_name`
+- 类、结构体、枚举使用 `PascalCase`
+- 枚举项使用 `PascalCase`
+- 私有及受保护成员变量使用 `_name_name`
+- 公开数据成员使用 `name_name`
+- 局部变量及函数参数使用 `name_name`
 - 函数、成员函数使用 `name_name`
-- 文件名使用 `name_name`
+- 文件名及命名空间使用 `name_name`
+- 普通 `const` 变量遵循对应作用域的命名规范
+- 编译期命名常量使用 `k_name_name`
+- 宏使用 `ELYSIA_UPPER_SNAKE_CASE`
+
+### 类与类型命名规范
+- 类名应使用名词或名词短语，准确描述其职责。
+- 不使用 `C`、`I`、`S` 等匈牙利式类型前缀。
+- 抽象类与接口不强制添加 `Abstract`、`Base` 或 `I` 前缀。
+- 只有当 `Base` 能明确表达类型职责时才使用。
+- 类型缩写按普通单词处理，例如 `UiWindow`。
+- 模板类型参数使用 `T` 或 `TName`。
+- 类型别名使用 `PascalCase`
+#### Manager
+- `Manager`：用于引擎内部，负责对象或资源的生命周期管理、状态维护及相关模块的协调。
+- `Manager` 原则上不直接暴露给游戏层，并非所有`Manager`都是单例实现。
+#### Service
+- `Service`：用于向游戏层暴露引擎能力，提供明确的操作接口，隐藏内部管理机制与实现细节。
+- 并非所有向游戏层暴露的类都需要 `Service` 后缀，数据类型、对象模型等仍根据其实际职责命名。
+
 
 ## 生命周期命名规范
 
@@ -22,82 +42,18 @@
 `load()` 改成 `initialize()`。初始化与关闭应成对设计；如果模块公开初始化状态，
 状态查询统一使用 `is_initialized()`。
 
-正例：
-
-```cpp
-class PathManager
-{
-private:
-    std::filesystem::path _root_path;
-};
-
-struct PlayerData
-{
-    int hp;
-};
-
-enum class SceneType
-{
-    MainMenu,
-    BattleScene
-};
-
-void set_player_data(const PlayerData& player_data);
-```
-
-反例：
-
-```cpp
-class path_manager {};
-struct playerData {};
-enum class scene_type {};
-
-std::filesystem::path RootPath;
-void SetPlayerData(const PlayerData& playerData);
-```
-
 ## auto 使用约定
 
-- 使用自建类创建变量时，优先显式写出类型，尽量避免使用 `auto`
-- 仅在右值类型一眼可知，且显式书写会明显降低可读性时，才允许谨慎使用 `auto`
-
-正例：
-
-```cpp
-PathManager* path_manager = PathManager::instance();
-std::filesystem::path asset_path = root_path / "assets";
-std::optional<std::filesystem::path> root_path = find_project_root(start_path);
-```
-
-反例：
-
-```cpp
-auto path_manager = PathManager::instance();
-auto asset_path = root_path / "assets";
-auto root_path = find_project_root(start_path);
-```
+- 默认优先显式声明类型，尤其是引擎公共 API 及核心逻辑。
+- 当类型无法直观判断时，不使用 `auto` 隐藏类型信息。
+- 迭代器、泛型代码、Lambda、智能指针工厂等场景允许使用 `auto`。
+- 使用 `auto` 时，不应隐藏重要的指针、引用或所有权语义。
+- 不应仅为了减少代码长度而使用 `auto`。
 
 ## 代码完整性要求
 
 - 确保每次提交的源码必须处于可编译状态
-- 未完成实现可以先写 `TODO`
+- 未完成实现标注 `TODO`
+- 未实现功能不得伪装成正常执行结果。
+- 修改已有功能时，应确保相关测试通过。
 
-正例：
-
-```cpp
-std::optional<std::filesystem::path> PathManager::find_project_root(const std::filesystem::path& start_path) const
-{
-    // TODO: implement project root detection.
-    (void)start_path;
-    return std::nullopt;
-}
-```
-
-反例：
-
-```cpp
-std::optional<std::filesystem::path> PathManager::find_project_root(const std::filesystem::path& start_path) const
-{
-    std::filesystem::path current = std::filesystem::absolute(start_path)
-}
-```

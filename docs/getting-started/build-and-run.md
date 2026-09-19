@@ -60,4 +60,3 @@ macOS 或 MinGW 使用各自的新目录与工具链运行同样的配置入口�
 - Debug 并行构建遇到 MSVC PDB 冲突：使用新的构建目录，可在 Ninja 配置时设置 `-DCMAKE_C_FLAGS_DEBUG="/Od /Z7 /RTC1" -DCMAKE_CXX_FLAGS_DEBUG="/Od /Z7 /RTC1"`。
 - 不同生成器或架构不能共用缓存，切换时使用独立构建目录。
 
-迁移完成度及人工验收项目见 [SDL3 迁移记录](../development/sdl3-migration.md)。

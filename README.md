@@ -68,5 +68,6 @@ ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
 第三方源码声明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
 
 Elysia 图标版权归属 © miHoYo 所有
+
 Elysia Engine 为独立开发项目，与 miHoYo 无官方关联，也未获得其官方认可或赞助。
 Elysia Engine is an independent project and is not affiliated with or endorsed by miHoYo.

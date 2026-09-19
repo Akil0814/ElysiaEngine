@@ -11,13 +11,13 @@
 
 - [架构总览](architecture/overview.md)：模块边界、依赖方向和运行时生命周期。
 - [仓库结构](architecture/repository-layout.md)：源码、资源、测试和示例层的职责。
-- [玩家主机联机与输入架构设计](architecture/player-host-networking-and-input-design.md)：目标设计／讨论记录，说明 Player Host 目标与迁移边界；本地输入路由已实施，网络模块尚未实现。
 - [子系统索引](subsystems/README.md)：UI、Input、资源加载、配置、音频、相机、存档、Physics、Development Overlay 与 Development Demos。
 
 ## 开发与维护
 
-- [开发文档](development/README.md)：代码规范、测试约定与文档维护规则。
 - [C++ 代码规范](development/coding-standard.md)
+- [未来开发方向](development/roadmap.md)
 - [C++11+ 语言特性盘点](development/cpp-language-features.md)
 - [测试指南](development/testing.md)
 - [文档维护规则](development/documentation.md)
+- [玩家主机联机与输入架构设计](architecture/player-host-networking-and-input-design.md)：目标设计／讨论记录，说明 Player Host 目标与迁移边界；本地输入路由已实施，网络模块尚未实现。
