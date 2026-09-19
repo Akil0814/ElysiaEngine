@@ -1,109 +1,58 @@
 #include "gameplay_scene.h"
-
-#include "../../scene/detail/scene_input_order.h"
+#include "../control/controller_manager.h"
 #include "../collision/gameplay_collision_service.h"
-
-#include <algorithm>
-
 namespace elysia::gameplay
 {
-GameplayScene::GameplayScene()
-    : _collision_runtime(physics_world()),
-      _gameplay_input_map(make_default_gameplay_input_map())
+GameplayScene::GameplayScene() : GameplayScene(elysia::physics::PhysicsWorldConfig{})
 {
 }
-
-GameplayScene::GameplayScene(elysia::physics::PhysicsWorldConfig physics_config)
-    : elysia::scene::Scene(physics_config),
-      _collision_runtime(physics_world()),
-      _gameplay_input_map(make_default_gameplay_input_map())
+GameplayScene::GameplayScene(elysia::physics::PhysicsWorldConfig config)
+    : Scene(config), _collision_runtime(physics_world())
 {
+    input_router().set_auto_claim_ui_gamepad(false);
+    set_ui_interaction_mode(elysia::input::UiInteractionMode::Pointer);
+    input_router().set_cancel_handler([this](auto player, auto reason) {
+        ControllerManager::instance()->cancel_local(_control_context, player, reason);
+    });
 }
-
+GameplayScene::~GameplayScene()
+{
+    _control_context.reset();
+}
 bool GameplayScene::activate_collision_runtime() noexcept
 {
-    return collision::GameplayCollisionService::instance()->attach_runtime(
-        _collision_runtime);
+    if (!collision::GameplayCollisionService::instance()->attach_runtime(_collision_runtime))
+        return false;
+    _control_context.activate();
+    return true;
 }
-
 void GameplayScene::deactivate_collision_runtime() noexcept
 {
-    (void)collision::GameplayCollisionService::instance()->detach_runtime(
-        _collision_runtime);
+    _control_context.deactivate();
+    (void)collision::GameplayCollisionService::instance()->detach_runtime(_collision_runtime);
 }
-
-void GameplayScene::set_gameplay_input_enabled(bool enabled) noexcept
+bool GameplayScene::contains_control_target(const elysia::core::GameObject *target) const
 {
-    if (_gameplay_input_enabled == enabled)
-        return;
-    _gameplay_input_enabled = enabled;
-    _gameplay_input_map.reset_state();
+    return contains_object_address(target);
 }
-
-void GameplayScene::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void GameplayScene::on_routed_input(const elysia::input::InputSnapshot &input)
 {
-    elysia::scene::Scene::on_input(input, events);
-    prune_receivers();
-    if (!_gameplay_input_enabled)
-        return;
-
-    elysia::input::ActionInputResult result = _gameplay_input_map.resolve(input);
-    dispatch_frame(GameplayInputFrame(std::move(result.frame)));
-    dispatch_events(result.events);
+    ControllerManager::instance()->input(_control_context, input);
 }
-
-void GameplayScene::on_scene_object_registered(elysia::core::SceneObject& object)
+void GameplayScene::on_fixed_update(std::uint64_t tick, double delta)
 {
-    elysia::scene::Scene::on_scene_object_registered(object);
-    if (auto* receiver = dynamic_cast<GameplayInputFrameReceiver*>(&object))
-    {
-        elysia::scene::scene_input_order::insert_receiver_entry_sorted(
-            _frame_receivers, FrameReceiverEntry{ &object, receiver });
-    }
-    if (auto* receiver = dynamic_cast<GameplayInputEventReceiver*>(&object))
-    {
-        elysia::scene::scene_input_order::insert_receiver_entry_sorted(
-            _event_receivers, EventReceiverEntry{ &object, receiver });
-    }
+    ControllerManager::instance()->advance(_control_context, tick, delta);
+    on_game_fixed_update(tick, delta);
 }
-
-void GameplayScene::prune_receivers()
+void GameplayScene::on_pause_changed(bool paused)
 {
-    const auto destroyed = [](const auto& entry)
-    {
-        return !entry.object || entry.object->is_destroyed();
-    };
-    std::erase_if(_frame_receivers, destroyed);
-    std::erase_if(_event_receivers, destroyed);
+    if (paused)
+        ControllerManager::instance()->pause(_control_context);
 }
-
-void GameplayScene::dispatch_frame(const GameplayInputFrame& input)
+void GameplayScene::on_scene_object_removing(elysia::core::SceneObject &object)
 {
-    for (const FrameReceiverEntry& entry : _frame_receivers)
-    {
-        if (!entry.object || entry.object->is_destroyed() || !entry.object->is_active())
-            continue;
-        if (_paused && !entry.object->receive_input_when_paused())
-            continue;
-        entry.receiver->on_gameplay_input_frame(input);
-    }
+    if (auto *target = dynamic_cast<elysia::core::GameObject *>(&object))
+        ControllerManager::instance()->object_removed(_control_context, *target);
+    on_control_target_removing(object);
 }
-
-void GameplayScene::dispatch_events(const std::vector<elysia::input::ActionInputEvent>& events)
-{
-    for (const elysia::input::ActionInputEvent& event : events)
-    {
-        for (const EventReceiverEntry& entry : _event_receivers)
-        {
-            if (!entry.object || entry.object->is_destroyed() || !entry.object->is_active())
-                continue;
-            if (_paused && !entry.object->receive_input_when_paused())
-                continue;
-            if (entry.receiver->on_gameplay_input_event(event))
-                break;
-        }
-    }
-}
-}
+} // namespace elysia::gameplay

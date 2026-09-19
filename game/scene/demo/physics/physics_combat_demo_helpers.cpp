@@ -1,3 +1,4 @@
+#include "../../../input/command_view.h"
 #include "physics_combat_demo_helpers.h"
 
 #include "../../../demo/physics/demo_collision_layers.h"
@@ -35,13 +36,12 @@ QueryProbe::QueryProbe(
 {
 }
 
-void QueryProbe::on_gameplay_input_frame(
-    const elysia::gameplay::GameplayInputFrame& input)
+void QueryProbe::execute()
 {
     using example::demo::physics::Facing;
     namespace collision_layers = example::demo::physics::collision_layers;
 
-    if (!input.secondary_pressed() || !_world || !_player)
+    if (!_world || !_player || _player->is_destroyed())
         return;
 
     elysia::core::Vector2 direction{1, 0};

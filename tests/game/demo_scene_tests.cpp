@@ -1,3 +1,6 @@
+﻿#include "game/input/local_controls.h"
+#include "engine/gameplay/control/controller_service.h"
+#include "tests/support/input_snapshot_builder.h"
 #include "tests/support/sdl_audio_fixture.h"
 #define SDL_MAIN_HANDLED
 
@@ -14,6 +17,8 @@
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "game/scene/demo/demo_gallery_scene.h"
 #include "game/scene/demo/multi_target_camera_scene.h"
+#include "game/scene/demo/local_multiplayer_scene.h"
+#include "engine/input/input_system.h"
 #include "game/scene/demo/demo_scene_payload.h"
 #include "game/scene/demo/engine_feature_lab_scene.h"
 #include "game/scene/demo/ui_component_gallery_scene.h"
@@ -29,6 +34,9 @@
 #include <SDL3_mixer/SDL_mixer.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -124,13 +132,9 @@ bool throws_logic_error_containing(
 
 void send_escape(elysia::scene::SceneManager& scene_manager)
 {
-    scene_manager.on_input(
-        elysia::input::RawInputFrame{},
-        { elysia::input::RawInputEvent{
-            .control = elysia::input::RawInputControl::KeyEscape,
-            .type = elysia::input::RawInputEventType::ControlPressed,
-            .device = elysia::input::InputDevice::Keyboard
-        } });
+    scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{.control = elysia::input::RawInputControl::KeyEscape,
+                                      .type = elysia::input::RawInputEventType::ControlPressed,
+                                      .device = elysia::input::InputDevice::Keyboard}}));
 }
 
 void send_key(
@@ -138,13 +142,8 @@ void send_key(
     elysia::input::RawInputControl control,
     elysia::input::RawInputEventType type)
 {
-    scene_manager.on_input(
-        elysia::input::RawInputFrame{},
-        { elysia::input::RawInputEvent{
-            .control = control,
-            .type = type,
-            .device = elysia::input::InputDevice::Keyboard
-        } });
+    scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{
+            .control = control, .type = type, .device = elysia::input::InputDevice::Keyboard}}));
 }
 
 void press_and_release_key(
@@ -164,14 +163,11 @@ void click_mouse(
             elysia::input::RawInputEventType::ControlPressed,
             elysia::input::RawInputEventType::ControlReleased})
     {
-        scene_manager.on_input(
-            elysia::input::RawInputFrame{},
-            {elysia::input::RawInputEvent{
-                .control = elysia::input::RawInputControl::MouseLeft,
-                .type = type,
-                .device = elysia::input::InputDevice::Mouse,
-                .mouse_x = x,
-                .mouse_y = y}});
+        scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{.control = elysia::input::RawInputControl::MouseLeft,
+                                          .type = type,
+                                          .device = elysia::input::InputDevice::Mouse,
+                                          .mouse_x = x,
+                                          .mouse_y = y}}));
     }
 }
 
@@ -191,7 +187,7 @@ void test_engine_feature_overlay_cycle()
     const std::array<std::size_t,5> expected_indices{ 3,4,0,1,2 };
     for (const std::size_t expected_index : expected_indices)
     {
-        scene.on_input(elysia::input::RawInputFrame{},events);
+        scene.on_input(elysia::tests::events_snapshot(events));
         require(scene.color_overlay_index() == expected_index,
             "Space must cycle all Engine feature color overlays and wrap");
     }
@@ -266,11 +262,17 @@ void test_escape_returns_the_full_caller_route()
         example::scene_keys::EngineFeatureLab);
     scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(
         example::scene_keys::MultiTargetCamera);
+    scene_manager.register_game_scene<example::scene::LocalMultiplayerScene>(
+        example::scene_keys::LocalMultiplayer);
     scene_manager.register_game_scene<FirstReturnScene>(1);
     scene_manager.register_game_scene<SecondReturnScene>(2);
     scene_manager.register_engine_scene<
         elysia::builtin::ApplicationFailureScene>(
             elysia::builtin::SceneKeys::ApplicationFailure);
+
+    if (!elysia::gameplay::ControllerService::instance()->session_active())
+
+        (void)elysia::gameplay::ControllerService::instance()->begin_session();
 
     scene_manager.start(elysia::scene::SceneRoute{
         .target = example::scene_keys::UiComponentGallery,
@@ -345,13 +347,9 @@ void test_escape_returns_the_full_caller_route()
     require(decimal_commands.size() == 4,
         "The final Engine feature number preset must render the four glyphs in 12.5");
 
-    scene_manager.on_input(
-        elysia::input::RawInputFrame{},
-        {elysia::input::RawInputEvent{
-            .control = elysia::input::RawInputControl::KeyD,
-            .type = elysia::input::RawInputEventType::ControlPressed,
-            .device = elysia::input::InputDevice::Keyboard
-        }});
+    scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{.control = elysia::input::RawInputControl::KeyD,
+                                      .type = elysia::input::RawInputEventType::ControlPressed,
+                                      .device = elysia::input::InputDevice::Keyboard}}));
     scene_manager.on_update(0.25);
     const auto* moved_collider = std::get_if<elysia::tools::DebugDrawRect>(
         &debug_draw->commands().front().primitive);
@@ -487,11 +485,11 @@ void test_escape_returns_the_full_caller_route()
     click_mouse(scene_manager, 922, 52);
     elysia::input::RawInputFrame movement;
     movement.state.set_pressed(elysia::input::RawInputControl::KeyD, true);
-    scene_manager.on_input(movement, {});
+    scene_manager.on_input(elysia::tests::events_snapshot({{.control=elysia::input::RawInputControl::KeyD,.type=elysia::input::RawInputEventType::ControlPressed}}));
     for (int frame = 0; frame < 180; ++frame) scene_manager.on_update(1.0 / 60.0);
     require(cameras->camera(elysia::camera::CameraSlot::Main).center().x > 100,
         "WASD movement must move the tracked primary and its camera");
-    scene_manager.on_input({}, {});
+    scene_manager.on_input(elysia::tests::events_snapshot({}));
     click_mouse(scene_manager, 922, 52);
     click_mouse(scene_manager, 502, 52); // Teleport the secondary target.
     scene_manager.on_update(0.1);
@@ -527,7 +525,112 @@ void test_escape_returns_the_full_caller_route()
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1,
         "camera demo re-entry must reset camera state");
     render_camera("06_reentry");
-    scene_manager.shutdown();
+    scene_manager.on_scene_request(elysia::scene::SceneRequest{
+        .type = elysia::scene::SceneRequestType::Switch,
+        .route = {.target = example::scene_keys::LocalMultiplayer,
+                  .payload = example::scene::DemoScenePayload{.return_route = original_caller}}});
+    scene_manager.on_update(0);
+    auto blocks = ELYSIA_OBJECT_QUERY->find_objects<>();
+    require(blocks.size() == 2, "Multiplayer demo creates exactly two command-controlled actors");
+    if (blocks[0]->position().x > blocks[1]->position().x)
+        std::swap(blocks[0], blocks[1]);
+    elysia::input::InputSystem local_input;
+    auto dispatch = [&] {
+        scene_manager.on_input(local_input.snapshot());
+        scene_manager.on_update(1.0 / 60);
+    };
+    auto pad_button = [&](Uint32 type, Uint8 button) {
+        SDL_Event event{};
+        event.type = type;
+        event.gbutton.which = 77;
+        event.gbutton.button = button;
+        local_input.process_event(event);
+    };
+    auto key_event = [&](Uint32 type, SDL_Keycode code) {
+        SDL_Event event{};
+        event.type = type;
+        event.key.key = code;
+        local_input.process_event(event);
+    };
+    local_input.begin_frame();
+    dispatch();
+    const auto keyboard_first = blocks[0]->position().x, keyboard_second = blocks[1]->position().x;
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_D);
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_LEFT);
+    dispatch();
+    require(blocks[0]->position().x > keyboard_first && blocks[1]->position().x < keyboard_second,
+            "Multiplayer defaults to independent WASD and arrow partitions without a gamepad");
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_UP, SDLK_D);
+    key_event(SDL_EVENT_KEY_UP, SDLK_LEFT);
+    dispatch();
+    local_input.begin_frame();
+    pad_button(SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_START);
+    dispatch();
+    auto owner = scene_manager.local_players().owner(elysia::input::InputSourceId::gamepad(77));
+    require(owner.value && owner != elysia::input::PrimaryLocalPlayer, "Unassigned Start joins player two");
+    const auto first_x = blocks[0]->position().x, second_x = blocks[1]->position().x;
+    local_input.begin_frame();
+    pad_button(SDL_EVENT_GAMEPAD_BUTTON_UP, SDL_GAMEPAD_BUTTON_START);
+    pad_button(SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_D);
+    dispatch();
+    require(blocks[0]->position().x > first_x && blocks[1]->position().x < second_x,
+            "Joining must not open pause; keyboard and pad move different demo actors");
+    render_camera("07_local_multiplayer_play");
+    local_input.begin_frame();
+    key_event(SDL_EVENT_KEY_DOWN, SDLK_ESCAPE);
+    dispatch();
+    const auto paused_first = blocks[0]->position(), paused_second = blocks[1]->position();
+    local_input.begin_frame();
+    dispatch();
+    require(blocks[0]->position() == paused_first && blocks[1]->position() == paused_second,
+            "Demo modal menu blocks both players");
+    render_camera("08_local_multiplayer_menu");
+    click_mouse(scene_manager, 640, 285); // Swap keyboard partitions while the modal menu is open.
+    const auto &swapped_bindings=scene_manager.local_players().configuration();
+    require(swapped_bindings.partitions.at(swapped_bindings.bindings.at(elysia::input::PrimaryLocalPlayer).keyboard).name=="Arrows" &&
+            swapped_bindings.partitions.at(swapped_bindings.bindings.at(owner).keyboard).name=="WASD",
+            "Menu atomically swaps partitions and rebinds controller maps");
+    click_mouse(scene_manager, 640, 373); // Give the single mouse to P2 without changing UI access.
+    require(scene_manager.local_players().owner(elysia::input::InputSourceId::mouse())==owner,
+            "Mouse ownership can be transferred from the shared UI");
+
+    auto* controls=elysia::gameplay::ControllerService::instance();
+    auto first_controller=example::input::session_player(elysia::input::PrimaryLocalPlayer);
+    auto second_controller=example::input::session_player(owner);
+    scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route=original_caller});
+    scene_manager.on_update(0);
+    require(controls->get(first_controller) && !controls->describe(first_controller)->bound &&
+            controls->get(second_controller) && !controls->describe(second_controller)->bound,
+            "Menu transition preserves session controller instances but clears targets");
+    const auto &restored_bindings=scene_manager.local_players().configuration();
+    require(restored_bindings.partitions.at(restored_bindings.bindings.at(elysia::input::PrimaryLocalPlayer).keyboard).name=="Full keyboard" &&
+            scene_manager.local_players().owner(elysia::input::InputSourceId::mouse())==elysia::input::PrimaryLocalPlayer,
+            "Leaving multiplayer restores external keyboard and mouse configuration");
+
+    scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
+        .route={.target=example::scene_keys::LocalMultiplayer,
+                .payload=example::scene::DemoScenePayload{.return_route=original_caller},.reload_mode=elysia::scene::SceneReloadMode::Recreate}});
+    scene_manager.on_update(0);
+    require(controls->describe(first_controller)->bound && controls->describe(second_controller)->bound,
+            "Recreated multiplayer scene explicitly restores both session controllers");
+    blocks=ELYSIA_OBJECT_QUERY->find_objects<>();
+    if(blocks[0]->position().x>blocks[1]->position().x) std::swap(blocks[0],blocks[1]);
+    const auto restored_x=blocks[0]->position().x;
+    local_input.begin_frame(); dispatch();
+    require(blocks[0]->position().x==restored_x,"Scene transition cannot inherit a held movement");
+    local_input.begin_frame(); key_event(SDL_EVENT_KEY_UP,SDLK_D); key_event(SDL_EVENT_KEY_UP,SDLK_ESCAPE);
+    pad_button(SDL_EVENT_GAMEPAD_BUTTON_UP,SDL_GAMEPAD_BUTTON_DPAD_LEFT); dispatch();
+    local_input.begin_frame(); key_event(SDL_EVENT_KEY_DOWN,SDLK_D);
+    pad_button(SDL_EVENT_GAMEPAD_BUTTON_DOWN,SDL_GAMEPAD_BUTTON_DPAD_LEFT); dispatch();
+    require(blocks[0]->position().x>restored_x,"Rebound session controller resumes after physical release");
+    controls->end_session();
+    require(!controls->get(first_controller) && !controls->get(second_controller),"Explicit session end invalidates demo handles");
+
+
+    require(scene_manager.shutdown(), "Demo shutdown after session end restores devices without errors");
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         nullptr,nullptr);
     localization->shutdown();
@@ -575,6 +678,11 @@ void test_runtime_demo_sources_do_not_retain_legacy_names()
 
 int main()
 {
+#ifdef _MSC_VER
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
     test_engine_feature_overlay_cycle();
     test_payload_contract_names_each_scene();
     test_escape_returns_the_full_caller_route();

@@ -1,4 +1,5 @@
 #include "scene_manager.h"
+#include "../gameplay/control/controller_manager.h"
 
 #include "../camera/camera_manager.h"
 #include "../effects/runtime/effect_manager.h"
@@ -12,6 +13,8 @@
 
 namespace elysia::scene
 {
+SceneManager::SceneManager() { elysia::gameplay::ControllerManager::instance()->initialize(); }
+
 SceneManager::~SceneManager()
 {
     shutdown();
@@ -19,6 +22,7 @@ SceneManager::~SceneManager()
 
 void SceneManager::set_runtime_context(const SceneRuntimeContext& context) noexcept
 {
+    elysia::gameplay::ControllerManager::instance()->initialize();
     _has_shutdown = false;
     _shutdown_succeeded = true;
     _runtime_context = &context;
@@ -45,17 +49,14 @@ void SceneManager::start(const SceneRoute& route)
     if (_current_scene)
         throw std::logic_error("SceneManager::start called while a scene is already active.");
 
+    elysia::gameplay::ControllerManager::instance()->initialize();
     switch_to_registered_scene(route);
 }
 
-void SceneManager::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events
-)
+void SceneManager::on_input(const elysia::input::InputSnapshot &input)
 {
     if (_current_scene)
-        _current_scene->on_input(input, events);
-
+        _current_scene->on_input(input);
     process_pending_request();
 }
 
@@ -184,6 +185,8 @@ void SceneManager::switch_to_scene(
     if (!next_scene)
         throw std::logic_error("SceneManager::switch_to_scene received a null scene from provider.");
 
+    next_scene->set_local_players(_local_players);
+    next_scene->set_ui_device_access(_ui_device_access);
     if (_runtime_context)
         next_scene->bind_runtime_context(*_runtime_context);
 
@@ -199,7 +202,10 @@ void SceneManager::switch_to_scene(
             elysia::camera::CameraManager::instance()->reset(
                 elysia::camera::CameraSlot::Main
             );
+            {
+            if(auto* gameplay=dynamic_cast<elysia::gameplay::GameplayScene*>(_current_scene)) gameplay->reset_control_context();
             _current_scene->reset();
+        }
         }
 
         attach_to_scene(_current_scene);
@@ -224,7 +230,10 @@ void SceneManager::switch_to_scene(
     _current_scene_key = route.target;
 
     if (route.reload_mode == SceneReloadMode::Reset)
-        _current_scene->reset();
+        {
+            if(auto* gameplay=dynamic_cast<elysia::gameplay::GameplayScene*>(_current_scene)) gameplay->reset_control_context();
+            _current_scene->reset();
+        }
 
     attach_to_scene(_current_scene);
     _current_scene->on_enter(route.payload);
@@ -258,7 +267,8 @@ void SceneManager::detach_from_scene(Scene* scene)
     if (!scene)
         return;
 
-	if (auto* gameplay_scene = dynamic_cast<elysia::gameplay::GameplayScene*>(scene))
+    scene->reset_input_routing();
+    if (auto* gameplay_scene = dynamic_cast<elysia::gameplay::GameplayScene*>(scene))
 		gameplay_scene->deactivate_collision_runtime();
 	elysia::object_query::GameObjectQueryManager::instance()->unbind_active_runtime(*scene);
 	elysia::effects::EffectManager::instance()->unbind_active_scene(*scene);
@@ -286,8 +296,11 @@ bool SceneManager::shutdown() noexcept
     cleanup([] { elysia::camera::CameraManager::instance()->reset(
         elysia::camera::CameraSlot::Main); });
     cleanup([&] { _scene_factory.clear_runtime_contexts(); });
+    cleanup([] { elysia::gameplay::ControllerManager::instance()->shutdown(); });
     cleanup([&] { _scene_factory.destroy_all_scene(); });
     _scene_providers.clear();
+    _local_players.reset();
+    _ui_device_access = {};
     _runtime_context = nullptr;
 
     _pending_request = SceneRequest{};

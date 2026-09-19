@@ -10,7 +10,6 @@
 - 跨模块设计放在 `docs/architecture/`。
 - 模块参考和指南放在 `docs/subsystems/`。
 - 维护规范放在 `docs/development/`。
-- 论文、课程材料和不再作为事实来源的发布物放在 `archive/`，不加入主导航。
 - 不在源码目录中新增零散 Markdown；新文档必须从 `docs/README.md` 或对应子系统入口可达。
 
 ## 编写规则

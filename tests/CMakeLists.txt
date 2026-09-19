@@ -103,7 +103,7 @@ target_compile_definitions(builtin_asset_cache_tests
 add_elysia_test(engine_character_tests
     LABEL builtin
     SOURCES builtin/engine_character_tests.cpp
-    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
 target_compile_definitions(engine_character_tests
@@ -111,6 +111,8 @@ target_compile_definitions(engine_character_tests
 )
 
 foreach(INPUT_TEST_TARGET IN ITEMS
+    controller_runtime_tests
+    input_regression_tests
     development_input_capture_tests
     input_action_mapping_tests
     input_system_controller_lifecycle_tests
@@ -121,7 +123,7 @@ foreach(INPUT_TEST_TARGET IN ITEMS
     add_elysia_test(${INPUT_TEST_TARGET}
         LABEL input
         SOURCES input/${INPUT_TEST_TARGET}.cpp
-        LIBRARIES ${ELYSIA_SDL_LIBRARIES}
+        LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
         SDL
     )
 endforeach()

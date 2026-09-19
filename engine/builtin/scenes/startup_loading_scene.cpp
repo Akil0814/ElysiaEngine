@@ -135,11 +135,9 @@ void StartupLoadingScene::on_update(double delta)
         mark_loading_finished();
 }
 
-void StartupLoadingScene::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void StartupLoadingScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                       const std::vector<elysia::input::RawInputEvent> &events)
 {
-    Scene::on_input(input,events);
 
     if (!_completion.waiting_for_confirmation()
         || _completion.transitioning())
@@ -152,6 +150,7 @@ void StartupLoadingScene::on_input(
                 elysia::input::RawInputControl::AnyControl,
                 event.control))
         {
+            consume_input(event);
             handle_completion_action(_completion.confirm());
             return;
         }

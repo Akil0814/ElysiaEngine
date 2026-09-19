@@ -15,4 +15,5 @@ inline constexpr elysia::scene::SceneKey UiComponentGallery = 10;
 inline constexpr elysia::scene::SceneKey EngineFeatureLab = 11;
 inline constexpr elysia::scene::SceneKey Box2DLab = 12;
 inline constexpr elysia::scene::SceneKey MultiTargetCamera = 13;
+inline constexpr elysia::scene::SceneKey LocalMultiplayer = 14;
 }

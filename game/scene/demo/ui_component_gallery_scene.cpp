@@ -39,21 +39,19 @@ bool is_valid_return_route(const elysia::scene::SceneRoute& route) noexcept
 }
 }
 
-void UiComponentGalleryScene::on_input(
-    const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void UiComponentGalleryScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                           const std::vector<elysia::input::RawInputEvent> &events)
 {
     for (const elysia::input::RawInputEvent& event : events)
     {
         if (event.control == elysia::input::RawInputControl::KeyEscape
             && event.type == elysia::input::RawInputEventType::ControlPressed)
         {
+            consume_input(event);
             return_to_caller();
             return;
         }
     }
-
-    elysia::scene::Scene::on_input(input,events);
 }
 
 void UiComponentGalleryScene::on_enter(const elysia::scene::ScenePayload& payload)

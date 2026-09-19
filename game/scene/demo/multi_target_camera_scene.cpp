@@ -1,10 +1,14 @@
+#include "../../input/local_controls.h"
+#include "../../input/command_view.h"
 #include "multi_target_camera_scene.h"
 #include "../../demo/physics/colored_block_object.h"
 #include "../../../engine/ui/window/ui_window.h"
 #include "../../../engine/ui/widgets/ui_button.h"
 #include "../../../engine/ui/widgets/label/ui_label.h"
+#include "../../../engine/tools/logger.h"
 #include <cmath>
 #include <format>
+#include <limits>
 #include <stdexcept>
 
 namespace example::scene
@@ -14,15 +18,51 @@ using namespace elysia::camera;
 using namespace elysia::ui;
 namespace
 {
+const elysia::input::InputActionId separation_action{"example.camera.separation"};
+class CameraActor final : public example::demo::physics::ColoredBlockObject, public elysia::gameplay::ControlCommandReceiver {
+public:
+    using ColoredBlockObject::ColoredBlockObject;
+    CameraActor* other = nullptr;
+    void on_control_command(const elysia::gameplay::ControlCommand& command, double delta) override {
+        auto movement=example::input::CommandView(command).move();
+        if(movement.length_squared()>1) movement.normalize_in_place();
+        set_center(center()+movement*static_cast<float>(320*delta));
+        if(other && !other->is_destroyed()) other->set_center(other->center()+Vector2{command.state.axis1d(separation_action)*static_cast<float>(700*delta),0});
+    }
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override {}
+};
 constexpr auto slot = CameraSlot::Main;
 const Rect world_bounds{-900, -700, 1800, 1400};
-void outline(SDL_Renderer* renderer, const Rect& rect, Color color)
+}
+
+class MultiTargetCameraScene::CameraOverlay final : public UiElement
 {
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    const SDL_FRect draw{rect.x(), rect.y(), rect.width(), rect.height()};
-    SDL_RenderRect(renderer, &draw);
-}
-}
+public:
+    explicit CameraOverlay(const MultiTargetCameraScene& scene)
+        : UiElement(Rect::zero(), std::numeric_limits<int>::max()), _scene(scene) {}
+
+    void submit_ui_render_commands(std::vector<UiRenderCommand>& commands) const override
+    {
+        const auto outline = [&](const Rect& rect, Color color) {
+            commands.push_back(make_ui_draw_rect_command(rect, color));
+        };
+        const auto& camera = _scene.camera();
+        const auto viewport = camera.viewport_size();
+        outline(Rect::from_center(viewport * 0.5f, viewport * 0.70f), {65, 180, 255});
+        outline(Rect::from_center(viewport * 0.5f, viewport * 0.55f), {100, 210, 130});
+        if (const auto focus = _scene.resolve_camera_focus())
+        {
+            outline(camera.world_to_screen(focus->bounds), {180, 180, 180});
+            auto primary = camera.world_to_screen(focus->primary);
+            primary = Rect::from_center(primary.center(), primary.size() + Vector2{8, 8});
+            outline(primary, {255, 255, 255});
+        }
+        if (_scene._bounds) outline(camera.world_to_screen(world_bounds), {240, 90, 90});
+    }
+
+private:
+    const MultiTargetCameraScene& _scene;
+};
 
 void MultiTargetCameraScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
@@ -33,15 +73,27 @@ void MultiTargetCameraScene::on_enter(const elysia::scene::ScenePayload& payload
     _paused = false;
     if (!_targets[0])
     {
-        _targets[0] = create_and_add_object<example::demo::physics::ColoredBlockObject>(
+        _targets[0] = create_and_add_object<CameraActor>(
             DepthLayer::Item, Rect{-140, -20, 40, 40}, Color{65, 180, 255});
-        _targets[1] = create_and_add_object<example::demo::physics::ColoredBlockObject>(
+        _targets[1] = create_and_add_object<CameraActor>(
             DepthLayer::Item, Rect{100, -20, 40, 40}, Color{255, 165, 65});
     }
     if (!_controls) build_controls();
+    if (!_overlay) _overlay = create_and_add_object<CameraOverlay>(*this);
+    _overlay->set_visible(true);
     _controls->set_visible(true);
     _controls->set_active(true);
     reset_demo();
+    static_cast<CameraActor*>(_targets[0])->other=static_cast<CameraActor*>(_targets[1]);
+    static_cast<CameraActor*>(_targets[1])->other=static_cast<CameraActor*>(_targets[0]);
+    using namespace elysia::input;
+    auto map = example::input::make_gameplay_input_map();
+    if (!map.contains(separation_action))
+        (void)map.register_action(
+            {separation_action, InputActionValueType::Axis1D},
+            {{separation_action, ButtonInputBinding{RawInputControl::KeyQ, InputActionComponent::X, -1}},
+             {separation_action, ButtonInputBinding{RawInputControl::KeyE, InputActionComponent::X, 1}}});
+    example::input::configure_scene_player(*this,_controller,*_targets[_primary],PrimaryLocalPlayer,std::move(map));
 }
 
 void MultiTargetCameraScene::install_strategy()
@@ -52,11 +104,26 @@ void MultiTargetCameraScene::install_strategy()
     CameraManager::instance()->set_follow_strategy(slot, std::move(strategy));
 }
 
+void MultiTargetCameraScene::request_primary(std::size_t index)
+{
+    if (!_targets[index]) return;
+    _requested_primary = index;
+    _primary_request = elysia::gameplay::ControllerService::instance()->bind_target(
+        _controller, control_context(), *_targets[index]);
+    finish_primary_request();
+}
+void MultiTargetCameraScene::finish_primary_request()
+{
+    if (!_primary_request || _primary_request->pending()) return;
+    if (_primary_request->succeeded()) _primary = _requested_primary;
+    else elysia::tools::Logger::instance()->warn("input", "Camera target switch failed; primary unchanged.");
+    _primary_request.reset();
+}
+
 void MultiTargetCameraScene::reset_demo()
 {
-    _movement = {};
-    _separation_input = 0;
-    _primary = 0;
+    if (elysia::gameplay::ControllerService::instance()->get(_controller)) request_primary(0);
+    else _primary = 0;
     _time = 0;
     _automatic = _bounds = false;
     _dead_zone = true;
@@ -79,8 +146,7 @@ void MultiTargetCameraScene::toggle_bounds()
 
 void MultiTargetCameraScene::on_exit()
 {
-    _movement = {};
-    _separation_input = 0;
+    if (_overlay) _overlay->set_visible(false);
     _strategy = nullptr;
     if (_controls) { _controls->set_active(false); _controls->set_visible(false); }
 }
@@ -88,9 +154,13 @@ void MultiTargetCameraScene::on_exit()
 void MultiTargetCameraScene::reset()
 {
     on_exit();
+    reset_input_routing();
+
     for (auto*& target : _targets) { if (target) target->destroy(); target = nullptr; }
     if (_controls) _controls->destroy();
     _controls = nullptr;
+    if (_overlay) _overlay->destroy();
+    _overlay = nullptr;
     _status = nullptr;
     _return_route = {};
 }
@@ -104,22 +174,20 @@ std::optional<CameraFocus> MultiTargetCameraScene::resolve_camera_focus() const
 
 void MultiTargetCameraScene::on_update(double delta)
 {
-    if (!_paused && _targets[0] && _targets[1])
-    {
-        _targets[_primary]->set_center(_targets[_primary]->center()
-            + _movement * static_cast<float>(320 * delta));
-        auto* other = _targets[1 - _primary];
-        if (_automatic)
-        {
-            _time += delta;
-            other->set_center(_targets[_primary]->center()
-                + Vector2{static_cast<float>(240 + 1900 * (1 - std::cos(_time * 0.45))),
-                    static_cast<float>(180 * std::sin(_time * 0.45))});
-        }
-        else other->set_center(other->center() + Vector2{_separation_input * static_cast<float>(700 * delta), 0});
-    }
     Scene::on_update(delta);
+    finish_primary_request();
     refresh_status();
+}
+void MultiTargetCameraScene::on_control_target_removing(elysia::core::SceneObject& object) {
+    for(auto*& target:_targets) if(target==&object) target=nullptr;
+    for(auto* target:_targets) if(target && static_cast<CameraActor*>(target)->other==&object) static_cast<CameraActor*>(target)->other=nullptr;
+}
+void MultiTargetCameraScene::on_game_fixed_update(std::uint64_t, double delta) {
+    if(_automatic && _targets[0] && _targets[1]) {
+        _time+=delta;
+        _targets[1-_primary]->set_center(_targets[_primary]->center()+Vector2{
+            static_cast<float>(240+1900*(1-std::cos(_time*0.45))),static_cast<float>(180*std::sin(_time*0.45))});
+    }
 }
 
 void MultiTargetCameraScene::refresh_status()
@@ -132,18 +200,17 @@ void MultiTargetCameraScene::refresh_status()
             _dead_zone ? "ON" : "OFF", _automatic ? "ON" : "OFF", _bounds ? "ON" : "OFF")));
 }
 
-void MultiTargetCameraScene::on_input(const elysia::input::RawInputFrame& input,
-    const std::vector<elysia::input::RawInputEvent>& events)
+void MultiTargetCameraScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                          const std::vector<elysia::input::RawInputEvent> &events)
 {
-    Scene::on_input(input, events);
+
     using C = elysia::input::RawInputControl;
-    auto down = [&](C key) { return input.state.is_pressed(key) ? 1.0f : 0.0f; };
-    _movement = {down(C::KeyD) - down(C::KeyA), down(C::KeyS) - down(C::KeyW)};
-    if (_movement.length() > 1) _movement = _movement.normalized();
-    _separation_input = down(C::KeyE) - down(C::KeyQ);
     for (const auto& event : events)
-        if (event.control == C::KeyEscape
-            && event.type == elysia::input::RawInputEventType::ControlPressed) return_to_caller();
+        if (event.control == C::KeyEscape && event.type == elysia::input::RawInputEventType::ControlPressed)
+        {
+            consume_input(event);
+            return_to_caller();
+        }
 }
 
 void MultiTargetCameraScene::return_to_caller() { request_scene_switch(_return_route); }
@@ -168,7 +235,7 @@ void MultiTargetCameraScene::build_controls()
         x += 140;
     };
     button("DeadZone", [this] { _dead_zone = !_dead_zone; install_strategy(); });
-    button("Swap primary", [this] { _primary = 1 - _primary; });
+    button("Swap primary", [this] { request_primary(1 - _primary); });
     button("Auto motion", [this] { _automatic = !_automatic; _time = 0; });
     button("Teleport", [this] { _targets[1 - _primary]->set_center(_targets[_primary]->center() + Vector2{3600, 900}); });
     button("Zoom to 1.5", [] { CameraManager::instance()->request_zoom_to(slot, 1.5f, 1.0); });
@@ -177,22 +244,4 @@ void MultiTargetCameraScene::build_controls()
     button("Back", [this] { return_to_caller(); });
 }
 
-void MultiTargetCameraScene::on_render(SDL_Renderer* renderer)
-{
-    Scene::on_render(renderer);
-    Uint8 r, g, b, a;
-    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-    const auto viewport = camera().viewport_size();
-    outline(renderer, Rect::from_center(viewport * 0.5f, viewport * 0.70f), {65, 180, 255});
-    outline(renderer, Rect::from_center(viewport * 0.5f, viewport * 0.55f), {100, 210, 130});
-    if (const auto focus = resolve_camera_focus())
-    {
-        outline(renderer, camera().world_to_screen(focus->bounds), {180, 180, 180});
-        auto primary = camera().world_to_screen(focus->primary);
-        primary = Rect::from_center(primary.center(), primary.size() + Vector2{8, 8});
-        outline(renderer, primary, {255, 255, 255});
-    }
-    if (_bounds) outline(renderer, camera().world_to_screen(world_bounds), {240, 90, 90});
-    SDL_SetRenderDrawColor(renderer, r, g, b, a);
-}
 }

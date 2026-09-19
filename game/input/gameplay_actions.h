@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../input/action/input_action_types.h"
+#include "../../engine/input/action/input_action_types.h"
 
-namespace elysia::gameplay::actions
+namespace example::input::actions
 {
 inline const elysia::input::InputActionId Move{"gameplay.move"};
 inline const elysia::input::InputActionId Jump{"gameplay.jump"};
@@ -11,4 +11,4 @@ inline const elysia::input::InputActionId Secondary{"gameplay.secondary"};
 inline const elysia::input::InputActionId Guard{"gameplay.guard"};
 inline const elysia::input::InputActionId Dash{"gameplay.dash"};
 inline const elysia::input::InputActionId Pause{"gameplay.pause"};
-}
+} // namespace example::input::actions

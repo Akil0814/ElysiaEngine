@@ -2,7 +2,7 @@
 #include "physics_scenario.h"
 #include "block_actor.h"
 #include "demo_tile_map.h"
-#include "../../../engine/gameplay/input/gameplay_input_map.h"
+#include "../../input/gameplay_input_map.h"
 #include <functional>
 #include <stdexcept>
 

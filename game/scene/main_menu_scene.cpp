@@ -1,3 +1,4 @@
+#include "../../engine/gameplay/control/controller_service.h"
 #include "main_menu_scene.h"
 
 #include "example_scene_keys.h"
@@ -20,6 +21,7 @@ namespace example::scene
 {
 void MainMenuScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
+    elysia::gameplay::ControllerService::instance()->end_session();
     (void)payload;
 
     if (_has_entered)
@@ -38,14 +40,9 @@ void MainMenuScene::on_update(double delta)
     elysia::scene::Scene::on_update(delta);
 }
 
-void MainMenuScene::on_render(SDL_Renderer* renderer)
+void MainMenuScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                 const std::vector<elysia::input::RawInputEvent> &events)
 {
-    elysia::scene::Scene::on_render(renderer);
-}
-
-void MainMenuScene::on_input(const elysia::input::RawInputFrame& input,const std::vector<elysia::input::RawInputEvent>& events)
-{
-    elysia::scene::Scene::on_input(input,events);
 }
 
 void MainMenuScene::on_exit()

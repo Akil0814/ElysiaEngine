@@ -1,405 +1,81 @@
 #define SDL_MAIN_HANDLED
-
-#include "engine/input/action/input_action_map.h"
 #include "engine/input/input_system.h"
 #include "tests/support/test_assertions.h"
-
-#include <SDL3/SDL.h>
-
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
 #include <iostream>
-
-namespace
-{
 using namespace elysia::input;
 using elysia::tests::require;
-
-SDL_Event key_event(Uint32 type, SDL_Keycode key)
+SDL_Event button(SDL_JoystickID id, Uint32 type, Uint8 value)
 {
-    SDL_Event event{};
-    event.type = type;
-    event.key.key = key;
-    event.key.scancode = SDL_GetScancodeFromKey(key, nullptr);
-    return event;
+    SDL_Event e{};
+    e.type = type;
+    e.gbutton.which = id;
+    e.gbutton.button = value;
+    return e;
 }
-
-SDL_Event controller_button_event(
-    Uint32 type,
-    SDL_JoystickID controller_id,
-    SDL_GamepadButton button)
+SDL_Event axis(SDL_JoystickID id, Uint8 value, Sint16 amount)
 {
-    SDL_Event event{};
-    event.type = type;
-    event.gbutton.which = controller_id;
-    event.gbutton.button = static_cast<Uint8>(button);
-    return event;
+    SDL_Event e{};
+    e.type = SDL_EVENT_GAMEPAD_AXIS_MOTION;
+    e.gaxis.which = id;
+    e.gaxis.axis = value;
+    e.gaxis.value = amount;
+    return e;
 }
-
-SDL_Event controller_axis_event(
-    SDL_JoystickID controller_id,
-    SDL_GamepadAxis axis,
-    Sint16 value)
-{
-    SDL_Event event{};
-    event.type = SDL_EVENT_GAMEPAD_AXIS_MOTION;
-    event.gaxis.which = controller_id;
-    event.gaxis.axis = static_cast<Uint8>(axis);
-    event.gaxis.value = value;
-    return event;
-}
-
-SDL_Event controller_removed_event(SDL_JoystickID controller_id)
-{
-    SDL_Event event{};
-    event.type = SDL_EVENT_GAMEPAD_REMOVED;
-    event.gdevice.which = controller_id;
-    return event;
-}
-
-SDL_Event focus_lost_event()
-{
-    SDL_Event event{};
-    event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
-    return event;
-}
-
-std::size_t count_control_events(
-    const InputSystem& input,
-    RawInputControl control,
-    RawInputEventType type)
-{
-    return static_cast<std::size_t>(std::count_if(
-        input.events().begin(),
-        input.events().end(),
-        [&](const RawInputEvent& event)
-        {
-            return event.control == control && event.type == type;
-        }));
-}
-
-std::size_t count_axis_events(
-    const InputSystem& input,
-    RawInputAxis axis,
-    float value)
-{
-    return static_cast<std::size_t>(std::count_if(
-        input.events().begin(),
-        input.events().end(),
-        [&](const RawInputEvent& event)
-        {
-            return event.axis == axis
-                && event.type == RawInputEventType::AxisChanged
-                && std::fabs(event.axis_value - value) < 0.001f;
-        }));
-}
-
-void test_disconnect_releases_button_and_cancels_action()
-{
-    constexpr SDL_JoystickID Controller = 7;
-    const InputActionId Confirm("test.confirm");
-
-    InputSystem input;
-    InputActionMap actions;
-    require(actions.register_action(
-        { Confirm, InputActionValueType::Button },
-        { { Confirm, ButtonInputBinding{ RawInputControl::GamepadSouth } } }),
-        "controller lifecycle test action must register");
-
-    input.begin_frame();
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
-        Controller,
-        SDL_GAMEPAD_BUTTON_SOUTH));
-    require(
-        input.frame().state.is_pressed(RawInputControl::GamepadSouth),
-        "the first controller button must become pressed");
-    require(
-        actions.resolve(input.frame()).frame.is_pressed(Confirm),
-        "the controller button must actuate its action");
-
-    input.begin_frame();
-    input.process_event(controller_removed_event(Controller));
-
-    const RawInputFrame disconnected = input.frame();
-    require(
-        !disconnected.state.is_pressed(RawInputControl::GamepadSouth)
-            && disconnected.state.is_just_released(RawInputControl::GamepadSouth),
-        "disconnecting the active controller must release held buttons");
-    require(
-        count_control_events(
-            input,
-            RawInputControl::GamepadSouth,
-            RawInputEventType::ControlReleased) == 1,
-        "disconnecting the active controller must emit one release event");
-    require(
-        disconnected.active_device == InputDevice::Unknown
-            && disconnected.device_switched_this_frame,
-        "disconnecting the active controller must deactivate the gamepad device");
-
-    const ActionInputResult canceled = actions.resolve(disconnected);
-    require(
-        canceled.events.size() == 1
-            && canceled.events.front().phase == ActionInputPhase::Canceled,
-        "disconnecting the active controller must cancel active actions");
-}
-
-void test_disconnect_zeros_axes_and_trigger_button()
-{
-    constexpr SDL_JoystickID Controller = 11;
-
-    InputSystem input;
-    input.begin_frame();
-    input.process_event(controller_axis_event(
-        Controller,
-        SDL_GAMEPAD_AXIS_LEFT_TRIGGER,
-        26000));
-    input.process_event(controller_axis_event(
-        Controller,
-        SDL_GAMEPAD_AXIS_LEFTX,
-        20000));
-
-    require(
-        input.frame().state.axis_value(RawInputAxis::GamepadLeftTrigger) > 0.5f
-            && input.frame().state.axis_value(RawInputAxis::GamepadLeftX) > 0.5f,
-        "controller axes must be populated before disconnect");
-    require(
-        input.frame().state.is_pressed(RawInputControl::GamepadLeftTriggerButton),
-        "a sufficiently actuated trigger must press its virtual button");
-
-    input.begin_frame();
-    input.process_event(controller_removed_event(Controller));
-
-    require(
-        input.frame().state.axis_value(RawInputAxis::GamepadLeftTrigger) == 0.0f
-            && input.frame().state.axis_value(RawInputAxis::GamepadLeftX) == 0.0f,
-        "disconnecting the active controller must zero all non-zero axes");
-    require(
-        !input.frame().state.is_pressed(RawInputControl::GamepadLeftTriggerButton),
-        "disconnecting the active controller must release trigger virtual buttons");
-    require(
-        count_axis_events(input, RawInputAxis::GamepadLeftTrigger, 0.0f) == 1
-            && count_axis_events(input, RawInputAxis::GamepadLeftX, 0.0f) == 1,
-        "disconnecting the active controller must emit zero axis events");
-    require(
-        count_control_events(
-            input,
-            RawInputControl::GamepadLeftTriggerButton,
-            RawInputEventType::ControlReleased) == 1,
-        "disconnecting the active controller must emit a trigger release event");
-}
-
-void test_first_gamepad_input_survives_device_switch()
-{
-    constexpr SDL_JoystickID Controller = 17;
-
-    InputSystem input;
-    input.begin_frame();
-    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_W));
-    require(
-        input.current_device() == InputDevice::Keyboard
-            && input.frame().state.is_pressed(RawInputControl::KeyW),
-        "keyboard input must establish the keyboard device");
-
-    input.begin_frame();
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
-        Controller,
-        SDL_GAMEPAD_BUTTON_SOUTH));
-    require(
-        input.current_device() == InputDevice::Gamepad
-            && input.frame().device_switched_this_frame,
-        "a controller button must switch from keyboard to gamepad");
-    require(
-        input.frame().state.is_pressed(RawInputControl::GamepadSouth)
-            && count_control_events(
-                input,
-                RawInputControl::GamepadSouth,
-                RawInputEventType::ControlPressed) == 1,
-        "the button that switches to gamepad must be translated in the same frame");
-
-    input.begin_frame();
-    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_K));
-    require(
-        input.current_device() == InputDevice::Keyboard
-            && input.frame().device_switched_this_frame,
-        "switching from gamepad back to keyboard must set the switch flag");
-    require(
-        !input.frame().state.is_pressed(RawInputControl::GamepadSouth)
-            && input.frame().state.is_pressed(RawInputControl::KeyK),
-        "switching back to keyboard must release gamepad state and translate the key");
-
-    SDL_Event motion{};
-    motion.type = SDL_EVENT_MOUSE_MOTION;
-    motion.motion.x = 10;
-    motion.motion.y = 20;
-    input.process_event(motion);
-    require(
-        input.current_device() == InputDevice::Keyboard,
-        "ordinary mouse motion must not change the active device");
-}
-
-void test_axis_dead_zone_and_single_active_controller()
-{
-    constexpr SDL_JoystickID First = 23;
-    constexpr SDL_JoystickID Second = 29;
-    constexpr SDL_JoystickID Remaining = 37;
-
-    InputSystem input;
-    input.begin_frame();
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
-        Remaining,
-        SDL_GAMEPAD_BUTTON_SOUTH));
-
-    input.begin_frame();
-    input.process_event(controller_axis_event(
-        Second,
-        SDL_GAMEPAD_AXIS_LEFTX,
-        6000));
-    require(
-        input.events().empty()
-            && input.frame().state.is_pressed(RawInputControl::GamepadSouth),
-        "sub-dead-zone drift from an inactive controller must be ignored");
-
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
-        Second,
-        SDL_GAMEPAD_BUTTON_WEST));
-    require(
-        !input.frame().state.is_pressed(RawInputControl::GamepadSouth)
-            && input.frame().state.is_pressed(RawInputControl::GamepadWest),
-        "meaningful input from another controller must transfer active control");
-    require(
-        count_control_events(
-            input,
-            RawInputControl::GamepadSouth,
-            RawInputEventType::ControlReleased) == 1,
-        "transferring active control must release the previous controller state");
-
-    input.begin_frame();
-    input.process_event(controller_removed_event(First));
-    require(
-        input.events().empty()
-            && input.frame().state.is_pressed(RawInputControl::GamepadWest)
-            && input.current_device() == InputDevice::Gamepad,
-        "disconnecting an inactive controller must not affect the active controller");
-
-    input.begin_frame();
-    input.process_event(controller_removed_event(Second));
-    require(
-        !input.frame().state.is_pressed(RawInputControl::GamepadWest)
-            && input.current_device() == InputDevice::Unknown,
-        "disconnecting the active controller must clear its state");
-
-    input.begin_frame();
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
-        First,
-        SDL_GAMEPAD_BUTTON_SOUTH));
-    require(
-        input.frame().state.is_pressed(RawInputControl::GamepadSouth)
-            && input.current_device() == InputDevice::Gamepad,
-        "a remaining controller must reacquire control through meaningful input");
-}
-
-void test_axis_can_activate_and_focus_loss_resets_selection()
-{
-    constexpr SDL_JoystickID Controller = 31;
-
-    InputSystem input;
-    input.begin_frame();
-    input.process_event(key_event(SDL_EVENT_KEY_DOWN, SDLK_D));
-    input.begin_frame();
-    input.process_event(controller_axis_event(
-        Controller,
-        SDL_GAMEPAD_AXIS_LEFTX,
-        8000));
-
-    require(
-        input.current_device() == InputDevice::Gamepad
-            && input.frame().device_switched_this_frame
-            && input.frame().state.axis_value(RawInputAxis::GamepadLeftX) > 0.22f,
-        "the first axis value above the activation dead zone must switch and translate");
-
-    input.process_event(focus_lost_event());
-    require(
-        input.current_device() == InputDevice::Unknown
-            && !input.frame().state.is_pressed(RawInputControl::KeyD)
-            && input.frame().state.axis_value(RawInputAxis::GamepadLeftX) == 0.0f,
-        "focus loss must reset device and raw input state");
-
-    input.begin_frame();
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_UP,
-        Controller,
-        SDL_GAMEPAD_BUTTON_SOUTH));
-    require(
-        input.events().empty() && input.current_device() == InputDevice::Unknown,
-        "a release after focus loss must not reactivate the controller");
-
-    input.process_event(controller_button_event(
-        SDL_EVENT_GAMEPAD_BUTTON_DOWN,
-        Controller,
-        SDL_GAMEPAD_BUTTON_SOUTH));
-    require(
-        input.frame().state.is_pressed(RawInputControl::GamepadSouth)
-            && input.current_device() == InputDevice::Gamepad,
-        "a meaningful event after focus loss must reacquire the controller");
-}
-
-void test_input_and_controller_initialization_lifecycle()
-{
-    ControllerManager controllers;
-    require(!controllers.is_initialized(),
-        "controller manager must begin uninitialized");
-    controllers.initialize();
-    require(controllers.is_initialized(),
-        "controller manager initialization must publish initialized state");
-    controllers.initialize();
-    require(controllers.is_initialized(),
-        "controller manager initialization must be idempotent");
-    controllers.shutdown();
-    controllers.shutdown();
-    require(!controllers.is_initialized(),
-        "controller manager shutdown must be idempotent");
-    controllers.initialize();
-    require(controllers.is_initialized(),
-        "controller manager must support initialization after shutdown");
-    controllers.shutdown();
-
-    InputSystem input;
-    require(!input.is_initialized(),
-        "input system must begin uninitialized");
-    input.initialize();
-    require(input.is_initialized(),
-        "input system initialization must publish initialized state");
-    input.initialize();
-    require(input.is_initialized(),
-        "input system repeated initialization must remain initialized");
-    input.shutdown();
-    input.shutdown();
-    require(!input.is_initialized(),
-        "input system shutdown must be idempotent");
-    input.initialize();
-    require(input.is_initialized(),
-        "input system must support initialization after shutdown");
-    input.shutdown();
-}
-}
-
 int main()
 {
-    require(SDL_Init(SDL_INIT_GAMEPAD),
-        "controller lifecycle tests must initialize SDL game controller support");
-    test_input_and_controller_initialization_lifecycle();
-    test_disconnect_releases_button_and_cancels_action();
-    test_disconnect_zeros_axes_and_trigger_button();
-    test_first_gamepad_input_survives_device_switch();
-    test_axis_dead_zone_and_single_active_controller();
-    test_axis_can_activate_and_focus_loss_resets_selection();
-    SDL_Quit();
-    std::cout << "input system controller lifecycle tests passed\n";
-    return EXIT_SUCCESS;
+    InputSystem input;
+    input.begin_frame();
+    input.process_event(button(7, SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_SOUTH));
+    input.process_event(button(8, SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_EAST));
+    input.process_event(axis(7, SDL_GAMEPAD_AXIS_LEFTX, 25000));
+    input.process_event(axis(8, SDL_GAMEPAD_AXIS_LEFTX, -25000));
+    input.process_event(axis(7, SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 30000));
+    input.process_event(axis(8, SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 0));
+    SDL_Event key{};
+    key.type = SDL_EVENT_KEY_DOWN;
+    key.key.key = SDLK_A;
+    key.key.scancode = SDL_SCANCODE_A;
+    input.process_event(key);
+    SDL_Event mouse{};
+    mouse.type=SDL_EVENT_MOUSE_BUTTON_DOWN;
+    mouse.button.button=SDL_BUTTON_LEFT;
+    input.process_event(mouse);
+    auto s = input.snapshot();
+    require(s.find(InputSourceId::mouse())->frame.state.is_pressed(RawInputControl::MouseLeft) &&
+            !s.find(InputSourceId::keyboard())->frame.state.is_pressed(RawInputControl::MouseLeft) &&
+            !s.find(InputSourceId::mouse())->frame.state.is_pressed(RawInputControl::KeyA),
+            "Keyboard and mouse must be separate physical snapshots");
+    auto *a = s.find(InputSourceId::gamepad(7));
+    auto *b = s.find(InputSourceId::gamepad(8));
+    require(a && b, "Each controller needs an independent frame");
+    require(a->frame.state.is_pressed(RawInputControl::GamepadSouth) &&
+                !b->frame.state.is_pressed(RawInputControl::GamepadSouth),
+            "Buttons must be isolated");
+    require(a->frame.state.axis_value(RawInputAxis::GamepadLeftX) > 0 &&
+                b->frame.state.axis_value(RawInputAxis::GamepadLeftX) < 0,
+            "Opposing sticks must coexist");
+    require(a->frame.state.is_pressed(RawInputControl::GamepadLeftTriggerButton) &&
+                !b->frame.state.is_pressed(RawInputControl::GamepadLeftTriggerButton),
+            "Trigger hysteresis must be per device");
+    require(s.find(InputSourceId::keyboard())->frame.state.is_pressed(RawInputControl::KeyA),
+            "Keyboard must coexist with gamepads");
+    input.begin_frame();
+    SDL_Event removed{};
+    removed.type = SDL_EVENT_GAMEPAD_REMOVED;
+    removed.gdevice.which = 7;
+    input.process_event(removed);
+    s = input.snapshot();
+    require(!s.find(InputSourceId::gamepad(7)) && s.find(InputSourceId::gamepad(8)),
+            "Removal must affect only its source");
+    require(s.removed.size() == 1 && s.removed[0] == InputSourceId::gamepad(7),
+            "Removal must be explicit, not a normal gameplay release");
+    require(s.find(InputSourceId::gamepad(8))->initial_state.is_pressed(RawInputControl::GamepadEast),
+            "Frame boundary must retain other held controls");
+    SDL_Event focus{};
+    focus.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+    input.process_event(focus);
+    require(input.snapshot().focus_lost, "Focus loss must notify routing");
+    input.shutdown();
+    require(input.snapshot().events.empty(), "Shutdown must clear events");
+    std::cout << "isolated controller lifecycle tests passed\n";
 }

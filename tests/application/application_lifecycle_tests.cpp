@@ -38,7 +38,6 @@ public:
         if (mode.starts_with("exit_") || (mode == "timing" && frames.size() >= 190))
             request_quit();
     }
-    void on_render(SDL_Renderer*) override {}
 };
 class ThrowingOverlay final : public elysia::tools::IDevelopmentOverlay
 {
@@ -48,8 +47,8 @@ public:
     void begin_frame(double) override {}
     void render(SDL_Renderer&) override {}
     void shutdown() noexcept override { ++overlay_stops; }
-    elysia::input::DevelopmentInputCapture captured_input() const noexcept override
-    { return elysia::input::DevelopmentInputCapture::None; }
+    elysia::input::InputCapture captured_input() const noexcept override
+    { return elysia::input::InputCapture::None; }
     elysia::tools::DevelopmentPanelHandle register_panel(std::string,DrawCallback) override { return {}; }
     bool unregister_panel(elysia::tools::DevelopmentPanelHandle) override { return true; }
 };

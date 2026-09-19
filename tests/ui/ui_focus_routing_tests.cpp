@@ -12,6 +12,7 @@
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -39,7 +40,7 @@ ui::UiInputEvent confirm_event(ui::UiInputEventType type,input::InputDevice devi
     };
 }
 
-ui::UiInputEvent wheel_event(int wheel_x,int wheel_y,input::InputDevice device)
+ui::UiInputEvent wheel_event(float wheel_x,float wheel_y,input::InputDevice device)
 {
     return {
         .type = ui::UiInputEventType::MouseWheel,
@@ -326,6 +327,17 @@ void test_passive_scroll_target_routing()
     require(page_scroll->scroll_offset_y() > initial_y,"passive gamepad scrolling should move the display-only page");
     require(window.gamepad_scroll_target() == page_scroll,"window should retain the resolved passive scroll target");
     require(tabs->selected_index() == 0,"passive scrolling must not change tab selection");
+
+    const float whole_step = page_scroll->scroll_offset_y() - initial_y;
+    const float before_fraction = page_scroll->scroll_offset_y();
+    require(window.on_ui_input_event(wheel_event(0,-0.25f,input::InputDevice::Gamepad)),
+        "Fractional wheel routes through the UI scroll container");
+    require(std::abs(page_scroll->scroll_offset_y() - before_fraction - whole_step * 0.25f) < 0.001f,
+        "Scroll distance preserves a quarter wheel step");
+    require(window.on_ui_input_event(wheel_event(0,0.25f,input::InputDevice::Gamepad)),
+        "Reverse fractional wheel is accepted");
+    require(std::abs(page_scroll->scroll_offset_y() - before_fraction) < 0.001f,
+        "Opposite fractions return to the original offset");
 
     const float after_wheel = page_scroll->scroll_offset_y();
     require(window.on_ui_input_event(navigation_event(ui::UiAction::PageDown,input::InputDevice::Keyboard)),

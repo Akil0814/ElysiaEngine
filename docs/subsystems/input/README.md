@@ -1,32 +1,21 @@
-# Elysia Engine Input 开发者文档
+# Elysia Engine Input
 
-本目录描述当前已经实现的输入链，以 `engine/input` 与 `engine/gameplay` 的代码为事实来源。文档面向维护输入引擎、扩展标准 gameplay action，以及编写实际游玩场景的开发者。
-
-完整数据流为：
+输入子系统支持键盘分区、独立鼠标、多设备并行、玩家归属、公共 UI 协调和固定 tick 命令交付。控制器由游戏显式创建；单机需要游戏会话来限定生命周期，不需要网络会话。
 
 ```text
-SDL event
-  -> RawInputFrame / RawInputEvent
-  -> InputActionMap
-  -> ActionInputFrame / ActionInputEvent
-  -> GameplayInputFrame
-  -> GameplayScene receiver
+SDL → InputSystem::snapshot()
+    → SceneInputRouter：独立 UI → 消费／捕获 → 快捷操作 → 键盘分区与设备分流
+    → LocalPlayerController：游戏动作映射
+    → ControllerManager：缓存 → 实际固定 tick → ControlCommandReceiver
+
+自定义 Controller：固定 tick 产生意图 → 同一 Manager 缓存与交付
 ```
 
-UI 与 gameplay 并不共用同一种语义事件。基础 `Scene` 将 Raw Input 转换成 UI Input；只有 `GameplayScene` 会额外执行 Action Mapping 和 gameplay receiver 分发。
+- [架构与生命周期](architecture.md)：Service、Manager、上下文和作用域。
+- [动作映射](action-mapping.md)：状态、事件、鼠标增量与映射切换。
+- [控制器与命令](engine-gameplay.md)：游戏 API、自定义来源与角色契约。
+- [场景集成](gameplay-scene.md)：会话、显式绑定、固定步与示例。
+- [本轮迁移说明](migration.md)：破坏性 API 变更与结果处理。
+- [测试与调试](testing-and-debugging.md)：自动化覆盖与硬件验收。
 
-## 阅读入口
-
-- [架构与一帧输入流](architecture.md)：分层职责、frame/event 双通道、UI 与 gameplay 分流。
-- [Action Mapping 详解](action-mapping.md)：Action ID、值类型、binding、dead zone、事件阶段与运行时改绑。
-- [Engine Gameplay 参考](engine-gameplay.md)：标准 actions、默认键位、语义访问器和项目扩展方式。
-- [GameplayScene 集成指南](gameplay-scene.md)：场景继承、receiver、排序、暂停、禁用和事件消费。
-- [测试与调试](testing-and-debugging.md)：现有测试覆盖和常见问题排查。
-
-## 建议阅读顺序
-
-第一次接触本系统时，依次阅读架构、Action Mapping 和 GameplayScene。只需要添加一个游戏动作时，可直接查阅 Engine Gameplay 的“扩展 Action”；排查摇杆或事件边沿问题时，使用测试与调试页。
-
-## 当前边界
-
-当前实现提供运行时注册、替换、清除和恢复默认 binding，但不负责磁盘持久化；没有 Input Context 栈；右摇杆没有标准 gameplay 语义；鼠标位置、滚轮和文本输入继续由 Raw/UI 输入链处理。
+本轮一次性替换旧场景输入控制接口，不提供兼容别名、旧入口转发或双路广播。外部项目需要迁移。AI 决策、网络传输、个人焦点树、分屏及输入配置持久化不在当前范围。

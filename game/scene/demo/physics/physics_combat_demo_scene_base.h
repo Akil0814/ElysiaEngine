@@ -36,10 +36,12 @@ public:
     void on_exit() override;
     void reset() override;
     void on_update(double delta) override;
-    void on_input(const elysia::input::RawInputFrame& input,
-        const std::vector<elysia::input::RawInputEvent>& events) override;
+    void on_shortcuts(const elysia::input::RawInputFrame &input,
+                      const std::vector<elysia::input::RawInputEvent> &events) override;
 
-protected:
+  protected:
+    elysia::gameplay::ControllerHandle& player_controller() { return _controller; }
+    virtual void configure_player_controller(example::demo::physics::BlockCombatActor&);
     virtual void build_demo() = 0;
     [[nodiscard]] std::optional<elysia::core::Rect> resolve_camera_focus_rect() const override;
 
@@ -60,6 +62,7 @@ protected:
     [[nodiscard]] example::demo::physics::DemoCombatSession& combat() noexcept { return _combat; }
 
 private:
+    elysia::gameplay::ControllerHandle _controller;
     void build_test_hud();
     void update_test_hud();
     void change_mode(example::demo::physics::ScenarioMode);

@@ -1,4 +1,5 @@
 #pragma once
+#include "../../input/input_suppression.h"
 
 #include <cstdint>
 #include <vector>
@@ -29,8 +30,10 @@ class UiElement : public elysia::core::SceneObject
 public:
 
     // Higher UI order values are rendered on top and receive input first.
-    explicit UiElement(const elysia::core::Rect& rect = elysia::core::Rect::zero(),int order = 0) 
-        noexcept : _screen_rect(rect), _order(order) {}
+  explicit UiElement(const elysia::core::Rect &rect = elysia::core::Rect::zero(), int order = 0) noexcept
+      : _screen_rect(rect), _order(order)
+  {
+  }
 
     UiElement( const elysia::core::Vector2& position, const elysia::core::Vector2& size, int order = 0)
         noexcept : _screen_rect(position, size), _order(order) {}
@@ -39,6 +42,13 @@ public:
         noexcept : _screen_rect(elysia::core::Rect::from_center(center, size)), _order(order) {}
 
     ~UiElement() override;
+    virtual void cancel_input_interaction() noexcept
+    {
+    }
+    [[nodiscard]] virtual elysia::input::InputCapture input_capture() const noexcept
+    {
+        return elysia::input::InputCapture::None;
+    }
 
     UiElement(const UiElement&) = delete;
     UiElement& operator=(const UiElement&) = delete;

@@ -1,72 +1,83 @@
-# Input 测试与调试
+# 输入测试与调试
 
-## 自动测试入口
+## 自动化验证
 
-| 测试 | 覆盖重点 |
-| --- | --- |
-| [`input_action_mapping_tests.cpp`](../../../tests/input/input_action_mapping_tests.cpp) | ID 校验、多键绑定、同键多 Action、按钮边沿、事件去重、轴 dead zone、数字/模拟二维合成、运行时改绑 |
-| [`engine_gameplay_tests.cpp`](../../../tests/input/engine_gameplay_tests.cpp) | 标准默认 map、GameplayInputFrame 访问器、自定义 Action、标准 Action 换绑 |
-| [`gameplay_scene_input_tests.cpp`](../../../tests/input/gameplay_scene_input_tests.cpp) | 普通 Scene 与 GameplayScene 边界、receiver 顺序/消费、inactive、paused、禁用与 destroyed 清理 |
-
-只运行输入测试：
+- `input_regression_tests`：小幅轴捕获、const 门控查询、浮点滚轮、映射校验、单次取消、安全换绑、操作覆盖、延迟映射与请求终结。
+- `controller_runtime_tests`：显式会话、作用域、上下文代次、回调内修改、自定义来源、映射替换及鼠标增量；键盘分区冲突、配置版本、映射权限和鼠标转移。
+- `input_system_controller_lifecycle_tests`：多个手柄按钮、摇杆、扳机独立；键鼠并行；移除与失焦通知。
+- `gameplay_scene_input_tests`：玩家绑定、目标排他性、快速点按、零／多 tick、屏蔽恢复、重绑、销毁、队列溢出与物理步前回调。
+- `development_input_capture_tests`：开发面板捕获、文本框捕获传播、逐玩家隔离、UI 操作权切换、按原始操作消费及失焦恢复。
+- `input_action_mapping_tests` 与 `engine_gameplay_tests`：动作注册、换绑、轴值和游戏层命令视图；默认玩法动作不属于引擎通用协议。
+- 原有指针坐标、UI、场景、物理及角色测试继续覆盖迁移后的调用关系。
 
 ```powershell
-ctest --test-dir build -C Debug -L input --output-on-failure
+ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-failure
 ```
 
-修改 Input/Scene 公共头文件后仍应执行完整构建和全部 CTest，因为 UI、Scene、Camera 和 Effects 测试都可能间接包含这些类型。
+自动测试通过可控 SDL 输入事件复现多设备，不需要真实手柄。真实双手柄验收需要另行在硬件上确认，不能用合成输入测试替代实机结论。
 
-## 摇杆在小幅移动时没有输出
+## 排查顺序
 
-1. 确认 Raw 层收到正确的 `GamepadLeftX/Y` 或 `GamepadRightX/Y`。
-2. 检查 Action 使用 `Axis2DInputBinding` 还是两个 `AxisInputBinding`。
-3. 比较输入长度与 descriptor dead zone；标准 Move 是径向 `0.2`。
-4. 注意恰好等于 dead zone 仍被视为零，只有严格大于 dead zone 才产生贡献。
-5. 如果 frame 有值但没有 `is_pressed`，检查 actuation threshold；Move 默认是 `0.5`。
+1. 检查快照中源 ID 与物理状态，确认不同手柄没有混在一起。
+2. 检查 `configuration()` 的键盘分区、`owner(source)` 的鼠标／手柄归属及角色绑定，未绑定输入不会控制角色。
+3. 检查 UI 手柄、交互模式、捕获类别和回中门控，观察输入是否被 UI 消费。
+4. 检查 ControllerHandle、绑定代次、本地动作映射及命令 events／deltas，区分持续值与一次性动作。
+5. 检查实际执行 tick 和取消原因，不使用渲染帧数推断执行次数。
 
-## 按键有 Raw Input，但 Action 不触发
+命令事件每 tick 消费一次；同帧多次点击会保留多条事件。菜单关闭后仍按住的键不会立即恢复，需要先释放；这属于明确行为。若队列溢出，先检查模拟是否长期停步以及输入是否错误地重复注入。
 
-1. 使用 `map.contains(action)` 确认 Action 已注册。
-2. 检查 `map.bindings(action)` 是否为空，以及 binding 内的 Action ID 是否与 descriptor 完全一致。
-3. `AnyKey`、`AnyControl`、`None` 和 `Count` 不能作为 Action binding。
-4. 检查值类型兼容性：Axis binding 不能绑定 Button；二维 composite 只能绑定 Axis2D。
-5. 确认场景继承 `GameplayScene`，且覆盖 `on_input` 时调用了 `GameplayScene::on_input`。
+## 双玩家示例与硬件验收
 
-## 同一 Action 出现重复行为
+从 Demo Gallery 进入 **Local multiplayer / input routing**。默认 WASD 控制 P1 蓝方块，方向键控制 P2 红方块；不需要手柄加入即可双人操作。鼠标默认属于 P1。未绑定手柄按 Start 加入 P2，方向键仍可用，加入不会打开菜单。
 
-Action Map 每个 Action 每帧最多生成一个 event；如果业务执行两次，优先检查：
+打开 **Players / menu** 可交换两套键盘方案，转移鼠标，选择 **Bind next Start controller to player 1** 或 **Rebind player 2 controller** 后按未绑定手柄的 Start 分配。交换已绑定手柄先使用 **Release controllers for reassignment**。断开只解除该实例，重连不按名称恢复。
 
-- 同一对象是否同时在 frame 的 `is_just_pressed` 和 event 的 `Started` 中执行了相同命令；
-- 是否存在两个不同 receiver 都响应同一 event 且前者返回 `false`；
-- Action 是否以不同 ID 注册了语义重复的动作；
-- 派生 Scene 是否错误地调用了两次 `GameplayScene::on_input`。
+UI pad 按钮独立选择公共 UI 手柄，不改变游戏玩家绑定；键鼠始终能操作菜单。菜单打开时启用 Navigation 并屏蔽所有玩家；关闭恢复 Pointer。文本框捕获整个键盘，两个分区都不能移动。持续按键须释放、摇杆和扳机须回中后恢复。
 
-## 暂停后仍收到输入
+状态栏分别显示分区、鼠标归属、手柄连接情况和 UI 手柄。实机验收应覆盖键盘双人多键同时按下（受键盘硬件能力限制）、键鼠＋手柄、双手柄、拔插、文本捕获及 UI 手柄切换。当前自动化使用可控 SDL 事件，真实双手柄和键盘多键硬件验收未执行。
 
-- 检查对象是否调用过 `set_receive_input_when_paused(true)`。
-- 暂停只过滤 receiver，不会停止 map 解析；这是为了让允许暂停输入的对象保持连续状态。
-- 若希望 gameplay 完全停止，调用 `set_gameplay_input_enabled(false)`，同时确认 UI 仍通过基础 Scene 正常接收。
+## 上一轮基线记录（不能作为本轮通过结论）
 
-## 重新启用时立即触发 Started
+2026-09-16，Windows / MSVC Debug，构建目录 `out/build/physics-scenarios-msvc`：
 
-切换 `set_gameplay_input_enabled` 会 reset Action Map 的 previous values。重新启用时仍处于按住状态的输入会被视为新的 Started。这是当前明确行为，不是 event 重复。
+- 完整构建成功。
+- 完整 CTest：120 / 120 通过，包含 Input、UI、Scene、Physics、Builtin、示例和物理压力测试。
+- 双玩家示例经过可控 SDL 输入验证和软件渲染截图检查：角色可见、加入不触发菜单、两名玩家独立移动、模态菜单屏蔽玩法。
+- 修改文档的相对链接检查和 `git diff --check` 通过。
+- 未执行真实双手柄交互验收；没有实现或验证网络会话。
 
-可以在关闭 overlay 后等待相关 Raw Control 释放，再启用 gameplay；不要通过保存旧 `ActionInputFrame` 引用绕过状态机。
+## 控制器子系统重构历史验证记录
 
-## 改绑后边沿全部重置
+2026-09-17，Windows / MSVC Debug，构建目录 `out/build/physics-scenarios-msvc`：
 
-`replace_bindings`、`clear_bindings` 和 `reset_defaults` 当前都会重置整个 map 的 previous values，而不只目标 Action。换绑操作应放在设置流程边界，避免在正常 gameplay 帧中频繁调用。
+- 完整构建成功；本轮新增 `controller_runtime_tests`。最终完整 CTest：121 / 121 通过，用时 112.62 秒，日志位于 `out/controller-full-tests-confirmed.log`。
+- 前一次完整运行中 `scenario_stress_contacts_2` 超时，其余 120 项通过；该项随后单独复跑通过（53.66 秒），最终完整复跑也通过（该项 46.85 秒）。超时原因未确定，没有修改测试超时阈值或跳过压力测试。
+- 自动化覆盖显式会话与句柄失效、场景／会话作用域、回调内创建／移除／换绑、自定义非设备控制器、映射替换、固定 tick 消费及鼠标增量。
+- 补充验证普通 HUD 消费鼠标移动时只清除对应待消费增量，保留未消费的滚轮和按钮事件；命令数值与事件前值的非有限值均被拒绝。
+- 查询工具通过同一套活动映射响应键盘与手柄，验证零 tick 等待、多 tick 不重复执行以及缓存场景重新进入后的绑定。
+- 使用可控 SDL 输入重新运行 `demo_scene_tests` 并导出软件渲染截图至 `out/controller-routing-qa`。已检查双玩家运行画面、公共模态菜单及多目标相机画面，设备归属提示、角色和控件显示正常。
+- 本轮涉及文档的 28 个本地链接有效；旧玩家命令、输入广播、场景控制目标接口和活动手柄排他字段扫描无残留；`git diff --check` 通过。
+- 真实双手柄交互未执行。合成 SDL 输入与软件渲染检查不代表实机验收；本轮不包含 ENet 会话或网络复制实现。
 
-`add_binding` 不重置状态；如果在 Action 已 active 时追加 binding，下一次事件以现有 previous value 与新聚合结果比较。
+## 键盘分区与独立 UI 路由验证记录
 
-## 调试时应记录什么
+2026-09-17，Windows / MSVC Debug：
 
-建议按层记录，而不是只打印最终动作：
+- 键盘、鼠标和手柄独立快照；默认双键盘分区、冲突拒绝、配置版本变化、映射权限、鼠标转移与文本捕获已加入自动化验证。
+- 完整构建成功；最终完整 CTest 121 / 121 通过，用时 100.55 秒，日志为 `out/partition-full-tests.log`。
+- 11 项专项测试通过。双玩家示例额外验证菜单交换键盘方案、独立转移鼠标及离开后恢复外部键盘／鼠标配置。
+- 软件渲染截图位于 `out/keyboard-partition-qa`，已检查双玩家运行画面与完整公共菜单；菜单布局避开顶部设备归属提示。
+- 输入、UI 与联机设计文档的 17 个本地链接有效；旧合并键鼠源、UI 玩家所有者接口和旧默认映射入口扫描无残留；`git diff --check` 通过。
+- 真实双手柄和键盘多键硬件验收未执行；本轮使用可控 SDL 输入，不包含网络实现。
 
-```text
-Raw: device, control/axis, raw value
-Action: id, value type, previous value, current value, phase
-Scene: enabled, paused, receiver object/order, consumed
-```
 
-这样可以区分平台翻译、binding、数值过滤和 receiver 分发四类问题。
+## 输入与控制器接口收敛验证记录
+
+2026-09-18，Windows / MSVC Debug：
+
+- 新增 `input_regression_tests`，覆盖小幅轴捕获、门控纯查询、映射非法枚举／组件、浮点滚轮、取消去重、换绑回调失效、请求覆盖、预留占用、会话终结以及回调旧输入丢弃。
+- UI 滚动容器验证小数滚动和反向滚动；双人示例检查会话先结束、场景后关闭时的设备恢复，关闭错误会使测试失败。
+- ImGui 开启配置：最终完整引擎与示例构建成功，完整 CTest 122 / 122 通过。日志：`out/input-audit/full-tests.log`。最终工作区已恢复开启配置。
+- ImGui 关闭配置：完整引擎和示例构建成功，输入、UI、控制器、示例及应用生命周期专项测试 20 / 20 通过。日志：`out/input-audit/no-imgui-tests.log`。
+- 双人运行、菜单捕获、设备转移、换绑及场景重入使用合成 SDL 事件验证；软件渲染截图位于 `out/input-audit/screens`，已检查双人菜单与多目标相机画面。
+- 实体手柄拔插、真实双手柄、触控板高精度滚动未执行硬件验收，不能由合成输入或截图检查替代。

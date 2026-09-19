@@ -126,12 +126,6 @@ std::vector<RawInputEvent> GamepadInputTranslator::translate_event(const SDL_Eve
     return events;
 }
 
-void GamepadInputTranslator::reset()
-{
-    _left_trigger_pressed = false;
-    _right_trigger_pressed = false;
-}
-
 void GamepadInputTranslator::append_controller_button_events(
     std::vector<RawInputEvent>& events,
     std::uint8_t button,

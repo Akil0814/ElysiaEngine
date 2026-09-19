@@ -1,3 +1,6 @@
+﻿#include "engine/tools/debug_draw.h"
+#include "engine/gameplay/control/controller_service.h"
+#include "tests/support/input_snapshot_builder.h"
 #define SDL_MAIN_HANDLED
 
 #include "game/demo/physics/block_actor.h"
@@ -12,7 +15,7 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/tools/development_overlay.h"
-#include "engine/gameplay/input/gameplay_input_map.h"
+#include "../../game/input/gameplay_input_map.h"
 #include "tests/support/test_assertions.h"
 
 #include <array>
@@ -112,25 +115,27 @@ void press_and_release_key(
             elysia::input::RawInputEventType::ControlPressed,
             elysia::input::RawInputEventType::ControlReleased})
     {
-        scene_manager.on_input(
-            elysia::input::RawInputFrame{},
-            {elysia::input::RawInputEvent{
-                .control = control,
-                .type = type,
-                .device = elysia::input::InputDevice::Keyboard}});
+        scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{
+                .control = control, .type = type, .device = elysia::input::InputDevice::Keyboard}}));
     }
 }
 
 void click_at(elysia::scene::SceneManager& manager, int x, int y)
 {
     manager.on_update(1.0 / 60);
-    manager.on_input({}, {{.type = elysia::input::RawInputEventType::MouseMoved,
-        .device = elysia::input::InputDevice::Mouse, .mouse_x = x, .mouse_y = y}});
+    manager.on_input(elysia::tests::events_snapshot({{.type = elysia::input::RawInputEventType::MouseMoved,
+                                                         .device = elysia::input::InputDevice::Mouse,
+                                                         .mouse_x = x,
+                                                         .mouse_y = y}}));
     for (const auto type : {elysia::input::RawInputEventType::ControlPressed,
              elysia::input::RawInputEventType::ControlReleased})
-        manager.on_input({}, {{.control = elysia::input::RawInputControl::MouseLeft,
-            .type = type, .device = elysia::input::InputDevice::Mouse,
-            .mouse_button = 1, .mouse_x = x, .mouse_y = y}});
+        manager.on_input(
+            elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::MouseLeft,
+                                                .type = type,
+                                                .device = elysia::input::InputDevice::Mouse,
+                                                .mouse_button = 1,
+                                                .mouse_x = x,
+                                                .mouse_y = y}}));
     manager.on_update(1.0 / 60);
 }
 
@@ -290,15 +295,21 @@ void test_input_is_latched_until_a_fixed_step()
     (void)world.advance(1.0 / 60);
     require(combat.is_grounded(player), "Player starts grounded");
 
-    auto input_map = elysia::gameplay::make_default_gameplay_input_map();
-    elysia::input::RawInputFrame raw;
-    raw.state.set_pressed(elysia::input::RawInputControl::KeySpace, true);
-    raw.state.set_pressed(elysia::input::RawInputControl::KeyJ, true);
-    player.on_gameplay_input_frame(elysia::gameplay::GameplayInputFrame(input_map.resolve(raw).frame));
+    auto input_map = example::input::make_gameplay_input_map();
+    elysia::tests::InputSnapshotBuilder raw;
+    raw.press(elysia::input::RawInputControl::KeySpace, true);
+    raw.press(elysia::input::RawInputControl::KeyJ, true);
+    {
+        auto r = input_map.resolve(raw.take());
+        player.on_control_command({.state = std::move(r.frame), .events = std::move(r.events)}, 1.0 / 60.0);
+    }
     require(world.advance(1.0 / 240) == 0, "First display frame has no physics step");
-    raw.state.set_pressed(elysia::input::RawInputControl::KeySpace, false);
-    raw.state.set_pressed(elysia::input::RawInputControl::KeyJ, false);
-    player.on_gameplay_input_frame(elysia::gameplay::GameplayInputFrame(input_map.resolve(raw).frame));
+    raw.press(elysia::input::RawInputControl::KeySpace, false);
+    raw.press(elysia::input::RawInputControl::KeyJ, false);
+    {
+        auto r = input_map.resolve(raw.take());
+        player.on_control_command({.state = std::move(r.frame), .events = std::move(r.events)}, 1.0 / 60.0);
+    }
     require(world.advance(1.0 / 240) == 0, "Release frame also has no physics step");
     require(world.advance(1.0 / 120) == 1 && std::fabs(player.velocity().y + 500) < 0.001f,
         "A tap between fixed steps must still produce one jump");
@@ -512,6 +523,8 @@ void require_demo_camera(
     elysia::scene::SceneManager scene_manager;
     register_example_scenes(scene_manager);
     scene_manager.set_runtime_context(context);
+    if (!elysia::gameplay::ControllerService::instance()->session_active())
+        (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
         .target = scene_key,
         .payload = example::scene::DemoScenePayload{
@@ -540,6 +553,39 @@ void require_demo_camera(
             expected_player_center + elysia::core::Vector2{100.0f, 0.0f}),
         "Physics demo cameras must follow their focus immediately");
     scene_manager.shutdown();
+}
+
+void test_query_controller_uses_active_mapping_and_fixed_tick() {
+    using namespace elysia::input;
+    using namespace elysia::tools;
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr,registry,1280,720);
+    elysia::scene::SceneManager manager;
+    register_example_scenes(manager); manager.set_runtime_context(context);
+    require(bool(elysia::gameplay::ControllerService::instance()->begin_session()),"Explicit query demo session");
+    require(bool(manager.local_players().bind_source(PrimaryLocalPlayer,InputSourceId::gamepad(7))),"Query pad ownership");
+    const elysia::scene::SceneRoute route{
+        .target=example::scene_keys::ColliderCombatDemo,
+        .payload=example::scene::DemoScenePayload{.return_route={.target=example::scene_keys::MainMenu}}};
+    manager.start(route);
+    auto* debug=DebugDraw::instance();
+    elysia::tests::InputSnapshotBuilder input;
+    auto has_query=[&] { return std::ranges::any_of(debug->commands(),[](const auto& command){return command.category==DebugDrawCategory::Gameplay;}); };
+    auto query=[&](RawInputControl control) {
+        debug->clear_categories(DebugDrawCategory::Gameplay);
+        input.press(control,true); input.press(control,false);
+        manager.on_input(input.take()); manager.on_update(0);
+        require(!has_query(),"Query tool waits for actual fixed step");
+        manager.on_update(1.0/60);
+        require(has_query(),"Keyboard and gamepad use the same gameplay Secondary mapping");
+        debug->clear_categories(DebugDrawCategory::Gameplay);
+        manager.on_update(3.0/60);
+        require(!has_query(),"Query tool is not replayed by catchup ticks");
+    };
+    query(RawInputControl::KeyK); query(RawInputControl::GamepadNorth);
+    manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route=route}); manager.on_update(0);
+    query(RawInputControl::GamepadNorth);
+    manager.shutdown();
 }
 
 void test_physics_demo_follow_cameras()
@@ -574,6 +620,8 @@ void test_each_physics_demo_owns_one_inspector_panel()
         elysia::scene::SceneManager scene_manager;
         register_example_scenes(scene_manager);
         scene_manager.set_runtime_context(context);
+        if (!elysia::gameplay::ControllerService::instance()->session_active())
+            (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene_manager.start({
             .target = scene_key,
             .payload = example::scene::DemoScenePayload{
@@ -604,6 +652,8 @@ void test_physics_demo_navigation_and_recreate_route()
         .target = 1,
         .payload = DemoReturnPayload{.marker = 73},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse};
+    if (!elysia::gameplay::ControllerService::instance()->session_active())
+        (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
         .target = example::scene_keys::PhysicsCombatGallery,
         .payload = example::scene::DemoScenePayload{
@@ -646,6 +696,8 @@ void test_animation_preview_returns_complete_caller_route()
     register_example_scenes(scene_manager);
     scene_manager.register_game_scene<DemoReturnScene>(1);
     scene_manager.set_runtime_context(context);
+    if (!elysia::gameplay::ControllerService::instance()->session_active())
+        (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
         .target = example::scene_keys::AnimationPreview,
         .payload = example::scene::DemoScenePayload{
@@ -670,6 +722,8 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
     elysia::scene::SceneManager scene_manager;
     register_example_scenes(scene_manager);
     scene_manager.set_runtime_context(context);
+    if (!elysia::gameplay::ControllerService::instance()->session_active())
+        (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
         .target = example::scene_keys::MainMenu,
         .reload_mode = elysia::scene::SceneReloadMode::Reuse});
@@ -678,10 +732,12 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
         scene_manager, elysia::input::RawInputControl::KeyEnter);
     require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
         "The first Main Menu action must open the unified Demo Gallery");
+    require(elysia::gameplay::ControllerService::instance()->session_active(),"Demo Gallery begins the game session");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
     require(scene_manager.current_scene_key() == example::scene_keys::MainMenu,
         "Demo Gallery must return to the Main Menu caller route");
+    require(!elysia::gameplay::ControllerService::instance()->session_active(),"Returning to Main Menu ends the game session");
     scene_manager.shutdown();
 }
 }
@@ -700,6 +756,7 @@ int main()
     test_game_module_registers_demo_scenes();
     test_physics_combat_layout_contract();
     test_physics_demo_follow_cameras();
+    test_query_controller_uses_active_mapping_and_fixed_tick();
 #if ELYSIA_ENABLE_IMGUI
     test_each_physics_demo_owns_one_inspector_panel();
 #endif

@@ -1,109 +1,73 @@
-# Engine Gameplay 参考
+# 控制器、命令与角色
 
-Engine Gameplay 位于 `engine/gameplay`，建立在通用 Action Input 之上。它提供一套适合动作游戏的标准 Action、默认 binding、`GameplayInputFrame` 语义门面和 receiver contract，但不包含具体项目的角色或战斗规则。
+## 游戏 API
 
-## 标准 Actions
+[ControllerService](../../../engine/gameplay/control/controller_service.h) 是游戏侧单例入口。Manager 是唯一所有者；Service 不另存实例或自行调度。
 
-| 常量 | 稳定 ID | 类型 | `GameplayInputFrame` 访问器 |
-| --- | --- | --- | --- |
-| `actions::Move` | `gameplay.move` | Axis2D | `move()` |
-| `actions::Jump` | `gameplay.jump` | Button | `jump_pressed()` |
-| `actions::Primary` | `gameplay.primary` | Button | `primary_pressed()` |
-| `actions::Secondary` | `gameplay.secondary` | Button | `secondary_pressed()` |
-| `actions::Guard` | `gameplay.guard` | Button | `guard_held()` |
-| `actions::Dash` | `gameplay.dash` | Button | `dash_pressed()` |
-| `actions::Pause` | `gameplay.pause` | Button | `pause_pressed()` |
+| 接口 | 用途 |
+| --- | --- |
+| begin_session / end_session / session_active | 显式本地游戏会话 |
+| create<T>(create_info, args...) | 创建并登记，返回 expected<ControllerHandle, ControllerError> |
+| get<T>(handle) / describe(handle) | 借用查询与绑定描述 |
+| remove(handle) | 返回 expected<void, ControllerError>，立即停止后续交付 |
+| bind_target / unbind_target | 返回 ControllerOperation，显式绑定或解绑 |
+| replace_input_map | 返回 ControllerOperation，受控替换本地映射 |
 
-除 `guard_held()` 外，Button 便利访问器都查询 `is_just_pressed`，适合一次性触发；需要读取按住、释放或扩展 Action 时，使用 `frame.actions()` 取得底层 `ActionInputFrame`。
+所有 Service 调用与控制器回调均在引擎主线程执行；未来网络工作线程应排队提交到主线程，不直接调用这些接口。
 
-## 默认 Bindings
+ControllerCreateInfo 显式给出 Scene 或 Session 作用域；Scene 还需 context.token()。创建失败不会隐式开始会话。借用指针不能跨回调、删除或会话边界保留。
 
-`make_default_gameplay_input_map()` 每次返回一个独立 `InputActionMap`。
+## ControlCommand
 
-| Action | 键盘 | 鼠标 | 手柄 |
-| --- | --- | --- | --- |
-| Move | WASD、方向键 | — | DPad、左摇杆 X/Y |
-| Jump | Space | — | South / A |
-| Primary | J | 左键 | West / X |
-| Secondary | K | — | North / Y |
-| Guard | L | 右键 | Left Shoulder |
-| Dash | Left Shift、Right Shift | — | Right Shoulder |
-| Pause | P | — | Start |
+命令包含控制器句柄、绑定代次、序号、实际执行 tick、持续动作 state、有序 events 和本 tick 的 deltas。通用命令不要求 LocalPlayerId；玩家身份属于 LocalPlayerController。
 
-Move 使用默认 threshold `0.5` 和 dead zone `0.2`。左摇杆以 `Axis2DInputBinding` 处理径向 dead zone；DPad、WASD 和方向键分别使用四键组合。右摇杆、扳机、Stick Click、Back、Guide、Paddle 和 Touchpad 当前没有标准 gameplay binding。
+角色实现 `ControlCommandReceiver::on_control_command(command, fixed_delta)` 和 `on_control_cancelled(reason)`。取消用于清除移动、蓄力等意图，不当作正常松键释放攻击。
 
-## GameplayInputFrame
+引擎没有固定 Move／Jump／Attack 访问器。演示使用游戏层 [CommandView](../../../game/input/command_view.h) 提供便捷读取。内置 EngineCharacter 的构造函数显式接收移动动作 ID，不依赖演示动作集合。
 
-`GameplayInputFrame` 按值拥有一个 `ActionInputFrame`。GameplayScene 分发期间传递的是 `const GameplayInputFrame&`，receiver 不应保存该引用到回调结束之后。
+物理角色在命令入口写入意图，在物理参与者 fixed_update 中施力；非物理角色可在命令入口按固定 delta 移动。动画等 Updatable 保持变步长，不重复移动。
+
+## 自定义来源
+
+自定义 Controller 覆盖 `produce_intent(tick, fixed_delta)`，通过 protected `submit(ActionInputResult)` 提交状态、事件和增量。Manager 负责验证、缓存、绑定检查和交付；控制器不能绕过调度直接调用角色接收器。
 
 ```cpp
-void PlayerController::on_gameplay_input_frame(
-    const elysia::gameplay::GameplayInputFrame& input)
-{
-    const elysia::core::Vector2 direction = input.move();
-    _player.set_move_direction(direction);
-
-    if (input.jump_pressed())
-        _player.try_jump();
-
-    _player.set_guarding(input.guard_held());
-}
-```
-
-底层 frame 允许查询扩展 Action：
-
-```cpp
-if (input.actions().is_just_pressed(ExampleActions::Transform))
-{
-    transform_character();
-}
-```
-
-## 扩展项目 Action
-
-标准 Action ID 不是 enum，项目可以向每个 GameplayScene 的 map 注册额外 Action。由于 `gameplay_input_map()` 是 protected，通常在项目场景的构造或进入逻辑中完成：
-
-```cpp
-namespace ExampleActions
-{
-inline const elysia::input::InputActionId Transform{"example.transform"};
-}
-
-BattleScene::BattleScene()
-{
-    using namespace elysia::input;
-
-    const bool registered = gameplay_input_map().register_action(
-        { ExampleActions::Transform, InputActionValueType::Button },
-        {
-            { ExampleActions::Transform,
-              ButtonInputBinding{ RawInputControl::KeyT } },
-            { ExampleActions::Transform,
-              ButtonInputBinding{ RawInputControl::GamepadEast } }
-        }
-    );
-
-    if (!registered)
-    {
-        // 项目应在初始化阶段把重复 ID 或非法 binding 视为配置错误。
+class ConstantController final : public elysia::gameplay::Controller {
+public:
+    explicit ConstantController(elysia::input::InputActionId axis) : _axis(std::move(axis)) {}
+protected:
+    void produce_intent(std::uint64_t, double) override {
+        elysia::input::ActionInputResult intention;
+        intention.frame.set(_axis, elysia::input::InputActionValueType::Axis1D, {0.5f, 0});
+        submit(std::move(intention));
     }
+private:
+    elysia::input::InputActionId _axis;
+};
+```
+
+本地控制器通过 protected `on_mapped_input(const ActionInputResult&)` 观察唯一活动映射的结果，不另外解析第二套映射；键鼠、手柄和受控换绑保持一致。辅助行为仍延迟到 produce_intent 的固定 tick 执行。
+
+本地控制器可以专门处理游戏工具操作；Collider 示例的查询控制器在固定 tick 执行查询，并通过对象移除通知清理工具引用。角色仍由 Manager 的统一命令入口驱动。
+
+测试控制器验证了无玩家、无输入系统的来源以及接管目标。AI 决策、网络接收、远端命令验证和网络超时策略仍未实现。
+
+## 配置操作结果
+
+`ControllerOperation` 没有 bool 转换，提供 `status()`、`error()` 及 `pending()`／`succeeded()`／`failed()`。三种状态为 Pending、Succeeded、Failed。回调外调用在执行完成后返回终态；回调内允许延迟提交，Pending 只表示请求已受理。
+
+```cpp
+// 保存结果，在主线程更新中检查；只在 Succeeded 后更新依赖绑定的游戏状态。
+std::optional<elysia::gameplay::ControllerOperation> pending_binding;
+pending_binding = service->bind_target(handle, context, target);
+// 在后续 update 中：
+if (pending_binding && !pending_binding->pending()) {
+    if (pending_binding->succeeded()) { /* 应用依赖绑定的状态 */ }
+    else { /* 处理 *pending_binding->error() */ }
+    pending_binding.reset();
 }
 ```
 
-若多个场景需要同一组项目扩展，应由项目层提供一个统一注册函数，避免每个场景复制默认表。引擎的标准工厂不会自动知道项目特有 Action。
+同一控制器的有效换绑／解绑请求覆盖尚未提交的旧目标请求，旧请求以 Superseded 失败；被拒绝的新请求不覆盖旧请求。映射替换按 FIFO 提交。目标和玩家排他性在排队期间同样保留。等待期间控制器被移除时，请求以 InvalidHandle 失败；上下文失效返回 InvalidContext，目标移除返回 InvalidTarget，会话结束返回 NoSession；所有待执行请求均会终结。
 
-## Receiver Contracts
-
-- `GameplayInputFrameReceiver::on_gameplay_input_frame` 每个启用 gameplay 输入的场景帧调用一次。
-- `GameplayInputEventReceiver::on_gameplay_input_event` 针对本帧每个 Action event 调用；返回 `true` 会消费当前 event，阻止更低优先级 receiver 收到它。
-- Receiver 必须同时是 Scene 可拥有的 `SceneObject`，实际使用中通常继承 `GameObject`；仅实现 receiver 接口不会被 Scene 注册。
-
-receiver 的生命周期、排序与暂停规则详见 [GameplayScene 集成指南](gameplay-scene.md)。
-
-## 当前不提供的能力
-
-- binding 的文件持久化与用户配置迁移；
-- Input Context 栈或不同角色的共享 profile；
-- 右摇杆 Aim/Camera 标准语义；
-- 自动阻止 UI 已处理输入进入 gameplay；
-- 鼠标位置、滚轮、文本输入和 IME 的 Action 化。
+结果对象只共享小型状态，不持有控制器或场景；丢弃结果不撤销操作，已完成结果可跨会话继续查询。无全局历史表或完成回调。取消期间拒绝 submit；观察映射或生产意图期间若发生取消，该次旧输入不会重新写入命令缓存。

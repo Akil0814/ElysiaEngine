@@ -1,4 +1,5 @@
-﻿#define SDL_MAIN_HANDLED
+﻿#include "tests/support/input_snapshot_builder.h"
+#define SDL_MAIN_HANDLED
 
 #include "engine/input/action/input_action_map.h"
 #include "tests/support/test_assertions.h"
@@ -40,12 +41,12 @@ void test_button_edges_and_event_deduplication()
         { button(Confirm, RawInputControl::KeySpace) }),
         "A control must be bindable to multiple actions");
 
-    RawInputFrame raw;
-    auto idle = map.resolve(raw);
+    elysia::tests::InputSnapshotBuilder raw;
+    auto idle = map.resolve(raw.take());
     require(idle.events.empty(), "Idle input must not synthesize events");
 
-    raw.state.set_pressed(RawInputControl::KeySpace, true);
-    auto pressed = map.resolve(raw);
+    raw.press(RawInputControl::KeySpace, true);
+    auto pressed = map.resolve(raw.take());
     require(pressed.frame.is_pressed(Jump) && pressed.frame.is_just_pressed(Jump),
         "Button press must appear in the action frame");
     require(pressed.frame.is_just_pressed(Confirm),
@@ -53,20 +54,20 @@ void test_button_edges_and_event_deduplication()
     require(pressed.events.size() == 2,
         "Each changed action must emit exactly one event");
 
-    raw.state.set_pressed(RawInputControl::GamepadSouth, true);
-    auto duplicate_source = map.resolve(raw);
+    raw.press(RawInputControl::GamepadSouth, true);
+    auto duplicate_source = map.resolve(raw.take());
     require(duplicate_source.events.empty(),
         "A second held binding must not duplicate an already active button event");
 
-    raw.state.set_pressed(RawInputControl::KeySpace, false);
-    auto still_pressed = map.resolve(raw);
+    raw.press(RawInputControl::KeySpace, false);
+    auto still_pressed = map.resolve(raw.take());
     require(still_pressed.frame.is_pressed(Jump) && !still_pressed.frame.is_just_released(Jump),
         "An action must remain active while another binding is held");
     require(still_pressed.frame.is_just_released(Confirm),
         "Independent actions must retain their own edges");
 
-    raw.state.set_pressed(RawInputControl::GamepadSouth, false);
-    auto released = map.resolve(raw);
+    raw.press(RawInputControl::GamepadSouth, false);
+    auto released = map.resolve(raw.take());
     require(released.frame.is_just_released(Jump)
         && released.events.size() == 1
         && released.events.front().phase == ActionInputPhase::Canceled,
@@ -88,33 +89,33 @@ void test_axis_dead_zones_and_composition()
                 RawInputAxis::GamepadLeftX, RawInputAxis::GamepadLeftY } }
         }), "Axis2D registration must succeed");
 
-    RawInputFrame raw;
-    raw.state.set_axis(RawInputAxis::GamepadRightX, 0.19f);
-    raw.state.set_axis(RawInputAxis::GamepadLeftX, 0.1f);
-    raw.state.set_axis(RawInputAxis::GamepadLeftY, 0.1f);
-    auto dead = map.resolve(raw);
+    elysia::tests::InputSnapshotBuilder raw;
+    raw.axis(RawInputAxis::GamepadRightX, 0.19f);
+    raw.axis(RawInputAxis::GamepadLeftX, 0.1f);
+    raw.axis(RawInputAxis::GamepadLeftY, 0.1f);
+    auto dead = map.resolve(raw.take());
     require(dead.frame.axis1d(Throttle) == 0.0f && dead.frame.axis2d(Move).is_zero(),
         "Axis values inside their dead zones must resolve to zero");
 
-    raw.state.set_axis(RawInputAxis::GamepadRightX, -0.75f);
-    raw.state.set_axis(RawInputAxis::GamepadLeftX, 0.6f);
-    raw.state.set_axis(RawInputAxis::GamepadLeftY, 0.8f);
-    auto analog = map.resolve(raw);
+    raw.axis(RawInputAxis::GamepadRightX, -0.75f);
+    raw.axis(RawInputAxis::GamepadLeftX, 0.6f);
+    raw.axis(RawInputAxis::GamepadLeftY, 0.8f);
+    auto analog = map.resolve(raw.take());
     require(std::fabs(analog.frame.axis1d(Throttle) + 0.75f) < 0.001f,
         "Axis1D must preserve values outside the dead zone");
     require(analog.frame.axis2d(Move).nearly_equals({ 0.6f, 0.8f }, 0.001f),
         "Axis2D must preserve a unit-length analog vector");
 
-    raw.state.set_axis(RawInputAxis::GamepadLeftX, 0.0f);
-    raw.state.set_axis(RawInputAxis::GamepadLeftY, 0.0f);
-    raw.state.set_pressed(RawInputControl::KeyW, true);
-    raw.state.set_pressed(RawInputControl::KeyD, true);
-    auto digital = map.resolve(raw);
+    raw.axis(RawInputAxis::GamepadLeftX, 0.0f);
+    raw.axis(RawInputAxis::GamepadLeftY, 0.0f);
+    raw.press(RawInputControl::KeyW, true);
+    raw.press(RawInputControl::KeyD, true);
+    auto digital = map.resolve(raw.take());
     require(digital.frame.axis2d(Move) == elysia::core::Vector2(1.0f, -1.0f),
         "Four-button composites must preserve diagonal components");
 
-    raw.state.set_pressed(RawInputControl::KeyA, true);
-    auto opposed = map.resolve(raw);
+    raw.press(RawInputControl::KeyA, true);
+    auto opposed = map.resolve(raw.take());
     require(opposed.frame.axis2d(Move) == elysia::core::Vector2(0.0f, -1.0f),
         "Opposing digital directions must cancel");
 }
@@ -127,12 +128,12 @@ void test_runtime_rebinding_and_defaults()
     require(map.replace_bindings(Jump, { button(Jump, RawInputControl::KeyJ) }),
         "Runtime binding replacement must succeed");
 
-    RawInputFrame raw;
-    raw.state.set_pressed(RawInputControl::KeySpace, true);
-    require(!map.resolve(raw).frame.is_pressed(Jump), "Replaced defaults must stop driving the action");
-    raw.state.set_pressed(RawInputControl::KeySpace, false);
-    raw.state.set_pressed(RawInputControl::KeyJ, true);
-    require(map.resolve(raw).frame.is_pressed(Jump), "Replacement binding must drive the action");
+    elysia::tests::InputSnapshotBuilder raw;
+    raw.press(RawInputControl::KeySpace, true);
+    require(!map.resolve(raw.take()).frame.is_pressed(Jump), "Replaced defaults must stop driving the action");
+    raw.press(RawInputControl::KeySpace, false);
+    raw.press(RawInputControl::KeyJ, true);
+    require(map.resolve(raw.take()).frame.is_pressed(Jump), "Replacement binding must drive the action");
 
     require(map.clear_bindings(Jump) && map.bindings(Jump).empty(),
         "Bindings must be clearable at runtime");

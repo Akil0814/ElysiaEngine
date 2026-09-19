@@ -1,3 +1,4 @@
+#include "tests/support/input_snapshot_builder.h"
 #include "tests/support/sdl_audio_fixture.h"
 #define SDL_MAIN_HANDLED
 
@@ -107,13 +108,9 @@ bool throws_logic_error_containing(
 
 void send_escape(elysia::scene::SceneManager& scene_manager)
 {
-    scene_manager.on_input(
-        elysia::input::RawInputFrame{},
-        { elysia::input::RawInputEvent{
-            .control = elysia::input::RawInputControl::KeyEscape,
-            .type = elysia::input::RawInputEventType::ControlPressed,
-            .device = elysia::input::InputDevice::Keyboard
-        } });
+    scene_manager.on_input(elysia::tests::events_snapshot({elysia::input::RawInputEvent{.control = elysia::input::RawInputControl::KeyEscape,
+                                      .type = elysia::input::RawInputEventType::ControlPressed,
+                                      .device = elysia::input::InputDevice::Keyboard}}));
 }
 
 void advance_intro_normally(

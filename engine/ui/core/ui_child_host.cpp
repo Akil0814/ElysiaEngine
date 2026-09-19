@@ -525,3 +525,20 @@ void UiChildHost::detach_theme_manager(UiThemeManager& manager) noexcept
         _theme_manager = nullptr;
 }
 }
+
+elysia::input::InputCapture elysia::ui::UiChildHost::input_capture() const noexcept
+{
+    auto result = elysia::input::InputCapture::None;
+    for (const auto &child : _children)
+        if (child.element && child.element->is_active() && child.element->is_visible() &&
+            !child.element->is_destroyed())
+            result = result | child.element->input_capture();
+    return result;
+}
+
+void elysia::ui::UiChildHost::cancel_input_interaction() noexcept
+{
+    for (auto &child : _children)
+        if (child.element)
+            child.element->cancel_input_interaction();
+}
