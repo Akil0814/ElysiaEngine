@@ -3,31 +3,88 @@
   <h1>Elysia Engine</h1>
 </div>
 
-Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引擎与运行时框架。它提供应用生命周期、场景路由、资源与配置加载、输入、音频、相机、UI、存档、动画与特效等通用能力。
+**[English](README.md)** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-## 核心功能
+Elysia Engine is a modular 2D game engine and runtime framework built with C++23 and SDL3. It provides common game capabilities including application lifecycle management, scene routing, resource management, input, rendering, audio, UI, physics, and save data.
 
+This repository contains both the reusable engine implementation and a sample application: `engine/` provides the engine capabilities, while `game/` demonstrates game module integration. The built `ElysiaEngine` executable runs this sample application. The engine implementation and game logic remain separate so each can be extended and maintained independently.
 
-## 基于引擎的项目
+## Core Features and Current Status
 
-### [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero)
+- **Application and scenes**: Application lifecycle management, scene registration and routing, and game module integration boundaries.
+- **Resources and configuration**: Resource manifests, content registration, runtime configuration, internationalization, and user configuration services.
+- **Input and Gameplay**: Raw device input, action mapping, player controllers, command consumption on fixed ticks, and scene input routing.
+- **Rendering and UI**: SDL3 GPU renderer, retained-mode UI, layout, focus, window surfaces, styles, and widgets.
+- **Audio and cameras**: Audio resource playback scheduling, camera slots, following, screen shake, and coordinate projection.
+- **Physics and save data**: Box2D integration, collision and Gameplay runtime support, typed save data, and reliable recovery.
+- **Animation and effects**: Animation resources, atlases, and `EffectDefinition` configuration.
+- **Development support**: Demo Gallery, an optional Dear ImGui development overlay, and unit and integration tests organized by subsystem.
 
-基于该引擎的2D俯视角多人射击游戏 ---开发中
+**Networking limitations**: ENet is currently retained only as a transport-layer dependency linked by the engine. Network sessions, state synchronization, and networked multiplayer have not been implemented.
 
-### [Moonline](https://github.com/Akil0814/Moonline)
+## Quick Start
 
-基于MELTY BLOOD中出现角色开发的2D横板战斗游戏 ---停滞中
+### Requirements
 
-## 仓库组成
+The following workflow uses Windows, MSVC x64, and a Visual Studio multi-configuration generator. It requires:
 
-- `engine/`：可复用的引擎实现，构建为 `engine_lib`。
-- `game/`：示例集成层，展示如何实现 `IGameModule`、注册场景并选择初始路由，构建为 `game_lib`。
-- `assets/`：示例程序和引擎内建流程使用的配置、字体、音频与纹理资源。
-- `tests/`：按子系统组织的单元测试和集成测试。
-- `docs/`：当前开发者文档的统一入口。
-- `thirdparty/`：仓库随附的第三方依赖。
+- CMake 3.24 or later.
+- An MSVC toolchain with C++23 support.
+- A graphics device and driver that support the SDL3 GPU renderer. If GPU renderer creation fails, the application reports an error and exits without automatically falling back to software rendering.
 
-依赖方向保持为：
+SDL3, image, ttf, mixer, gfx, and the required codecs are all built from fixed source versions bundled in the repository. Normal configuration and builds do not download dependencies. See [Dependency Sources](thirdparty/SDL3-DEPENDENCIES.md) for versions and local patches.
+
+### Build and Run
+
+Run from the repository root:
+
+```powershell
+cmake -S . -B out/build/sdl3-Debug -A x64
+cmake --build out/build/sdl3-Debug --config Debug --parallel
+.\out\build\sdl3-Debug\Debug\ElysiaEngine.exe
+```
+
+Keep the working directory at the repository root when running the application, and preserve the `assets/` directory structure so resources can load correctly.
+
+The Dear ImGui development overlay is enabled by default. See [Build, Run, and Test](docs/user-guide/build-and-run.md) for instructions on disabling it, configuring Release builds, and building with Ninja.
+
+> When migrating from an older version, do not reuse an SDL2 build cache; use a new SDL3 build directory. Use separate directories when switching generators or architectures as well.
+
+### Run Tests
+
+After building, run:
+
+```powershell
+ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
+```
+
+GPU tests require a real graphics device and cannot use the dummy video driver. See [Build, Run, and Test](docs/user-guide/build-and-run.md) for running tests by label, testing without a display, and troubleshooting.
+
+### Other Platforms
+
+Linux, macOS, and MinGW use the same fixed source dependencies bundled in the repository, but have not yet been verified on actual systems. Windows build results do not constitute verification of other platforms. See the [Detailed Build Instructions](docs/user-guide/build-and-run.md) for toolchain and system dependency requirements.
+
+## Documentation
+
+| Purpose | Documentation |
+| --- | --- |
+| Set up the environment, build, run, and troubleshoot | [Build, Run, and Test](docs/user-guide/build-and-run.md) |
+| Find guidance on using the engine and its public interfaces | [User Guide](docs/user-guide/README.md) |
+| Understand subsystem boundaries and runtime behavior | [Architecture and Module Design](docs/architecture/README.md) |
+| Contribute and learn about coding conventions, testing, and documentation maintenance | [Development and Contribution Guide](docs/contributing/README.md) |
+| Explore planned capabilities, technical discussions, and migration designs | [Design and Roadmap](docs/design/README.md) |
+| Browse developer documentation categories | [Developer Documentation Index](docs/README.md) |
+
+## Repository Structure and Dependency Boundaries
+
+- `engine/`: Reusable engine implementation, built as `engine_lib`.
+- `game/`: Sample integration layer providing a game module and sample scenes, built as `game_lib`.
+- `assets/`: Configuration, fonts, audio, and textures used by the sample application and built-in engine flows.
+- `tests/`: Unit and integration tests organized by subsystem.
+- `docs/`: User guides, architecture descriptions, contribution guides, and design documents.
+- `thirdparty/`: Third-party dependencies bundled with the repository.
+
+The main dependency direction is:
 
 ```text
 ElysiaEngine executable -> game_lib -> engine_lib
@@ -36,41 +93,26 @@ ElysiaEngine executable -> game_lib -> engine_lib
                                       -> ENet
 ```
 
-引擎层不依赖 `game/`。实际项目通过 `IGameModule` 提供应用描述和场景注册，而不是把业务类型加入引擎。
+The engine layer does not depend on `game/`. Game logic provides the application description and scene registration through `IGameModule`, and game-specific types are maintained by the game module.
 
-## 构建与运行
+## Projects Using the Engine and Project History
 
-当前项目已通过 Windows MSVC/GCC MacOS编译测试，环境需要 CMake 3.24 或更高版本和 C++23 工具链。SDL3、image、ttf、mixer、gfx 及所需编解码器均使用仓库内固定源码构建，配置和构建不下载依赖。渲染使用 SDL3 GPU renderer，创建失败时明确退出。
+### Projects Using the Engine
 
-```powershell
-cmake -S . -B out/build/sdl3-Debug -A x64
-cmake --build out/build/sdl3-Debug --config Debug
-ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
-.\out\build\sdl3-Debug\Debug\ElysiaEngine.exe
-```
+| Project | Description | Status |
+| --- | --- | --- |
+| [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | A 2D top-down multiplayer shooter built with this engine | In development |
+| [Moonline](https://github.com/Akil0814/Moonline) | A 2D side-view fighting game featuring characters from MELTY BLOOD | Development stalled |
 
-请使用新的 SDL3 构建目录。Linux、macOS 和 MinGW 使用相同的固定源码依赖。版本和本地补丁见[依赖来源](thirdparty/SDL3-DEPENDENCIES.md).
+### Project History
 
-更完整的环境与故障排查说明见[构建、运行与测试](docs/getting-started/build-and-run.md)。
+- Early engine development commits: [Moonline](https://github.com/Akil0814/Moonline).
+- Early prototype development: [Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary).
 
-## 文档
+## License and Copyright
 
-- [开发者文档总入口](docs/README.md)
+The project code is licensed under the [MIT License](LICENSE). Licenses and notices for bundled third-party source code are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md); that code remains subject to its respective license terms.
 
+The Elysia icon is copyrighted © miHoYo and is not covered by this project's MIT license grant.
 
-## 历史版本
-
-引擎早期开发提交位于仓库: [Moonline](https://github.com/Akil0814/Moonline)
-
-早期原型开发位于仓库: [Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary)
-
-## License
-
-本项目使用 [MIT License](LICENSE)。
-
-第三方源码声明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)。
-
-Elysia 图标版权归属 © miHoYo 所有
-
-Elysia Engine 为独立开发项目，与 miHoYo 无官方关联，也未获得其官方认可或赞助。
-Elysia Engine is an independent project and is not affiliated with or endorsed by miHoYo.
+Elysia Engine is an independent project and is not officially affiliated with, endorsed by, or sponsored by miHoYo.
