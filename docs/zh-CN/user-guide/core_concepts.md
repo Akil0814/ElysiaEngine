@@ -58,7 +58,9 @@ BattleScene
 std::vector<std::unique_ptr<elysia::core::SceneObject>> objects;
 ```
 
-**这只是概念示例，不代表场景内部使用 `std::vector`。
+**这只是概念示例，不代表场景内部使用 `std::vector`。**
+
+
 
 ### 2.3 GameObject：游戏世界对象
 
@@ -292,7 +294,7 @@ enum class SceneReloadMode
 渲染
 ```
 
-这**不是**内部调用顺序的完整清单仅仅作为概念性参考。
+以上仅为概念性流程，不代表引擎内部的完整调用顺序。
 
 ### 6.1 普通更新：`update`
 
