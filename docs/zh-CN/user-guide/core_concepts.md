@@ -362,9 +362,11 @@ cooldown = std::max(0.0f, cooldown - delta);
 例如:
 
 ```cpp
-// 如果 mouse_position 为屏幕坐标，potion_rect 为世界坐标，
-// 则不能直接比较：
-// potion_rect.contains(mouse_position);
+// 对象逻辑中心对应的屏幕位置
+auto screen_center = camera().world_to_screen(object.center());
+
+// 对象显示矩形对应的屏幕区域
+auto screen_rect = camera().world_to_screen(object.render_rect());
 ```
 
 ### 8.2 `world_rect()` 与 `render_rect()`
