@@ -72,7 +72,34 @@ std::vector<std::unique_ptr<elysia::core::SceneObject>> objects;
 
 这些能力需要按实际需求实现，并接入对应的更新或子系统。静态装饰和玩家角色虽然都可能是 `GameObject`，但不必拥有相同的行为。
 
-### 2.4 UiElement：界面元素
+### 2.4 绘制层级与遮挡顺序
+
+创建 `GameObject` 时，需要通过构造函数指定 `DepthLayer`，并可指定层内顺序 `order_in_layer`（默认为 `0`）。这两项决定世界对象的绘制先后。
+
+当前层级按以下顺序从后向前绘制：
+
+```text
+Background → Terrain → EffectBack → Item → Character → EffectFront → Foreground
+```
+
+后绘制的内容通常显示在先绘制的内容之上，实际遮挡还取决于透明度等绘制设置。`Count` 只是枚举中的层数标记，不是可用的绘制层级。
+
+层级名称用于表达对象的绘制用途，例如背景使用 `Background`，道具使用 `Item`，角色前方的特效使用 `EffectFront`。它们不会自动赋予对象行为：选择 `Character` 不会获得角色能力，选择 `Terrain` 也不会自动产生碰撞。
+
+**先比较层级，再比较层内顺序。** 同一层中，`order_in_layer` 越大，绘制越晚；它不能跨越层级。即使 `Item` 层对象的层内顺序很大，也不会因此绘制到 `Character` 层对象之前所处的前景位置。换言之，`Character` 层仍在 `Item` 层之后绘制。
+
+例如，药水可以在自己的构造函数中选择道具层：
+
+```cpp
+HealthPotion()
+    : GameObject(elysia::core::DepthLayer::Item, 0)
+{
+}
+```
+
+UI 使用独立的排序体系。当前场景先绘制世界对象，再绘制 UI；提高 `GameObject` 的绘制层级或层内顺序，不能让它覆盖 UI。
+
+### 2.5 UiElement：界面元素
 
 `UiElement` 表示按钮、血条、背包面板等 UI 元素，可以直接加入场景，也可以加入 UI 容器。加入容器的子节点由所属容器持有，并遵循该容器的布局、交互和清理流程。
 
@@ -386,6 +413,12 @@ auto screen_rect = camera().world_to_screen(object.render_rect());
 ```cpp
 class HealthPotion : public GameObject
 {
+public:
+    HealthPotion()
+        : GameObject(elysia::core::DepthLayer::Item, 0)
+    {
+    }
+
     // 按需求实现绘制、拾取相关行为等。
 };
 ```
@@ -394,7 +427,7 @@ class HealthPotion : public GameObject
 
 ### 第二步：将对象加入场景
 
-假设该类型有无参构造函数：
+使用上面定义的无参构造函数：
 
 ```cpp
 HealthPotion* potion =
