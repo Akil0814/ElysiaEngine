@@ -44,19 +44,25 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | 使用相机跟随、震屏与坐标转换 | [相机工作流](../architecture/subsystems/camera.md) |
 | 管理启动配置、用户设置与游戏配置 | [运行时配置](../architecture/subsystems/runtime-config.md) |
 | 读写存档、处理恢复与错误 | [存档服务](../architecture/subsystems/save.md) |
+| 使用时间缩放、固定步更新与计时回调 | [时间与计时器](time-and-timers.md) |
+| 查询翻译、切换语言与生成文本纹理 | [本地化与文本](localization.md) |
+| 按类型、层级与空间条件查找游戏对象 | [游戏对象查询](object-query.md) |
+| 绘制调试图元与管理调试类别 | [调试绘制](debug-draw.md) |
+| 生成随机数、抽样与记录日志 | [随机数与日志工具](utilities.md) |
 
 ## 常用宏与服务入口
 
 Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问相关功能。
 
-以下列出常用宏及其用途、相关文档和接口定义文件。具体使用方式请参考对应文档或头文件。
+以下列出常用宏与服务访问入口及其用途、相关文档和接口定义文件。具体使用方式请参考对应文档或头文件。
 
-| 宏名称 | 用途 | 介绍文档 | 源文件 |
+| 入口 | 用途 | 介绍文档 | 接口定义 |
 | --- | --- | --- | --- |
 | `ELYSIA_ANIMATIONS` | 动画服务 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) | [animation_service.h](../../../engine/animation/animation_service.h) |
 | `ELYSIA_AUDIO` | 音频服务 | [音频服务](../architecture/subsystems/audio.md) | [audio_service.h](../../../engine/audio/audio_service.h) |
 | `ELYSIA_CAMERA` | 相机管理 | [相机工作流](../architecture/subsystems/camera.md) | [camera_manager.h](../../../engine/camera/camera_manager.h) |
-| `ELYSIA_USER_CONFIG` | 用户配置管理 | [运行时配置](../architecture/subsystems/runtime-config.md) | [user_config_service.h](../../../engine/config/user_config_service.h) |
+| `ELYSIA_CONFIG` | 按类型读取游戏配置 | [运行时配置](../architecture/subsystems/runtime-config.md) | [config_service.h](../../../engine/config/config_service.h) |
+| `ELYSIA_USER_CONFIG` | 用户设置管理 | [运行时配置](../architecture/subsystems/runtime-config.md) | [user_config_service.h](../../../engine/config/user_config_service.h) |
 | `ELYSIA_TIME` | 时间相关功能 | [时间与计时器](time-and-timers.md) | [time.h](../../../engine/core/time.h) |
 | `ELYSIA_EFFECTS` | 特效服务 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) | [effect_service.h](../../../engine/effects/effect_service.h) |
 | `ELYSIA_LOCALIZATION` | 本地化服务 | [本地化与文本](localization.md) | [localization_service.h](../../../engine/localization/localization_service.h) |
@@ -64,8 +70,8 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_RESOURCES` | 资源管理 | [资源加载与配置格式](../architecture/subsystems/resources/README.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
 | `ELYSIA_SAVE` | 存档管理 | [存档服务](../architecture/subsystems/save.md) | [save_service.h](../../../engine/save/save_service.h) |
 | `ELYSIA_DEBUG_DRAW` | 调试绘制 | [调试绘制](debug-draw.md) | [debug_draw.h](../../../engine/tools/debug_draw.h) |
-
-控制器功能通过 `elysia::gameplay::ControllerService::instance()` 访问，公开接口定义见 [controller_service.h](../../../engine/gameplay/control/controller_service.h)，使用方式见[控制器与控制命令](gameplay/control.md)。
+| `elysia::gameplay::ControllerService::instance()` | 控制器管理与控制命令 | [控制器与控制命令](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
+| `elysia::gameplay::collision::GameplayCollisionService::instance()` | 玩法碰撞绑定、事件与阵营关系 | [游戏玩法碰撞](gameplay/collision.md) | [gameplay_collision_service.h](../../../engine/gameplay/collision/gameplay_collision_service.h) |
 
 ### 日志宏
 
@@ -75,14 +81,19 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | --- | --- | --- |
 | `ELYSIA_LOG_DEBUG` | Debug | 调试信息 |
 | `ELYSIA_LOG_INFO` | Info | 普通运行信息 |
+| `ELYSIA_LOG` | Info | Info 级别的便利入口 |
 | `ELYSIA_LOG_WARN` | Warn | 警告信息 |
 | `ELYSIA_LOG_ERROR` | Error | 错误信息 |
+| `ELYSIA_LOG_TERMINATING` | Terminating | 终止级别日志，本身不触发应用退出 |
 
 日志分类、流式消息与错误处理约定见[随机数与日志工具](utilities.md)。
 
 基本用法：
 
 ```cpp
+#include "engine/tools/logger.h"
+
+// 在业务函数中记录日志：
 ELYSIA_LOG_INFO("Gameplay", "Game initialized.");
 ELYSIA_LOG_ERROR("Resources", "Failed to load texture.");
 ```
@@ -100,10 +111,13 @@ Elysia Engine 提供内置应用错误场景，用于处理无法在当前场景
 
 除常用服务外，Elysia Engine 还提供了一些可复用的开发工具。
 
-| 工具 | 用途 | 源文件 |
+| 工具 | 用途 | 接口定义 |
 | --- | --- | --- |
 | `RandomGenerator` | 随机数生成 | [random_generator.h](../../../engine/tools/random_generator.h) |
 | `Timer` | 计时功能 | [timer.h](../../../engine/tools/timer.h) |
+| `Vector2` | 二维向量、方向、距离与归一化 | [vector2.h](../../../engine/core/geometry/vector2.h) |
+| `Rect` | 矩形范围、包含与相交等几何判断 | [rect.h](../../../engine/core/geometry/rect.h) |
+| `Color` / `colors` | RGBA 颜色值与预定义颜色 | [color.h](../../../engine/core/render/color.h)、[colors.h](../../../engine/core/render/colors.h) |
 
 随机数的范围、种子和错误条件见[随机数与日志工具](utilities.md)；Timer 的驱动与生命周期见[时间与计时器](time-and-timers.md)。
 
