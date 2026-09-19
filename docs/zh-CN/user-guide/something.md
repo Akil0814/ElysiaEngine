@@ -1,4 +1,8 @@
+## Elysia Engine 提供的便利宏一览
 
+
+
+宏名称		介绍文档		源文件链接 
 ELYSIA_CONTROLLER G:\Coding\Projects\ElysiaEngine\engine\gameplay\control\controller_manager.h
 ELYSIA_ANIMATIONS G:\Coding\Projects\ElysiaEngine\engine\animation\animation_service.h
 ELYSIA_AUDIO G:\Coding\Projects\ElysiaEngine\engine\audio\audio_service.h
@@ -11,4 +15,7 @@ ELYSIA_OBJECT_QUERY G:\Coding\Projects\ElysiaEngine\engine\object_query\game_obj
 ELYSIA_RESOURCES G:\Coding\Projects\ElysiaEngine\engine\resources\resource_service.h
 ELYSIA_SAVE G:\Coding\Projects\ElysiaEngine\engine\save\save_service.h
 ELYSIA_DEBUG_DRAW G:\Coding\Projects\ElysiaEngine\engine\tools\debug_draw.h
+
+以及日志相关宏
+
 

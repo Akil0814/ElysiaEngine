@@ -118,8 +118,8 @@ class Scene : public elysia::core::Subject<SceneRequestObserver>,
   protected:
     virtual void on_shortcuts(const elysia::input::RawInputFrame &,
                               const std::vector<elysia::input::RawInputEvent> &)
-    {
-    }
+    {}
+
     virtual bool on_unassigned_input(const elysia::input::RawInputEvent &)
     {
         return false;
