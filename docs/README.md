@@ -4,7 +4,7 @@ Elysia Engine 的文档按照使用目的分为以下三个部分。
 
 ## 使用 Elysia Engine
 
-[引擎使用指南](user-guide/README.md)
+[引擎使用指南](zh-CN/user-guide/README.md)
 
 面向使用 Elysia Engine 开发游戏的开发者。
 

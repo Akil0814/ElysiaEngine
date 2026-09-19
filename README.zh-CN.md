@@ -46,7 +46,7 @@ cmake --build out/build/sdl3-Debug --config Debug --parallel
 
 运行时请保持工作目录为仓库根目录，并保留 `assets/` 的目录结构，以便正确加载资源。
 
-Dear ImGui 开发覆盖层默认启用。关闭方法、Release 配置和 Ninja 构建方式见[构建、运行与测试](docs/user-guide/build-and-run.md)。
+Dear ImGui 开发覆盖层默认启用。关闭方法、Release 配置和 Ninja 构建方式见[构建、运行与测试](docs/zh-CN/user-guide/build-and-run.md)。
 
 > 从旧版迁移时，不要复用 SDL2 构建缓存，请使用新的 SDL3 构建目录。切换生成器或架构时也应使用独立目录。
 
@@ -58,22 +58,22 @@ Dear ImGui 开发覆盖层默认启用。关闭方法、Release 配置和 Ninja 
 ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
 ```
 
-GPU 测试需要真实图形设备，不能使用 dummy video 驱动。按标签运行测试、无显示环境的测试方式及故障排查见[构建、运行与测试](docs/user-guide/build-and-run.md)。
+GPU 测试需要真实图形设备，不能使用 dummy video 驱动。按标签运行测试、无显示环境的测试方式及故障排查见[构建、运行与测试](docs/zh-CN/user-guide/build-and-run.md)。
 
 ### 其他平台
 
-Linux、macOS 和 MinGW 使用相同的仓库固定源码依赖，但当前尚未实机验证，不能将 Windows 构建结果视为其他平台的验证结果。对应工具链和系统依赖要求见[详细构建说明](docs/user-guide/build-and-run.md)。
+Linux、macOS 和 MinGW 使用相同的仓库固定源码依赖，但当前尚未实机验证，不能将 Windows 构建结果视为其他平台的验证结果。对应工具链和系统依赖要求见[详细构建说明](docs/zh-CN/user-guide/build-and-run.md)。
 
 ## 文档导航
 
 | 阅读目的 | 文档入口 |
 | --- | --- |
-| 配置环境、构建运行与排查问题 | [构建、运行与测试](docs/user-guide/build-and-run.md) |
-| 查找使用引擎与公开接口的说明 | [使用指南](docs/user-guide/README.md) |
-| 了解子系统边界与运行机制 | [架构与模块设计](docs/architecture/README.md) |
-| 参与开发，了解代码规范、测试与文档维护 | [开发与贡献指南](docs/contributing/README.md) |
-| 查看计划中的能力、技术讨论与迁移设计 | [设计与路线图](docs/design/README.md) |
-| 浏览开发者文档分类 | [开发者文档总入口](docs/README.md) |
+| 配置环境、构建运行与排查问题 | [构建、运行与测试](docs/zh-CN/user-guide/build-and-run.md) |
+| 查找使用引擎与公开接口的说明 | [使用指南](docs/zh-CN/user-guide/README.md) |
+| 了解子系统边界与运行机制 | [架构与模块设计](docs/zh-CN/architecture/README.md) |
+| 参与开发，了解代码规范、测试与文档维护 | [开发与贡献指南](docs/zh-CN/contributing/README.md) |
+| 查看计划中的能力、技术讨论与迁移设计 | [设计与路线图](docs/zh-CN/design/README.md) |
+| 浏览开发者文档分类 | [开发者文档总入口](docs/zh-CN/README.md) |
 
 ## 仓库组成与依赖边界
 

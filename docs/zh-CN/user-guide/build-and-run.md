@@ -2,7 +2,7 @@
 
 ## Windows MSVC x64
 
-要求 CMake 3.24+、支持 C++23 的 MSVC，以及支持 SDL3 GPU renderer 的图形驱动。所有 SDL 依赖与选定编解码器均使用仓库固定源码；正常配置和构建不需要网络。版本与补丁见[依赖来源](../../thirdparty/SDL3-DEPENDENCIES.md)。
+要求 CMake 3.24+、支持 C++23 的 MSVC，以及支持 SDL3 GPU renderer 的图形驱动。所有 SDL 依赖与选定编解码器均使用仓库固定源码；正常配置和构建不需要网络。版本与补丁见[依赖来源](../../../thirdparty/SDL3-DEPENDENCIES.md)。
 
 使用独立目录，不复用旧 SDL2 缓存。以下命令使用 Visual Studio 多配置生成器：
 
@@ -27,7 +27,7 @@ SDL3 为共享库，CMake 将实际生成的 SDL3 DLL 复制到程序和测试�
 
 ## Dear ImGui
 
-默认 `ELYSIA_ENABLE_IMGUI=ON`，使用 Dear ImGui 1.92.9 的 SDL3 与 SDLRenderer3 后端。关闭时使用独立目录并传入 `-DELYSIA_ENABLE_IMGUI=OFF`。接口说明见 [Development Overlay](../subsystems/development-overlay.md)。
+默认 `ELYSIA_ENABLE_IMGUI=ON`，使用 Dear ImGui 1.92.9 的 SDL3 与 SDLRenderer3 后端。关闭时使用独立目录并传入 `-DELYSIA_ENABLE_IMGUI=OFF`。接口说明见 [Development Overlay](../../architecture/subsystems/development-overlay.md)。
 
 ## GPU 与测试
 
@@ -43,7 +43,7 @@ GPU 测试需要真实图形设备，不能使用 dummy video 驱动。`sdl3_gpu
 
 ## Linux、macOS 与 MinGW
 
-各平台使用相同的 vendored 源码，不再查找系统 SDL2 开发包。需要 C++23 工具链、CMake、平台图形/音频开发库及可用 GPU 驱动。SDL 的平台系统依赖见仓库中的 [Linux 说明](../../thirdparty/SDL3/docs/README-linux.md) 与 [macOS 说明](../../thirdparty/SDL3/docs/README-macos.md)。
+各平台使用相同的 vendored 源码，不再查找系统 SDL2 开发包。需要 C++23 工具链、CMake、平台图形/音频开发库及可用 GPU 驱动。SDL 的平台系统依赖见仓库中的 [Linux 说明](../../../thirdparty/SDL3/docs/README-linux.md) 与 [macOS 说明](../../../thirdparty/SDL3/docs/README-macos.md)。
 
 ```bash
 cmake -S . -B out/build/sdl3-linux -G Ninja -DCMAKE_BUILD_TYPE=Debug

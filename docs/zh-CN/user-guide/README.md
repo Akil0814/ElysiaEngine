@@ -18,5 +18,5 @@
 
 ## 进一步阅读
 
-* [引擎架构](../architecture/README.md)：了解引擎的内部结构与运行机制。
-* [开发与贡献指南](../contributing/README.md)：了解如何修改、测试和维护引擎。
+* [引擎架构](../../architecture/README.md)：了解引擎的内部结构与运行机制。
+* [开发与贡献指南](../../contributing/README.md)：了解如何修改、测试和维护引擎。

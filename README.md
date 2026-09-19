@@ -46,7 +46,7 @@ cmake --build out/build/sdl3-Debug --config Debug --parallel
 
 Keep the working directory at the repository root when running the application, and preserve the `assets/` directory structure so resources can load correctly.
 
-The Dear ImGui development overlay is enabled by default. See [Build, Run, and Test](docs/user-guide/build-and-run.md) for instructions on disabling it, configuring Release builds, and building with Ninja.
+The Dear ImGui development overlay is enabled by default. See [Build, Run, and Test](docs/en/user-guide/build-and-run.md) for instructions on disabling it, configuring Release builds, and building with Ninja.
 
 > When migrating from an older version, do not reuse an SDL2 build cache; use a new SDL3 build directory. Use separate directories when switching generators or architectures as well.
 
@@ -58,22 +58,22 @@ After building, run:
 ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
 ```
 
-GPU tests require a real graphics device and cannot use the dummy video driver. See [Build, Run, and Test](docs/user-guide/build-and-run.md) for running tests by label, testing without a display, and troubleshooting.
+GPU tests require a real graphics device and cannot use the dummy video driver. See [Build, Run, and Test](docs/en/user-guide/build-and-run.md) for running tests by label, testing without a display, and troubleshooting.
 
 ### Other Platforms
 
-Linux, macOS, and MinGW use the same fixed source dependencies bundled in the repository, but have not yet been verified on actual systems. Windows build results do not constitute verification of other platforms. See the [Detailed Build Instructions](docs/user-guide/build-and-run.md) for toolchain and system dependency requirements.
+Linux, macOS, and MinGW use the same fixed source dependencies bundled in the repository, but have not yet been verified on actual systems. Windows build results do not constitute verification of other platforms. See the [Detailed Build Instructions](docs/en/user-guide/build-and-run.md) for toolchain and system dependency requirements.
 
 ## Documentation
 
 | Purpose | Documentation |
 | --- | --- |
-| Set up the environment, build, run, and troubleshoot | [Build, Run, and Test](docs/user-guide/build-and-run.md) |
-| Find guidance on using the engine and its public interfaces | [User Guide](docs/user-guide/README.md) |
-| Understand subsystem boundaries and runtime behavior | [Architecture and Module Design](docs/architecture/README.md) |
-| Contribute and learn about coding conventions, testing, and documentation maintenance | [Development and Contribution Guide](docs/contributing/README.md) |
-| Explore planned capabilities, technical discussions, and migration designs | [Design and Roadmap](docs/design/README.md) |
-| Browse developer documentation categories | [Developer Documentation Index](docs/README.md) |
+| Set up the environment, build, run, and troubleshoot | [Build, Run, and Test](docs/en/user-guide/build-and-run.md) |
+| Find guidance on using the engine and its public interfaces | [User Guide](docs/en/user-guide/README.md) |
+| Understand subsystem boundaries and runtime behavior | [Architecture and Module Design](docs/en/architecture/README.md) |
+| Contribute and learn about coding conventions, testing, and documentation maintenance | [Development and Contribution Guide](docs/en/contributing/README.md) |
+| Explore planned capabilities, technical discussions, and migration designs | [Design and Roadmap](docs/en/design/README.md) |
+| Browse developer documentation categories | [Developer Documentation Index](docs/en/README.md) |
 
 ## Repository Structure and Dependency Boundaries
 
