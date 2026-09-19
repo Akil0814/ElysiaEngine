@@ -10,11 +10,11 @@
 
 在开始开发游戏内容前，建议阅读以下文档：
 
-- [核心概念](core-concepts.md)：了解场景、游戏对象与 UI 的职责，以及对象生命周期、更新和销毁时机。
+- [核心概念](core_concepts.md)：了解场景、游戏对象与 UI 的职责，以及对象生命周期、更新和销毁时机。
 
 ## 从零构建游戏
 
-如果需要从头创建一个基于 Elysia Engine 的游戏，请阅读[游戏初始化与集成指南](game-initialization.md)，了解 `IGameModel` 的职责、游戏入口的组织方式，以及如何注册和初始化游戏内容。
+如果需要从头创建一个基于 Elysia Engine 的游戏，请阅读[游戏初始化与集成指南](game-initialization.md)，了解 `IGameModule` 的职责、游戏入口的组织方式，以及如何注册和初始化游戏内容。
 
 如果只是为已有游戏添加角色、武器、UI 或其他功能，可以跳过本节，直接查阅对应的开发任务文档。
 
@@ -53,7 +53,6 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 
 | 宏名称 | 用途 | 介绍文档 | 源文件 |
 | --- | --- | --- | --- |
-| `ELYSIA_CONTROLLER` | 控制器管理 | [控制器与控制命令](gameplay/control.md) | [controller_manager.h](../../../engine/gameplay/control/controller_manager.h) |
 | `ELYSIA_ANIMATIONS` | 动画服务 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) | [animation_service.h](../../../engine/animation/animation_service.h) |
 | `ELYSIA_AUDIO` | 音频服务 | [音频服务](../architecture/subsystems/audio.md) | [audio_service.h](../../../engine/audio/audio_service.h) |
 | `ELYSIA_CAMERA` | 相机管理 | [相机工作流](../architecture/subsystems/camera.md) | [camera_manager.h](../../../engine/camera/camera_manager.h) |
@@ -65,6 +64,8 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_RESOURCES` | 资源管理 | [资源加载与配置格式](../architecture/subsystems/resources/README.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
 | `ELYSIA_SAVE` | 存档管理 | [存档服务](../architecture/subsystems/save.md) | [save_service.h](../../../engine/save/save_service.h) |
 | `ELYSIA_DEBUG_DRAW` | 调试绘制 | — | [debug_draw.h](../../../engine/tools/debug_draw.h) |
+
+控制器功能通过 `elysia::gameplay::ControllerService::instance()` 访问，公开接口定义见 [controller_service.h](../../../engine/gameplay/control/controller_service.h)，使用方式见[控制器与控制命令](gameplay/control.md)。
 
 ### 日志宏
 
@@ -114,7 +115,7 @@ Elysia Engine 提供以下内置场景，用于处理常见的应用流程。
 | `Settings` | 游戏设置界面 | [设置场景](builtin-scenes/settings.md) |
 | `ApplicationFailure` | 应用错误的展示与处理 | [应用错误场景](builtin-scenes/application-failure.md) |
 
-场景标识符定义于 [builtin_scene_keys.h](../../../engine/builtin/scenes/builtin_scene_keys.h)。
+场景标识符定义于 [builtin_scene_keys.h](../../../engine/builtin/builtin_scene_keys.h)。
 
 各场景的配置、数据传递方式及使用约定，请参考对应的使用文档、场景定义和 Payload 头文件。
 

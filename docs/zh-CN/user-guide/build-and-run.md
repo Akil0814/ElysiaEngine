@@ -27,7 +27,7 @@ SDL3 为共享库，CMake 将实际生成的 SDL3 DLL 复制到程序和测试�
 
 ## Dear ImGui
 
-默认 `ELYSIA_ENABLE_IMGUI=ON`，使用 Dear ImGui 1.92.9 的 SDL3 与 SDLRenderer3 后端。关闭时使用独立目录并传入 `-DELYSIA_ENABLE_IMGUI=OFF`。接口说明见 [Development Overlay](../../architecture/subsystems/development-overlay.md)。
+默认 `ELYSIA_ENABLE_IMGUI=ON`，使用 Dear ImGui 1.92.9 的 SDL3 与 SDLRenderer3 后端。关闭时使用独立目录并传入 `-DELYSIA_ENABLE_IMGUI=OFF`。接口说明见 [Development Overlay](../architecture/subsystems/development-overlay.md)。
 
 ## GPU 与测试
 

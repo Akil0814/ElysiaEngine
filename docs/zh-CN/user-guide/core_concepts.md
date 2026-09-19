@@ -28,10 +28,13 @@ Scene（组织运行内容，持有对象）
 
 ### 2.1 SceneObject：公共基类
 
-`SceneObject` 为场景对象提供活跃、可见、销毁等基本状态，以及绘制指令提交接口：
+`SceneObject` 为场景对象提供活跃、可见、销毁等基本状态，以及重置和暂停行为相关接口。绘制指令提交接口分别由 `GameObject` 和 `UiElement` 提供：
 
 ```cpp
+// GameObject：提交世界对象绘制指令。
 submit_render_commands(...);
+// UiElement：提交 UI 绘制指令。
+submit_ui_render_commands(...);
 ```
 
 需要绘制的对象负责组装自己的绘制指令，再由场景系统收集并统一执行。**提交指令不等于立即绘制**；对象也不一定要提交任何绘制内容。
@@ -248,7 +251,7 @@ if (potion && !potion->is_destroyed()) {
 相关生命周期接口：
 
 ```cpp
-on_enter();
+on_enter(const ScenePayload& payload);
 on_exit();
 reset();
 ```
@@ -315,7 +318,9 @@ position.x += 100.0f * delta;
 `update` 通常适合一般游戏行为、普通计时器、技能冷却、非物理驱动的动画状态，以及按帧间隔推进的表现逻辑。例如：
 
 ```cpp
-cooldown = std::max(0.0f, cooldown - delta);
+// 成员变量：double cooldown = 0.0; // 剩余冷却时间，单位为秒。
+// 在 update(double delta) 中更新：
+cooldown = std::max(0.0, cooldown - delta);
 ```
 
 实际使用时，应确认 `delta` 遵循的游戏时间、暂停和时间缩放规则。
@@ -343,7 +348,7 @@ cooldown = std::max(0.0f, cooldown - delta);
 
 ### 6.3 渲染只负责呈现状态
 
-`submit_render_commands(...)` 负责组装绘制指令，不应顺便发放奖励、扣血、消费输入、推进计时或修改会影响游戏规则的状态。否则游戏逻辑会依赖渲染是否执行及渲染帧率。
+世界对象的 `submit_render_commands(...)` 和 UI 的 `submit_ui_render_commands(...)` 负责组装绘制指令，不应顺便发放奖励、扣血、消费输入、推进计时或修改会影响游戏规则的状态。否则游戏逻辑会依赖渲染是否执行及渲染帧率。
 
 基本原则：
 
@@ -376,7 +381,7 @@ cooldown = std::max(0.0f, cooldown - delta);
 
 ### 8.1 不同坐标不能直接混用
 
-世界坐标描述角色、敌人和道具在游戏世界中的位置；屏幕坐标描述窗口空间中的位置；UI 位置还可能受所属容器的布局影响。
+世界坐标描述角色、敌人和道具在游戏世界中的位置。窗口坐标与逻辑渲染坐标需要区分：窗口缩放或逻辑画面映射后，它们不一定一一对应。引擎输入系统会将鼠标的窗口坐标转换为逻辑渲染坐标；`Camera::world_to_screen()` 返回相机视口中的逻辑渲染坐标，不能直接当作实际窗口像素。UI 位置还可能受所属容器的局部坐标和布局影响。
 
 例如，鼠标位置如果是屏幕坐标，而药水矩形是世界坐标，不能直接进行拾取判定：
 
