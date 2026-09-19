@@ -11,7 +11,3 @@
 - [存档服务](save.md)：类型化存档、可靠写入、恢复与错误模型。
 - [Development Demos](development-demos.md)：Demo Gallery 与跨子系统运行时演示的边界。
 - [Development Overlay](development-overlay.md)：可选 Dear ImGui 开发覆盖层、输入捕获、面板生命周期与 Physics Inspector 示例。
-
-## 实现指南
-
-- [Physics](physics/README.md)：物理与 Gameplay 碰撞的当前审计、目标架构、逐类/逐函数契约、算法和实施路线。该目录同时包含尚未落地的目标设计，不能当作当前 API 清单。
