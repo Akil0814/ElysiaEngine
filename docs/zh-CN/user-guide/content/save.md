@@ -107,5 +107,5 @@ player_data/saves/slot_01.json.bak
 
 不要保存原始指针、场景实例或临时运行句柄；保存稳定业务标识和纯数据，在载入后重建对象关联。不要每帧 commit 同步 IO，也不要把“内存修改成功”当作“磁盘保存成功”。
 
-- [服务接口](../../../engine/save/save_service.h)、[错误类型](../../../engine/save/save_types.h)
-- [场景生命周期](scene.md)、[返回使用指南](README.md)
+- [服务接口](../../../../engine/save/save_service.h)、[错误类型](../../../../engine/save/save_types.h)
+- [场景生命周期](../scene/scene.md)、[返回使用指南](../README.md)

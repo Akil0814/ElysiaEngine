@@ -1,6 +1,6 @@
 # UI 入门与导航
 
-UI 使用 UiElement 派生对象，与 GameObject 分开管理。通常先创建场景根窗口，再将按钮、列表等放入窗口或容器。详细操作继续使用现有 [UI 使用指南](../architecture/subsystems/ui/usage-guide.md)和 [UI API 参考](../architecture/subsystems/ui/README.md)。
+UI 使用 UiElement 派生对象，与 GameObject 分开管理。通常先创建场景根窗口，再将按钮、列表等放入窗口或容器。详细操作继续使用现有 [UI 使用指南](../../architecture/subsystems/ui/usage-guide.md)和 [UI API 参考](../../architecture/subsystems/ui/README.md)。
 
 ## 最小按钮
 
@@ -34,10 +34,10 @@ void create_exit_button() {
 
 | 任务 | 文档 |
 | --- | --- |
-| 容器、布局、子节点所有权 | [布局和所有权](../architecture/subsystems/ui/usage-guide.md#布局和所有权) |
-| 本地化文本、主题与样式 | [UI 使用指南](../architecture/subsystems/ui/usage-guide.md)、[本地化服务](localization.md) |
-| 键盘与手柄焦点导航 | [焦点、键盘和手柄](../architecture/subsystems/ui/usage-guide.md#焦点键盘和手柄) |
-| 滚动、对话框、下拉框与提示 | [滚动、弹窗与 tooltip](../architecture/subsystems/ui/usage-guide.md#滚动弹窗与-tooltip) |
-| 查具体控件接口 | [UI API 参考](../architecture/subsystems/ui/README.md) |
+| 容器、布局、子节点所有权 | [布局和所有权](../../architecture/subsystems/ui/usage-guide.md#布局和所有权) |
+| 本地化文本、主题与样式 | [UI 使用指南](../../architecture/subsystems/ui/usage-guide.md)、[本地化服务](../systems/localization.md) |
+| 键盘与手柄焦点导航 | [焦点、键盘和手柄](../../architecture/subsystems/ui/usage-guide.md#焦点键盘和手柄) |
+| 滚动、对话框、下拉框与提示 | [滚动、弹窗与 tooltip](../../architecture/subsystems/ui/usage-guide.md#滚动弹窗与-tooltip) |
+| 查具体控件接口 | [UI API 参考](../../architecture/subsystems/ui/README.md) |
 
-[返回使用指南](README.md)
+[返回使用指南](../README.md)

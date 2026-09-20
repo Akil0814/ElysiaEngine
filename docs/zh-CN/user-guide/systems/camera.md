@@ -67,5 +67,5 @@ setter 直接设置配置，请求类接口在下一次相机更新处理。新�
 
 ## 参考
 
-- [场景](scene.md)、[输入](input.md)、[相机接口](../../../engine/camera/camera_manager.h)
-- [可选架构说明](../architecture/subsystems/camera.md)、[返回使用指南](README.md)
+- [场景](../scene/scene.md)、[输入](input.md)、[相机接口](../../../../engine/camera/camera_manager.h)
+- [可选架构说明](../../architecture/subsystems/camera.md)、[返回使用指南](../README.md)

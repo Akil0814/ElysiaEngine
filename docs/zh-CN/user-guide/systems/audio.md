@@ -1,6 +1,6 @@
 # 音频播放
 
-使用 `ELYSIA_AUDIO` 播放已加载音效和音乐。应用负责初始化、逐帧更新和关闭；游戏不要重复调用这些生命周期接口。先在[资源清单](resources.md)中声明 Sound/Music，等待内容加载成功。
+使用 `ELYSIA_AUDIO` 播放已加载音效和音乐。应用负责初始化、逐帧更新和关闭；游戏不要重复调用这些生命周期接口。先在[资源清单](../content/resources.md)中声明 Sound/Music，等待内容加载成功。
 
 ## 播放并管理一个音效
 
@@ -252,7 +252,7 @@ bool transition_music(const std::string_view& key,
 
 ## 生命周期、失败与常见误用
 
-音频更新由 Application 在场景更新之后推进。场景 pause 不会自动暂停全局声音；需要退出某段流程时，显式停止所持句柄或音乐。音量 setter 只改变当前运行状态，保存玩家偏好使用[用户配置](configuration.md)。
+音频更新由 Application 在场景更新之后推进。场景 pause 不会自动暂停全局声音；需要退出某段流程时，显式停止所持句柄或音乐。音量 setter 只改变当前运行状态，保存玩家偏好使用[用户配置](../content/configuration.md)。
 
 `play_music` 返回 false 时保留失败信息并决定是否无音乐继续；`transition_music` 的 true 只代表接受请求，未来启动失败不会自动重试。切换音乐是先淡出后淡入，不是双路交叉淡化。不要靠播放函数的返回值推断整段声音已经播放完成。
 
@@ -260,5 +260,5 @@ bool transition_music(const std::string_view& key,
 
 ## 参考
 
-- [音频接口](../../../engine/audio/audio_service.h)、[播放参数](../../../engine/audio/sound_playback_types.h)
-- [资源加载](resources.md)、[可选架构说明](../architecture/subsystems/audio.md)、[返回使用指南](README.md)
+- [音频接口](../../../../engine/audio/audio_service.h)、[播放参数](../../../../engine/audio/sound_playback_types.h)
+- [资源加载](../content/resources.md)、[可选架构说明](../../architecture/subsystems/audio.md)、[返回使用指南](../README.md)

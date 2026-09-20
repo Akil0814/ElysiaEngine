@@ -1,6 +1,6 @@
 # 常用基础工具
 
-本页介绍游戏代码可直接使用的向量、矩形、颜色、随机数与日志接口。计时器的推进、回调与暂停规则见[时间与计时器](time-and-timers.md)。这些值类型与工具不会自行注册到场景。
+本页介绍游戏代码可直接使用的向量、矩形、颜色、随机数与日志接口。计时器的推进、回调与暂停规则见[时间与计时器](../systems/time-and-timers.md)。这些值类型与工具不会自行注册到场景。
 
 ## Vector2：方向与距离
 
@@ -93,9 +93,9 @@ ELYSIA_LOG_WARN("inventory", "Reward skipped because inventory is full.");
 
 `ELYSIA_LOG_TERMINATING` 记录 Terminating 级别日志，本身不发出退出请求。应用负责日志设施的生命周期，普通游戏对象不重复初始化或关闭 Logger。
 
-打印 Error 不会自动恢复操作、切换场景或终止应用。调用方仍要检查服务返回值并决定停止操作、提示用户或进入[应用错误流程](builtin-scenes/application-failure.md)。日志也不替代 `std::expected` 等接口的错误处理。
+打印 Error 不会自动恢复操作、切换场景或终止应用。调用方仍要检查服务返回值并决定停止操作、提示用户或进入[应用错误流程](../builtin-scenes/application-failure.md)。日志也不替代 `std::expected` 等接口的错误处理。
 
 ## 参考
 
-- [随机数接口](../../../engine/tools/random_generator.h)、[日志接口](../../../engine/tools/logger.h)
-- [返回使用指南](README.md)
+- [随机数接口](../../../../engine/tools/random_generator.h)、[日志接口](../../../../engine/tools/logger.h)
+- [返回使用指南](../README.md)

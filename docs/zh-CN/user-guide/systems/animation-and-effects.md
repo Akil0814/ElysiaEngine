@@ -1,6 +1,6 @@
 # 动画与特效
 
-先在[资源配置](resources.md)中声明图集、动画和特效，再等待内容加载成功。AnimationService 创建独立播放器；EffectService 把特效对象加入当前活动场景。游戏无需初始化或关闭这两个服务。
+先在[资源配置](../content/resources.md)中声明图集、动画和特效，再等待内容加载成功。AnimationService 创建独立播放器；EffectService 把特效对象加入当前活动场景。游戏无需初始化或关闭这两个服务。
 
 ## 播放对象动画
 
@@ -81,7 +81,7 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 AnimationEff
 
 ## 资源配置
 
-下文是项目需提供的 JSON 格式；核心 manifest 路径由 content_registry 的 required 项指定。实体资源包的模板、布局与 key 规则见本目录[资源指南](resources.md)。
+下文是项目需提供的 JSON 格式；核心 manifest 路径由 content_registry 的 required 项指定。实体资源包的模板、布局与 key 规则见本目录[资源指南](../content/resources.md)。
 ## 核心动画
 
 `assets/configs/manifests/animations_manifest.json`：
@@ -121,7 +121,7 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 AnimationEff
 }
 ```
 
-`texture_root`、`config_template` 和非空 `layouts` 必填。每个实体用 `animation_layout` 选择 layout，再由自己的 animation config 描述帧数和播放参数。模板及路径规则见 [实体内容资源包](resources.md)。
+`texture_root`、`config_template` 和非空 `layouts` 必填。每个实体用 `animation_layout` 选择 layout，再由自己的 animation config 描述帧数和播放参数。模板及路径规则见 [实体内容资源包](../content/resources.md)。
 
 ## Animation layout 与 config
 
@@ -243,5 +243,5 @@ effect 名可与 animation 名不同。映射分段动画时，会为已配置�
 
 动画不会因为创建就自动更新；由所属 Updatable 每帧驱动一次。特效已经是场景对象，不再手动 update。不要在绘制时推进动画，不在资源失效后继续使用旧 Atlas，也不要用动画完成回调决定必须发生的游戏规则结果。
 
-- [动画接口](../../../engine/animation/animation.h)、[特效请求参数](../../../engine/effects/effect_types.h)
-- [场景生命周期](scene.md)、[时间](time-and-timers.md)、[返回使用指南](README.md)
+- [动画接口](../../../../engine/animation/animation.h)、[特效请求参数](../../../../engine/effects/effect_types.h)
+- [场景生命周期](../scene/scene.md)、[时间](time-and-timers.md)、[返回使用指南](../README.md)

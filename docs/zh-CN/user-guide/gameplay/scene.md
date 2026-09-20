@@ -2,7 +2,7 @@
 
 `GameplayScene` 适用于需要角色控制与玩法碰撞的关卡。普通 `Scene` 已有对象管理、输入路由、UI、相机和物理世界；`GameplayScene` 在此基础上组合控制上下文与玩法碰撞运行时。菜单或纯展示场景不必为使用物理而改成 `GameplayScene`。
 
-普通场景的生命周期、对象管理和切换规则见[场景系统](../scene.md)。本页介绍 GameplayScene 增加的能力与扩展约束。
+普通场景的生命周期、对象管理和切换规则见[场景系统](../scene/scene.md)。本页介绍 GameplayScene 增加的能力与扩展约束。
 
 ## 最小场景
 
@@ -59,3 +59,4 @@ protected:
 - [公开定义](../../../../engine/gameplay/scene/gameplay_scene.h)与[实现](../../../../engine/gameplay/scene/gameplay_scene.cpp)
 - [对象生命周期](../core_concepts.md)
 - [返回使用指南](../README.md)
+- [攻击命中与伤害示例](damage.md)

@@ -33,7 +33,7 @@ create_player_control(elysia::gameplay::GameplayScene& scene,
 }
 ```
 
-创建结果失败时不取值；成功后保存句柄，并调用 `bind_target(handle, scene.control_context(), target)`。设备与动作映射的具体构造见[动作映射](../input.md)。句柄不是裸指针，也不延长场景或目标生命。
+创建结果失败时不取值；成功后保存句柄，并调用 `bind_target(handle, scene.control_context(), target)`。设备与动作映射的具体构造见[动作映射](../systems/input.md)。句柄不是裸指针，也不延长场景或目标生命。
 
 ## 绑定结果必须确认
 
@@ -62,7 +62,7 @@ if (operation.failed()) {
 
 ## 命令消费与取消
 
-以下目标类与[输入指南](../input.md)中的 `game.move` 映射配套。先加入 GameplayScene，再使用 bind_target 绑定。它没有物理刚体，命令直接推进世界位置；绘制可按[游戏对象](../game-objects.md)添加。
+以下目标类与[输入指南](../systems/input.md)中的 `game.move` 映射配套。先加入 GameplayScene，再使用 bind_target 绑定。它没有物理刚体，命令直接推进世界位置；绘制可按[游戏对象](../scene/game-objects.md)添加。
 
 ```cpp
 #include "engine/core/game_object.h"

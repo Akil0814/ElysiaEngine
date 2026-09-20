@@ -1,10 +1,10 @@
 # 物理对象、碰撞与查询
 
-Scene 自带 PhysicsWorld。通常让 GameObject 实现 PhysicsParticipant，加入场景时自动注册，移除时自动注销。业务不直接持有 Box2D 对象，不重复调用场景物理世界的 advance。需要理解基础对象生命周期时先读[场景](scene.md)。
+Scene 自带 PhysicsWorld。通常让 GameObject 实现 PhysicsParticipant，加入场景时自动注册，移除时自动注销。业务不直接持有 Box2D 对象，不重复调用场景物理世界的 advance。需要理解基础对象生命周期时先读[场景](../scene/scene.md)。
 
 ## 最小物理对象
 
-把以下类型放在游戏头文件中，在场景进入时通过 `create_and_add_object<FallingBox>()` 创建并检查返回值。它会参与物理，但没有绘制命令；可按[游戏对象](game-objects.md)添加可视化，或启用[物理调试绘制](debug-draw.md)。
+把以下类型放在游戏头文件中，在场景进入时通过 `create_and_add_object<FallingBox>()` 创建并检查返回值。它会参与物理，但没有绘制命令；可按[游戏对象](../scene/game-objects.md)添加可视化，或启用[物理调试绘制](../tools/debug-draw.md)。
 
 ```cpp
 #include "engine/core/game_object.h"
@@ -125,7 +125,7 @@ TileMap 是借用引用，`ITileCollisionWorld` 实例必须比绑定持续更�
 
 ## 玩法碰撞
 
-物理接触不自动扣血。角色、阵营、HitBox/HurtBox 与攻击去重的完整用法见[玩法碰撞](gameplay/collision.md)。
+物理接触不自动扣血。角色、阵营、HitBox/HurtBox 与攻击去重的完整用法见[玩法碰撞](../gameplay/collision.md)。
 
 ## 调试、统计和生命周期注意事项
 
@@ -161,5 +161,5 @@ TileCollisionCell 的 tag 是 string_view，提供地图的对象和其标签存
 
 ## 参考
 
-- [物理公开接口](../../../engine/physics/physics_world.h)、[查询参数](../../../engine/physics/collision/collision_query.h)
-- [玩法碰撞](gameplay/collision.md)、[对象查询](object-query.md)、[返回使用指南](README.md)
+- [物理公开接口](../../../../engine/physics/physics_world.h)、[查询参数](../../../../engine/physics/collision/collision_query.h)
+- [玩法碰撞](../gameplay/collision.md)、[对象查询](object-query.md)、[返回使用指南](../README.md)

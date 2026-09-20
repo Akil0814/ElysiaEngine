@@ -64,5 +64,5 @@ private:
 
 ## 参考
 
-- [Time](../../../engine/core/time.h)、[Timer](../../../engine/tools/timer.h)
-- [核心更新概念](core_concepts.md)、[返回使用指南](README.md)
+- [Time](../../../../engine/core/time.h)、[Timer](../../../../engine/tools/timer.h)
+- [核心更新概念](../core_concepts.md)、[返回使用指南](../README.md)

@@ -1,10 +1,10 @@
 # 输入与动作映射
 
-应用负责收集 SDL 输入，Scene 负责路由。游戏代码使用引擎输入事件和动作，不另起一套 SDL 轮询。控制角色通常采用 [GameplayScene](gameplay/scene.md) 和[控制器](gameplay/control.md)；菜单快捷键可直接使用 Scene 的扩展点。
+应用负责收集 SDL 输入，Scene 负责路由。游戏代码使用引擎输入事件和动作，不另起一套 SDL 轮询。控制角色通常采用 [GameplayScene](../gameplay/scene.md) 和[控制器](../gameplay/control.md)；菜单快捷键可直接使用 Scene 的扩展点。
 
 ## 最小动作映射
 
-以下辅助函数放在游戏输入配置代码中。将成功结果移动给 LocalPlayerController；创建、绑定和消费命令见[控制器指南](gameplay/control.md)。动作名由游戏定义，不是引擎内置协议。
+以下辅助函数放在游戏输入配置代码中。将成功结果移动给 LocalPlayerController；创建、绑定和消费命令见[控制器指南](../gameplay/control.md)。动作名由游戏定义，不是引擎内置协议。
 
 ```cpp
 #include "engine/input/action/input_action_map.h"
@@ -63,7 +63,7 @@ void on_shortcuts(const elysia::input::RawInputFrame&,
 
 UI 优先处理输入，消费与捕获影响后续玩法路由。`consume_input` 使用当前事件，不伪造 routing id。`set_shortcut_devices(InputCapture)` 设置快捷键设备范围；`set_ui_gamepad` 选择公共 UI 手柄；`set_ui_interaction_mode` 设置 UI 模式。`set_all_gameplay_input_blocked(true)` 可临时阻断玩法输入，恢复时显式设回 false。
 
-UI 焦点、模态窗口和详细控件用法见 [UI](ui.md)。不要绕过路由从全局原始输入再次执行已被 UI 消费的攻击。输入系统将窗口指针坐标转换为逻辑渲染坐标；世界瞄准仍需[相机转换](camera.md)。
+UI 焦点、模态窗口和详细控件用法见 [UI](../ui/README.md)。不要绕过路由从全局原始输入再次执行已被 UI 消费的攻击。输入系统将窗口指针坐标转换为逻辑渲染坐标；世界瞄准仍需[相机转换](camera.md)。
 
 ## 本地玩家与设备归属
 
@@ -79,9 +79,9 @@ UI 焦点、模态窗口和详细控件用法见 [UI](ui.md)。不要绕过路�
 
 控制器会缓存持续状态、按顺序积累事件与 Delta，再在实际固定 tick 交付。零 tick 时保留一次性输入，下一步消费后清空，补跑的后续步不重复消费增量。每控制器最多 1024 条待消费事件，溢出会取消整份待执行输入并记录诊断。
 
-暂停、解绑、映射替换和设备变化会触发取消或释放/回中门控，目标的取消回调应清空持续动作。映射替换可能返回 Pending，必须按[控制器操作结果](gameplay/control.md)确认最终状态。
+暂停、解绑、映射替换和设备变化会触发取消或释放/回中门控，目标的取消回调应清空持续动作。映射替换可能返回 Pending，必须按[控制器操作结果](../gameplay/control.md)确认最终状态。
 
 ## 参考
 
-- [动作定义](../../../engine/input/action/input_action_types.h)、[玩家配置](../../../engine/input/local_player_registry.h)
-- [场景](scene.md)、[控制器](gameplay/control.md)、[返回使用指南](README.md)
+- [动作定义](../../../../engine/input/action/input_action_types.h)、[玩家配置](../../../../engine/input/local_player_registry.h)
+- [场景](../scene/scene.md)、[控制器](../gameplay/control.md)、[返回使用指南](../README.md)

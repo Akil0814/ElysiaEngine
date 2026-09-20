@@ -39,4 +39,4 @@ Payload 包含 `presentation`、`reason`、`error_code`、`category` 和 `diagno
 
 - [诊断 Payload 与辅助函数](../../../../engine/builtin/scenes/application_failure_scene_payload.h)
 - [错误场景实现](../../../../engine/builtin/scenes/application_failure_scene.cpp)
-- [启动加载](startup-loading.md)、[日志](../utilities.md)、[返回使用指南](../README.md)
+- [启动加载](startup-loading.md)、[日志](../tools/utilities.md)、[返回使用指南](../README.md)

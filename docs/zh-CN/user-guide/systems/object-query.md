@@ -17,7 +17,7 @@ std::vector<elysia::core::GameObject*> nearby_items(
         return {};
     return query->find_objects_in_radius<elysia::core::GameObject>(
         origin, radius, elysia::core::DepthLayerMask{elysia::core::DepthLayer::Item},
-        [](const elysia::core::GameObject& object) {
+        [](../const elysia::core::GameObject& object) {
             return object.is_active();
         });
 }
@@ -46,5 +46,5 @@ std::vector<elysia::core::GameObject*> nearby_items(
 
 ## 参考
 
-- [公开接口与重载](../../../engine/object_query/game_object_query_service.h)
-- [对象所有权](core_concepts.md)、[返回使用指南](README.md)
+- [公开接口与重载](../../../../engine/object_query/game_object_query_service.h)
+- [对象所有权](../core_concepts.md)、[返回使用指南](../README.md)

@@ -2,11 +2,13 @@
 
 物理系统负责刚体、几何碰撞和接触；玩法碰撞把实际 ColliderId 关联到角色、阵营与 Body/PushBox/HurtBox/HitBox/Sensor 语义，并发布玩法事件。它不自动扣血、播放动画或实现背包逻辑。
 
+要把这些接口组合成完整玩法，请阅读[从攻击命中到接收伤害](damage.md)，其中包含攻击窗口、生命值修改、死亡及清理的配套示例。
+
 ## 前提与接入流程
 
 使用 `GameplayScene` 时，场景管理器负责激活其碰撞运行时。游戏操作通过 `elysia::gameplay::collision::GameplayCollisionService::instance()` 访问当前活动运行时，或在派生场景内通过 `collision_runtime()` 操作自己的运行时。
 
-先按[物理接口指南](../physics.md)创建并注册物理对象，取得真实 ColliderId。随后分配非零 ActorId、TeamId，将碰撞体绑定到玩法角色。仅绑定玩法语义不会创建物理形状，也不会替代物理层与掩码过滤。
+先按[物理接口指南](../systems/physics.md)创建并注册物理对象，取得真实 ColliderId。随后分配非零 ActorId、TeamId，将碰撞体绑定到玩法角色。仅绑定玩法语义不会创建物理形状，也不会替代物理层与掩码过滤。
 
 ## 绑定角色
 

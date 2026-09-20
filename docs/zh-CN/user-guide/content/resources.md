@@ -1,12 +1,12 @@
 # 资源加载与使用
 
-资源由应用和内容加载流程统一加载。游戏代码使用 `ELYSIA_RESOURCES` 查询已加载的资源，不自行初始化或关闭资源管理器。先完成[游戏初始化](game-initialization.md)，通过[启动加载场景](builtin-scenes/startup-loading.md)加载内容，成功后再进入使用这些资源的场景。
+资源由应用和内容加载流程统一加载。游戏代码使用 `ELYSIA_RESOURCES` 查询已加载的资源，不自行初始化或关闭资源管理器。先完成[游戏初始化](../game-initialization.md)，通过[启动加载场景](../builtin-scenes/startup-loading.md)加载内容，成功后再进入使用这些资源的场景。
 
 ## 最小使用流程
 
 1. 在下文对应 manifest 中声明资源，将文件放在规定的资源根目录。
 2. 确保 `assets/content_registry.json` 引用这些 manifest；重新开始内容加载后才会读取修改。
-3. 加载成功后按 key 查询并处理空结果。纹理交给[游戏对象](game-objects.md)绘制，音频交给[音频服务](audio.md)播放。
+3. 加载成功后按 key 查询并处理空结果。纹理交给[游戏对象](../scene/game-objects.md)绘制，音频交给[音频服务](../systems/audio.md)播放。
 
 下面的辅助函数放在游戏代码中，在内容加载成功后调用；调用方决定缺少图片时跳过显示还是进入错误流程。
 
@@ -258,7 +258,7 @@ Sound 与 Music 是不同 registry，因此二者使用相同字符串 key 合�
 
 Texture 和 Audio capability 都要求根目录和 layout。Texture layout 可指向文件或非递归目录；目录中的直接文件按路径排序，文件 stem 参与资源 key。Audio layout 的目标必须是普通文件，当前只生成 Sound。
 
-这两类 layout 文件的根对象直接把逻辑名映射为路径字符串。例如 Texture layout 可写 `{"portrait":"portrait.png","icons":"icons"}`，Audio layout 可写 `{"hit":"hit.wav"}`；路径分别相对于实体化后的 texture_root 与 audio_root。不是核心清单的 `{ "path": ... }` 条目结构。动画 layout 的结构见[动画配置](animation-and-effects.md)。
+这两类 layout 文件的根对象直接把逻辑名映射为路径字符串。例如 Texture layout 可写 `{"portrait":"portrait.png","icons":"icons"}`，Audio layout 可写 `{"hit":"hit.wav"}`；路径分别相对于实体化后的 texture_root 与 audio_root。不是核心清单的 `{ "path": ... }` 条目结构。动画 layout 的结构见[动画配置](../systems/animation-and-effects.md)。
 
 ### `{id}` 与路径解析
 
@@ -320,7 +320,7 @@ character_effects / "effect"   -> RyougiShiki.effect.attack_normal.0
 
 ## 加载失败与生命周期
 
-项目 preload 条目全部必需；配置错误、文件缺失、解码或注册失败应中止进入依赖该内容的场景。启动 Logo 查询可选与 preload 文件是否必需是不同规则，见[启动加载](builtin-scenes/startup-loading.md)。preload 纹理不通过 ResourceService 查询，其借用期在 StartupLoadingScene 退出时结束。
+项目 preload 条目全部必需；配置错误、文件缺失、解码或注册失败应中止进入依赖该内容的场景。启动 Logo 查询可选与 preload 文件是否必需是不同规则，见[启动加载](../builtin-scenes/startup-loading.md)。preload 纹理不通过 ResourceService 查询，其借用期在 StartupLoadingScene 退出时结束。
 
 正常加载入口由 StartupLoadingScene 驱动，不在普通对象逐帧更新里反复加载。项目资源加载失败会清理已部分提交内容；成功后 loader 的普通 reset 只清理临时状态，新一轮 start 才开启重新加载。
 
@@ -330,6 +330,6 @@ character_effects / "effect"   -> RyougiShiki.effect.attack_normal.0
 
 ## 相关指南
 
-- [动画与特效配置及播放](animation-and-effects.md)、[配置读取](configuration.md)、[本地化](localization.md)
-- [资源服务接口](../../../engine/resources/resource_service.h)、[可选架构参考](../architecture/subsystems/resources/README.md)
-- [返回使用指南](README.md)
+- [动画与特效配置及播放](../systems/animation-and-effects.md)、[配置读取](configuration.md)、[本地化](../systems/localization.md)
+- [资源服务接口](../../../../engine/resources/resource_service.h)、[可选架构参考](../../architecture/subsystems/resources/README.md)
+- [返回使用指南](../README.md)

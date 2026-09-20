@@ -1,6 +1,6 @@
 # 游戏对象与绘制
 
-`GameObject` 表示世界中的对象。它提供位置、尺寸、状态和绘制扩展点，不自动加载图片、响应输入或参与物理。需要持续行为时实现 `Updatable`，需要碰撞时接入[物理](physics.md)，角色输入通过[控制器](gameplay/control.md)。UI 使用独立的 [UiElement 体系](ui.md)。
+`GameObject` 表示世界中的对象。它提供位置、尺寸、状态和绘制扩展点，不自动加载图片、响应输入或参与物理。需要持续行为时实现 `Updatable`，需要碰撞时接入[物理](../systems/physics.md)，角色输入通过[控制器](../gameplay/control.md)。UI 使用独立的 [UiElement 体系](../ui/README.md)。
 
 ## 创建一个会移动的可见对象
 
@@ -42,9 +42,9 @@ public:
 
 纹理绘制仍在 `submit_render_commands()` 中填充命令：`type = Texture`、`texture = 已加载纹理`、`command_rect = render_rect()`。裁切设置 `use_src_rect = true` 和纹理坐标中的 `src_rect`；`alpha` 为 0–255，`rotation_degrees` 是顺时针角度，`rotation_origin` 为矩形内归一化旋转中心，`flip` 使用 `SpriteFlip`。纹理为空时不提交该条命令。
 
-通过 [ResourceService](resources.md) 查询纹理并检查空指针；返回资源是借用，不能自行释放。资源重载前必须停止使用旧纹理。动画对象通过[动画接口](animation-and-effects.md)生成同类命令。不要在绘制函数中加载资源、推进计时或修改游戏规则。
+通过 [ResourceService](../content/resources.md) 查询纹理并检查空指针；返回资源是借用，不能自行释放。资源重载前必须停止使用旧纹理。动画对象通过[动画接口](../systems/animation-and-effects.md)生成同类命令。不要在绘制函数中加载资源、推进计时或修改游戏规则。
 
-世界命令由场景使用当前相机统一投影，不要先手动转为屏幕坐标。世界图元还支持矩形边框、圆、线和三角形；调试可视化优先使用[调试绘制](debug-draw.md)。UI 绘制使用独立命令。
+世界命令由场景使用当前相机统一投影，不要先手动转为屏幕坐标。世界图元还支持矩形边框、圆、线和三角形；调试可视化优先使用[调试绘制](../tools/debug-draw.md)。UI 绘制使用独立命令。
 
 ## 状态与排序
 
@@ -63,6 +63,6 @@ public:
 
 ## 参考
 
-- [场景与对象管理](scene.md)、[核心概念](core_concepts.md)
-- [绘制命令定义](../../../engine/core/render/render_command.h)、[GameObject](../../../engine/core/game_object.h)
-- [返回使用指南](README.md)
+- [场景与对象管理](scene.md)、[核心概念](../core_concepts.md)
+- [绘制命令定义](../../../../engine/core/render/render_command.h)、[GameObject](../../../../engine/core/game_object.h)
+- [返回使用指南](../README.md)

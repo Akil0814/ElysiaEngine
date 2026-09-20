@@ -59,7 +59,7 @@ bool save_settings(const elysia::config::UserConfigData& draft,
 
 单项即时应用可通过 `user_config().set_master_volume`、set_music_volume、set_sound_volume、set_language、set_target_fps、set_window_settings、set_vsync；检查 expected 后再提示成功。单项 setter 不等于保存磁盘，`save_user_config()` 负责持久化当前设置；保存失败时不能宣称已经保存。
 
-`snapshot()` 返回设置副本，`runtime_state()` 还包含重启状态，`is_dirty()` 查询未保存变化，`restart_required()` 查询待重启要求。批量事务的无基线重载使用调用时的状态作回滚基线。更完整的页面流程见[内置设置场景](builtin-scenes/settings.md)。
+`snapshot()` 返回设置副本，`runtime_state()` 还包含重启状态，`is_dirty()` 查询未保存变化，`restart_required()` 查询待重启要求。批量事务的无基线重载使用调用时的状态作回滚基线。更完整的页面流程见[内置设置场景](../builtin-scenes/settings.md)。
 ## AppConfig 与 UserConfig
 
 `assets/configs/global/app_config.json` 使用严格 version 2 schema，提供窗口标题和窗口、渲染、音频、本地化的默认值。逻辑分辨率不属于用户配置，只由 `ApplicationDescriptor` 提供：
@@ -123,5 +123,5 @@ VSync 会保存为下一次启动使用的值并显示重启提示。
 
 不要把音频服务即时音量、本地化服务即时语言修改等同于保存用户偏好；需要持久化时走用户配置接口。不要用只读游戏配置保存进度，使用[存档](save.md)。修改磁盘 JSON 不会自动热重载；重新加载内容可能使资源引用失效，见[资源生命周期](resources.md)。
 
-- [配置接口](../../../engine/config/config_service.h)、[用户设置接口](../../../engine/config/user_config_service.h)
-- [可选架构说明](../architecture/subsystems/runtime-config.md)、[返回使用指南](README.md)
+- [配置接口](../../../../engine/config/config_service.h)、[用户设置接口](../../../../engine/config/user_config_service.h)
+- [可选架构说明](../../architecture/subsystems/runtime-config.md)、[返回使用指南](../README.md)

@@ -1,6 +1,6 @@
 # 场景系统
 
-`Scene` 负责组织游戏对象与 UI，并协调输入、逐帧更新、物理固定步、相机和绘制。菜单、展示页和简单关卡可以直接继承它；需要控制器与玩法碰撞时使用 [GameplayScene](gameplay/scene.md)。先阅读[核心概念](core_concepts.md)，再按本页组织具体代码。
+`Scene` 负责组织游戏对象与 UI，并协调输入、逐帧更新、物理固定步、相机和绘制。菜单、展示页和简单关卡可以直接继承它；需要控制器与玩法碰撞时使用 [GameplayScene](../gameplay/scene.md)。先阅读[核心概念](../core_concepts.md)，再按本页组织具体代码。
 
 ## 创建与进入场景
 
@@ -50,7 +50,7 @@ inline void register_room(elysia::scene::SceneManager& scenes) {
 }
 ```
 
-游戏 SceneKey 使用 `1..999`，不能复用引擎保留标识或重复注册。构造参数会被保存用于重建，须满足注册接口的可复制要求；借用依赖用 `std::ref`/`std::cref` 时自行保证生命期。完整应用入口见[游戏初始化](game-initialization.md)。
+游戏 SceneKey 使用 `1..999`，不能复用引擎保留标识或重复注册。构造参数会被保存用于重建，须满足注册接口的可复制要求；借用依赖用 `std::ref`/`std::cref` 时自行保证生命期。完整应用入口见[游戏初始化](../game-initialization.md)。
 
 ## 常用操作与扩展点
 
@@ -69,7 +69,7 @@ inline void register_room(elysia::scene::SceneManager& scenes) {
 | `physics_world()` / `camera()` | 访问本场景物理世界及当前渲染相机；具体用法见对应专题 |
 | `resolve_camera_focus()` / `resolve_camera_focus_rect()` | 提供 Main 相机跟随目标，不保存相机内部状态 |
 
-输入细节见[输入](input.md)，固定步与暂停见[时间](time-and-timers.md)，物理与坐标分别见[物理](physics.md)、[相机](camera.md)。场景的渲染入口是私有非虚函数；通过对象提交命令，不能重写 `on_render()`。
+输入细节见[输入](../systems/input.md)，固定步与暂停见[时间](../systems/time-and-timers.md)，物理与坐标分别见[物理](../systems/physics.md)、[相机](../systems/camera.md)。场景的渲染入口是私有非虚函数；通过对象提交命令，不能重写 `on_render()`。
 
 对象正在更新、遍历或查询时，不向同一对象集合插入对象。把生成请求暂存，在派生场景调用基类更新之前或返回之后统一执行；不要在对象自己的 `update()` 中直接扩容场景列表。
 
@@ -84,7 +84,7 @@ return;
 
 也可传入 `SceneRoute{.target = ..., .payload = ..., .reload_mode = ...}`，将返回目的地作为值保存。退出应用使用 `request_quit()`。这些受保护接口只在派生场景的正常输入/更新阶段调用；不要在 `on_enter`、`on_exit`、`reset`、绘制或析构中发请求。
 
-请求在当前输入/更新处理结束后执行，不是函数调用时立即换场景。一个处理周期最多一个请求；重复或重入请求、无效或未注册目标属于接入错误，会抛异常，不提供自动回退。启动失败与不可恢复运行错误见[应用错误场景](builtin-scenes/application-failure.md)。
+请求在当前输入/更新处理结束后执行，不是函数调用时立即换场景。一个处理周期最多一个请求；重复或重入请求、无效或未注册目标属于接入错误，会抛异常，不提供自动回退。启动失败与不可恢复运行错误见[应用错误场景](../builtin-scenes/application-failure.md)。
 
 ## 复用、重置与释放
 
@@ -100,5 +100,5 @@ return;
 
 ## 参考
 
-- [Scene 接口](../../../engine/scene/scene.h)、[场景路由](../../../engine/scene/routing/scene_route.h)
-- [GameplayScene](gameplay/scene.md)、[返回使用指南](README.md)
+- [Scene 接口](../../../../engine/scene/scene.h)、[场景路由](../../../../engine/scene/routing/scene_route.h)
+- [GameplayScene](../gameplay/scene.md)、[返回使用指南](../README.md)

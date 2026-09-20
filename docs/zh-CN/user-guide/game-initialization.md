@@ -236,7 +236,7 @@ void GameModule::register_scenes(
 * 初始路由所引用的游戏场景已注册。
 * 后续场景切换使用有效的场景标识符。
 
-有关场景职责、生命周期与销毁时机，请阅读[核心概念](core_concepts.md)；具体对象管理、切换与传参见[场景系统](scene.md)。资源清单与加载准备见[资源加载](resources.md)，启动默认值和用户设置见[配置指南](configuration.md)。
+有关场景职责、生命周期与销毁时机，请阅读[核心概念](core_concepts.md)；具体对象管理、切换与传参见[场景系统](scene/scene.md)。资源清单与加载准备见[资源加载](content/resources.md)，启动默认值和用户设置见[配置指南](content/configuration.md)。
 
 ## 6. 自定义开发面板（可选）
 
