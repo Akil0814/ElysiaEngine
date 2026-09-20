@@ -22,6 +22,53 @@ This repository contains both the reusable engine implementation and a sample ap
 
 **Networking limitations**: ENet is currently retained only as a transport-layer dependency linked by the engine. Network sessions, state synchronization, and networked multiplayer have not been implemented.
 
+## Projects Using the Engine and Project History
+
+### Projects Using the Engine
+
+| Project | Description | Status |
+| --- | --- | --- |
+| [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | A 2D top-down multiplayer shooter built with this engine | In development |
+| [Moonline](https://github.com/Akil0814/Moonline) | A 2D side-view fighting game featuring characters from MELTY BLOOD | Development stalled |
+
+### Project History
+
+- Early engine development commits: [Moonline](https://github.com/Akil0814/Moonline).
+- Early prototype development: [Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary).
+
+
+## Documentation
+
+| Purpose | Documentation |
+| --- | --- |
+| Set up the environment, build, run, and troubleshoot | [Build, Run, and Test](docs/en/user-guide/build-and-run.md) |
+| Find guidance on using the engine and its public interfaces | [User Guide](docs/en/user-guide/README.md) |
+| Understand subsystem boundaries and runtime behavior | [Architecture and Module Design](docs/en/architecture/README.md) |
+| Contribute and learn about coding conventions, testing, and documentation maintenance | [Development and Contribution Guide](docs/en/contributing/README.md) |
+| Explore planned capabilities, technical discussions, and migration designs | [Design and Roadmap](docs/en/design/README.md) |
+| Browse developer documentation categories | [Developer Documentation Index](docs/en/README.md) |
+
+## Repository Structure and Dependency Boundaries
+
+- `engine/`: Reusable engine implementation, built as `engine_lib`.
+- `game/`: Sample integration layer providing a game module and sample scenes, built as `game_lib`.
+- `assets/`: Configuration, fonts, audio, and textures used by the sample application and built-in engine flows.
+- `tests/`: Unit and integration tests organized by subsystem.
+- `docs/`: User guides, architecture descriptions, contribution guides, and design documents.
+- `thirdparty/`: Third-party dependencies bundled with the repository.
+
+The main dependency direction is:
+
+```text
+ElysiaEngine executable -> game_lib -> engine_lib
+                                      -> SDL3 libraries
+                                      -> Box2D
+                                      -> ENet
+```
+
+The engine layer does not depend on `game/`. Game logic provides the application description and scene registration through `IGameModule`, and game-specific types are maintained by the game module.
+
+
 ## Quick Start
 
 ### Requirements
@@ -63,51 +110,6 @@ GPU tests require a real graphics device and cannot use the dummy video driver. 
 ### Other Platforms
 
 Linux, macOS, and MinGW use the same fixed source dependencies bundled in the repository, but have not yet been verified on actual systems. Windows build results do not constitute verification of other platforms. See the [Detailed Build Instructions](docs/en/user-guide/build-and-run.md) for toolchain and system dependency requirements.
-
-## Documentation
-
-| Purpose | Documentation |
-| --- | --- |
-| Set up the environment, build, run, and troubleshoot | [Build, Run, and Test](docs/en/user-guide/build-and-run.md) |
-| Find guidance on using the engine and its public interfaces | [User Guide](docs/en/user-guide/README.md) |
-| Understand subsystem boundaries and runtime behavior | [Architecture and Module Design](docs/en/architecture/README.md) |
-| Contribute and learn about coding conventions, testing, and documentation maintenance | [Development and Contribution Guide](docs/en/contributing/README.md) |
-| Explore planned capabilities, technical discussions, and migration designs | [Design and Roadmap](docs/en/design/README.md) |
-| Browse developer documentation categories | [Developer Documentation Index](docs/en/README.md) |
-
-## Repository Structure and Dependency Boundaries
-
-- `engine/`: Reusable engine implementation, built as `engine_lib`.
-- `game/`: Sample integration layer providing a game module and sample scenes, built as `game_lib`.
-- `assets/`: Configuration, fonts, audio, and textures used by the sample application and built-in engine flows.
-- `tests/`: Unit and integration tests organized by subsystem.
-- `docs/`: User guides, architecture descriptions, contribution guides, and design documents.
-- `thirdparty/`: Third-party dependencies bundled with the repository.
-
-The main dependency direction is:
-
-```text
-ElysiaEngine executable -> game_lib -> engine_lib
-                                      -> SDL3 libraries
-                                      -> Box2D
-                                      -> ENet
-```
-
-The engine layer does not depend on `game/`. Game logic provides the application description and scene registration through `IGameModule`, and game-specific types are maintained by the game module.
-
-## Projects Using the Engine and Project History
-
-### Projects Using the Engine
-
-| Project | Description | Status |
-| --- | --- | --- |
-| [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | A 2D top-down multiplayer shooter built with this engine | In development |
-| [Moonline](https://github.com/Akil0814/Moonline) | A 2D side-view fighting game featuring characters from MELTY BLOOD | Development stalled |
-
-### Project History
-
-- Early engine development commits: [Moonline](https://github.com/Akil0814/Moonline).
-- Early prototype development: [Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary).
 
 ## License and Copyright
 

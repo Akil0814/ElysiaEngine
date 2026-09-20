@@ -22,6 +22,52 @@ Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引�
 
 **网络能力边界**：ENet 当前仅作为引擎链接的传输层依赖保留，网络会话、状态同步和网络联机功能尚未实现。
 
+## 基于引擎的项目与历史
+
+### 基于引擎的项目
+
+| 项目 | 简介 | 状态 |
+| --- | --- | --- |
+| [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | 基于该引擎的 2D 俯视角多人射击游戏 | 开发中 |
+| [Moonline](https://github.com/Akil0814/Moonline) | 基于 MELTY BLOOD 中出现的角色开发的 2D 横版战斗游戏 | 停滞中 |
+
+### 项目历史
+
+- 引擎早期开发提交：[Moonline](https://github.com/Akil0814/Moonline)。
+- 早期原型开发：[Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary)。
+
+## 文档导航
+
+| 阅读目的 | 文档入口 |
+| --- | --- |
+| 配置环境、构建运行与排查问题 | [构建、运行与测试](docs/zh-CN/user-guide/build-and-run.md) |
+| 查找使用引擎与公开接口的说明 | [使用指南](docs/zh-CN/user-guide/README.md) |
+| 了解子系统边界与运行机制 | [架构与模块设计](docs/zh-CN/architecture/README.md) |
+| 参与开发，了解代码规范、测试与文档维护 | [开发与贡献指南](docs/zh-CN/contributing/README.md) |
+| 查看计划中的能力、技术讨论与迁移设计 | [设计与路线图](docs/zh-CN/design/README.md) |
+| 浏览开发者文档分类 | [开发者文档总入口](docs/zh-CN/README.md) |
+
+## 仓库组成与依赖边界
+
+- `engine/`：可复用的引擎实现，构建为 `engine_lib`。
+- `game/`：示例集成层，提供游戏模块与示例场景，构建为 `game_lib`。
+- `assets/`：示例程序和引擎内建流程使用的配置、字体、音频与纹理资源。
+- `tests/`：按子系统组织的单元测试和集成测试。
+- `docs/`：使用指南、架构说明、贡献指南与设计文档。
+- `thirdparty/`：仓库随附的第三方依赖。
+
+主要依赖方向为：
+
+```text
+ElysiaEngine executable -> game_lib -> engine_lib
+                                      -> SDL3 libraries
+                                      -> Box2D
+                                      -> ENet
+```
+
+引擎层不依赖 `game/`。游戏业务通过 `IGameModule` 提供应用描述和场景注册，业务类型由游戏模块维护。
+
+
 ## 快速开始
 
 ### 环境要求
@@ -63,51 +109,6 @@ GPU 测试需要真实图形设备，不能使用 dummy video 驱动。按标签
 ### 其他平台
 
 Linux、macOS 和 MinGW 使用相同的仓库固定源码依赖，但当前尚未实机验证，不能将 Windows 构建结果视为其他平台的验证结果。对应工具链和系统依赖要求见[详细构建说明](docs/zh-CN/user-guide/build-and-run.md)。
-
-## 文档导航
-
-| 阅读目的 | 文档入口 |
-| --- | --- |
-| 配置环境、构建运行与排查问题 | [构建、运行与测试](docs/zh-CN/user-guide/build-and-run.md) |
-| 查找使用引擎与公开接口的说明 | [使用指南](docs/zh-CN/user-guide/README.md) |
-| 了解子系统边界与运行机制 | [架构与模块设计](docs/zh-CN/architecture/README.md) |
-| 参与开发，了解代码规范、测试与文档维护 | [开发与贡献指南](docs/zh-CN/contributing/README.md) |
-| 查看计划中的能力、技术讨论与迁移设计 | [设计与路线图](docs/zh-CN/design/README.md) |
-| 浏览开发者文档分类 | [开发者文档总入口](docs/zh-CN/README.md) |
-
-## 仓库组成与依赖边界
-
-- `engine/`：可复用的引擎实现，构建为 `engine_lib`。
-- `game/`：示例集成层，提供游戏模块与示例场景，构建为 `game_lib`。
-- `assets/`：示例程序和引擎内建流程使用的配置、字体、音频与纹理资源。
-- `tests/`：按子系统组织的单元测试和集成测试。
-- `docs/`：使用指南、架构说明、贡献指南与设计文档。
-- `thirdparty/`：仓库随附的第三方依赖。
-
-主要依赖方向为：
-
-```text
-ElysiaEngine executable -> game_lib -> engine_lib
-                                      -> SDL3 libraries
-                                      -> Box2D
-                                      -> ENet
-```
-
-引擎层不依赖 `game/`。游戏业务通过 `IGameModule` 提供应用描述和场景注册，业务类型由游戏模块维护。
-
-## 基于引擎的项目与历史
-
-### 基于引擎的项目
-
-| 项目 | 简介 | 状态 |
-| --- | --- | --- |
-| [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | 基于该引擎的 2D 俯视角多人射击游戏 | 开发中 |
-| [Moonline](https://github.com/Akil0814/Moonline) | 基于 MELTY BLOOD 中出现的角色开发的 2D 横版战斗游戏 | 停滞中 |
-
-### 项目历史
-
-- 引擎早期开发提交：[Moonline](https://github.com/Akil0814/Moonline)。
-- 早期原型开发：[Project-Hail-Mary](https://github.com/ZacharyOllivierre/Project-Hail-Mary)。
 
 ## 许可与版权
 
