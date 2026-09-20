@@ -2,6 +2,8 @@
 
 `ELYSIA_LOCALIZATION` 提供翻译查询、语言切换、文本测量和纹理生成。调用前由应用与内容加载流程准备语言清单、翻译和字体；游戏不要自行初始化内部管理器。
 
+先在[资源指南](resources.md)的国际化清单中登记语言与文件。`assets/i18n/en/base.json` 可写 `{"menu":{"title":"Main menu"}}`，通过 `menu.title` 查询；其他语言目录使用相同键。翻译叶节点必须是字符串，不使用数组或数值作为文本。语言标识用 en、ja、ko、zh-Hans、zh-Hant 等清单中的值，和文档目录的 zh-CN 命名不是同一套用途。
+
 ## 查询与切换语言
 
 以下函数可在游戏设置操作中调用，语言标识应来自 `supported_languages()`，不要从目录命名猜测项目一定支持哪些语言。
@@ -27,7 +29,7 @@ bool change_language(std::string language)
 std::string title = std::string(ELYSIA_LOCALIZATION->tr("menu.title"));
 ```
 
-`set_language` 可能因依赖未初始化、不支持的语言或加载失败返回错误，不能假定请求已生效。它改变本地化运行状态，不等于保存用户配置；需要持久化的语言设置通过[设置场景](builtin-scenes/settings.md)或用户配置服务完成。
+`set_language` 可能因依赖未初始化、不支持的语言或加载失败返回错误，不能假定请求已生效。它改变本地化运行状态，不等于保存用户配置；需要持久化的语言设置通过[设置场景](builtin-scenes/settings.md)或[用户配置服务](configuration.md)完成。
 
 查找先尝试当前语言，再尝试项目默认语言；`engine.` 键还可回退到内置翻译。未找到时返回键本身，未初始化时也返回键，并不抛出“缺少翻译”异常。
 
@@ -63,5 +65,5 @@ UI 文本优先使用现有 UI 文本内容接口，让控件处理呈现，而�
 ## 参考
 
 - [服务定义](../../../engine/localization/localization_service.h)
-- [资源清单与国际化](../architecture/subsystems/resources/core-resource-manifests.md)、[UI 使用](../architecture/subsystems/ui/usage-guide.md)
+- [资源清单与国际化](resources.md)、[UI 使用](../architecture/subsystems/ui/usage-guide.md)
 - [返回使用指南](README.md)

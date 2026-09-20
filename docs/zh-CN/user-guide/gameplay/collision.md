@@ -6,7 +6,7 @@
 
 使用 `GameplayScene` 时，场景管理器负责激活其碰撞运行时。游戏操作通过 `elysia::gameplay::collision::GameplayCollisionService::instance()` 访问当前活动运行时，或在派生场景内通过 `collision_runtime()` 操作自己的运行时。
 
-先按[物理接口指南](../../architecture/subsystems/physics/10-physics-features-and-api-guide.md)创建并注册物理对象，取得真实 ColliderId。随后分配非零 ActorId、TeamId，将碰撞体绑定到玩法角色。仅绑定玩法语义不会创建物理形状，也不会替代物理层与掩码过滤。
+先按[物理接口指南](../physics.md)创建并注册物理对象，取得真实 ColliderId。随后分配非零 ActorId、TeamId，将碰撞体绑定到玩法角色。仅绑定玩法语义不会创建物理形状，也不会替代物理层与掩码过滤。
 
 ## 绑定角色
 
@@ -35,6 +35,29 @@ bool bind_player(elysia::gameplay::collision::ActorId actor,
 返回 `false` 时停止后续依赖这次绑定的操作，检查标识、碰撞体所属世界及绑定条件。单个角色也可包含 PushBox 和 Sensor；独立碰撞体使用 `bind_collider(ColliderBinding)`。
 
 ## 攻击与去重
+
+下面函数在攻击开始时调用，hit 是已经注册的 Overlap 碰撞体，owner 和实例、定义标识均由游戏提供。物理 filter 必须允许它与目标 HurtBox 接触。
+
+```cpp
+#include "engine/gameplay/collision/gameplay_collision_service.h"
+
+bool begin_hit(elysia::physics::ColliderId hit,
+               elysia::gameplay::collision::ActorId owner,
+               elysia::gameplay::collision::AttackInstanceId instance,
+               elysia::gameplay::collision::AttackDefinitionId definition) {
+    using namespace elysia::gameplay::collision;
+    auto* service = GameplayCollisionService::instance();
+    if (!service->has_active_runtime()) return false;
+    return service->bind_hit_box({
+        .collider = {hit, owner, teams::Player, ColliderRole::HitBox},
+        .instigator = owner,
+        .attack_instance = instance,
+        .attack_definition = definition
+    });
+}
+```
+
+失败时不把攻击标记为已绑定；成功后记录 instance，在攻击结束或取消时 end_attack_instance。HitBox 的一次命中只在 Begin 阶段对敌对 HurtBox 路由；游戏仍负责判断目标是否存活并计算伤害。
 
 攻击碰撞体使用 `bind_hit_box(HitBoxBinding)`，其中 `collider.role` 为 `ColliderRole::HitBox`，并提供有效的 owner、team、instigator、attack_instance 和 attack_definition。攻击实例表示这一次攻击，攻击定义表示攻击种类，不应把所有攻击永久共用一个实例号。
 

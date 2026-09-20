@@ -46,5 +46,5 @@ void open_settings(elysia::scene::SceneRoute return_route)
 ## 参考
 
 - [Payload](../../../../engine/builtin/scenes/settings_scene_payload.h)、[可见项与草稿](../../../../engine/ui/presets/settings_panel.h)
-- [运行时配置](../../architecture/subsystems/runtime-config.md)、[本地化](../localization.md)
+- [运行时配置](../configuration.md)、[本地化](../localization.md)
 - [返回使用指南](../README.md)

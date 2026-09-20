@@ -34,21 +34,23 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 
 | 开发任务 | 文档入口 |
 | --- | --- |
-| 注册内容、配置预加载与资源清单 | [资源加载与配置格式](../architecture/subsystems/resources/README.md) |
-| 配置输入设备、动作映射与场景输入 | [输入系统](../architecture/subsystems/input/README.md) |
-| 创建 UI 窗口、组织布局与组合控件 | [UI 使用指南](../architecture/subsystems/ui/usage-guide.md) |
+| 创建场景、管理对象、暂停与切换 | [场景系统](scene.md) |
+| 编写对象行为、设置层级与提交绘制命令 | [游戏对象与绘制](game-objects.md) |
+| 注册内容、配置预加载与资源清单 | [资源加载与配置格式](resources.md) |
+| 配置输入设备、动作映射与场景输入 | [输入系统](input.md) |
+| 创建 UI 窗口、组织布局与组合控件 | [UI 入门与导航](ui.md) |
 | 查询 UI 控件的公开接口 | [UI API 参考](../architecture/subsystems/ui/README.md) |
-| 使用刚体、物理碰撞事件、空间查询与 TileMap 碰撞 | [物理功能与接口总览](../architecture/subsystems/physics/10-physics-features-and-api-guide.md) |
-| 配置动画资源、图集与特效 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) |
-| 播放音乐与音效，控制音量和播放调度 | [音频服务](../architecture/subsystems/audio.md) |
-| 使用相机跟随、震屏与坐标转换 | [相机工作流](../architecture/subsystems/camera.md) |
-| 管理启动配置、用户设置与游戏配置 | [运行时配置](../architecture/subsystems/runtime-config.md) |
-| 读写存档、处理恢复与错误 | [存档服务](../architecture/subsystems/save.md) |
+| 使用刚体、物理碰撞事件、空间查询与 TileMap 碰撞 | [物理功能与接口总览](physics.md) |
+| 配置动画资源、图集与特效 | [动画与特效](animation-and-effects.md) |
+| 播放音乐与音效，控制音量和播放调度 | [音频服务](audio.md) |
+| 使用相机跟随、震屏与坐标转换 | [相机工作流](camera.md) |
+| 管理启动配置、用户设置与游戏配置 | [运行时配置](configuration.md) |
+| 读写存档、处理恢复与错误 | [存档服务](save.md) |
 | 使用时间缩放、固定步更新与计时回调 | [时间与计时器](time-and-timers.md) |
 | 查询翻译、切换语言与生成文本纹理 | [本地化与文本](localization.md) |
 | 按类型、层级与空间条件查找游戏对象 | [游戏对象查询](object-query.md) |
 | 绘制调试图元与管理调试类别 | [调试绘制](debug-draw.md) |
-| 生成随机数、抽样与记录日志 | [随机数与日志工具](utilities.md) |
+| 使用向量、矩形、颜色、随机数与日志 | [常用基础工具](utilities.md) |
 
 ## 常用宏与服务入口
 
@@ -58,17 +60,17 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 
 | 入口 | 用途 | 介绍文档 | 接口定义 |
 | --- | --- | --- | --- |
-| `ELYSIA_ANIMATIONS` | 动画服务 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) | [animation_service.h](../../../engine/animation/animation_service.h) |
-| `ELYSIA_AUDIO` | 音频服务 | [音频服务](../architecture/subsystems/audio.md) | [audio_service.h](../../../engine/audio/audio_service.h) |
-| `ELYSIA_CAMERA` | 相机管理 | [相机工作流](../architecture/subsystems/camera.md) | [camera_manager.h](../../../engine/camera/camera_manager.h) |
-| `ELYSIA_CONFIG` | 按类型读取游戏配置 | [运行时配置](../architecture/subsystems/runtime-config.md) | [config_service.h](../../../engine/config/config_service.h) |
-| `ELYSIA_USER_CONFIG` | 用户设置管理 | [运行时配置](../architecture/subsystems/runtime-config.md) | [user_config_service.h](../../../engine/config/user_config_service.h) |
+| `ELYSIA_ANIMATIONS` | 动画服务 | [动画与特效](animation-and-effects.md) | [animation_service.h](../../../engine/animation/animation_service.h) |
+| `ELYSIA_AUDIO` | 音频服务 | [音频服务](audio.md) | [audio_service.h](../../../engine/audio/audio_service.h) |
+| `ELYSIA_CAMERA` | 相机管理 | [相机工作流](camera.md) | [camera_manager.h](../../../engine/camera/camera_manager.h) |
+| `ELYSIA_CONFIG` | 按类型读取游戏配置 | [运行时配置](configuration.md) | [config_service.h](../../../engine/config/config_service.h) |
+| `ELYSIA_USER_CONFIG` | 用户设置管理 | [运行时配置](configuration.md) | [user_config_service.h](../../../engine/config/user_config_service.h) |
 | `ELYSIA_TIME` | 时间相关功能 | [时间与计时器](time-and-timers.md) | [time.h](../../../engine/core/time.h) |
-| `ELYSIA_EFFECTS` | 特效服务 | [动画与特效](../architecture/subsystems/resources/animation-and-effects.md) | [effect_service.h](../../../engine/effects/effect_service.h) |
+| `ELYSIA_EFFECTS` | 特效服务 | [动画与特效](animation-and-effects.md) | [effect_service.h](../../../engine/effects/effect_service.h) |
 | `ELYSIA_LOCALIZATION` | 本地化服务 | [本地化与文本](localization.md) | [localization_service.h](../../../engine/localization/localization_service.h) |
 | `ELYSIA_OBJECT_QUERY` | 游戏对象查询 | [游戏对象查询](object-query.md) | [game_object_query_service.h](../../../engine/object_query/game_object_query_service.h) |
-| `ELYSIA_RESOURCES` | 资源管理 | [资源加载与配置格式](../architecture/subsystems/resources/README.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
-| `ELYSIA_SAVE` | 存档管理 | [存档服务](../architecture/subsystems/save.md) | [save_service.h](../../../engine/save/save_service.h) |
+| `ELYSIA_RESOURCES` | 资源管理 | [资源加载与配置格式](resources.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
+| `ELYSIA_SAVE` | 存档管理 | [存档服务](save.md) | [save_service.h](../../../engine/save/save_service.h) |
 | `ELYSIA_DEBUG_DRAW` | 调试绘制 | [调试绘制](debug-draw.md) | [debug_draw.h](../../../engine/tools/debug_draw.h) |
 | `elysia::gameplay::ControllerService::instance()` | 控制器管理与控制命令 | [控制器与控制命令](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
 | `elysia::gameplay::collision::GameplayCollisionService::instance()` | 玩法碰撞绑定、事件与阵营关系 | [游戏玩法碰撞](gameplay/collision.md) | [gameplay_collision_service.h](../../../engine/gameplay/collision/gameplay_collision_service.h) |
@@ -86,7 +88,7 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_LOG_ERROR` | Error | 错误信息 |
 | `ELYSIA_LOG_TERMINATING` | Terminating | 终止级别日志，本身不触发应用退出 |
 
-日志分类、流式消息与错误处理约定见[随机数与日志工具](utilities.md)。
+日志分类、流式消息与错误处理约定见[常用基础工具](utilities.md)。
 
 基本用法：
 
@@ -119,7 +121,7 @@ Elysia Engine 提供内置应用错误场景，用于处理无法在当前场景
 | `Rect` | 矩形范围、包含与相交等几何判断 | [rect.h](../../../engine/core/geometry/rect.h) |
 | `Color` / `colors` | RGBA 颜色值与预定义颜色 | [color.h](../../../engine/core/render/color.h)、[colors.h](../../../engine/core/render/colors.h) |
 
-随机数的范围、种子和错误条件见[随机数与日志工具](utilities.md)；Timer 的驱动与生命周期见[时间与计时器](time-and-timers.md)。
+向量、矩形、颜色以及随机数的用法与边界见[常用基础工具](utilities.md)；Timer 的驱动与生命周期见[时间与计时器](time-and-timers.md)。
 
 ## 引擎内置场景
 

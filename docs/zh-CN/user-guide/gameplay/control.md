@@ -33,7 +33,7 @@ create_player_control(elysia::gameplay::GameplayScene& scene,
 }
 ```
 
-创建结果失败时不取值；成功后保存句柄，并调用 `bind_target(handle, scene.control_context(), target)`。设备与动作映射的具体构造见[动作映射](../../architecture/subsystems/input/action-mapping.md)。句柄不是裸指针，也不延长场景或目标生命。
+创建结果失败时不取值；成功后保存句柄，并调用 `bind_target(handle, scene.control_context(), target)`。设备与动作映射的具体构造见[动作映射](../input.md)。句柄不是裸指针，也不延长场景或目标生命。
 
 ## 绑定结果必须确认
 
@@ -62,6 +62,29 @@ if (operation.failed()) {
 
 ## 命令消费与取消
 
+以下目标类与[输入指南](../input.md)中的 `game.move` 映射配套。先加入 GameplayScene，再使用 bind_target 绑定。它没有物理刚体，命令直接推进世界位置；绘制可按[游戏对象](../game-objects.md)添加。
+
+```cpp
+#include "engine/core/game_object.h"
+#include "engine/gameplay/control/control_command.h"
+
+class ControlledObject final : public elysia::core::GameObject,
+                               public elysia::gameplay::ControlCommandReceiver {
+public:
+    ControlledObject() : GameObject(elysia::core::DepthLayer::Character) {}
+    void on_control_command(const elysia::gameplay::ControlCommand& command,
+                            double fixed_delta) override {
+        movement_ = command.state.axis2d(elysia::input::InputActionId{"game.move"});
+        set_position(position() + movement_ * (100.0f * static_cast<float>(fixed_delta)));
+    }
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override {
+        movement_ = {};
+    }
+private:
+    elysia::core::Vector2 movement_{};
+};
+```
+
 目标实现 `on_control_command(const ControlCommand&, double fixed_delta)` 和 `on_control_cancelled(InputCancelReason)`。命令包含持续状态、一次性事件、累计增量以及 tick/sequence。控制器在实际固定步交付命令；事件和增量交付后清空，不能假设每个渲染帧都收到一条命令。
 
 取消回调应清除移动、蓄力等持续意图，避免暂停、设备变化或解绑后沿用旧输入。物理目标可在命令回调中记录意图，再在自己的物理阶段消费；不要同时在逐帧更新中重复推进同一运动。
@@ -69,6 +92,8 @@ if (operation.failed()) {
 自定义 AI 等来源继承 `Controller`，在 `produce_intent(tick, fixed_delta)` 中通过受保护的 `submit(ActionInputResult)` 提交结果。无需伪造设备事件；这也不意味着引擎已提供网络同步。
 
 ## 作用域与清理
+
+会话创建失败时停止创建控制器，例如重复开始会话应由游戏流程解决。`unbind_target(handle)` 只解除目标关联，`remove(handle)` 释放控制器；两者不要混用。get 返回的控制器指针只是临时借用，remove、上下文销毁或 end_session 后不可继续保存使用。
 
 Scene 作用域绑定创建时的上下文 token；上下文重置、场景销毁或会话结束会使相关控制器失效。Session 作用域可跨场景保留控制器，但离开旧场景仍会解绑目标，需要在新场景显式重新绑定。
 

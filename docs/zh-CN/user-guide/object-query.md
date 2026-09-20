@@ -36,7 +36,7 @@ std::vector<elysia::core::GameObject*> nearby_items(
 
 接口提供层级掩码和谓词重载；组合层级可使用 `DepthLayer::Item | DepthLayer::Character`。单对象查询无结果返回空指针，多对象查询返回空容器；活动运行时不可用也不能得到有效场景结果。负半径返回空结果。
 
-最近、最远与半径查询按 `object.center()` 的距离判断，半径边界包含在内；并非按物体轮廓与圆相交，也不处理物理遮挡。需要射线、碰撞形状重叠、扫掠或接触过滤时使用[物理查询](../architecture/subsystems/physics/10-physics-features-and-api-guide.md)。
+最近、最远与半径查询按 `object.center()` 的距离判断，半径边界包含在内；并非按物体轮廓与圆相交，也不处理物理遮挡。需要射线、碰撞形状重叠、扫掠或接触过滤时使用[物理查询](physics.md)。
 
 ## 借用结果与安全边界
 
