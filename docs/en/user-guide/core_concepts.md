@@ -27,10 +27,13 @@ This diagram **combines organizational and inheritance relationships**: `Scene` 
 
 ### 2.1 SceneObject: Common Base Class
 
-`SceneObject` provides basic states, such as active, visible, and destroyed, as well as an interface for submitting rendering commands:
+`SceneObject` provides basic states, such as active, visible, and destroyed, as well as reset and pause-related interfaces. Rendering-command submission is provided separately by `GameObject` and `UiElement`:
 
 ```cpp
+// GameObject: submit rendering commands for world objects.
 submit_render_commands(...);
+// UiElement: submit UI rendering commands.
+submit_ui_render_commands(...);
 ```
 
 Objects that need to be drawn assemble their own rendering commands, which the scene system then collects and executes together. **Submitting commands does not draw anything immediately.** An object is not required to submit any rendering commands at all.
@@ -168,7 +171,7 @@ Calling `destroy()` on any `SceneObject` only marks it for destruction. It does 
 potion->destroy();
 ```
 
-Objects owned directly by a scene are removed and freed at the cleanup point at the end of the next `Scene::on_update()` that actually runs after they are marked. Child nodes in UI containers are cleaned up by their respective containers.
+Objects owned directly by a scene are removed and freed when the cleanup point at the end of `Scene::on_update()` actually runs after they are marked. Child nodes in UI containers are cleaned up by their respective containers.
 
 If an object is marked for destruction in `on_exit()` and the old scene no longer updates, its regular cleanup also stops. Objects still owned by that scene will be released when the scene is entered again and cleanup runs, or when the entire scene is destroyed. Updates to other scenes do not perform cleanup on its behalf.
 
@@ -245,7 +248,7 @@ Scenes may be cached. Leaving a scene does not necessarily destroy its instance,
 Relevant lifecycle interfaces:
 
 ```cpp
-on_enter();
+on_enter(const ScenePayload& payload);
 on_exit();
 reset();
 ```
@@ -312,7 +315,9 @@ This only illustrates time-based calculations. If an object is driven by the phy
 `update` is usually suitable for general gameplay behavior, ordinary timers, ability cooldowns, animation states not driven by physics, and presentation logic advanced according to frame intervals. For example:
 
 ```cpp
-cooldown = std::max(0.0f, cooldown - delta);
+// Member variable: double cooldown = 0.0; // Remaining cooldown in seconds.
+// Update inside update(double delta):
+cooldown = std::max(0.0, cooldown - delta);
 ```
 
 In actual use, check how `delta` relates to game time, pausing, and time scaling.
@@ -340,7 +345,7 @@ A simplified guide:
 
 ### 6.3 Rendering Only Presents State
 
-`submit_render_commands(...)` assembles rendering commands. It should not also grant rewards, deduct health, consume input, advance timers, or modify state that affects gameplay rules. Otherwise, gameplay behavior would depend on whether rendering occurs and on the rendering frame rate.
+`GameObject::submit_render_commands(...)` and `UiElement::submit_ui_render_commands(...)` assemble rendering commands. They should not also grant rewards, deduct health, consume input, advance timers, or modify state that affects gameplay rules. Otherwise, gameplay behavior would depend on whether rendering occurs and on the rendering frame rate.
 
 Basic principle:
 
@@ -373,7 +378,7 @@ A pause menu may still need to handle button input and play UI animations. **Do 
 
 ### 8.1 Do Not Mix Coordinate Spaces Directly
 
-World coordinates describe the positions of characters, enemies, and items in the game world. Screen coordinates describe positions in window space. UI positions can also be affected by the layout of their parent containers.
+World coordinates describe the positions of characters, enemies, and items in the game world. Window coordinates must be distinguished from logical rendering coordinates: they do not necessarily correspond one-to-one after window scaling or logical presentation mapping. The engine's input system converts mouse window coordinates to logical rendering coordinates. `Camera::world_to_screen()` returns logical rendering coordinates in the camera viewport, which cannot be treated directly as actual window pixels. UI positions can also be affected by their parent containers' local coordinates and layout.
 
 For example, if the mouse position is in screen coordinates while a potion's rectangle is in world coordinates, you cannot compare them directly for pickup detection:
 
@@ -509,5 +514,3 @@ Before adding an object or implementing a feature, confirm:
 Scenes and UI containers manage the lifetimes of the objects they own. Developers must still maintain the validity of references kept across frames and callbacks.
 
 Regular and fixed updates serve different timing models. Rendering should present state, not advance gameplay rules. World, screen, and UI coordinates must be distinguished, and logical positions must not be confused with interpolated display positions.
-
-Once you understand these conventions, read the documentation for the relevant subsystems and begin implementing specific game features.
