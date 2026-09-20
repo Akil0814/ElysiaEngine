@@ -1,6 +1,6 @@
 # 启动加载场景
 
-`StartupLoading` 负责进入游戏内容前的加载展示、项目 Logo 和完成确认。应用启动装配及内置资源准备仍由应用完成；它不是替代 `IGameModule` 的入口。项目资源清单格式见[资源加载文档](../../architecture/subsystems/resources/README.md)。
+`StartupLoading` 负责进入游戏内容前的加载展示、项目 Logo 和完成确认。应用启动装配及内置资源准备仍由应用完成；它不是替代 `IGameModule` 的入口。项目资源清单格式见[资源加载文档](../resources.md)。
 
 ## 配置初始路由
 
