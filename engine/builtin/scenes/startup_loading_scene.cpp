@@ -66,7 +66,9 @@ void StartupLoadingScene::on_enter(const ScenePayload& payload)
     }
 
     _startup_payload = *startup_payload;
-    _completion.reset(_startup_payload.wait_for_confirmation);
+    _completion.reset(
+        _startup_payload.wait_for_confirmation,
+        _startup_payload.wait_for_logo_sequence);
     _paused = false;
 
     elysia::typography::FontResolver* font_resolver =
@@ -492,6 +494,6 @@ void StartupLoadingScene::clear_state() noexcept
 {
     _startup_payload = StartupLoadingScenePayload{};
     _logo_sequence.reset(false);
-    _completion.reset(false);
+    _completion.reset(false,true);
 }
 }

@@ -28,7 +28,16 @@ class StartupLoadingScene final : public elysia::scene::Scene
     friend class StartupLoadingSceneTestAccess;
 
 public:
-    StartupLoadingScene() = default;
+    StartupLoadingScene()
+    {
+        // The confirmation prompt deliberately accepts every button, including
+        // mouse buttons.  Shortcuts exclude pointer input by default, so this
+        // scene opts in explicitly.
+        set_shortcut_devices(
+            elysia::input::InputCapture::Keyboard
+            | elysia::input::InputCapture::Pointer
+            | elysia::input::InputCapture::Gamepad);
+    }
     ~StartupLoadingScene() override = default;
 
     void on_enter(const elysia::scene::ScenePayload& payload) override;

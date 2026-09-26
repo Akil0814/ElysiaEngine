@@ -5,6 +5,7 @@
 #include "engine/scene/routing/scene_request_observer.h"
 #include "engine/typography/font_resolver.h"
 #include "engine/ui/text/ui_text_content.h"
+#include "tests/support/input_snapshot_builder.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
@@ -23,7 +24,15 @@ public:
     {
         scene.clear_state();
         scene._startup_payload = payload;
-        scene._completion.reset(payload.wait_for_confirmation);
+        scene._completion.reset(
+            payload.wait_for_confirmation,
+            payload.wait_for_logo_sequence);
+    }
+
+    static void finish_loading(StartupLoadingScene& scene)
+    {
+        scene.handle_completion_action(
+            scene._completion.mark_loading_finished());
     }
 
     static void finish_loading_then_intro(StartupLoadingScene& scene)
@@ -89,6 +98,14 @@ bool throws_logic_error_containing(
     return false;
 }
 
+void test_payload_defaults_preserve_existing_completion_policy()
+{
+    const elysia::builtin::StartupLoadingScenePayload payload;
+    require(payload.wait_for_logo_sequence
+        && payload.wait_for_confirmation,
+        "startup payload defaults must wait for logos and confirmation");
+}
+
 void test_payload_contract_names_startup_scene()
 {
     elysia::builtin::StartupLoadingScene scene;
@@ -138,6 +155,31 @@ void test_success_and_failure_routes_are_forwarded_unchanged()
         && success_payload && success_payload->marker == 71,
         "startup success must forward the complete success route");
     success_scene.detach(&success_probe);
+
+    StartupLoadingScene fast_scene;
+    RequestProbe fast_probe;
+    fast_scene.attach(&fast_probe);
+    StartupLoadingSceneTestAccess::prime(
+        fast_scene,
+        StartupLoadingScenePayload{
+            .success_route = SceneRoute{
+                .target = 9,
+                .payload = RoutePayload{ .marker = 93 },
+                .reload_mode = SceneReloadMode::Recreate
+            },
+            .wait_for_logo_sequence = false,
+            .wait_for_confirmation = false
+        });
+    StartupLoadingSceneTestAccess::finish_loading(fast_scene);
+    const RoutePayload* fast_payload =
+        try_scene_payload<RoutePayload>(fast_probe.request.route.payload);
+    require(fast_probe.request_count == 1
+        && fast_probe.request.type == SceneRequestType::Switch
+        && fast_probe.request.route.target == 9
+        && fast_probe.request.route.reload_mode == SceneReloadMode::Recreate
+        && fast_payload && fast_payload->marker == 93,
+        "fast startup must forward the complete success route without waiting for logos");
+    fast_scene.detach(&fast_probe);
 
     StartupLoadingScene failure_scene;
     RequestProbe failure_probe;
@@ -210,6 +252,37 @@ void test_start_prompt_uses_scene_localization_key()
         "startup prompt must use the StartupLoading scene localization key");
 }
 
+void test_mouse_button_confirms_startup_prompt()
+{
+    using namespace elysia::scene;
+    using namespace elysia::builtin;
+
+    StartupLoadingScene scene;
+    RequestProbe probe;
+    scene.attach(&probe);
+    StartupLoadingSceneTestAccess::prime(
+        scene,
+        StartupLoadingScenePayload{
+            .success_route = SceneRoute{ .target = 7 },
+            .wait_for_confirmation = true
+        });
+    StartupLoadingSceneTestAccess::finish_loading_then_intro(scene);
+
+    // Establish neutral input first: the router correctly suppresses controls
+    // already held while a scene becomes active.
+    elysia::tests::InputSnapshotBuilder input;
+    scene.on_input(input.take());
+    input.press(elysia::input::RawInputControl::MouseLeft,true);
+    scene.on_input(input.take());
+
+    require(
+        probe.request_count == 1
+            && probe.request.type == SceneRequestType::Switch
+            && probe.request.route.target == 7,
+        "a mouse button must confirm the startup prompt through shortcut routing");
+    scene.detach(&probe);
+}
+
 void test_font_activation_failure_uses_configured_failure_route()
 {
     using namespace elysia::scene;
@@ -239,8 +312,10 @@ void test_font_activation_failure_uses_configured_failure_route()
 
 int main()
 {
+    test_payload_defaults_preserve_existing_completion_policy();
     test_payload_contract_names_startup_scene();
     test_start_prompt_uses_scene_localization_key();
+    test_mouse_button_confirms_startup_prompt();
     test_success_and_failure_routes_are_forwarded_unchanged();
     test_failure_without_route_uses_builtin_failure_scene();
     test_font_activation_failure_uses_configured_failure_route();

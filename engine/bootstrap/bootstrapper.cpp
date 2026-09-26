@@ -16,13 +16,16 @@ constexpr const char* USER_CONFIG_FILE_NAME = "user_config.json";
 std::expected<BootstrapOutput,BootstrapFailure>
 Bootstrapper::parse_runtime_settings(const std::filesystem::path& executable_path)
 {
+    // Reset state left over from a previous initialization attempt.
     _startup_preload_loader.reset();
     elysia::config::UserConfigService::instance()->shutdown();
 
+    // Later stages depend on these paths to locate assets and configuration
     elysia::io::PathManager* path_manager = elysia::io::PathManager::instance();
 
     if (auto path_result = path_manager->initialize(executable_path); !path_result)
     {
+        // Translate a low-level filesystem error into a bootstrap-level error
         BootstrapFailure::Code code = BootstrapFailure::Code::PathAccess;
         switch (path_result.error().code)
         {
@@ -39,9 +42,12 @@ Bootstrapper::parse_runtime_settings(const std::filesystem::path& executable_pat
             code = BootstrapFailure::Code::PathAccess;
             break;
         }
+        // Initialization cannot continue without valid filesystem paths
         return std::unexpected(BootstrapFailure{code,std::move(path_result.error().diagnostic)});
     }
 
+    // Ensure that required runtime directories exist.
+    // These directories are needed for runtime data and user configuration.
     if (auto directory_result = path_manager->ensure_runtime_dirs(); !directory_result)
         return std::unexpected(BootstrapFailure{
             BootstrapFailure::Code::RuntimeDirectory,

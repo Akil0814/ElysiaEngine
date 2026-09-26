@@ -16,7 +16,8 @@ elysia::scene::SceneRoute make_startup_route(
 {
     elysia::builtin::StartupLoadingScenePayload payload;
     payload.success_route = std::move(main_menu);
-    payload.wait_for_confirmation = true;
+    payload.wait_for_logo_sequence = false;
+    payload.wait_for_confirmation = false;
     return {
         .target = elysia::builtin::SceneKeys::StartupLoading,
         .payload = std::move(payload),
@@ -34,9 +35,12 @@ elysia::scene::SceneRoute make_startup_route(
 | `success_route` | 加载完成后进入的目标及其 Payload |
 | `failure_route` | 可选的自定义失败路由；未提供时使用内置失败展示 |
 | `project_logo` | 可选 `StartupLogoSlot`，包含纹理 key 及淡入、停留、淡出秒数 |
+| `wait_for_logo_sequence` | 默认 `true`；设为 `false` 时资源加载完成后不再等待 Logo 序列结束 |
 | `wait_for_confirmation` | 默认 `true`；完成加载后仍需用户确认，不能把“加载成功”当成已经切换 |
 
-项目 Logo 使用预加载纹理的资源 key，而非直接传入纹理文件路径；场景通过 Bootstrapper 查找预加载纹理，不能只把 Logo 放到后续内容加载清单。key 为空或纹理不可用时会记录警告并跳过这个可选 Logo。Logo 展示流程和内容加载都完成后才进入确认或成功切换阶段。无需等待确认时设为 `false`，仍须等待这两个完成条件。
+项目 Logo 使用预加载纹理的资源 key，而非直接传入纹理文件路径；场景通过 Bootstrapper 查找预加载纹理，不能只把 Logo 放到后续内容加载清单。key 为空或纹理不可用时会记录警告并跳过这个可选 Logo。
+
+默认情况下，Logo 展示流程和内容加载都完成后才进入确认或成功切换阶段。将 `wait_for_logo_sequence` 设为 `false` 后，资源加载成功即可进入下一阶段：若 `wait_for_confirmation` 为 `true`，场景立即显示确认提示，Logo 动画可在后台继续播放；若两项都为 `false`，场景立即切换到 `success_route`。提前跳转不会绕过资源失败处理或项目字体激活。
 
 ## 失败与重新进入
 

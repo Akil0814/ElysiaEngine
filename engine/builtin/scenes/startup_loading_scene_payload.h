@@ -20,6 +20,7 @@ struct StartupLoadingScenePayload
     elysia::scene::SceneRoute success_route{};
     std::optional<elysia::scene::SceneRoute> failure_route{};
     std::optional<StartupLogoSlot> project_logo{};
+    bool wait_for_logo_sequence = true;
     bool wait_for_confirmation = true;
 };
 }

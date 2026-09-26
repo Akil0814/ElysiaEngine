@@ -54,6 +54,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
             },
             .failure_route = std::nullopt,
             .project_logo = std::nullopt,
+            .wait_for_logo_sequence = false,
             .wait_for_confirmation = true
         },
         .reload_mode = SceneReloadMode::Reuse
