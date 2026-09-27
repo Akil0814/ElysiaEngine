@@ -47,9 +47,9 @@ std::unique_ptr<elysia::ui::UiButton> make_control_button(const char* label)
 }
 }
 
-void EngineFeatureLabScene::on_update(double delta)
+void EngineFeatureLabScene::on_after_update(double delta)
 {
-    elysia::scene::Scene::on_update(delta);
+    (void)delta;
     refresh_character_debug_draw();
 }
 
@@ -170,7 +170,7 @@ void EngineFeatureLabScene::on_exit()
     restore_character_debug_draw();
 }
 
-void EngineFeatureLabScene::reset()
+void EngineFeatureLabScene::on_reset()
 {
     _paused = false;
     _return_route = {};

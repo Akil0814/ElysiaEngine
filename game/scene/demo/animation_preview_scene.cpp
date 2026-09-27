@@ -84,7 +84,7 @@ void AnimationPreviewScene::on_exit()
     }
 }
 
-void AnimationPreviewScene::reset()
+void AnimationPreviewScene::on_reset()
 {
     _attack_segment_index = 0;
     update_attack_segment_label();

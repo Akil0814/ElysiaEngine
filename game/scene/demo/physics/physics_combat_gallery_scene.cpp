@@ -36,7 +36,7 @@ void PhysicsCombatGalleryScene::on_exit()
 {
     if(_window){_window->set_active(false);_window->set_visible(false);}
 }
-void PhysicsCombatGalleryScene::reset()
+void PhysicsCombatGalleryScene::on_reset()
 {
     if(_window)_window->destroy();
     _window=nullptr;_return_route={};_category=0;_pressure_tier=0;
@@ -98,10 +98,10 @@ void PhysicsCombatGalleryScene::build_ui()
     auto* footer_scope=footer.get();_window->add_child(std::move(footer),physics_combat_layout_options({24,h-52,w-48,42}));_window->register_focus_scope(*footer_scope);
     _window->focus_first_available_scope();
 }
-void PhysicsCombatGalleryScene::on_update(double delta)
+void PhysicsCombatGalleryScene::on_before_update(double delta)
 {
+    (void)delta;
     if(_rebuild_requested){_rebuild_requested=false;build_ui();}
-    elysia::scene::Scene::on_update(delta);
 }
 void PhysicsCombatGalleryScene::return_to_caller()
 {

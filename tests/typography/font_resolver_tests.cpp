@@ -316,7 +316,7 @@ void test_atomic_project_activation(FontResolverFixture& fixture)
         720,
         &resolver);
     elysia::scene::SceneManager scene_manager;
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
     scene_manager.register_engine_scene<
         elysia::builtin::ApplicationFailureScene>(
             elysia::builtin::SceneKeys::ApplicationFailure);

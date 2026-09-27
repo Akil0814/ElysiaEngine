@@ -80,7 +80,7 @@ void ApplicationFailureScene::on_exit()
     }
 }
 
-void ApplicationFailureScene::reset()
+void ApplicationFailureScene::on_reset()
 {
     _paused = false;
     destroy_ui();
@@ -91,9 +91,9 @@ void ApplicationFailureScene::reset()
     _diagnostic = {};
 }
 
-void ApplicationFailureScene::on_update(double delta)
+void ApplicationFailureScene::on_after_update(double delta)
 {
-    Scene::on_update(delta);
+    (void)delta;
     sync_dialog_state();
 }
 

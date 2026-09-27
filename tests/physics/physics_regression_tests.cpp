@@ -1,4 +1,5 @@
 #include "physics_test_support.h"
+#include "engine/scene/runtime/fixed_step_runtime.h"
 #include <iostream>
 #include <limits>
 struct Tiles : ITileCollisionWorld
@@ -175,6 +176,7 @@ int main()
         o.definition.mass_policy = MassPolicy::ExplicitMass;
         o.definition.mass = 1;
         PhysicsWorld w;
+        elysia::scene::FixedStepRuntime clock({});
         auto h = o.add(w);
         int ticks = 0;
         o.tick = [&] {
@@ -182,7 +184,11 @@ int main()
             w.apply_force(h, {60, 0});
         };
         for (int i = 0; i < fps; ++i)
-            w.advance(1.0 / fps);
+        {
+            clock.advance(1.0 / fps,
+                [&](std::uint64_t, double delta) { w.step(delta); });
+            w.finalize_frame(clock.stats().interpolation_alpha);
+        }
         require(ticks == 60 && near(w.body_state(h)->velocity.x, 60, 0.01f),
                 "Force and callback count independent of render cadence");
     }

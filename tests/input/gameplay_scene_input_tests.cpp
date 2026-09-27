@@ -43,14 +43,7 @@ class TestScene : public GameplayScene
     void on_exit() override
     {
     }
-    void reset() override
-    {
-        reset_input_routing();
-    }
-    void step(double dt = 1.0 / 60)
-    {
-        on_update(dt);
-    }
+    void on_reset() override {}
 };
 void key(InputSystem &input, Uint32 type, SDL_Keycode code)
 {
@@ -89,13 +82,13 @@ int main()
     key(input, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
     key(input, SDL_EVENT_KEY_UP, SDLK_SPACE);
     pad(input, SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
-    scene.on_input(input.snapshot());
-    scene.step(0);
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(0);
     require(a->presses == 0, "No tick must retain events");
-    scene.step();
+    scene_fixture.manager.on_update(1.0 / 60);
     require(a->presses == 1 && a->move.x > 0 && b->move.x < 0,
             "Ordered tap and independent movement must reach targets");
-    scene.step(3.0 / 60);
+    scene_fixture.manager.on_update(3.0 / 60);
     require(a->presses == 1 && a->ticks == 4, "Catchup ticks must not repeat edges");
     input.begin_frame();
     for (int i = 0; i < 3; ++i)
@@ -103,50 +96,52 @@ int main()
         key(input, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
         key(input, SDL_EVENT_KEY_UP, SDLK_SPACE);
     }
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     require(a->presses == 4, "Multiple taps in one frame must survive");
     scene.set_all_gameplay_input_blocked(true);
     input.begin_frame();
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     require(a->move.is_zero(), "Blocking must cancel held movement");
     scene.set_all_gameplay_input_blocked(false);
     input.begin_frame();
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     require(a->move.is_zero(), "Held controls must require release");
     input.begin_frame();
     key(input, SDL_EVENT_KEY_UP, SDLK_D);
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     input.begin_frame();
     key(input, SDL_EVENT_KEY_DOWN, SDLK_D);
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     require(a->move.x > 0, "Fresh press must work");
     scene.pause();
     input.begin_frame();
     key(input, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
-    scene.on_input(input.snapshot());
+    scene_fixture.manager.on_input(input.snapshot());
     scene.resume();
-    scene.step();
+    scene_fixture.manager.on_update(1.0 / 60);
     require(a->presses == 4, "Paused commands must not accumulate");
     auto *c = scene.create_and_add_object<Actor>();
     require(bool(service->bind_target(first,scene.control_context(),*c).succeeded()), "Rebind target");
     input.begin_frame();
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     require(c->move.is_zero() && c->presses == 0, "New target must not inherit held input");
     c->destroy();
-    scene.step();
+    scene_fixture.manager.on_update(1.0 / 60);
     input.begin_frame();
-    scene.on_input(input.snapshot());
-    scene.step();
+    scene_fixture.manager.on_input(input.snapshot());
+    scene_fixture.manager.on_update(1.0 / 60);
     // No-body fixed step callbacks are part of normal scenes, not just physics participants.
     require(b->ticks > 4, "Non-physical actors must receive ticks");
-    scene.reset_input_routing();
-    scene.step();
+    scene_fixture.manager.on_scene_request({
+        .type = elysia::scene::SceneRequestType::Switch,
+        .route = {.target = 998, .reload_mode = elysia::scene::SceneReloadMode::Reset}});
+    scene_fixture.manager.on_update(0);
     // Removing only a pad must leave the same player's keyboard source usable.
     scene_fixture.manager.shutdown();
     elysia::tests::ControlSceneFixture<TestScene> merged_fixture;
@@ -160,16 +155,16 @@ int main()
     mixed.begin_frame();
     key(mixed, SDL_EVENT_KEY_DOWN, SDLK_D);
     pad(mixed, SDL_EVENT_GAMEPAD_BUTTON_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
-    merged.on_input(mixed.snapshot());
-    merged.step();
+    merged_fixture.manager.on_input(mixed.snapshot());
+    merged_fixture.manager.on_update(1.0 / 60);
     require(target->move.x == 0, "Opposing device contributions cancel within one player");
     mixed.begin_frame();
     SDL_Event removed{};
     removed.type = SDL_EVENT_GAMEPAD_REMOVED;
     removed.gdevice.which = 7;
     mixed.process_event(removed);
-    merged.on_input(mixed.snapshot());
-    merged.step();
+    merged_fixture.manager.on_input(mixed.snapshot());
+    merged_fixture.manager.on_update(1.0 / 60);
     require(target->move.x > 0, "Pad removal preserves keyboard movement");
     // Overflow cancels rather than executing a partial list of actions.
     mixed.begin_frame();
@@ -178,13 +173,13 @@ int main()
         key(mixed, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
         key(mixed, SDL_EVENT_KEY_UP, SDLK_SPACE);
     }
-    merged.on_input(mixed.snapshot());
-    merged.step();
+    merged_fixture.manager.on_input(mixed.snapshot());
+    merged_fixture.manager.on_update(1.0 / 60);
     require(target->presses == 0 && target->move.is_zero(), "Overflow must cancel all queued actions");
     // Scene reset must detach targets even when the object remains cached.
     auto ticks = target->ticks;
     service->unbind_target(merged_controller).succeeded();
-    merged.step();
+    merged_fixture.manager.on_update(1.0 / 60);
     require(target->ticks == ticks, "Explicit unbinding detaches the target");
     // Step hooks run before physics participants, once per simulated step.
     elysia::physics::PhysicsWorld world;
@@ -196,20 +191,25 @@ int main()
     };
     auto handle = probe.add(world);
     require(handle.is_valid(), "Register physics participant");
-    world.advance(3.0 / 60, [&](double) { ++hook_count; });
+    elysia::scene::FixedStepRuntime physics_clock({});
+    physics_clock.advance(3.0 / 60, [&](std::uint64_t, double delta) {
+        ++hook_count;
+        world.step(delta);
+    });
+    world.finalize_frame(physics_clock.stats().interpolation_alpha);
     require(hook_count == 3 && participant_count == 3, "One callback per physics step");
     world.unregister_object(handle);
     // Dropped catchup steps do not replay edges.
     require(bool(service->bind_target(merged_controller,merged.control_context(),*target).succeeded()), "Rebind cached target");
     mixed.begin_frame();
     key(mixed, SDL_EVENT_KEY_UP, SDLK_D);
-    merged.on_input(mixed.snapshot());
+    merged_fixture.manager.on_input(mixed.snapshot());
     mixed.begin_frame();
     key(mixed, SDL_EVENT_KEY_DOWN, SDLK_SPACE);
     key(mixed, SDL_EVENT_KEY_UP, SDLK_SPACE);
-    merged.on_input(mixed.snapshot());
+    merged_fixture.manager.on_input(mixed.snapshot());
     ticks = target->ticks;
-    merged.step(10);
+    merged_fixture.manager.on_update(10);
     require(target->ticks - ticks == 8 && target->presses == 1,
             "Catchup limit must not replay dropped steps");
 
@@ -237,31 +237,31 @@ int main()
     axis.gaxis.which = 7;
     axis.gaxis.value = -32767;
     pads.process_event(axis);
-    twins.on_input(pads.snapshot());
-    twins.step();
+    twins_fixture.manager.on_input(pads.snapshot());
+    twins_fixture.manager.on_update(1.0 / 60);
     require(left->move.x > 0 && right->move.x < 0,
             "Two gamepads must drive different player command streams concurrently");
     left->set_active(false);
     pads.begin_frame();
-    twins.on_input(pads.snapshot());
-    twins.step();
+    twins_fixture.manager.on_input(pads.snapshot());
+    twins_fixture.manager.on_update(1.0 / 60);
     left->set_active(true);
     pads.begin_frame();
-    twins.on_input(pads.snapshot());
-    twins.step();
+    twins_fixture.manager.on_input(pads.snapshot());
+    twins_fixture.manager.on_update(1.0 / 60);
     require(left->move.is_zero() && right->move.x < 0,
             "Inactive target restoration must require neutral without blocking another player");
     axis.gaxis.which = 8;
     axis.gaxis.value = 0;
     pads.begin_frame();
     pads.process_event(axis);
-    twins.on_input(pads.snapshot());
-    twins.step();
+    twins_fixture.manager.on_input(pads.snapshot());
+    twins_fixture.manager.on_update(1.0 / 60);
     axis.gaxis.value = 32767;
     pads.begin_frame();
     pads.process_event(axis);
-    twins.on_input(pads.snapshot());
-    twins.step();
+    twins_fixture.manager.on_input(pads.snapshot());
+    twins_fixture.manager.on_update(1.0 / 60);
     require(left->move.x > 0, "Reactivated target resumes only after its own control returns to neutral");
     twins_fixture.manager.shutdown();
     elysia::tests::ControlSceneFixture<TestScene> rebuilt_fixture;
@@ -271,8 +271,8 @@ int main()
     auto fresh_controller=elysia::tests::local_controller(rebuilt,PrimaryLocalPlayer);
     require(service->bind_target(fresh_controller,rebuilt.control_context(),*fresh).succeeded(), "Test controller binding completes successfully");
     pads.begin_frame();
-    rebuilt.on_input(pads.snapshot());
-    rebuilt.step();
+    rebuilt_fixture.manager.on_input(pads.snapshot());
+    rebuilt_fixture.manager.on_update(1.0 / 60);
     require(fresh->move.is_zero(),
             "A newly constructed scene must not inherit a held control from the previous scene");
     std::cout << "player routing tests passed\n";

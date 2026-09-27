@@ -37,7 +37,7 @@ int main()
         world.set_velocity(h, {scale, 0});
         world.set_angular_velocity(h, 1);
         step(world);
-        world.advance(1.0 / 120);
+        world.finalize_frame(0.5);
         auto visual = world.render_pose(h);
         state = world.body_state(h);
         require(visual &&

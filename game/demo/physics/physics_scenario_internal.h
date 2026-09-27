@@ -39,7 +39,7 @@ struct PhysicsScenario::Impl : ICollisionListener
     std::vector<double> timings;
     std::function<void(unsigned)> before, after;
     elysia::core::Rect view{0, 0, 1000, 600};
-    double accumulator = 0;
+    elysia::scene::FixedStepRuntime fixed_step{{}};
     bool paused = false;
     unsigned finish_at = 120;
     std::size_t expected_objects = 0;

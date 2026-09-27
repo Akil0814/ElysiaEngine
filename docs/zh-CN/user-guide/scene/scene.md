@@ -67,7 +67,7 @@ inline void register_room(elysia::scene::SceneManager& scenes) {
 | `on_pause_changed(bool)` | 普通 Scene 响应暂停变化；GameplayScene 有自己的 final 实现 |
 | `on_scene_object_registered` / `on_scene_object_removing` | 同步业务关联；重写注册回调时保留基类行为；移除回调内不要销毁仍在执行的监听者 |
 | `physics_world()` / `camera()` | 访问本场景物理世界及当前渲染相机；具体用法见对应专题 |
-| `resolve_camera_focus()` / `resolve_camera_focus_rect()` | 提供 Main 相机跟随目标，不保存相机内部状态 |
+| `resolve_camera_focus()` | 提供配置的渲染相机跟随目标，不保存相机内部状态 |
 
 输入细节见[输入](../systems/input.md)，固定步与暂停见[时间](../systems/time-and-timers.md)，物理与坐标分别见[物理](../systems/physics.md)、[相机](../systems/camera.md)。场景的渲染入口是私有非虚函数；通过对象提交命令，不能重写 `on_render()`。
 

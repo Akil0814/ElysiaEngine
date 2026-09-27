@@ -6,6 +6,7 @@
 #include "engine/typography/font_resolver.h"
 #include "engine/ui/text/ui_text_content.h"
 #include "tests/support/input_snapshot_builder.h"
+#include "tests/support/scene_test_access.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
@@ -112,7 +113,8 @@ void test_payload_contract_names_startup_scene()
     require(throws_logic_error_containing(
         [&scene]
         {
-            scene.on_enter(elysia::scene::ScenePayload{ 42 });
+            elysia::scene::SceneTestAccess::enter(
+                scene, elysia::scene::ScenePayload{ 42 });
         },
         "StartupLoadingScene"),
         "wrong startup payload type must fail with the built-in scene name");
@@ -122,7 +124,9 @@ void test_payload_contract_names_startup_scene()
             .success_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
-        [&scene,&invalid_route] { scene.on_enter(invalid_route); },
+        [&scene,&invalid_route] {
+            elysia::scene::SceneTestAccess::enter(scene, invalid_route);
+        },
         "StartupLoadingScene"),
         "invalid startup success route must fail with the built-in scene name");
 }
@@ -271,9 +275,9 @@ void test_mouse_button_confirms_startup_prompt()
     // Establish neutral input first: the router correctly suppresses controls
     // already held while a scene becomes active.
     elysia::tests::InputSnapshotBuilder input;
-    scene.on_input(input.take());
+    SceneTestAccess::route_input(scene, input.take());
     input.press(elysia::input::RawInputControl::MouseLeft,true);
-    scene.on_input(input.take());
+    SceneTestAccess::route_input(scene, input.take());
 
     require(
         probe.request_count == 1

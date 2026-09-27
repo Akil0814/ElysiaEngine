@@ -6,6 +6,7 @@
 #include "engine/effects/animation/animation_effect_factory.h"
 #include "engine/effects/runtime/effect_manager.h"
 #include "engine/effects/effect_service.h"
+#include "engine/io/loaders/asset_config_types.h"
 #include "engine/resources/atlas/atlas.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
@@ -28,7 +29,7 @@ class TestScene final : public elysia::scene::Scene
 public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 };
 
 class SecondTestScene final : public elysia::scene::Scene
@@ -36,7 +37,7 @@ class SecondTestScene final : public elysia::scene::Scene
 public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 };
 
 void register_animation_effect(SDL_Texture* texture, bool loop, const char* suffix)
@@ -221,6 +222,9 @@ void test_animation_effect_creation_playback_and_scene_lifecycle(AnimationEffect
         "animation effect spawning must fail without an active scene");
 
     scene::SceneManager scene_manager;
+    io::ContentRegistry registry;
+    scene::SceneRuntimeContext context(fixture.renderer, registry, 1280, 720);
+    scene_manager.initialize(context);
     constexpr scene::SceneKey first_scene_key = 101;
     constexpr scene::SceneKey second_scene_key = 102;
     scene_manager.register_game_scene<TestScene>(first_scene_key);

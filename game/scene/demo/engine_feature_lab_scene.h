@@ -34,13 +34,15 @@ class EngineFeatureLabScene final : public elysia::gameplay::GameplayScene
 
 public:
     EngineFeatureLabScene() = default;
-    void on_update(double delta) override;
+    [[nodiscard]] std::size_t color_overlay_index() const noexcept;
+
+protected:
+    void on_after_update(double delta) override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
-    void reset() override;
-    [[nodiscard]] std::size_t color_overlay_index() const noexcept;
+    void on_reset() override;
 
 private:
     elysia::gameplay::ControllerHandle _controller;

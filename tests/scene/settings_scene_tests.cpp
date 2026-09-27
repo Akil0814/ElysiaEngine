@@ -8,6 +8,7 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "tests/support/test_assertions.h"
+#include "tests/support/scene_test_access.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -41,7 +42,7 @@ public:
     }
 
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 
     void open_settings(
         const elysia::scene::SceneRoute& return_route,
@@ -159,7 +160,7 @@ void test_settings_payload_contract_names_the_scene()
 {
     elysia::builtin::SettingsScene scene;
     require(throws_logic_error_containing(
-        [&scene] { scene.on_enter({}); },
+        [&scene] { elysia::scene::SceneTestAccess::enter(scene); },
         "SettingsScene"),
         "missing Settings payload must fail with the built-in scene name");
 
@@ -168,7 +169,9 @@ void test_settings_payload_contract_names_the_scene()
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
-        [&scene,&invalid_payload] { scene.on_enter(invalid_payload); },
+        [&scene,&invalid_payload] {
+            elysia::scene::SceneTestAccess::enter(scene, invalid_payload);
+        },
         "SettingsScene"),
         "an invalid return route must fail with the built-in scene name");
 }
@@ -195,7 +198,7 @@ void test_cancel_returns_to_each_callers_full_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr,registry,1280,720);
     elysia::scene::SceneManager scene_manager;
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
     scene_manager.register_engine_scene<
         elysia::builtin::SettingsScene>(
             elysia::builtin::SceneKeys::Settings);
@@ -268,7 +271,7 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr,registry,1280,720);
     elysia::scene::SceneManager scene_manager;
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
     scene_manager.register_engine_scene<elysia::builtin::SettingsScene>(
         elysia::builtin::SceneKeys::Settings);
     scene_manager.register_game_scene<FirstReturnScene>(1);

@@ -8,7 +8,6 @@
 #include "physics_world_stats.h"
 #include "tile/tile_collision_world.h"
 #include <memory>
-#include <functional>
 #include <span>
 namespace elysia::core
 {
@@ -78,10 +77,10 @@ class PhysicsWorld final : public ICollisionQueryService
     void collect_contacts(CollisionTarget, std::vector<CollisionContact> &) const;
     PhysicsContactState contact_state(PhysicsObjectHandle) const noexcept;
     PhysicsContactState contact_state(CollisionTarget) const noexcept;
-    std::uint32_t advance(double, const std::function<void(double)> &before_step = {});
+    void step(double fixed_delta_seconds);
+    void finalize_frame(double interpolation_alpha);
     void reset() noexcept;
     const PhysicsWorldConfig &config() const noexcept;
-    double accumulator_seconds() const noexcept;
     const PhysicsStepStats &last_step_stats() const noexcept;
     void set_debug_capture(PhysicsDebugCapture) noexcept;
     PhysicsDebugCapture debug_capture() const noexcept;

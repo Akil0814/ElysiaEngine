@@ -240,14 +240,19 @@ void LocalMultiplayerScene::on_shortcuts(const RawInputFrame &, const std::vecto
             return;
         }
 }
-void LocalMultiplayerScene::on_update(double dt)
+void LocalMultiplayerScene::on_before_update(double dt)
 {
+    (void)dt;
     if (_menu && !_window->is_overlay_open(*_menu))
     {
         set_all_gameplay_input_blocked(false);
         set_ui_interaction_mode(UiInteractionMode::Pointer);
     }
-    GameplayScene::on_update(dt);
+}
+
+void LocalMultiplayerScene::on_after_update(double dt)
+{
+    (void)dt;
     std::ostringstream out;
     for (auto player : {PrimaryLocalPlayer, _second_player})
         if (player.value)

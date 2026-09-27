@@ -45,6 +45,7 @@ public:
     void request_clear_effects(CameraSlot slot);
 
     void update(double delta_seconds);
+    void update(CameraSlot slot, double delta_seconds);
     void reset(CameraSlot slot) noexcept;
     void reset_all() noexcept;
 

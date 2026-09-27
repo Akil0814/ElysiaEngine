@@ -32,18 +32,21 @@ public:
         std::string controls);
     ~PhysicsCombatDemoSceneBase() override;
 
+protected:
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
-    void reset() override;
-    void on_update(double delta) override;
+    void on_reset() override;
+    void on_before_update(double delta) override;
+    void on_after_update(double delta) override;
+    [[nodiscard]] double fixed_step_frame_delta(double delta) const override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
+    void on_control_target_removing(elysia::core::SceneObject& object) override;
 
-  protected:
     elysia::gameplay::ControllerHandle& player_controller() { return _controller; }
     virtual void configure_player_controller(example::demo::physics::BlockCombatActor&);
     virtual void build_demo() = 0;
-    [[nodiscard]] std::optional<elysia::core::Rect> resolve_camera_focus_rect() const override;
+    [[nodiscard]] std::optional<elysia::camera::CameraFocus> resolve_camera_focus() const override;
 
     template <typename T, typename... Args>
     T* add_actor(Args&&... args)
@@ -74,6 +77,8 @@ private:
     int _pressure_tier = 0;
     bool _test_paused = false;
     bool _test_single_step = false;
+    bool _verification_frame = false;
+    double _frame_simulation_delta = 0.0;
     std::vector<elysia::ui::UiLabel*> _test_labels;
     std::size_t _displayed_checks = 0;
     elysia::ui::UiListContainer* _check_list = nullptr;

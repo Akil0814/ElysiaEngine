@@ -1,6 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/camera/camera_manager.h"
+#include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
 #include "tests/support/test_assertions.h"
@@ -158,19 +159,16 @@ void test_reset_preserves_viewport_and_other_slots()
 class CameraScene final : public elysia::scene::Scene
 {
 public:
-    CameraScene()
+    explicit CameraScene(CameraSlot slot = CameraSlot::Main)
+        : Scene(elysia::scene::SceneRuntimeFeatures{
+              .camera = {.render_slot = slot}})
     {
         last_instance = this;
     }
 
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
-
-    void select_camera(CameraSlot slot) noexcept
-    {
-        set_render_camera_slot(slot);
-    }
+    void on_reset() override {}
 
     void request_self_reset()
     {
@@ -194,18 +192,17 @@ void test_scene_defaults_and_main_lifecycle()
     cameras->set_center(CameraSlot::Cinematic, Vector2(70.0f, 80.0f));
 
     {
-        CameraScene scene;
-        require(scene.render_camera_slot() == CameraSlot::Main,
-            "Scene must default to Main camera");
-        require(scene.camera().center() == Vector2(10.0f, 20.0f),
-            "Scene camera access must read Main by default");
-
-        scene.select_camera(CameraSlot::Cinematic);
+        CameraScene scene(CameraSlot::Cinematic);
+        require(scene.render_camera_slot() == CameraSlot::Cinematic,
+            "Scene runtime configuration must select its render camera");
         require(scene.camera().center() == Vector2(70.0f, 80.0f),
             "Scene must read an explicitly selected render camera");
     }
 
     elysia::scene::SceneManager scene_manager;
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 640, 360);
+    scene_manager.initialize(context);
     scene_manager.register_game_scene<CameraScene>(1);
     scene_manager.start(elysia::scene::SceneRoute{
         .target = 1,

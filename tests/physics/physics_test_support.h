@@ -34,7 +34,8 @@ inline bool near(float a, float b, float e = 0.02f)
 inline void step(PhysicsWorld &w, int n = 1)
 {
     for (int i = 0; i < n; ++i)
-        w.advance(1.0 / 60);
+        w.step(1.0 / 60);
+        w.finalize_frame(0.0);
 }
 struct Events : ICollisionListener
 {

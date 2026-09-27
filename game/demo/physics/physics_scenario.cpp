@@ -160,7 +160,7 @@ void PhysicsScenario::Impl::step()
     const unsigned n = ++result.steps;
     if (before) before(n);
     combat.update(1.0/60);
-    world.advance(1.0/60);
+    world.step(1.0/60);
     combat.flush_deaths();
     result.stats = world.last_step_stats();
     if (descriptor.category == ScenarioCategory::Stress && n > 120)
@@ -207,16 +207,18 @@ void PhysicsScenario::advance(double dt)
 {
     auto& p = *_impl;
     if (p.paused || !std::isfinite(dt) || dt <= 0 || p.result.status != ScenarioStatus::Running) return;
-    // Bound work per display frame without dropping script ticks.
-    p.accumulator += std::min(dt,0.25);
-    for (int i=0; i<8 && p.accumulator + 1e-10 >= 1.0/60; ++i)
-    {
-        p.accumulator = std::max(0.0,p.accumulator - 1.0/60);
-        p.step();
-        if (p.result.status != ScenarioStatus::Running) { p.accumulator=0; break; }
-    }
+    p.fixed_step.advance(std::min(dt, 0.25),
+        [&p](std::uint64_t, double) { p.step(); });
+    p.world.finalize_frame(p.fixed_step.stats().interpolation_alpha);
+    p.result.fixed_step_stats = p.fixed_step.stats();
 }
-void PhysicsScenario::single_step() { if (_impl->paused) { start(); _impl->step(); } }
+void PhysicsScenario::single_step()
+{
+    if (!_impl->paused) return;
+    start();
+    _impl->step();
+    _impl->world.finalize_frame(0.0);
+}
 void PhysicsScenario::set_paused(bool p) { _impl->paused=p; }
 bool PhysicsScenario::paused() const { return _impl->paused; }
 void PhysicsScenario::set_debug_geometry(bool enabled)

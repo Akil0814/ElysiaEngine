@@ -8,7 +8,6 @@
 #include "engine/io/path/path_manager.h"
 #include "engine/loading/content_runtime_cleanup.h"
 #include "engine/resources/runtime/resource_manager.h"
-#include "engine/builtin/scenes/startup_loading_scene.h"
 #include "tests/support/test_assertions.h"
 
 #include <SDL3/SDL.h>
@@ -229,12 +228,11 @@ void test_bootstrap_texture_cache_and_preload_lifetime()
                     "project.logo") == nullptr,
             "bootstrap lifecycle test must accept an empty project preload");
 
-        builtin::StartupLoadingScene startup_scene;
-        startup_scene.on_exit();
+        bootstrapper->release_preload_textures();
         require(
             bootstrapper->find_preload_texture("project.logo")
                 == nullptr,
-            "leaving StartupLoadingScene must release preload textures");
+            "startup preload ownership must release preload textures");
         config::UserConfigService::instance()->shutdown();
         std::filesystem::remove_all(lifecycle_root,remove_error);
     }

@@ -151,7 +151,7 @@ int main()
                 10, 100, 1000}),
         "Gameplay bindings must commit valid core collider identities");
 
-    (void)world.advance(1.0 / 60.0);
+    world.step(1.0 / 60.0);
     require(listener.hit_events == 1 && listener.last_hurt_owner == 20,
         "Hostile HitBox/HurtBox Begin must route one hit");
     require(listener.push_events == 1,
@@ -163,7 +163,7 @@ int main()
             && listener.last_sensor.collider == sensor_object.id
             && listener.last_sensor_body.collider == sensor_body_object.id,
         "Sensor/Body overlap Begin must normalize binding order and ignore Team relation");
-    (void)world.advance(1.0 / 60.0);
+    world.step(1.0 / 60.0);
     require(listener.hit_events == 1,
         "Stay must not deal repeated damage for one attack instance");
     require(listener.push_events == 2 && listener.body_events == 4,
@@ -172,7 +172,7 @@ int main()
             && listener.sensor_phases.back() == CollisionEventPhase::Stay,
         "Sensor overlaps must route Stay");
     world.teleport_object(*world.object_handle(sensor_body_object), {120, 0});
-    (void)world.advance(1.0 / 60.0);
+    world.step(1.0 / 60.0);
     require(listener.sensor_events == 3
             && listener.sensor_phases.back() == CollisionEventPhase::End,
         "Sensor overlaps must route End after natural separation");
@@ -209,7 +209,7 @@ int main()
         ClearingListener clearing(snapshot_runtime);
         require(snapshot_runtime.add_listener(clearing),
             "Gameplay callback snapshot listener must bind");
-        (void)snapshot_world.advance(1.0 / 60.0);
+        snapshot_world.step(1.0 / 60.0);
         require(clearing.body_events == 1 && clearing.sensor_events == 1,
             "Clearing bindings during Body routing must not invalidate the current Sensor event");
     }

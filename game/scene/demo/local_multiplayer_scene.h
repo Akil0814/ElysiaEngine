@@ -7,16 +7,12 @@ namespace example::scene
 {
 class LocalMultiplayerScene final : public elysia::gameplay::GameplayScene
 {
-  public:
+protected:
     void on_enter(const elysia::scene::ScenePayload &) override;
     void on_exit() override;
-    void reset() override
-    {
-        reset_input_routing();
-    }
-    void on_update(double) override;
-
-  protected:
+    void on_reset() override {}
+    void on_before_update(double) override;
+    void on_after_update(double) override;
     bool on_unassigned_input(const elysia::input::RawInputEvent &) override;
     void on_shortcuts(const elysia::input::RawInputFrame &,
                       const std::vector<elysia::input::RawInputEvent> &) override;

@@ -1,8 +1,10 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/object_query/game_object_query_service.h"
+#include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
+#include "engine/scene/runtime/scene_runtime_context.h"
 #include "tests/support/test_assertions.h"
 
 #include <functional>
@@ -100,7 +102,7 @@ public:
         available_during_exit = ELYSIA_OBJECT_QUERY->is_available();
     }
 
-    void reset() override
+    void on_reset() override
     {
         ++resets;
     }
@@ -153,7 +155,7 @@ public:
         available_during_exit = ELYSIA_OBJECT_QUERY->is_available();
     }
 
-    void reset() override
+    void on_reset() override
     {
         ++resets;
     }
@@ -204,7 +206,10 @@ void test_query_algorithms_and_filters()
     constexpr elysia::scene::SceneKey first_key = 301;
     reset_scene_state();
 
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     scene_manager.register_game_scene<FirstQueryScene>(first_key);
     scene_manager.start({ .target = first_key });
 
@@ -320,7 +325,10 @@ void test_depth_layer_masks()
     constexpr elysia::scene::SceneKey first_key = 306;
     reset_scene_state();
 
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     scene_manager.register_game_scene<FirstQueryScene>(first_key);
     scene_manager.start({ .target = first_key });
 
@@ -408,7 +416,10 @@ void test_scene_lifecycle_rebinding()
     constexpr elysia::scene::SceneKey second_key = 312;
     reset_scene_state();
 
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     scene_manager.register_game_scene<FirstQueryScene>(first_key);
     scene_manager.register_game_scene<SecondQueryScene>(second_key);
     scene_manager.start({ .target = first_key });

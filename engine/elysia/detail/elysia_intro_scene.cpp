@@ -88,10 +88,14 @@ void ElysiaIntroScene::on_enter(const elysia::scene::ScenePayload& payload)
     _code_timer.restart();
 }
 
-void ElysiaIntroScene::on_update(double delta)
+void ElysiaIntroScene::on_before_update(double delta)
 {
     _code_timer.update(delta);
-    elysia::scene::Scene::on_update(delta);
+}
+
+void ElysiaIntroScene::on_after_update(double delta)
+{
+    (void)delta;
     request_realm_transition();
 }
 
@@ -110,7 +114,7 @@ void ElysiaIntroScene::on_exit()
     }
 }
 
-void ElysiaIntroScene::reset()
+void ElysiaIntroScene::on_reset()
 {
     stop_playback();
     _current_line = 0;

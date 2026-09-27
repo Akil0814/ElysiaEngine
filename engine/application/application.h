@@ -67,6 +67,8 @@ private:
     bool shutdown() noexcept;
 
     void on_scene_manager_quit_requested() override;
+    void on_scene_manager_fault(
+        const elysia::scene::SceneBoundaryFailure& failure) override;
 
     bool check_startup_step(
         bool flag,

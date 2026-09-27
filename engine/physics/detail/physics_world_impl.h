@@ -85,8 +85,8 @@ struct PhysicsWorld::Impl
     ContactCache cache;
     std::vector<ICollisionListener *> listeners;
     std::vector<std::function<void()>> commands;
-    std::uint64_t next_object = 1, next_shape = 1, next_joint = 1, epoch = 0, dropped = 0;
-    double accumulator = 0;
+    std::uint64_t next_object = 1, next_shape = 1, next_joint = 1, epoch = 0;
+    double interpolation_alpha = 0.0;
     bool advancing = false, pending_reset = false;
     PhysicsStepStats stats{};
     PhysicsDebugCapture capture = PhysicsDebugCapture::None;

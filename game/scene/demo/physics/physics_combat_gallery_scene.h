@@ -9,11 +9,11 @@ namespace example::scene
 {
 class PhysicsCombatGalleryScene final : public elysia::scene::Scene
 {
-public:
+protected:
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
-    void reset() override;
-    void on_update(double delta) override;
+    void on_reset() override;
+    void on_before_update(double delta) override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
 

@@ -109,8 +109,8 @@ int main()
     require(debug_world.debug_snapshot().shapes.size() == 1,
             "Shape capture produces a debug snapshot");
     debug_world.set_debug_capture(PhysicsDebugCapture::Shapes);
-    require(debug_world.advance(1.0 / 120.0) == 0 &&
-                debug_world.debug_snapshot().shapes.size() == 1,
+    debug_world.finalize_frame(0.5);
+    require(debug_world.debug_snapshot().shapes.size() == 1,
             "Repeated capture mode preserves the snapshot between fixed steps");
     debug_world.set_debug_capture(static_cast<PhysicsDebugCapture>(0xff));
     require(debug_world.debug_capture() == PhysicsDebugCapture::All &&

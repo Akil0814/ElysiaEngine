@@ -194,6 +194,16 @@ add_elysia_test(scene_core_tests
     SDL
 )
 
+add_elysia_test(scene_lifecycle_regression_tests
+    LABEL scene
+    SOURCES scene/scene_lifecycle_regression_tests.cpp
+)
+
+add_elysia_test(scene_factory_failure_tests
+    LABEL scene
+    SOURCES scene/scene_factory_failure_tests.cpp
+)
+
 add_elysia_test(game_object_query_tests
     LABEL object_query
     SOURCES object_query/game_object_query_tests.cpp

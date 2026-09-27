@@ -3,6 +3,8 @@
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/builtin/builtin_scene_keys.h"
 #include "engine/camera/camera_manager.h"
+#include "engine/gameplay/scene/gameplay_scene.h"
+#include "engine/physics/contracts/physics_participant.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/routing/scene_key.h"
 #include "engine/scene/scene_manager.h"
@@ -10,6 +12,7 @@
 #include "engine/scene/routing/scene_route.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/tools/debug_draw.h"
+#include "tests/support/scene_test_access.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
@@ -46,6 +49,9 @@ class ProbeScene final : public elysia::scene::Scene
 {
 public:
     ProbeScene()
+        : Scene(elysia::scene::SceneRuntimeFeatures{
+              .fixed_step = elysia::scene::FixedStepConfig{},
+              .physics = elysia::physics::PhysicsWorldConfig{}})
     {
         last_instance = this;
         ++state.constructions;
@@ -89,7 +95,7 @@ public:
         ++state.exits;
     }
 
-    void reset() override
+    void on_reset() override
     {
         ++state.resets;
     }
@@ -104,7 +110,7 @@ public:
         return runtime_context();
     }
 
-    elysia::physics::PhysicsWorld& exposed_physics_world() noexcept
+    elysia::physics::PhysicsWorld& exposed_physics_world()
     {
         return physics_world();
     }
@@ -148,7 +154,7 @@ public:
     }
 
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 
     static inline int constructions = 0;
     static inline int destructions = 0;
@@ -159,6 +165,262 @@ public:
 private:
     const ConstructorDependency* _dependency = nullptr;
     int _registered_value = 0;
+};
+
+class DefaultGameplayProbeScene final : public elysia::gameplay::GameplayScene
+{
+public:
+    DefaultGameplayProbeScene() { instance = this; }
+    ~DefaultGameplayProbeScene() override
+    {
+        if (instance == this)
+            instance = nullptr;
+    }
+
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+
+    [[nodiscard]] bool collision_available() noexcept
+    {
+        return try_collision_runtime() != nullptr;
+    }
+
+    static inline DefaultGameplayProbeScene* instance = nullptr;
+    static inline int fixed_updates = 0;
+    static inline std::uint64_t last_tick = 0;
+
+protected:
+    void on_game_fixed_update(std::uint64_t tick, double) override
+    {
+        ++fixed_updates;
+        last_tick = tick;
+    }
+};
+
+class ParticipantProbe final : public elysia::core::GameObject,
+                               public elysia::physics::PhysicsParticipant
+{
+public:
+    ParticipantProbe() : GameObject(elysia::core::DepthLayer::Item) {}
+    ~ParticipantProbe() override
+    {
+        ++destructions;
+        was_unbound_at_destruction = physics_world() == nullptr;
+    }
+
+    std::span<const elysia::physics::Collider> collider_definitions() const override
+    {
+        return {};
+    }
+
+    static inline int destructions = 0;
+    static inline bool was_unbound_at_destruction = false;
+};
+
+class RetirementProbeScene final : public elysia::scene::Scene
+{
+public:
+    RetirementProbeScene()
+        : Scene(elysia::scene::SceneRuntimeFeatures{
+              .fixed_step = elysia::scene::FixedStepConfig{},
+              .physics = elysia::physics::PhysicsWorldConfig{}})
+    {
+    }
+
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+
+    ParticipantProbe* add_participant()
+    {
+        return create_and_add_object<ParticipantProbe>();
+    }
+
+    elysia::ui::UiElement* add_ui()
+    {
+        return create_and_add_object<elysia::ui::UiElement>();
+    }
+
+    int removals = 0;
+    bool throw_from_first_removal = false;
+
+protected:
+    void on_scene_object_removing(elysia::core::SceneObject&) override
+    {
+        ++removals;
+        if (throw_from_first_removal && removals == 1)
+            throw std::runtime_error("injected retirement failure");
+    }
+};
+
+class NoPhysicsProbeScene final : public elysia::scene::Scene
+{
+public:
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+
+    ParticipantProbe* add_participant()
+    {
+        return create_and_add_object<ParticipantProbe>();
+    }
+};
+
+class KeyedProbeScene final : public elysia::scene::Scene
+{
+public:
+    explicit KeyedProbeScene(int identity) : _identity(identity)
+    {
+        ++constructions[_identity];
+    }
+
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        ++enters[_identity];
+    }
+    void on_exit() override {}
+    void on_reset() override {}
+
+    static inline std::array<int, 2> constructions{};
+    static inline std::array<int, 2> enters{};
+
+private:
+    int _identity = 0;
+};
+
+struct BoundaryProbeState
+{
+    elysia::scene::SceneBoundary trigger = elysia::scene::SceneBoundary::Update;
+    bool removal_started = false;
+    int recovery_enters = 0;
+};
+
+class ThrowingRenderProbe final : public elysia::core::GameObject
+{
+public:
+    explicit ThrowingRenderProbe(BoundaryProbeState& state)
+        : GameObject(elysia::core::DepthLayer::Item), _state(state)
+    {
+    }
+
+    void submit_render_commands(std::vector<elysia::core::RenderCommand>&) const override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Render)
+            throw std::runtime_error("injected render failure");
+    }
+
+private:
+    BoundaryProbeState& _state;
+};
+
+class BoundaryFailureScene final : public elysia::scene::Scene
+{
+public:
+    explicit BoundaryFailureScene(BoundaryProbeState& state) : _state(state) {}
+
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        using elysia::scene::SceneBoundary;
+        if (_state.trigger == SceneBoundary::Enter)
+            throw std::runtime_error("injected enter failure");
+        if (_state.trigger == SceneBoundary::ObjectRegistration)
+            (void)create_and_add_object<ParticipantProbe>();
+        if (_state.trigger == SceneBoundary::Render)
+            (void)create_and_add_object<ThrowingRenderProbe>(_state);
+        if (_state.trigger == SceneBoundary::ObjectRemoval)
+            _removal_target = create_and_add_object<elysia::ui::UiElement>();
+    }
+
+    void on_exit() override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Exit)
+            throw std::runtime_error("injected exit failure");
+    }
+
+    void on_reset() override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Reset)
+            throw std::runtime_error("injected reset failure");
+    }
+
+protected:
+    void on_runtime_attach() override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Attach)
+            throw std::runtime_error("injected attach failure");
+    }
+
+    void on_runtime_detach() override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Detach)
+            throw std::runtime_error("injected detach failure");
+    }
+
+    void on_routed_input(const elysia::input::InputSnapshot&) override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Input)
+            throw std::runtime_error("injected input failure");
+    }
+
+    void on_before_update(double) override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::Update)
+            throw std::runtime_error("injected update failure");
+        if (_state.trigger == elysia::scene::SceneBoundary::ObjectRemoval
+            && !_state.removal_started)
+        {
+            _state.removal_started = true;
+            _removal_target->destroy();
+        }
+    }
+
+    void on_scene_object_removing(elysia::core::SceneObject&) override
+    {
+        if (_state.trigger == elysia::scene::SceneBoundary::ObjectRemoval)
+            throw std::runtime_error("injected object removal failure");
+    }
+
+private:
+    BoundaryProbeState& _state;
+    elysia::ui::UiElement* _removal_target = nullptr;
+};
+
+class BoundaryRecoveryScene final : public elysia::scene::Scene
+{
+public:
+    explicit BoundaryRecoveryScene(BoundaryProbeState& state) : _state(state) {}
+    void on_enter(const elysia::scene::ScenePayload&) override { ++_state.recovery_enters; }
+    void on_exit() override {}
+    void on_reset() override {}
+
+private:
+    BoundaryProbeState& _state;
+};
+
+class AlwaysFailingRecoveryScene final : public elysia::scene::Scene
+{
+public:
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        throw std::runtime_error("injected recovery failure");
+    }
+    void on_exit() override {}
+    void on_reset() override {}
+};
+
+class SceneManagerObserverProbe final : public elysia::scene::SceneManagerObserver
+{
+public:
+    void on_scene_manager_quit_requested() override {}
+    void on_scene_manager_fault(const elysia::scene::SceneBoundaryFailure& failure) override
+    {
+        ++faults;
+        last_failure = failure;
+    }
+
+    int faults = 0;
+    elysia::scene::SceneBoundaryFailure last_failure{};
 };
 
 void reset_probe_states()
@@ -218,6 +480,9 @@ void test_registration_and_route_key_errors_are_distinct()
     using namespace elysia::scene;
 
     SceneManager manager;
+    elysia::io::ContentRegistry registry;
+    SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    manager.initialize(context);
     require(throws_logic_error_containing(
         [&manager] { manager.register_game_scene<FirstProbeScene>(0); },
         "game range"), "game registration must reject Invalid");
@@ -231,6 +496,7 @@ void test_registration_and_route_key_errors_are_distinct()
         [&manager] { manager.register_engine_scene<FirstProbeScene>(999); },
         "engine-owned keys"), "engine-owned registration must reject game keys");
     SceneManager easter_egg_manager;
+    easter_egg_manager.initialize(context);
     easter_egg_manager.register_engine_scene<FirstProbeScene>(
         SceneKeys::ElysiaRealm);
     require(throws_logic_error_containing(
@@ -276,7 +542,7 @@ void test_runtime_context_synchronizes_camera_viewports()
     elysia::scene::SceneRuntimeContext full_hd_context(
         nullptr, registry, 1280, 720);
     elysia::scene::SceneManager manager;
-    manager.set_runtime_context(full_hd_context);
+    manager.initialize(full_hd_context);
 
     auto* cameras = CameraManager::instance();
     for (std::size_t index = 0;
@@ -291,7 +557,8 @@ void test_runtime_context_synchronizes_camera_viewports()
 
     elysia::scene::SceneRuntimeContext resized_context(
         nullptr, registry, 960, 540);
-    manager.set_runtime_context(resized_context);
+    require(manager.shutdown(), "runtime context viewport test must stop cleanly");
+    manager.initialize(resized_context);
     for (std::size_t index = 0;
          index < static_cast<std::size_t>(CameraSlot::Count);
          ++index)
@@ -323,7 +590,7 @@ void test_registration_arguments_are_reusable_for_recreate()
     elysia::io::ContentRegistry registry;
     SceneRuntimeContext context(nullptr, registry, 1280, 720);
     SceneManager manager;
-    manager.set_runtime_context(context);
+    manager.initialize(context);
     manager.register_game_scene<ConstructorProbeScene>(
         3,
         std::cref(dependency),
@@ -360,53 +627,60 @@ void test_scene_maps_debug_draw_categories_to_physics_capture()
     using elysia::physics::PhysicsDebugCapture;
     using elysia::tools::DebugDrawCategory;
 
-    FirstProbeScene scene;
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    elysia::scene::SceneManager manager;
+    manager.initialize(context);
+    manager.register_game_scene<FirstProbeScene>(1);
+    manager.start({.target = 1, .payload = RoutePayload{0}});
+    auto& scene = *FirstProbeScene::last_instance;
     auto* debug_draw = elysia::tools::DebugDraw::instance();
     debug_draw->set_enabled(false);
     debug_draw->set_enabled_categories(DebugDrawCategory::All);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::None,
         "disabled DebugDraw must disable physics diagnostic capture");
 
     debug_draw->set_enabled(true);
     debug_draw->set_enabled_categories(DebugDrawCategory::Gameplay);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::None,
         "non-physics categories must not enable physics diagnostic capture");
 
     debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsCollider);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::Shapes,
         "collider drawing must request shape capture");
 
     debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsBroadPhase);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::BroadPhase,
         "broad-phase drawing must request broad-phase capture");
 
     debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsContactNormal);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::Contacts,
         "contact-normal drawing must request contact capture");
 
     debug_draw->set_enabled_categories(DebugDrawCategory::PhysicsVelocity);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::Velocities,
         "velocity drawing must request velocity capture");
 
     debug_draw->set_enabled(false);
-    scene.on_update(0.0);
+    manager.on_update(0.0);
     require(scene.exposed_physics_world().debug_capture()
             == PhysicsDebugCapture::None
             && scene.exposed_physics_world().debug_snapshot().shapes.empty(),
         "turning DebugDraw off must clear the active physics snapshot");
     debug_draw->set_enabled_categories(DebugDrawCategory::All);
+    manager.shutdown();
 }
 
 void test_route_copy_reload_modes_and_runtime_context_binding()
@@ -418,7 +692,7 @@ void test_route_copy_reload_modes_and_runtime_context_binding()
     SceneRuntimeContext context(nullptr, registry, 1280, 720);
 
     SceneManager manager;
-    manager.set_runtime_context(context);
+    manager.initialize(context);
     manager.register_game_scene<FirstProbeScene>(1);
     manager.register_game_scene<SecondProbeScene>(2);
 
@@ -589,6 +863,235 @@ void test_unbound_scene_runtime_context_is_rejected()
         "before a runtime context was bound"),
         "a standalone scene must not expose an unbound runtime context");
 }
+
+void test_runtime_features_are_opt_in_and_registration_rolls_back()
+{
+    ParticipantProbe::destructions = 0;
+    ParticipantProbe::was_unbound_at_destruction = false;
+
+    NoPhysicsProbeScene scene;
+    require(!scene.has_fixed_step() && !scene.has_physics(),
+        "a plain Scene must not allocate fixed-step or physics runtimes");
+    require(throws_logic_error_containing(
+            [&scene] { (void)scene.add_participant(); },
+            "without physics"),
+        "a Scene without physics must reject PhysicsParticipant immediately");
+    require(ParticipantProbe::destructions == 1,
+        "failed PhysicsParticipant registration must roll back ownership");
+}
+
+void test_default_gameplay_fixed_step_pause_and_reset()
+{
+    using namespace elysia::scene;
+
+    DefaultGameplayProbeScene::fixed_updates = 0;
+    DefaultGameplayProbeScene::last_tick = 0;
+    elysia::io::ContentRegistry registry;
+    SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    SceneManager manager;
+    manager.initialize(context);
+    manager.register_game_scene<DefaultGameplayProbeScene>(17);
+    manager.start({.target = 17});
+
+    auto& scene = *DefaultGameplayProbeScene::instance;
+    require(scene.has_fixed_step() && !scene.has_physics()
+            && !scene.collision_available(),
+        "GameplayScene must default to fixed-step control without physics or collision");
+
+    manager.on_update(1.0 / 30.0);
+    require(DefaultGameplayProbeScene::fixed_updates == 2
+            && DefaultGameplayProbeScene::last_tick == 2,
+        "a physics-free GameplayScene must still execute stable fixed steps");
+
+    scene.pause();
+    manager.on_update(1.0);
+    require(DefaultGameplayProbeScene::fixed_updates == 2,
+        "paused scenes must neither advance nor accumulate fixed steps");
+    scene.resume();
+    manager.on_update(1.0 / 60.0);
+    require(DefaultGameplayProbeScene::fixed_updates == 3
+            && DefaultGameplayProbeScene::last_tick == 3,
+        "resuming must continue without catching up paused time");
+
+    manager.on_scene_request(SceneRequest{
+        .type = SceneRequestType::Switch,
+        .route = SceneRoute{.target = 17, .reload_mode = SceneReloadMode::Reset}});
+    manager.on_update(0.0);
+    manager.on_update(1.0 / 60.0);
+    require(DefaultGameplayProbeScene::last_tick == 1,
+        "Reset must clear the fixed-step tick and accumulator");
+    manager.shutdown();
+}
+
+void test_retirement_continues_after_callback_failure_and_unbinds_physics()
+{
+    ParticipantProbe::destructions = 0;
+    ParticipantProbe::was_unbound_at_destruction = false;
+    RetirementProbeScene scene;
+    elysia::scene::SceneTestAccess::enter(scene);
+    ParticipantProbe* participant = scene.add_participant();
+    elysia::ui::UiElement* ui = scene.add_ui();
+    require(participant && participant->physics_world(),
+        "a PhysicsParticipant must bind while owned by a physics Scene");
+
+    participant->destroy();
+    ui->destroy();
+    scene.throw_from_first_removal = true;
+    bool removal_failed = false;
+    try
+    {
+        elysia::scene::SceneTestAccess::update(scene, 0.0);
+    }
+    catch (const std::runtime_error&)
+    {
+        removal_failed = true;
+    }
+    require(removal_failed && scene.removals == 2,
+        "retirement must notify both GameObject and UI roots exactly once even after a callback fails");
+    require(ParticipantProbe::destructions == 1
+            && ParticipantProbe::was_unbound_at_destruction,
+        "retirement must unregister and unbind physics before destroying the participant");
+    elysia::scene::SceneTestAccess::exit(scene);
+}
+
+void test_same_scene_type_has_independent_keyed_instances()
+{
+    using namespace elysia::scene;
+
+    KeyedProbeScene::constructions = {};
+    KeyedProbeScene::enters = {};
+    elysia::io::ContentRegistry registry;
+    SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    SceneManager manager;
+    manager.initialize(context);
+    manager.register_game_scene<KeyedProbeScene>(21, 0);
+    manager.register_game_scene<KeyedProbeScene>(22, 1);
+    manager.start({.target = 21});
+
+    manager.on_scene_request(SceneRequest{
+        .type = SceneRequestType::Switch,
+        .route = SceneRoute{.target = 22}});
+    manager.on_update(0.0);
+    manager.on_scene_request(SceneRequest{
+        .type = SceneRequestType::Switch,
+        .route = SceneRoute{.target = 21}});
+    manager.on_update(0.0);
+    require(KeyedProbeScene::constructions == std::array<int, 2>{1, 1}
+            && KeyedProbeScene::enters == std::array<int, 2>{2, 1},
+        "two SceneKeys registered to one concrete type must retain independent cached instances");
+
+    manager.on_scene_request(SceneRequest{
+        .type = SceneRequestType::Switch,
+        .route = SceneRoute{.target = 22, .reload_mode = SceneReloadMode::Recreate}});
+    manager.on_update(0.0);
+    require(KeyedProbeScene::constructions == std::array<int, 2>{1, 2},
+        "Recreate must replace only the instance stored under the requested SceneKey");
+    manager.shutdown();
+}
+
+void test_scene_boundary_failures_recover_transactionally()
+{
+    using namespace elysia::scene;
+    constexpr SceneKey failing_key = 31;
+    constexpr SceneKey recovery_key = 32;
+    const std::array boundaries{
+        SceneBoundary::Enter,
+        SceneBoundary::Exit,
+        SceneBoundary::Reset,
+        SceneBoundary::Attach,
+        SceneBoundary::Detach,
+        SceneBoundary::Input,
+        SceneBoundary::Update,
+        SceneBoundary::Render,
+        SceneBoundary::ObjectRegistration,
+        SceneBoundary::ObjectRemoval};
+
+    for (const SceneBoundary boundary : boundaries)
+    {
+        BoundaryProbeState probe{.trigger = boundary};
+        std::optional<SceneBoundaryFailure> observed_failure;
+        elysia::io::ContentRegistry registry;
+        SceneRuntimeContext context(nullptr, registry, 1280, 720);
+        SceneManager manager;
+        manager.initialize(context, [&](const SceneBoundaryFailure& failure) {
+            observed_failure = failure;
+            return SceneRoute{.target = recovery_key};
+        });
+        manager.register_game_scene<BoundaryFailureScene>(failing_key, std::ref(probe));
+        manager.register_game_scene<BoundaryRecoveryScene>(recovery_key, std::ref(probe));
+        manager.start({.target = failing_key});
+
+        if (manager.current_scene_key() == failing_key)
+        {
+            switch (boundary)
+            {
+            case SceneBoundary::Exit:
+            case SceneBoundary::Detach:
+                manager.on_scene_request(SceneRequest{
+                    .type = SceneRequestType::Switch,
+                    .route = SceneRoute{.target = recovery_key}});
+                manager.on_update(0.0);
+                break;
+            case SceneBoundary::Reset:
+                manager.on_scene_request(SceneRequest{
+                    .type = SceneRequestType::Switch,
+                    .route = SceneRoute{
+                        .target = failing_key,
+                        .reload_mode = SceneReloadMode::Reset}});
+                manager.on_update(0.0);
+                break;
+            case SceneBoundary::Input:
+                manager.on_input({});
+                break;
+            case SceneBoundary::Update:
+            case SceneBoundary::ObjectRemoval:
+                manager.on_update(0.0);
+                break;
+            case SceneBoundary::Render:
+                manager.on_render(reinterpret_cast<SDL_Renderer*>(1));
+                break;
+            default:
+                break;
+            }
+        }
+
+        require(observed_failure.has_value()
+                && observed_failure->scene == failing_key
+                && observed_failure->boundary == boundary,
+            "SceneManager must preserve the exact failing scene boundary");
+        require(manager.state() == SceneManagerState::Running
+                && manager.current_scene_key() == recovery_key
+                && probe.recovery_enters == 1,
+            "each scene boundary failure must roll back and enter the injected recovery route once");
+        require(manager.shutdown(), "a recovered manager must shut down cleanly");
+    }
+}
+
+void test_recovery_failure_faults_without_recursing()
+{
+    using namespace elysia::scene;
+
+    BoundaryProbeState probe{.trigger = SceneBoundary::Enter};
+    elysia::io::ContentRegistry registry;
+    SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    SceneManager manager;
+    manager.initialize(context, [](const SceneBoundaryFailure&) {
+        return SceneRoute{.target = 42};
+    });
+    manager.register_game_scene<BoundaryFailureScene>(41, std::ref(probe));
+    manager.register_game_scene<AlwaysFailingRecoveryScene>(42);
+    SceneManagerObserverProbe observer;
+    manager.attach(&observer);
+
+    manager.start({.target = 41});
+    require(manager.state() == SceneManagerState::Faulted
+            && observer.faults == 1
+            && observer.last_failure.scene == 42,
+        "a recovery-scene failure must fault once instead of recursively routing");
+    require(manager.shutdown(), "fault notification alone must not make cleanup fail");
+    require(manager.state() == SceneManagerState::Faulted,
+        "a faulted manager must remain faulted after shutdown");
+}
 }
 
 int main()
@@ -600,5 +1103,11 @@ int main()
     test_scene_maps_debug_draw_categories_to_physics_capture();
     test_route_copy_reload_modes_and_runtime_context_binding();
     test_unbound_scene_runtime_context_is_rejected();
+    test_runtime_features_are_opt_in_and_registration_rolls_back();
+    test_default_gameplay_fixed_step_pause_and_reset();
+    test_retirement_continues_after_callback_failure_and_unbinds_physics();
+    test_same_scene_type_has_independent_keyed_instances();
+    test_scene_boundary_failures_recover_transactionally();
+    test_recovery_failure_faults_without_recursing();
     return EXIT_SUCCESS;
 }

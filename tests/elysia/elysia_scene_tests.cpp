@@ -14,6 +14,7 @@
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/scene/scene_manager.h"
 #include "tests/support/test_assertions.h"
+#include "tests/support/scene_test_access.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -86,7 +87,7 @@ public:
     }
 
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 
     static inline int marker = 0;
 };
@@ -132,7 +133,7 @@ void test_payload_contract()
 
     elysia::realm::detail::ElysiaIntroScene scene;
     require(throws_logic_error_containing(
-            [&scene] { scene.on_enter({}); },
+            [&scene] { elysia::scene::SceneTestAccess::enter(scene); },
             "ElysiaRealmPayload"),
         "ElysiaIntroScene must require the public Realm payload");
 
@@ -141,13 +142,15 @@ void test_payload_contract()
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
-            [&scene,&invalid_payload] { scene.on_enter(invalid_payload); },
+            [&scene,&invalid_payload] {
+                elysia::scene::SceneTestAccess::enter(scene, invalid_payload);
+            },
             "ElysiaRealmPayload"),
         "ElysiaIntroScene must reject an invalid return route");
 
     elysia::realm::detail::ElysiaRealmScene realm_scene;
     require(throws_logic_error_containing(
-            [&realm_scene] { realm_scene.on_enter({}); },
+            [&realm_scene] { elysia::scene::SceneTestAccess::enter(realm_scene); },
             "RealmContentPayload"),
         "ElysiaRealmScene must require its internal payload");
 }
@@ -169,7 +172,7 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     elysia::scene::SceneRuntimeContext context(
         fixture.renderer(),registry,1280,720);
     elysia::scene::SceneManager scene_manager;
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
     elysia::realm::detail::register_realm_scenes(
         scene_manager);
     scene_manager.register_game_scene<ReturnScene>(1);

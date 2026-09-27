@@ -35,11 +35,6 @@ void MainMenuScene::on_enter(const elysia::scene::ScenePayload& payload)
     _has_entered = true;
 }
 
-void MainMenuScene::on_update(double delta)
-{
-    elysia::scene::Scene::on_update(delta);
-}
-
 void MainMenuScene::on_shortcuts(const elysia::input::RawInputFrame &input,
                                  const std::vector<elysia::input::RawInputEvent> &events)
 {
@@ -50,7 +45,7 @@ void MainMenuScene::on_exit()
     reset_exit_overlay();
 }
 
-void MainMenuScene::reset()
+void MainMenuScene::on_reset()
 {
     _has_entered = false;
     reset_exit_overlay();

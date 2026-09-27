@@ -10,6 +10,7 @@
 #include "engine/ui/widgets/ui_text_input.h"
 #include "engine/ui/window/ui_window.h"
 #include "tests/support/test_assertions.h"
+#include "tests/support/scene_test_access.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -27,7 +28,7 @@ class TestScene final : public elysia::scene::Scene
 public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 };
 
 class ClearingChild final : public elysia::ui::UiElement,
@@ -156,7 +157,8 @@ void test_callback_exceptions_reach_window_scene_and_boundary()
     bool scene_threw = false;
     try
     {
-        scene.on_input(elysia::tests::events_snapshot({raw_press, raw_release}));
+        elysia::scene::SceneTestAccess::route_input(
+            scene, elysia::tests::events_snapshot({raw_press, raw_release}));
     }
     catch (const std::runtime_error&) { scene_threw = true; }
     require(scene_threw,"callback exceptions must escape the full Scene UI input route");

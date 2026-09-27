@@ -154,8 +154,7 @@ b2BodyType type(BodyType t)
 } // namespace
 PhysicsWorld::Impl::Impl(PhysicsWorldConfig c) : config(c), units(c.units_per_meter)
 {
-    if (!std::isfinite(c.fixed_delta_seconds) || c.fixed_delta_seconds <= 0 ||
-        !c.max_steps_per_advance || !c.sub_steps || c.sub_steps > 64 || !finite(c.gravity) ||
+    if (!c.sub_steps || c.sub_steps > 64 || !finite(c.gravity) ||
         !nonnegative(c.restitution_velocity_threshold) ||
         !nonnegative(c.contact_normal_threshold) || c.contact_normal_threshold > 1)
         throw std::invalid_argument("Invalid physics configuration");
@@ -296,8 +295,7 @@ void PhysicsWorld::Impl::clear()
     b2World_SetPreSolveCallback(world, pre_solve, this);
     tile_body = b2_nullBodyId;
     tiles = nullptr;
-    accumulator = 0;
-    dropped = 0;
+    interpolation_alpha = 0.0;
     pending_reset = false;
     stats = {};
     debug.clear();
@@ -321,10 +319,6 @@ PhysicsWorld::~PhysicsWorld() = default;
 const PhysicsWorldConfig &PhysicsWorld::config() const noexcept
 {
     return _impl->config;
-}
-double PhysicsWorld::accumulator_seconds() const noexcept
-{
-    return _impl->accumulator;
 }
 const PhysicsStepStats &PhysicsWorld::last_step_stats() const noexcept
 {
@@ -469,7 +463,7 @@ std::optional<PhysicsPose> PhysicsWorld::render_pose(PhysicsObjectHandle h) cons
     auto *o = _impl->get(h);
     if (!o)
         return {};
-    float a = float(std::clamp(_impl->accumulator / _impl->config.fixed_delta_seconds, 0.0, 1.0));
+    const float a = static_cast<float>(_impl->interpolation_alpha);
     float delta = std::remainder(o->current.angle - o->previous.angle, 2 * 3.14159265358979323846f);
     return PhysicsPose{o->previous.position + (o->current.position - o->previous.position) * a,
                        o->previous.angle + delta * a};
@@ -1023,29 +1017,22 @@ void PhysicsWorld::Impl::collect(std::vector<CollisionContact> &contacts)
     std::erase_if(mapping,
                   [&](auto &v) { return v.second.retire_after && v.second.retire_after <= epoch; });
 }
-std::uint32_t PhysicsWorld::advance(double dt, const std::function<void(double)> &before_step)
+void PhysicsWorld::step(double fixed_delta_seconds)
 {
     auto &p = *_impl;
-    if (!std::isfinite(dt) || dt <= 0 || p.advancing)
-        return 0;
-    p.accumulator += dt;
-    std::uint32_t steps = 0;
+    if (!std::isfinite(fixed_delta_seconds) || fixed_delta_seconds <= 0.0)
+        throw std::invalid_argument("PhysicsWorld::step requires a finite positive delta.");
+    if (p.advancing)
+        throw std::logic_error("PhysicsWorld::step cannot be called reentrantly.");
+
     p.advancing = true;
     try
     {
-        while (p.accumulator + std::numeric_limits<double>::epsilon() >=
-                   p.config.fixed_delta_seconds &&
-               steps < p.config.max_steps_per_advance)
+        const auto start = std::chrono::steady_clock::now();
+        const bool reset_before_step = p.pending_reset;
+        p.flush();
+        if (!reset_before_step)
         {
-            p.accumulator -= p.config.fixed_delta_seconds;
-            ++steps;
-            auto start = std::chrono::steady_clock::now();
-            if (before_step)
-                before_step(p.config.fixed_delta_seconds);
-            const bool reset_before_step = p.pending_reset;
-            p.flush();
-            if (reset_before_step)
-                break;
             std::vector<std::uint64_t> participants;
             for (auto &[id, o] : p.objects)
                 participants.push_back(id);
@@ -1056,87 +1043,88 @@ std::uint32_t PhysicsWorld::advance(double dt, const std::function<void(double)>
                     break;
                 if (!o.removed && o.owner->is_active() && !o.owner->is_destroyed())
                     if (auto *participant = dynamic_cast<PhysicsStepParticipant *>(o.owner))
-                        participant->fixed_update(p.config.fixed_delta_seconds);
+                        participant->fixed_update(fixed_delta_seconds);
             }
             bool reset = p.pending_reset;
             p.flush();
-            if (reset)
-                break;
-            std::vector<std::uint64_t> dead;
-            for (auto &[id, o] : p.objects)
+            if (!reset)
             {
-                if (o.owner->is_destroyed())
+                std::vector<std::uint64_t> dead;
+                for (auto &[id, o] : p.objects)
                 {
-                    dead.push_back(id);
-                    continue;
+                    if (o.owner->is_destroyed())
+                    {
+                        dead.push_back(id);
+                        continue;
+                    }
+                    const bool enabled = o.definition.enabled && o.owner->is_active();
+                    if (enabled != b2Body_IsEnabled(o.native))
+                    {
+                        if (enabled)
+                            b2Body_Enable(o.native);
+                        else
+                            b2Body_Disable(o.native);
+                    }
                 }
-                bool enabled = o.definition.enabled && o.owner->is_active();
-                if (enabled != b2Body_IsEnabled(o.native))
+                for (const auto id : dead)
+                    p.destroy_object(id);
+                p.prepare_snapshot();
+                for (auto &[id, o] : p.objects)
+                    o.previous = o.current;
+                b2World_Step(p.world, static_cast<float>(fixed_delta_seconds),
+                             static_cast<int>(p.config.sub_steps));
+                ++p.epoch;
+                std::vector<CollisionContact> contacts;
+                p.collect(contacts);
+                std::vector<CollisionEvent> events;
+                p.cache.update(contacts, events);
+                for (auto &[id, o] : p.objects)
                 {
-                    if (enabled)
-                        b2Body_Enable(o.native);
-                    else
-                        b2Body_Disable(o.native);
+                    o.current = {p.from(b2Body_GetPosition(o.native)),
+                                 b2Rot_GetAngle(b2Body_GetRotation(o.native))};
+                    o.owner->set_position(o.current.position);
+                }
+                p.stats.registered_objects = registered_object_count();
+                p.stats.registered_colliders = registered_collider_count();
+                p.stats.contacts = contacts.size();
+                const auto listeners = p.listeners;
+                for (const auto &event : events)
+                    for (auto *listener : listeners)
+                        listener->on_collision_event(event);
+                reset = p.pending_reset;
+                p.flush();
+                if (!reset)
+                {
+                    p.stats.step_milliseconds =
+                        std::chrono::duration<double, std::milli>(
+                            std::chrono::steady_clock::now() - start)
+                            .count();
+                    p.stats.awake_bodies = b2World_GetAwakeBodyCount(p.world);
+                    p.stats.joints = p.joints.size();
                 }
             }
-            for (auto id : dead)
-                p.destroy_object(id);
-            p.prepare_snapshot();
-            for (auto &[id, o] : p.objects)
-                o.previous = o.current;
-            b2World_Step(p.world, float(p.config.fixed_delta_seconds), int(p.config.sub_steps));
-            ++p.epoch;
-            std::vector<CollisionContact> contacts;
-            p.collect(contacts);
-            std::vector<CollisionEvent> events;
-            p.cache.update(contacts, events);
-            for (auto &[id, o] : p.objects)
-            {
-                o.current = {p.from(b2Body_GetPosition(o.native)),
-                             b2Rot_GetAngle(b2Body_GetRotation(o.native))};
-                o.owner->set_position(o.current.position);
-            }
-            p.stats.registered_objects = registered_object_count();
-            p.stats.registered_colliders = registered_collider_count();
-            p.stats.contacts = contacts.size();
-            auto listeners = p.listeners;
-            for (auto &e : events)
-                for (auto *l : listeners)
-                    l->on_collision_event(e);
-            reset = p.pending_reset;
-            p.flush();
-            if (reset)
-                break;
-            p.stats.step_milliseconds =
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
-                    .count();
-            p.stats.awake_bodies = b2World_GetAwakeBodyCount(p.world);
-            p.stats.joints = p.joints.size();
         }
-        if (p.accumulator >= p.config.fixed_delta_seconds)
-        {
-            double n = std::floor(p.accumulator / p.config.fixed_delta_seconds);
-            auto room = std::numeric_limits<std::uint64_t>::max() - p.dropped;
-            p.dropped += n >= double(room) ? room : std::uint64_t(n);
-            p.accumulator = std::fmod(p.accumulator, p.config.fixed_delta_seconds);
-        }
-        p.stats.dropped_fixed_steps = p.dropped;
         p.advancing = false;
-        p.capture_debug();
-        p.debug.interpolation_alpha = float(std::clamp(p.accumulator / p.config.fixed_delta_seconds, 0.0, 1.0));
-        for (auto &[id, o] : p.objects)
-        {
-            auto pose = render_pose({id});
-            if (pose)
-                o.owner->_render_offset = pose->position - o.current.position;
-        }
     }
     catch (...)
     {
         p.advancing = false;
         throw;
     }
-    return steps;
+}
+
+void PhysicsWorld::finalize_frame(double interpolation_alpha)
+{
+    auto &p = *_impl;
+    p.interpolation_alpha = std::clamp(interpolation_alpha, 0.0, 1.0);
+    p.capture_debug();
+    p.debug.interpolation_alpha = static_cast<float>(p.interpolation_alpha);
+    for (auto &[id, object] : p.objects)
+    {
+        const auto pose = render_pose({id});
+        if (pose)
+            object.owner->_render_offset = pose->position - object.current.position;
+    }
 }
 void PhysicsWorld::set_debug_capture(PhysicsDebugCapture c) noexcept
 {
@@ -1147,7 +1135,7 @@ void PhysicsWorld::set_debug_capture(PhysicsDebugCapture c) noexcept
     _impl->capture = c;
     _impl->debug.clear();
     _impl->capture_debug();
-    _impl->debug.interpolation_alpha = float(std::clamp(_impl->accumulator / _impl->config.fixed_delta_seconds, 0.0, 1.0));
+    _impl->debug.interpolation_alpha = static_cast<float>(_impl->interpolation_alpha);
 }
 PhysicsDebugCapture PhysicsWorld::debug_capture() const noexcept
 {

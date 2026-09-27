@@ -113,6 +113,12 @@ void CameraManager::update(double delta_seconds)
     }
 }
 
+void CameraManager::update(CameraSlot slot, double delta_seconds)
+{
+    process_requests();
+    rig(slot).controller.update(delta_seconds);
+}
+
 void CameraManager::reset(CameraSlot slot) noexcept
 {
     std::erase_if(_requests, [slot](const CameraRequest& request)

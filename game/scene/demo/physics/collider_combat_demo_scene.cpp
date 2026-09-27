@@ -115,6 +115,7 @@ void ColliderCombatDemoScene::build_demo()
 
 void example::scene::ColliderCombatDemoScene::on_control_target_removing(elysia::core::SceneObject &object)
 {
+    PhysicsCombatDemoSceneBase::on_control_target_removing(object);
     if (auto *controller =
             elysia::gameplay::ControllerService::instance()->get<QueryPlayerController>(player_controller()))
         controller->object_removed(object);

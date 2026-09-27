@@ -1,5 +1,7 @@
 #include "engine/application/application.h"
 #include "engine/application/lifecycle/frame_pacing.h"
+#include "engine/io/loaders/asset_config_types.h"
+#include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/tools/termination_manager.h"
 #include "tests/support/test_assertions.h"
 #include <SDL3/SDL.h>
@@ -24,14 +26,14 @@ class ProbeScene final : public elysia::scene::Scene
 public:
     ~ProbeScene() override { ++destroyed; }
     void on_enter(const elysia::scene::ScenePayload&) override {}
-    void reset() override {}
+    void on_reset() override {}
     void on_exit() override
     {
         ++exits;
         if (mode == "exit_standard") throw std::runtime_error("injected exit failure");
         if (mode == "exit_unknown") throw 42;
     }
-    void on_update(double delta) override
+    void on_after_update(double delta) override
     {
         updated = true;
         frames.push_back(delta);
@@ -73,15 +75,31 @@ int main(int argc,char** argv)
     if (mode.starts_with("manager_"))
     {
         mode = mode == "manager_standard" ? "exit_standard" : "exit_unknown";
+        elysia::io::ContentRegistry registry;
+        elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
         elysia::scene::SceneManager manager;
+        manager.initialize(context);
         manager.register_game_scene<ProbeScene>(1);
         manager.start({.target = 1});
         require(!manager.shutdown() && !manager.shutdown(),"cleanup failure must be sticky");
         require(exits == 1 && destroyed == 1,"exit exactly once and destroy on failure");
-        manager.register_game_scene<ProbeScene>(1);
+        bool restart_rejected = false;
+        try
+        {
+            manager.initialize(context);
+        }
+        catch (const std::logic_error&)
+        {
+            restart_rejected = true;
+        }
+        require(restart_rejected,"a faulted manager must reject reinitialization");
+
         mode = "normal";
-        manager.start({.target = 1});
-        require(manager.shutdown(),"a new manager lifecycle must reset cleanup result");
+        elysia::scene::SceneManager fresh_manager;
+        fresh_manager.initialize(context);
+        fresh_manager.register_game_scene<ProbeScene>(1);
+        fresh_manager.start({.target = 1});
+        require(fresh_manager.shutdown(),"a fresh manager must start after an independent cleanup failure");
         return 0;
     }
     Module module;

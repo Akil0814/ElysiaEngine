@@ -26,11 +26,12 @@ class UiComponentGalleryScene final : public elysia::scene::Scene
 {
 public:
     UiComponentGalleryScene() = default;
+protected:
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
-    void reset() override;
+    void on_reset() override;
 
 private:
     void rebuild_ui();

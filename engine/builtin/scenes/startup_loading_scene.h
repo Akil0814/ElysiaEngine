@@ -40,15 +40,15 @@ public:
     }
     ~StartupLoadingScene() override = default;
 
+protected:
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
-    void reset() override;
-
-    void on_update(double delta) override;
+    void on_reset() override;
+    void on_after_update(double delta) override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
 
-  private:
+private:
     [[nodiscard]] static elysia::ui::UiTextContent
         make_start_prompt_content();
     bool create_presentation();

@@ -38,7 +38,12 @@ PhysicsCombatDemoSceneBase::PhysicsCombatDemoSceneBase(
     elysia::physics::PhysicsWorldConfig config,
     std::string title,
     std::string controls)
-    : GameplayScene(config), _own_key(own_key),
+    : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+          .physics = config,
+          .gameplay_collision = true,
+          .camera = {.render_slot = elysia::camera::CameraSlot::Main,
+                     .update_mode = elysia::scene::CameraUpdateMode::Dynamic}}),
+      _own_key(own_key),
       _scene_name(std::move(scene_name)), _title(std::move(title)),
       _controls(std::move(controls)),
       _combat(physics_world(), collision_runtime())
@@ -135,42 +140,56 @@ void PhysicsCombatDemoSceneBase::on_exit()
     debug->set_enabled(_previous_debug_enabled);
 }
 
-void PhysicsCombatDemoSceneBase::reset()
+void PhysicsCombatDemoSceneBase::on_reset()
 {
     unregister_physics_inspector();
     _restart_remaining = -1.0;
     _restart_requested = false;
 }
 
-void PhysicsCombatDemoSceneBase::on_update(double delta)
+void PhysicsCombatDemoSceneBase::on_before_update(double delta)
 {
+    _verification_frame = static_cast<bool>(_scenario);
     if(_scenario)
     {
-        // Only the shared runner advances the verification world.
-        elysia::scene::Scene::on_update(delta);
+        _frame_simulation_delta = 0.0;
         auto* debug=elysia::tools::DebugDraw::instance();
         _scenario->set_debug_geometry(debug->enabled());
         _scenario->advance(delta);
         if(debug->enabled())elysia::physics::submit_physics_debug_snapshot(_scenario->world().debug_snapshot(),*debug);
-        update_test_hud();
         return;
     }
     const bool single=_test_single_step;
     _test_single_step=false;
     if(single)resume();
-    const double simulation_delta=single?1.0/60:(_test_paused?0:delta);
-    _combat.update(simulation_delta);
-    elysia::gameplay::GameplayScene::on_update(single?1.0/60:delta);
+    _frame_simulation_delta=single?1.0/60:(_test_paused?0:delta);
+    _combat.update(_frame_simulation_delta);
+}
+
+void PhysicsCombatDemoSceneBase::on_after_update(double delta)
+{
+    (void)delta;
+    if (_verification_frame)
+    {
+        update_test_hud();
+        return;
+    }
     if(_test_paused)pause();
     _combat.flush_deaths();
     update_hud();
 
     if (_restart_remaining >= 0.0)
     {
-        _restart_remaining -= std::max(0.0, simulation_delta);
+        _restart_remaining -= std::max(0.0, _frame_simulation_delta);
         if (_restart_remaining <= 0.0)
             request_restart();
     }
+}
+
+double PhysicsCombatDemoSceneBase::fixed_step_frame_delta(double delta) const
+{
+    (void)delta;
+    return _frame_simulation_delta;
 }
 
 void PhysicsCombatDemoSceneBase::on_shortcuts(const elysia::input::RawInputFrame &input,
@@ -213,13 +232,28 @@ void PhysicsCombatDemoSceneBase::on_shortcuts(const elysia::input::RawInputFrame
     }
 }
 
-std::optional<elysia::core::Rect>
-PhysicsCombatDemoSceneBase::resolve_camera_focus_rect() const
+void PhysicsCombatDemoSceneBase::on_control_target_removing(
+    elysia::core::SceneObject& object)
+{
+    if (auto* actor = dynamic_cast<example::demo::physics::BlockCombatActor*>(&object))
+    {
+        _combat.unregister_actor(*actor);
+        std::erase(_actors, actor);
+        if (_player == actor)
+            _player = nullptr;
+    }
+    if (_tile_map == &object)
+        _tile_map = nullptr;
+}
+
+std::optional<elysia::camera::CameraFocus>
+PhysicsCombatDemoSceneBase::resolve_camera_focus() const
 {
     if (!_player)
         return std::nullopt;
 
-    return _player->render_rect();
+    const auto rect = _player->render_rect();
+    return elysia::camera::CameraFocus{rect, rect};
 }
 
 
@@ -289,11 +323,12 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
     if (ImGui::CollapsingHeader(
             "World Configuration", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::Text("Fixed step: %.6f s", config.fixed_delta_seconds);
+        const auto* fixed = fixed_step_config();
+        ImGui::Text("Fixed step: %.6f s", fixed ? fixed->delta_seconds : 0.0);
         ImGui::Text("Gravity: (%.2f, %.2f)",
             config.gravity.x, config.gravity.y);
         ImGui::Text("Max catch-up steps: %u",
-            config.max_steps_per_advance);
+            fixed ? fixed->max_steps_per_frame : 0u);
         ImGui::Text("Sub-steps: %u", config.sub_steps);
     }
 
@@ -317,7 +352,10 @@ void PhysicsCombatDemoSceneBase::draw_physics_inspector()
         row("Awake bodies", stats.awake_bodies);
         row("Joints", stats.joints);
         ImGui::Text("Step: %.3f ms", stats.step_milliseconds);
-        row("Dropped fixed steps", stats.dropped_fixed_steps);
+        const auto dropped = _scenario
+            ? _scenario->result().fixed_step_stats.dropped_steps
+            : fixed_step_stats()->dropped_steps;
+        row("Dropped fixed steps", dropped);
         ImGui::EndTable();
     }
 
@@ -470,13 +508,14 @@ void PhysicsCombatDemoSceneBase::update_hud()
     if (_stats_label)
     {
         const auto& stats = physics_world().last_step_stats();
+        const auto dropped = fixed_step_stats()->dropped_steps;
         std::ostringstream text;
         text << "Enemies " << enemies
              << " | Awake " << stats.awake_bodies
              << " | Contacts " << stats.contacts
              << " | Joints " << stats.joints
              << " | Step ms " << stats.step_milliseconds
-             << " | Dropped " << stats.dropped_fixed_steps;
+             << " | Dropped " << dropped;
         _stats_label->set_text_content(elysia::ui::ui_raw_text(text.str()));
     }
 }

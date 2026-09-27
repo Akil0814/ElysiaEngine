@@ -168,20 +168,22 @@ void integration()
         "automatic zoom must remain isolated to its slot");
     manager->reset_all();
 }
-class LegacyScene final : public elysia::scene::Scene
+class FocusScene final : public elysia::scene::Scene
 {
 public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
-    using Scene::resolve_camera_focus;
-    std::optional<Rect> resolve_camera_focus_rect() const override { return Rect{10, 20, 30, 40}; }
+    void on_reset() override {}
+    std::optional<CameraFocus> resolve_camera_focus() const override
+    { return single(Rect{10, 20, 30, 40}); }
+    std::optional<CameraFocus> default_focus() const { return Scene::resolve_camera_focus(); }
 };
 }
 int main()
 {
     aggregation(); framing_and_smoothing(); overflow_and_recovery(); integration();
-    LegacyScene legacy;
-    require(legacy.resolve_camera_focus()->primary == Rect(10, 20, 30, 40), "legacy Scene hook must adapt to new focus");
+    FocusScene scene;
+    require(scene.resolve_camera_focus()->primary == Rect(10, 20, 30, 40), "Scene hook must provide camera focus");
+    require(!scene.default_focus(), "base Scene focus must be empty");
     std::cout << "multi-target camera tests passed\n";
 }

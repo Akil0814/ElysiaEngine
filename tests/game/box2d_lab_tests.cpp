@@ -30,8 +30,8 @@ int main(int argc, char **argv)
         elysia::io::ContentRegistry registry;
         elysia::scene::SceneRuntimeContext context(renderer, registry, 1280, 720);
         elysia::scene::SceneManager scene;
+        scene.initialize(context);
         scene.register_game_scene<example::scene::Box2DLabScene>(example::scene_keys::Box2DLab);
-        scene.set_runtime_context(context);
         if (!elysia::gameplay::ControllerService::instance()->session_active())
             (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene.start({.target = example::scene_keys::Box2DLab,

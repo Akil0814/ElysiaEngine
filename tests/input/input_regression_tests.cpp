@@ -1,6 +1,7 @@
 #define SDL_MAIN_HANDLED
 #include "engine/gameplay/scene/gameplay_scene.h"
 #include "engine/input/input_system.h"
+#include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/ui/input/ui_input_router.h"
 #include "tests/support/input_snapshot_builder.h"
@@ -73,7 +74,7 @@ struct World : GameplayScene
     void on_exit() override
     {
     }
-    void reset() override
+    void on_reset() override
     {
     }
 };
@@ -83,13 +84,18 @@ struct OtherWorld : World
 };
 struct Fixture
 {
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context{nullptr, registry, 1280, 720};
     elysia::scene::SceneManager manager;
     ControllerService *service = ControllerService::instance();
     World *world = nullptr;
+    World *other = nullptr;
     Fixture()
     {
+        manager.initialize(context);
         require(bool(service->begin_session()), "Session starts");
         manager.register_game_scene<World>(987, &world);
+        manager.register_game_scene<OtherWorld>(988, &other);
         manager.start({.target = 987});
     }
     void tick()
@@ -387,17 +393,13 @@ void test_context_invalidation_and_target_removal()
             return;
         operation = f.service->bind_target(h, f.world->control_context(), *b);
         b->destroy();
-        f.world->on_update(0);
-        require(operation->error() == ControllerError::InvalidTarget,
-                "Object-removing hook invalidates pending request immediately");
         (void)f.world->create_and_add_object<Actor>();
     };
     f.tick();
-    require(operation->failed() && f.service->describe(h)->bound,
-            "Removed address cannot revive old request");
+    require(operation->error() == ControllerError::InvalidTarget &&
+                f.service->describe(h)->bound,
+            "Object-removing safe point invalidates pending requests before the frame completes");
     a->callback = {};
-    World *other = nullptr;
-    f.manager.register_game_scene<OtherWorld>(988, &other);
     auto *target = f.world->create_and_add_object<Actor>();
     f.service->get<Driver>(h)->cancel = [&] {
         f.manager.on_scene_request(

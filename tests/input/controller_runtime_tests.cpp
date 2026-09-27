@@ -3,6 +3,7 @@
 #include "engine/gameplay/control/controller_manager.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/input/input_system.h"
+#include "engine/io/loaders/asset_config_types.h"
 #include "engine/ui/core/ui_element.h"
 #include "tests/support/input_snapshot_builder.h"
 #include "tests/support/test_assertions.h"
@@ -76,7 +77,7 @@ template <int Tag> struct World final : GameplayScene
     {
         ++exits;
     }
-    void reset() override
+    void on_reset() override
     {
         ++resets;
     }
@@ -105,13 +106,14 @@ struct PointerCapture final : elysia::ui::UiElement
 };
 struct Menu final : elysia::scene::Scene
 {
+    explicit Menu(Menu** output = nullptr) { if (output) *output = this; }
     void on_enter(const elysia::scene::ScenePayload &) override
     {
     }
     void on_exit() override
     {
     }
-    void reset() override
+    void on_reset() override
     {
     }
 };
@@ -151,6 +153,9 @@ void route(elysia::scene::SceneManager &manager, int key,
 void test_keyboard_partitions_and_ui()
 {
     elysia::scene::SceneManager manager;
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    manager.initialize(context);
     auto *service = ControllerService::instance();
     require(bool(service->begin_session()), "Partition test session");
     World<10> *world = nullptr;
@@ -188,7 +193,7 @@ void test_keyboard_partitions_and_ui()
     require(!service->replace_input_map(*second, map()).succeeded(), "Mapping cannot reference another partition");
     elysia::tests::InputSnapshotBuilder devices;
     auto tick = [&] {
-        world->on_input(devices.take());
+        manager.on_input(devices.take());
         manager.on_update(1.0 / 60);
     };
     tick();
@@ -204,7 +209,7 @@ void test_keyboard_partitions_and_ui()
     require(a->commands.back().state.axis1d(Motion) == 0 && b->commands.back().state.axis1d(Motion) == 1,
             "Keyboard partition release isolation");
     devices.press(RawInputControl::KeyD, true);
-    world->on_input(devices.take());
+    manager.on_input(devices.take());
     auto before = a->commands.size(), other_before = b->commands.size();
     auto changed = players.configuration().partitions.at(wasd);
     changed.keys.insert(RawInputControl::KeyA);
@@ -232,7 +237,7 @@ void test_keyboard_partitions_and_ui()
     devices.press(RawInputControl::KeyRight, false);
     tick();
     devices.event({.type = RawInputEventType::MouseMoved, .device = InputDevice::Mouse, .mouse_delta_x = 12});
-    world->on_input(devices.take());
+    manager.on_input(devices.take());
     require(bool(players.transfer_source(p2, InputSourceId::mouse())),
             "Mouse ownership transfer independent of keyboard");
     manager.on_update(1.0 / 60);
@@ -248,18 +253,23 @@ void test_keyboard_partitions_and_ui()
     world->set_ui_gamepad(gamepad);
     require(players.owner(gamepad) == p2, "UI selection never changes gameplay ownership");
     manager.shutdown();
-    Menu menu;
-    require(bool(menu.local_players().unbind_source(InputSourceId::mouse())), "Menu mouse unbinding succeeds");
-    require(bool(menu.local_players().bind_keyboard(PrimaryLocalPlayer, {})),
+    elysia::scene::SceneManager menu_manager;
+    menu_manager.initialize(context);
+    Menu* menu = nullptr;
+    menu_manager.register_game_scene<Menu>(911, &menu);
+    menu_manager.start({.target = 911});
+    require(bool(menu->local_players().unbind_source(InputSourceId::mouse())), "Menu mouse unbinding succeeds");
+    require(bool(menu->local_players().bind_keyboard(PrimaryLocalPlayer, {})),
             "UI needs no gameplay bindings");
     elysia::tests::InputSnapshotBuilder menu_devices;
     menu_devices.event({.control = RawInputControl::GamepadSouth,
                         .type = RawInputEventType::ControlPressed,
                         .device = InputDevice::Gamepad,
                         .source = gamepad});
-    menu.on_input(menu_devices.take());
-    require(menu.ui_gamepad() == gamepad && !menu.local_players().owner(gamepad).value,
+    menu_manager.on_input(menu_devices.take());
+    require(menu->ui_gamepad() == gamepad && !menu->local_players().owner(gamepad).value,
             "Menu claims UI pad without claiming gameplay player");
+    menu_manager.shutdown();
 }
 int main()
 {
@@ -267,6 +277,9 @@ int main()
     require(!service->create<SyntheticController>({ControllerScope::Session, {}}), "No implicit session");
     require(!service->begin_session(), "No engine runtime before SceneManager initialization");
     elysia::scene::SceneManager manager;
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    manager.initialize(context);
     require(bool(service->begin_session()), "Begin explicit session");
     require(!service->begin_session(), "Repeated begin cannot reset session");
     World<1> *first = nullptr;
@@ -346,10 +359,10 @@ int main()
     devices.event({.type = RawInputEventType::MouseWheel, .wheel_y = 3});
     devices.press(RawInputControl::KeySpace, true);
     devices.press(RawInputControl::KeySpace, false);
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(0);
     devices.event({.type = RawInputEventType::MouseMoved, .mouse_delta_x = 22});
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().deltas.at(Look).x == 62 && a->commands.back().deltas.at(Look).y == -9 &&
                 a->commands.back().deltas.at(Wheel).x == 3,
@@ -359,14 +372,14 @@ int main()
     require(a->commands.back().deltas.empty() && a->commands.back().events.empty(),
             "Catchup never repeats deltas or events");
     devices.event({.type = RawInputEventType::MouseMoved, .mouse_delta_x = 17});
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     devices.event({.type = RawInputEventType::MouseWheel, .wheel_y = 5});
     devices.press(RawInputControl::KeySpace, true);
     devices.press(RawInputControl::KeySpace, false);
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     auto *sink = first->create_and_add_object<PointerSink>();
     devices.event({.type = RawInputEventType::MouseMoved, .mouse_delta_x = 23});
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(!a->commands.back().deltas.contains(Look) && a->commands.back().deltas.at(Wheel).x == 5 &&
                 a->commands.back().events.size() == 2,
@@ -374,32 +387,32 @@ int main()
     sink->set_active(false);
     sink->set_visible(false);
     devices.event({.type = RawInputEventType::MouseMoved, .mouse_delta_x = 17});
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     auto *capture = first->create_and_add_object<PointerCapture>();
     devices.event({.type = RawInputEventType::MouseMoved, .mouse_delta_x = 23});
     devices.event({.type = RawInputEventType::MouseWheel, .wheel_y = 5});
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().deltas.empty(),
             "UI pointer capture clears pending and current mouse/wheel deltas");
     capture->set_active(false);
     capture->set_visible(false);
     devices.press(RawInputControl::KeyD, true);
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().state.axis1d(Motion) == 1, "Held movement");
     require(bool(service->replace_input_map(*local, map()).succeeded()), "Replace validated mapping");
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().state.axis1d(Motion) == 0, "Replacing map requires held control release");
     devices.press(RawInputControl::KeyD, false);
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     devices.press(RawInputControl::KeyD, true);
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     manager.on_update(1.0 / 60);
     require(a->commands.back().state.axis1d(Motion) == 1, "Fresh input after mapping change");
     devices.press(RawInputControl::KeySpace, true);
-    first->on_input(devices.take());
+    manager.on_input(devices.take());
     auto queued_count = a->commands.size();
     auto full_keyboard = first->local_players().configuration().bindings.at(PrimaryLocalPlayer).keyboard;
     (void)first->local_players().bind_keyboard(PrimaryLocalPlayer, {});
@@ -485,6 +498,7 @@ int main()
     manager.shutdown();
     require(!service->begin_session(), "Shutdown disables runtime");
     elysia::scene::SceneManager restarted_manager;
+    restarted_manager.initialize(context);
     require(bool(service->begin_session()), "New application/session lifetime");
     auto restarted = service->create<SyntheticController>({ControllerScope::Session, {}});
     require(restarted->runtime != created.runtime && !service->get(created),

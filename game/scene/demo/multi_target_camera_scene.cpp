@@ -13,6 +13,12 @@
 
 namespace example::scene
 {
+MultiTargetCameraScene::MultiTargetCameraScene()
+    : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+          .camera = {.render_slot = elysia::camera::CameraSlot::Main,
+                     .update_mode = elysia::scene::CameraUpdateMode::Dynamic}})
+{}
+
 using namespace elysia::core;
 using namespace elysia::camera;
 using namespace elysia::ui;
@@ -151,10 +157,9 @@ void MultiTargetCameraScene::on_exit()
     if (_controls) { _controls->set_active(false); _controls->set_visible(false); }
 }
 
-void MultiTargetCameraScene::reset()
+void MultiTargetCameraScene::on_reset()
 {
     on_exit();
-    reset_input_routing();
 
     for (auto*& target : _targets) { if (target) target->destroy(); target = nullptr; }
     if (_controls) _controls->destroy();
@@ -172,9 +177,9 @@ std::optional<CameraFocus> MultiTargetCameraScene::resolve_camera_focus() const
     return make_camera_focus(rects, _primary);
 }
 
-void MultiTargetCameraScene::on_update(double delta)
+void MultiTargetCameraScene::on_after_update(double delta)
 {
-    Scene::on_update(delta);
+    (void)delta;
     finish_primary_request();
     refresh_status();
 }

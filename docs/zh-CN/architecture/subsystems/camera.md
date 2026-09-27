@@ -89,40 +89,45 @@ DeadZone 使用 viewport-local 屏幕像素定义。焦点会先按当前 zoom �
 
 Scene 不再拥有 Camera 或 CameraController。基础场景行为为：
 
-- `Scene::on_update` 每帧将 `resolve_camera_focus()` 的结果写入 `Main`，然后更新 CameraManager 中的全部相机。新入口默认包装原来的 `resolve_camera_focus_rect()`。
-- 场景内部渲染流程默认使用 `Main` 投影世界渲染命令。`Scene::on_render` 是由 `SceneManager` 调用的私有非虚函数；游戏对象和 UI 通过提交引擎绘制命令参与渲染，游戏场景不重写渲染入口。
+- `Scene::lifecycle_update` 在 `CameraUpdateMode::Dynamic` 下将 `resolve_camera_focus()` 的结果写入配置的渲染槽位，仅更新该槽位；默认的 `Static` 模式不自动更新相机。焦点钩子默认返回 `std::nullopt`。
+- 场景内部渲染流程默认使用 `Main` 投影世界渲染命令。`Scene::lifecycle_render` 是由 `SceneManager` 调用的私有非虚函数；游戏对象和 UI 通过提交引擎绘制命令参与渲染，游戏场景不重写渲染入口。
 - UI 命令仍直接使用屏幕坐标执行，不经过世界相机。
-- Scene 子类可以通过受保护的 `set_render_camera_slot()` 改用 `Cinematic`、`Auxiliary1` 或 `Auxiliary2` 渲染世界。
+- Scene 子类通过构造时的 `SceneRuntimeFeatures::camera.render_slot` 选择 `Cinematic`、`Auxiliary1` 或 `Auxiliary2` 渲染世界。
 
-只有 Main 会自动接收 Scene 的焦点矩形。其他三个槽位的焦点和配置完全由业务代码管理，不会被 Scene 基础更新覆盖。
+只有启用动态更新的渲染槽位自动接收 Scene 的焦点；其他槽位由业务代码管理。
 
 ```cpp
-std::optional<elysia::core::Rect> MyScene::resolve_camera_focus_rect() const
+std::optional<elysia::camera::CameraFocus> MyScene::resolve_camera_focus() const
 {
-    return _player ? std::optional(_player->world_rect()) : std::nullopt;
+    if (!_player)
+        return std::nullopt;
+    const auto rect = _player->render_rect();
+    return elysia::camera::CameraFocus{rect, rect};
 }
 ```
 
-场景若需要使用演出相机作为世界渲染相机，可以在进入时选择槽位：
+场景若需要使用演出相机作为世界渲染相机，可以在构造时配置：
 
 ```cpp
-set_render_camera_slot(elysia::camera::CameraSlot::Cinematic);
+MyScene::MyScene() : Scene(elysia::scene::SceneRuntimeFeatures{
+    .camera = {.render_slot = elysia::camera::CameraSlot::Cinematic,
+               .update_mode = elysia::scene::CameraUpdateMode::Dynamic}}) {}
 ```
 
 ## 场景切换与重置
 
-切换到不同场景，或以 `SceneReloadMode::Reset` 重进当前场景时，SceneManager 会在旧场景 `on_exit()` 之后、新场景 `on_enter()` 之前重置 Main。
+切换到不同场景，或以 `SceneReloadMode::Reset` / `Recreate` 重进当前场景时，SceneManager 会在旧场景 `on_exit()` 之后、新场景 `on_enter()` 之前重置目标场景的渲染槽位。
 
-Main 重置会：
+槽位重置会：
 
 - 清除焦点和世界边界；
 - 清除跟随策略和活动效果；
-- 清除面向 Main 的未处理请求；
+- 清除面向该槽位的未处理请求；
 - 将逻辑中心和最终中心归零；
 - 将缩放恢复为 `1.0`；
 - 保留视口大小。
 
-`Cinematic`、`Auxiliary1` 和 `Auxiliary2` 跨场景保留。使用这些槽位的业务负责主动重新配置或调用 `CameraManager::reset(slot)`。Reuse 当前活动场景不会触发重置；SceneManager 关闭时会重置 Main。
+其他槽位不会因这次切换自动重置，业务可调用 `CameraManager::reset(slot)`。Reuse 当前活动场景不会触发重置；SceneManager 关闭时会重置全部槽位。
 
 ## 当前边界
 

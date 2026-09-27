@@ -88,7 +88,7 @@ void PhysicsCombatDemoSceneBase::update_test_hud()
     _test_labels[1]->set_text_content(ui_raw_text(tr("physics_tests.steps")+": "+std::to_string(r.steps)+" / "+std::to_string(_scenario->descriptor().max_steps)));
     _test_labels[2]->set_text_content(ui_raw_text(tr("physics_tests.objects")+": "+std::to_string(r.stats.registered_objects)+" / "+std::to_string(r.stats.registered_colliders)));
     _test_labels[3]->set_text_content(ui_raw_text(tr("physics_tests.contacts")+": "+std::to_string(r.stats.contacts)+" | "+tr("physics_tests.awake")+": "+std::to_string(r.stats.awake_bodies)));
-    _test_labels[4]->set_text_content(ui_raw_text(tr("physics_tests.dropped")+": "+std::to_string(r.stats.dropped_fixed_steps)));
+    _test_labels[4]->set_text_content(ui_raw_text(tr("physics_tests.dropped")+": "+std::to_string(r.fixed_step_stats.dropped_steps)));
     std::ostringstream timing;timing<<std::fixed<<std::setprecision(3)<<tr("physics_tests.timing")<<": "<<r.median_ms<<" / "<<r.p95_ms<<" / "<<r.max_ms;
     _test_labels[5]->set_text_content(ui_raw_text(timing.str()));
     _test_labels[6]->set_text_content(ui_raw_text(tr("physics_tests.samples")+": "+std::to_string(r.samples)));

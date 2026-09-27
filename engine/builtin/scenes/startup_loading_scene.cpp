@@ -104,7 +104,7 @@ void StartupLoadingScene::on_exit()
     clear_state();
 }
 
-void StartupLoadingScene::reset()
+void StartupLoadingScene::on_reset()
 {
     _paused = false;
     _content_loader.reset();
@@ -112,12 +112,8 @@ void StartupLoadingScene::reset()
     clear_state();
 }
 
-void StartupLoadingScene::on_update(double delta)
+void StartupLoadingScene::on_after_update(double delta)
 {
-    if (_completion.transitioning())
-        return;
-
-    Scene::on_update(delta);
     if (_completion.transitioning())
         return;
 
@@ -483,11 +479,9 @@ void StartupLoadingScene::destroy_ui()
     _project_logo = nullptr;
     _start_prompt = nullptr;
 
-    // Scene owns its objects and removes destroyed entries at the end of a
-    // base update. Purge now so a cached StartupLoadingScene cannot accumulate
-    // dead widgets across repeated exits/enters.
+    // Purge immediately so a cached scene cannot accumulate retired widgets.
     if (had_ui)
-        Scene::on_update(0.0);
+        clear_scene_objects();
 }
 
 void StartupLoadingScene::clear_state() noexcept

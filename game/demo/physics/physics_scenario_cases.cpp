@@ -274,12 +274,17 @@ void PhysicsScenario::Impl::build_timing()
         check("fixed_steps.position",world.body_state(h)->position.x,160,.05);
         // Exercise the public clock contract on a separate empty diagnostic world;
         // this does not duplicate the visible moving fixture.
-        PhysicsWorld clock;
-        check("clock.fractional_step",clock.advance(1.0/120),0);
-        check("clock.next_half",clock.advance(1.0/120),1);
-        check("clock.large_delta_limit",clock.advance(1.0),8);
-        truth("clock.dropped_steps",clock.last_step_stats().dropped_fixed_steps>=51);
-        world.advance(1.0/120);
+        elysia::scene::FixedStepRuntime clock({});
+        const auto advance_clock = [&clock](double delta)
+        {
+            clock.advance(delta, [](std::uint64_t, double) {});
+            return clock.stats().executed_steps;
+        };
+        check("clock.fractional_step",advance_clock(1.0/120),0);
+        check("clock.next_half",advance_clock(1.0/120),1);
+        check("clock.large_delta_limit",advance_clock(1.0),8);
+        truth("clock.dropped_steps",clock.stats().dropped_steps>=51);
+        world.finalize_frame(0.5);
         auto pose=world.render_pose(h);auto state=world.body_state(h);
         truth("render.interpolates",pose&&pose->position.x<state->position.x&&pose->position.x>state->position.x-1.1f);
     };

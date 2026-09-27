@@ -61,7 +61,6 @@ struct PhysicsStepStats
     std::size_t joints = 0;
     double step_milliseconds = 0;
     std::size_t contacts = 0;
-    std::uint64_t dropped_fixed_steps = 0;
 };
 
 struct PhysicsDebugShape

@@ -1,32 +1,33 @@
 #include "scene.h"
 
 #include "detail/scene_input_order.h"
+#include "detail/scene_failure_log.h"
 
-#include "../core/interface/updatable.h"
 #include "../core/render/debug_draw_projection.h"
 #include "../core/render/render_command_projection.h"
 #include "../core/render/sdl_render_command_executor.h"
-#include "../physics/physics_debug_draw.h"
 #include "../physics/contracts/physics_participant.h"
+#include "../physics/physics_debug_draw.h"
 #include "../tools/debug_draw.h"
-#include "../tools/logger.h"
 #include "../ui/core/ui_render_command_range_utils.h"
 
 #include <algorithm>
 #include <cassert>
+#include <exception>
 #include <stdexcept>
 
 namespace elysia::scene
 {
 namespace
 {
-template <typename Entry> void erase_destroyed_entries(std::vector<Entry> &entries)
+template <typename Entry>
+void erase_object_entries(std::vector<Entry>& entries, const elysia::core::SceneObject* object)
 {
-    std::erase_if(entries, [](const Entry &entry) { return !entry.object || entry.object->is_destroyed(); });
+    std::erase_if(entries, [object](const Entry& entry) { return entry.object == object; });
 }
 
 [[nodiscard]] elysia::physics::PhysicsDebugCapture physics_debug_capture(
-    const elysia::tools::DebugDraw &debug_draw) noexcept
+    const elysia::tools::DebugDraw& debug_draw) noexcept
 {
     using elysia::physics::PhysicsDebugCapture;
     using elysia::tools::DebugDrawCategory;
@@ -50,80 +51,268 @@ template <typename Entry> void erase_destroyed_entries(std::vector<Entry> &entri
         capture |= PhysicsDebugCapture::Joints;
     return capture;
 }
+
+constexpr auto physics_debug_categories =
+    elysia::tools::DebugDrawCategory::PhysicsCollider |
+    elysia::tools::DebugDrawCategory::PhysicsContact |
+    elysia::tools::DebugDrawCategory::PhysicsContactNormal |
+    elysia::tools::DebugDrawCategory::PhysicsBroadPhase |
+    elysia::tools::DebugDrawCategory::PhysicsPoseHistory |
+    elysia::tools::DebugDrawCategory::PhysicsVelocity |
+    elysia::tools::DebugDrawCategory::PhysicsJoint;
 } // namespace
 
-using namespace elysia::input;
+Scene::Scene() : Scene(SceneRuntimeFeatures{}) {}
 
-bool Scene::owns_object(const elysia::core::SceneObject &object) const
+Scene::Scene(SceneRuntimeFeatures features) : _features(std::move(features))
+{
+    if (_features.physics && !_features.fixed_step)
+        throw std::invalid_argument("Scene physics requires a fixed-step runtime.");
+    if (_features.camera.render_slot == elysia::camera::CameraSlot::Count)
+        throw std::invalid_argument("Scene render camera slot cannot be CameraSlot::Count.");
+    if (_features.fixed_step)
+        _fixed_step = std::make_unique<FixedStepRuntime>(*_features.fixed_step);
+    if (_features.physics)
+        _physics_world = std::make_unique<elysia::physics::PhysicsWorld>(*_features.physics);
+}
+
+Scene::~Scene()
+{
+    release_owned_objects_noexcept();
+}
+
+bool Scene::owns_object(const elysia::core::SceneObject& object) const
 {
     return contains_object_address(&object);
 }
+
 bool Scene::contains_object_address(const elysia::core::SceneObject* object) const
 {
-    for (const auto &layer : _object_layers)
-        for (const auto &ptr : layer)
-            if (ptr.get() == object)
+    if (!object)
+        return false;
+    for (const auto& layer : _object_layers)
+        for (const auto& candidate : layer)
+            if (candidate.get() == object)
                 return true;
-    return false;
+    return std::ranges::any_of(_ui_roots, [object](const auto& candidate) {
+        return candidate.get() == object;
+    });
 }
-void Scene::on_input(const InputSnapshot& input) { _input_router.route(input); }
-void Scene::set_all_gameplay_input_blocked(bool blocked) { _input_router.set_all_gameplay_input_blocked(blocked); }
-void Scene::reset_input_routing() { _input_router.reset(); }
-void Scene::consume_input(const RawInputEvent& event) { _input_router.consume_input(event); }
-void Scene::pause() { if(_paused)return;_paused=true;_input_router.reset();on_pause_changed(true); }
-void Scene::resume() { if(!_paused)return;_paused=false;on_pause_changed(false); }
 
-void Scene::on_update(double delta)
+void Scene::set_all_gameplay_input_blocked(bool blocked)
 {
-    for (const UpdatableEntry &entry : _updatables)
-    {
-        elysia::core::SceneObject *object = entry.object;
+    _input_router.set_all_gameplay_input_blocked(blocked);
+}
 
-        if (!object || object->is_destroyed() || !object->is_active())
-            continue;
+void Scene::reset_input_routing()
+{
+    _input_router.reset();
+}
 
-        if (_paused && !object->update_when_paused())
-            continue;
+void Scene::consume_input(const elysia::input::RawInputEvent& event)
+{
+    _input_router.consume_input(event);
+}
 
-        entry.updatable->update(delta);
-    }
+void Scene::pause()
+{
+    if (_paused)
+        return;
+    _paused = true;
+    _input_router.reset();
+    on_pause_changed(true);
+}
 
-    for (const std::unique_ptr<elysia::ui::UiElement> &ui_root : _ui_roots)
-    {
-        if (!ui_root || ui_root->is_destroyed() || !ui_root->is_active())
-            continue;
-        if (_paused && !ui_root->update_when_paused())
-            continue;
-        ui_root->update_presentation_animations(delta);
-    }
-
-    elysia::tools::DebugDraw *physics_debug_draw = elysia::tools::DebugDraw::instance();
-    const auto debug_capture = physics_debug_capture(*physics_debug_draw);
-    _physics_world.set_debug_capture(debug_capture);
-
+void Scene::resume()
+{
     if (!_paused)
-        (void)_physics_world.advance(delta, [this](double step) { on_fixed_update(++_fixed_tick, step); });
-
-    const auto physics_categories =
-        elysia::tools::DebugDrawCategory::PhysicsCollider | elysia::tools::DebugDrawCategory::PhysicsContact |
-        elysia::tools::DebugDrawCategory::PhysicsContactNormal |
-        elysia::tools::DebugDrawCategory::PhysicsBroadPhase |
-        elysia::tools::DebugDrawCategory::PhysicsPoseHistory |
-        elysia::tools::DebugDrawCategory::PhysicsVelocity | elysia::tools::DebugDrawCategory::PhysicsJoint;
-    physics_debug_draw->clear_categories(physics_categories);
-    if (debug_capture != elysia::physics::PhysicsDebugCapture::None)
-        elysia::physics::submit_physics_debug_snapshot(_physics_world.debug_snapshot(), *physics_debug_draw);
-
-    auto *camera_manager = elysia::camera::CameraManager::instance();
-    camera_manager->set_focus(elysia::camera::CameraSlot::Main, resolve_camera_focus());
-    camera_manager->update(delta);
-
-    remove_destroyed_objects();
+        return;
+    _paused = false;
+    on_pause_changed(false);
 }
 
-void Scene::on_render(SDL_Renderer *renderer)
+void Scene::lifecycle_enter(const ScenePayload& payload)
 {
-    if (!renderer)
+    if (_lifecycle_state != SceneLifecycleState::Inactive)
+        throw std::logic_error("Scene can only enter from the inactive state.");
+    _lifecycle_state = SceneLifecycleState::Entering;
+    try
+    {
+        on_enter(payload);
+        _lifecycle_state = SceneLifecycleState::Active;
+    }
+    catch (...)
+    {
+        _lifecycle_state = SceneLifecycleState::Inactive;
+        throw;
+    }
+}
+
+void Scene::lifecycle_exit()
+{
+    if (_lifecycle_state != SceneLifecycleState::Active)
+        throw std::logic_error("Scene can only exit from the active state.");
+    _lifecycle_state = SceneLifecycleState::Exiting;
+    std::exception_ptr failure;
+    try
+    {
+        on_exit();
+    }
+    catch (...)
+    {
+        failure = std::current_exception();
+    }
+    try
+    {
+        remove_destroyed_objects();
+    }
+    catch (...)
+    {
+        if (!failure)
+            failure = std::current_exception();
+        else
+            detail::log_cleanup_exception("Exit object retirement");
+    }
+
+    _lifecycle_state = SceneLifecycleState::Inactive;
+    if (failure)
+        std::rethrow_exception(failure);
+}
+
+void Scene::lifecycle_reset()
+{
+    if (_lifecycle_state != SceneLifecycleState::Inactive)
+        throw std::logic_error("Scene can only reset while inactive.");
+    _lifecycle_state = SceneLifecycleState::Resetting;
+    std::exception_ptr failure;
+    try
+    {
+        reset_input_routing();
+        _paused = false;
+        if (_fixed_step)
+            _fixed_step->reset();
+        elysia::camera::CameraManager::instance()->reset(_features.camera.render_slot);
+        on_runtime_reset();
+        on_reset();
+    }
+    catch (...)
+    {
+        failure = std::current_exception();
+    }
+    try
+    {
+        remove_destroyed_objects();
+    }
+    catch (...)
+    {
+        if (!failure)
+            failure = std::current_exception();
+        else
+            detail::log_cleanup_exception("Reset object retirement");
+    }
+
+    _lifecycle_state = SceneLifecycleState::Inactive;
+    if (failure)
+        std::rethrow_exception(failure);
+}
+
+void Scene::lifecycle_input(const elysia::input::InputSnapshot& input)
+{
+    if (_lifecycle_state != SceneLifecycleState::Active)
+        return;
+    _input_router.route(input);
+}
+
+void Scene::lifecycle_update(double delta)
+{
+    if (_lifecycle_state != SceneLifecycleState::Active)
+        return;
+
+
+    std::exception_ptr failure;
+    try
+    {
+        auto* debug_draw = elysia::tools::DebugDraw::instance();
+        debug_draw->clear_categories(physics_debug_categories);
+
+        on_before_update(delta);
+
+        for (const UpdatableEntry& entry : _updatables)
+        {
+            auto* object = entry.object;
+            if (!object || object->is_destroyed() || !object->is_active())
+                continue;
+            if (_paused && !object->update_when_paused())
+                continue;
+            entry.updatable->update(delta);
+        }
+
+        for (const auto& ui_root : _ui_roots)
+        {
+            if (!ui_root || ui_root->is_destroyed() || !ui_root->is_active())
+                continue;
+            if (_paused && !ui_root->update_when_paused())
+                continue;
+            ui_root->update_presentation_animations(delta);
+        }
+
+        const auto debug_capture = physics_debug_capture(*debug_draw);
+        if (_physics_world)
+            _physics_world->set_debug_capture(debug_capture);
+
+        if (_fixed_step && !_paused)
+        {
+            _fixed_step->advance(fixed_step_frame_delta(delta), [this](std::uint64_t tick, double step_delta) {
+                on_fixed_update(tick, step_delta);
+                if (_physics_world)
+                    _physics_world->step(step_delta);
+            });
+        }
+        if (_physics_world)
+        {
+            const double alpha = _fixed_step ? _fixed_step->stats().interpolation_alpha : 0.0;
+            _physics_world->finalize_frame(alpha);
+        }
+
+        if (_physics_world && debug_capture != elysia::physics::PhysicsDebugCapture::None)
+        {
+            elysia::physics::submit_physics_debug_snapshot(
+                _physics_world->debug_snapshot(), *debug_draw);
+        }
+
+        if (_features.camera.update_mode == CameraUpdateMode::Dynamic)
+        {
+            auto* camera_manager = elysia::camera::CameraManager::instance();
+            camera_manager->set_focus(_features.camera.render_slot, resolve_camera_focus());
+            camera_manager->update(_features.camera.render_slot, delta);
+        }
+
+        on_after_update(delta);
+    }
+    catch (...)
+    {
+        failure = std::current_exception();
+    }
+
+    try
+    {
+        remove_destroyed_objects();
+    }
+    catch (...)
+    {
+        if (!failure)
+            failure = std::current_exception();
+        else
+            detail::log_cleanup_exception("Update object retirement");
+    }
+
+    if (failure)
+        std::rethrow_exception(failure);
+}
+
+void Scene::lifecycle_render(SDL_Renderer* renderer)
+{
+    if (_lifecycle_state != SceneLifecycleState::Active || !renderer)
         return;
 
     std::vector<elysia::core::RenderCommand> render_commands;
@@ -133,141 +322,217 @@ void Scene::on_render(SDL_Renderer *renderer)
     projected_render_commands.reserve(256);
     ui_render_commands.reserve(256);
 
-    for (const auto &layer : _object_layers)
+    for (const auto& layer : _object_layers)
     {
         render_commands.clear();
         projected_render_commands.clear();
-
-        for (const std::unique_ptr<elysia::core::GameObject> &obj : layer)
+        for (const auto& object : layer)
         {
-            if (!obj || obj->is_destroyed() || !obj->is_visible())
-                continue;
-
-            obj->submit_render_commands(render_commands);
+            if (object && !object->is_destroyed() && object->is_visible())
+                object->submit_render_commands(render_commands);
         }
-
-        elysia::core::project_render_commands_to_screen(render_commands, camera(), projected_render_commands);
+        elysia::core::project_render_commands_to_screen(
+            render_commands, camera(), projected_render_commands);
         elysia::core::execute_render_commands(renderer, projected_render_commands);
     }
 
-    elysia::tools::DebugDraw *debug_draw = elysia::tools::DebugDraw::instance();
+    auto* debug_draw = elysia::tools::DebugDraw::instance();
     if (debug_draw->enabled())
     {
-        std::vector<elysia::core::UiRenderCommand> debug_draw_commands;
-        debug_draw_commands.reserve(debug_draw->commands().size());
+        std::vector<elysia::core::UiRenderCommand> debug_commands;
+        debug_commands.reserve(debug_draw->commands().size());
         elysia::core::append_projected_debug_draw_commands(
-            debug_draw->commands(), debug_draw->enabled_categories(), camera(), debug_draw_commands);
-        elysia::core::execute_render_commands(renderer, debug_draw_commands);
+            debug_draw->commands(), debug_draw->enabled_categories(), camera(), debug_commands);
+        elysia::core::execute_render_commands(renderer, debug_commands);
     }
 
-    ui_render_commands.clear();
-    for (const auto &ui_root : _ui_roots)
+    for (const auto& ui_root : _ui_roots)
     {
         if (!ui_root || ui_root->is_destroyed() || !ui_root->is_visible())
             continue;
-
         const std::size_t begin = ui_render_commands.size();
         ui_root->submit_ui_render_commands(ui_render_commands);
         elysia::ui::render_command_range_utils::apply_translation_to_range(
             ui_render_commands, begin, ui_root->presentation_translation());
     }
-
     elysia::core::execute_render_commands(renderer, ui_render_commands);
 }
 
-void Scene::register_scene_object_interfaces(elysia::core::SceneObject *object)
+void Scene::attach_runtime_services()
+{
+    if (_runtime_services_attached)
+        throw std::logic_error("Scene runtime services are already attached.");
+    _runtime_services_attached = true;
+    try
+    {
+        on_runtime_attach();
+    }
+    catch (...)
+    {
+        try
+        {
+            on_runtime_detach();
+        }
+        catch (...)
+        {
+            detail::log_cleanup_exception("Runtime attach rollback");
+        }
+        _runtime_services_attached = false;
+        throw;
+    }
+}
+
+void Scene::detach_runtime_services()
+{
+    if (!_runtime_services_attached)
+        return;
+    _runtime_services_attached = false;
+    on_runtime_detach();
+}
+
+void Scene::prepare_for_destruction()
+{
+    if (_lifecycle_state == SceneLifecycleState::PreparedForDestruction)
+        return;
+    if (_lifecycle_state != SceneLifecycleState::Inactive)
+        throw std::logic_error("Scene must be inactive before destruction is prepared.");
+    if (_runtime_services_attached)
+        throw std::logic_error("Scene runtime services must be detached before destruction.");
+
+    _lifecycle_state = SceneLifecycleState::PreparingDestruction;
+    std::exception_ptr failure;
+    try
+    {
+        clear_scene_objects();
+    }
+    catch (...)
+    {
+        failure = std::current_exception();
+    }
+    try
+    {
+        reset_input_routing();
+    }
+    catch (...)
+    {
+        if (!failure)
+            failure = std::current_exception();
+        else
+            detail::log_cleanup_exception("Destruction input reset");
+    }
+    clear_runtime_context();
+    _lifecycle_state = SceneLifecycleState::PreparedForDestruction;
+    if (failure)
+        std::rethrow_exception(failure);
+}
+
+void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
 {
     if (!object)
         return;
 
-    if (elysia::core::Updatable *updatable = dynamic_cast<elysia::core::Updatable *>(object))
-        _updatables.push_back(UpdatableEntry{object, updatable});
+    auto* game_object = dynamic_cast<elysia::core::GameObject*>(object);
+    auto* participant = dynamic_cast<elysia::physics::PhysicsParticipant*>(object);
+    if (participant && !game_object)
+        throw std::logic_error("PhysicsParticipant must also derive from GameObject.");
+    if (participant && !_physics_world)
+        throw std::logic_error("A PhysicsParticipant cannot be added to a scene without physics.");
 
-    if (elysia::ui::UiInputFrameReceiver *receiver = dynamic_cast<elysia::ui::UiInputFrameReceiver *>(object))
+    if (participant)
     {
-        scene_input_order::insert_receiver_entry_sorted(_ui_frame_receivers,
-                                                        UiInputFrameReceiverEntry{object, receiver});
-    }
-
-    if (elysia::ui::UiInputEventReceiver *receiver = dynamic_cast<elysia::ui::UiInputEventReceiver *>(object))
-    {
-        scene_input_order::insert_receiver_entry_sorted(_ui_event_receivers,
-                                                        UiInputEventReceiverEntry{object, receiver});
-    }
-
-    elysia::core::GameObject *game_object = dynamic_cast<elysia::core::GameObject *>(object);
-    if (game_object)
-    {
-        auto *participant = dynamic_cast<elysia::physics::PhysicsParticipant *>(object);
-        if (participant)
+        const auto colliders = participant->collider_definitions();
+        const auto handle = _physics_world->register_object(
+            *game_object, participant->body_definition(), colliders);
+        if (!handle.is_valid())
+            throw std::runtime_error("Scene physics registration failed for a GameObject.");
+        try
         {
-            const elysia::physics::PhysicsObjectHandle handle = _physics_world.register_object(
-                *game_object, participant->body_definition(), participant->collider_definitions());
-            if (handle.is_valid())
-            {
-                participant->bind_physics(_physics_world, handle);
-                _physics_registrations.push_back(PhysicsRegistrationEntry{object, handle});
-            }
-            else
-            {
-                ELYSIA_LOG_ERROR("collision", "Scene physics registration failed for a GameObject.");
-            }
+            PhysicsRegistrationEntry registration{object, handle, {}};
+            registration.colliders.reserve(colliders.size());
+            for (std::size_t index = 0; index < colliders.size(); ++index)
+                registration.colliders.push_back(_physics_world->collider_id(handle, index));
+            _physics_registrations.push_back(std::move(registration));
         }
+        catch (...)
+        {
+            (void)_physics_world->unregister_object(handle);
+            throw;
+        }
+        participant->bind_physics(*_physics_world, handle);
     }
 
-    on_scene_object_registered(*object);
+    if (auto* updatable = dynamic_cast<elysia::core::Updatable*>(object))
+        _updatables.push_back({object, updatable});
+    if (auto* receiver = dynamic_cast<elysia::ui::UiInputFrameReceiver*>(object))
+    {
+        scene_input_order::insert_receiver_entry_sorted(
+            _ui_frame_receivers, UiInputFrameReceiverEntry{object, receiver});
+    }
+    if (auto* receiver = dynamic_cast<elysia::ui::UiInputEventReceiver*>(object))
+    {
+        scene_input_order::insert_receiver_entry_sorted(
+            _ui_event_receivers, UiInputEventReceiverEntry{object, receiver});
+    }
+    try
+    {
+        on_scene_object_registered(*object);
+    }
+    catch (...)
+    {
+        const std::exception_ptr registration_failure = std::current_exception();
+        try
+        {
+            on_scene_object_removing(*object);
+        }
+        catch (...)
+        {
+            detail::log_cleanup_exception("ObjectRegistration rollback callback");
+        }
+        std::rethrow_exception(registration_failure);
+    }
 }
 
-void Scene::visit_game_objects(elysia::core::DepthLayerMask layers,
-                               const elysia::object_query::GameObjectVisitor &visitor) const
+void Scene::visit_game_objects(
+    elysia::core::DepthLayerMask layers,
+    const elysia::object_query::GameObjectVisitor& visitor) const
 {
-    for (std::size_t layer_index = 0; layer_index < _object_layers.size(); ++layer_index)
+    for (std::size_t index = 0; index < _object_layers.size(); ++index)
     {
-        const auto depth_layer = static_cast<elysia::core::DepthLayer>(layer_index);
+        const auto depth_layer = static_cast<elysia::core::DepthLayer>(index);
         if (!layers.contains(depth_layer))
             continue;
-
-        const auto &layer = _object_layers[layer_index];
-        for (const std::unique_ptr<elysia::core::GameObject> &object : layer)
-        {
+        for (const auto& object : _object_layers[index])
             if (object && !visitor(*object))
                 return;
-        }
     }
 }
 
-void Scene::dispatch_ui_frame(const elysia::ui::UiInputFrame &input)
+void Scene::dispatch_ui_frame(const elysia::ui::UiInputFrame& input)
 {
-    for (const UiInputFrameReceiverEntry &entry : _ui_frame_receivers)
+    for (const auto& entry : _ui_frame_receivers)
     {
-        elysia::core::SceneObject *object = entry.object;
-
+        auto* object = entry.object;
         if (!object || object->is_destroyed() || !object->is_active())
             continue;
-
         if (_paused && !object->receive_input_when_paused())
             continue;
-
         entry.receiver->on_ui_input_frame(input);
     }
 }
 
-bool Scene::dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent> &events)
+bool Scene::dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent>& events)
 {
     bool consumed = false;
-    for (const elysia::ui::UiInputEvent &ui_event : events)
+    for (const auto& event : events)
     {
-        for (const UiInputEventReceiverEntry &entry : _ui_event_receivers)
+        for (const auto& entry : _ui_event_receivers)
         {
-            elysia::core::SceneObject *object = entry.object;
-
+            auto* object = entry.object;
             if (!object || object->is_destroyed() || !object->is_active())
                 continue;
-
             if (_paused && !object->receive_input_when_paused())
                 continue;
-
-            if (entry.receiver->on_ui_input_event(ui_event))
+            if (entry.receiver->on_ui_input_event(event))
             {
                 consumed = true;
                 break;
@@ -279,74 +544,211 @@ bool Scene::dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent> &even
 
 void Scene::remove_destroyed_objects()
 {
-    for (auto &layer : _object_layers)
-        for (auto &object : layer)
+    if (_retiring_objects)
+        throw std::logic_error("Scene object retirement cannot be reentered.");
+    _retiring_objects = true;
+    struct Guard
+    {
+        bool& value;
+        ~Guard() { value = false; }
+    } guard{_retiring_objects};
+
+    std::exception_ptr failure;
+    auto record_failure = [&](const char* stage) {
+        if (!failure)
+            failure = std::current_exception();
+        else
+            detail::log_cleanup_exception(stage);
+    };
+    auto retire = [&](elysia::core::SceneObject& object) {
+        try
+        {
+            on_scene_object_removing(object);
+        }
+        catch (...)
+        {
+            record_failure("ObjectRemoval callback");
+        }
+
+        const auto registration = std::ranges::find_if(
+            _physics_registrations,
+            [&object](const PhysicsRegistrationEntry& entry) { return entry.object == &object; });
+        if (registration != _physics_registrations.end())
+        {
+            try
+            {
+                if (_physics_world)
+                    (void)_physics_world->unregister_object(registration->handle);
+            }
+            catch (...)
+            {
+                record_failure("ObjectRemoval physics unregister");
+            }
+            if (auto* participant = dynamic_cast<elysia::physics::PhysicsParticipant*>(&object))
+                participant->unbind_physics();
+        }
+    };
+
+    // Keep the batch fixed: callbacks may destroy earlier objects or reset a
+    // retiring object. Neither operation may bypass retirement or revive it.
+    std::vector<elysia::core::SceneObject*> batch;
+    for (;;)
+    {
+        batch.clear();
+        for (auto& layer : _object_layers)
+            for (auto& object : layer)
+                if (object && object->is_destroyed())
+                    batch.push_back(object.get());
+        for (auto& object : _ui_roots)
             if (object && object->is_destroyed())
-                on_scene_object_removing(*object);
-    for (const PhysicsRegistrationEntry &entry : _physics_registrations)
-    {
-        if (entry.object && entry.object->is_destroyed())
-            (void)_physics_world.unregister_object(entry.handle);
-    }
+                batch.push_back(object.get());
+        if (batch.empty())
+            break;
 
-    erase_destroyed_entries(_updatables);
-    erase_destroyed_entries(_ui_frame_receivers);
-    erase_destroyed_entries(_ui_event_receivers);
-    erase_destroyed_entries(_physics_registrations);
+        for (auto* object : batch)
+            retire(*object);
 
-    for (auto &layer : _object_layers)
-    {
-        std::erase_if(layer, [](const std::unique_ptr<elysia::core::GameObject> &object) {
-            return !object || object->is_destroyed();
+        const auto in_batch = [&](const auto* object) {
+            return std::ranges::find(batch, object) != batch.end();
+        };
+        const auto retired_entry = [&](const auto& entry) { return in_batch(entry.object); };
+        std::erase_if(_updatables, retired_entry);
+        std::erase_if(_ui_frame_receivers, retired_entry);
+        std::erase_if(_ui_event_receivers, retired_entry);
+        std::erase_if(_physics_registrations, retired_entry);
+        // Restore the destruction flag before invoking any destructor.
+        for (auto* object : batch)
+            object->destroy();
+        for (auto& layer : _object_layers)
+            std::erase_if(layer, [&](const auto& object) {
+                return !object || in_batch(object.get());
+            });
+        std::erase_if(_ui_roots, [&](const auto& object) {
+            return !object || in_batch(object.get());
         });
     }
 
-    std::erase_if(_ui_roots, [](const std::unique_ptr<elysia::ui::UiElement> &object) {
-        return !object || object->is_destroyed();
-    });
+    if (failure)
+    {
+        try
+        {
+            std::rethrow_exception(failure);
+        }
+        catch (const SceneBoundaryTagged&)
+        {
+            throw;
+        }
+        catch (const std::exception& error)
+        {
+            throw SceneBoundaryRuntimeError(
+                SceneBoundary::ObjectRemoval, error.what());
+        }
+        catch (...)
+        {
+            throw SceneBoundaryRuntimeError(
+                SceneBoundary::ObjectRemoval,
+                "Unknown scene object removal exception.");
+        }
+    }
 }
 
-void Scene::notify_scene_request(const SceneRequest &request)
+std::span<const elysia::physics::ColliderId> Scene::registered_physics_colliders(
+    const elysia::core::SceneObject& object) const noexcept
 {
-    notify_observers([&](SceneRequestObserver &observer) { observer.on_scene_request(request); });
+    const auto found = std::ranges::find_if(_physics_registrations,
+        [&object](const auto& entry) { return entry.object == &object; });
+    return found == _physics_registrations.end()
+        ? std::span<const elysia::physics::ColliderId>{}
+        : std::span<const elysia::physics::ColliderId>{found->colliders};
 }
 
-void Scene::request_scene_switch(const SceneRoute &route)
+void Scene::clear_scene_objects()
 {
-    SceneRequest request;
-    request.type = SceneRequestType::Switch;
-    request.route = route;
-
-    notify_scene_request(request);
+    for (auto& layer : _object_layers)
+        for (auto& object : layer)
+            if (object)
+                object->destroy();
+    for (auto& object : _ui_roots)
+        if (object)
+            object->destroy();
+    remove_destroyed_objects();
 }
 
-void Scene::request_scene_switch(SceneKey target, const ScenePayload &payload, SceneReloadMode reload_mode)
+void Scene::rollback_owned_object(elysia::core::SceneObject* object) noexcept
 {
-    request_scene_switch(SceneRoute{.target = target, .payload = payload, .reload_mode = reload_mode});
+    if (!object)
+        return;
+    const auto registration = std::ranges::find_if(
+        _physics_registrations,
+        [object](const PhysicsRegistrationEntry& entry) { return entry.object == object; });
+    if (registration != _physics_registrations.end())
+    {
+        if (_physics_world)
+            (void)_physics_world->unregister_object(registration->handle);
+        if (auto* participant = dynamic_cast<elysia::physics::PhysicsParticipant*>(object))
+            participant->unbind_physics();
+    }
+    erase_object_entries(_updatables, object);
+    erase_object_entries(_ui_frame_receivers, object);
+    erase_object_entries(_ui_event_receivers, object);
+    erase_object_entries(_physics_registrations, object);
+    for (auto& layer : _object_layers)
+        std::erase_if(layer, [object](const auto& candidate) { return candidate.get() == object; });
+    std::erase_if(_ui_roots, [object](const auto& candidate) { return candidate.get() == object; });
+}
+
+void Scene::release_owned_objects_noexcept() noexcept
+{
+    for (const auto& registration : _physics_registrations)
+    {
+        if (_physics_world)
+            (void)_physics_world->unregister_object(registration.handle);
+        if (auto* participant =
+                dynamic_cast<elysia::physics::PhysicsParticipant*>(registration.object))
+        {
+            participant->unbind_physics();
+        }
+    }
+    _physics_registrations.clear();
+    _updatables.clear();
+    _ui_frame_receivers.clear();
+    _ui_event_receivers.clear();
+    _ui_roots.clear();
+    for (auto& layer : _object_layers)
+        layer.clear();
+}
+
+void Scene::notify_scene_request(const SceneRequest& request)
+{
+    notify_observers([&](SceneRequestObserver& observer) { observer.on_scene_request(request); });
+}
+
+void Scene::request_scene_switch(const SceneRoute& route)
+{
+    notify_scene_request(SceneRequest{SceneRequestType::Switch, route});
+}
+
+void Scene::request_scene_switch(
+    SceneKey target,
+    const ScenePayload& payload,
+    SceneReloadMode reload_mode)
+{
+    request_scene_switch(SceneRoute{target, payload, reload_mode});
 }
 
 void Scene::request_quit()
 {
-    SceneRequest request;
-    request.type = SceneRequestType::Quit;
-
-    notify_scene_request(request);
+    notify_scene_request(SceneRequest{SceneRequestType::Quit, {}});
 }
 
-void Scene::on_scene_object_registered(elysia::core::SceneObject &object)
-{
-    (void)object;
-}
-
-const SceneRuntimeContext &Scene::runtime_context() const
+const SceneRuntimeContext& Scene::runtime_context() const
 {
     if (!_runtime_context)
         throw std::logic_error("Scene::runtime_context called before a runtime context was bound.");
-
     return *_runtime_context;
 }
 
-void Scene::bind_runtime_context(const SceneRuntimeContext &context) noexcept
+void Scene::bind_runtime_context(const SceneRuntimeContext& context) noexcept
 {
     _runtime_context = &context;
 }
@@ -356,42 +758,31 @@ void Scene::clear_runtime_context() noexcept
     _runtime_context = nullptr;
 }
 
-const elysia::camera::Camera &Scene::camera() const noexcept
+const elysia::camera::Camera& Scene::camera() const noexcept
 {
-    return elysia::camera::CameraManager::instance()->camera(_render_camera_slot);
+    return elysia::camera::CameraManager::instance()->camera(_features.camera.render_slot);
 }
 
 elysia::camera::CameraSlot Scene::render_camera_slot() const noexcept
 {
-    return _render_camera_slot;
+    return _features.camera.render_slot;
 }
 
-void Scene::set_render_camera_slot(elysia::camera::CameraSlot slot) noexcept
+elysia::physics::PhysicsWorld& Scene::physics_world()
 {
-    assert(slot != elysia::camera::CameraSlot::Count);
-    if (slot == elysia::camera::CameraSlot::Count)
-        return;
-
-    _render_camera_slot = slot;
+    if (!_physics_world)
+        throw std::logic_error("Scene does not have a physics runtime.");
+    return *_physics_world;
 }
 
-elysia::physics::PhysicsWorld &Scene::physics_world() noexcept
+const elysia::physics::PhysicsWorld& Scene::physics_world() const
 {
-    return _physics_world;
-}
-
-const elysia::physics::PhysicsWorld &Scene::physics_world() const noexcept
-{
-    return _physics_world;
+    if (!_physics_world)
+        throw std::logic_error("Scene does not have a physics runtime.");
+    return *_physics_world;
 }
 
 std::optional<elysia::camera::CameraFocus> Scene::resolve_camera_focus() const
-{
-    const auto rect = resolve_camera_focus_rect();
-    return rect ? std::optional(elysia::camera::CameraFocus{*rect, *rect}) : std::nullopt;
-}
-
-std::optional<elysia::core::Rect> Scene::resolve_camera_focus_rect() const
 {
     return std::nullopt;
 }
@@ -400,20 +791,14 @@ bool Scene::add_game_object(std::unique_ptr<elysia::core::GameObject> object)
 {
     if (!object)
         return false;
-
-    const size_t layer_index = static_cast<size_t>(object->depth_layer());
-
-    if (layer_index >= _object_layers.size())
+    const auto index = static_cast<std::size_t>(object->depth_layer());
+    if (index >= _object_layers.size())
         return false;
-
-    std::vector<std::unique_ptr<elysia::core::GameObject>> &layer = _object_layers[layer_index];
-
-    auto iter = std::upper_bound(layer.begin(), layer.end(), object->order_in_layer(),
-                                 [](int order, const std::unique_ptr<elysia::core::GameObject> &existing) {
-                                     return order < existing->order_in_layer();
-                                 });
-
-    layer.insert(iter, std::move(object));
+    auto& layer = _object_layers[index];
+    const auto position = std::upper_bound(
+        layer.begin(), layer.end(), object->order_in_layer(),
+        [](int order, const auto& existing) { return order < existing->order_in_layer(); });
+    layer.insert(position, std::move(object));
     return true;
 }
 
@@ -421,13 +806,10 @@ bool Scene::add_ui_root(std::unique_ptr<elysia::ui::UiElement> object)
 {
     if (!object)
         return false;
-
-    auto iter = std::upper_bound(_ui_roots.begin(), _ui_roots.end(), object->order(),
-                                 [](int order, const std::unique_ptr<elysia::ui::UiElement> &existing) {
-                                     return order < existing->order();
-                                 });
-
-    _ui_roots.insert(iter, std::move(object));
+    const auto position = std::upper_bound(
+        _ui_roots.begin(), _ui_roots.end(), object->order(),
+        [](int order, const auto& existing) { return order < existing->order(); });
+    _ui_roots.insert(position, std::move(object));
     return true;
 }
 } // namespace elysia::scene

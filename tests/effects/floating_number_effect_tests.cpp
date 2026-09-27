@@ -8,6 +8,7 @@
 #include "engine/effects/effect_service.h"
 #include "engine/effects/number/floating_number_effect_factory.h"
 #include "engine/io/path/path_manager.h"
+#include "engine/io/loaders/asset_config_types.h"
 #include "engine/localization/localization_manager.h"
 #include "engine/localization/localization_service.h"
 #include "engine/resources/resource_service.h"
@@ -41,7 +42,7 @@ public:
 
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 };
 
 class SecondTestScene final : public elysia::scene::Scene
@@ -49,7 +50,7 @@ class SecondTestScene final : public elysia::scene::Scene
 public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 };
 
 struct FloatingNumberEffectFixture
@@ -278,6 +279,9 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     require(!effect_service->request_floating_number_effect(request),
         "floating number spawning must fail without an active scene");
     scene::SceneManager scene_manager;
+    io::ContentRegistry registry;
+    scene::SceneRuntimeContext context(fixture.renderer, registry, 1280, 720);
+    scene_manager.initialize(context);
     constexpr scene::SceneKey first_scene_key = 111;
     constexpr scene::SceneKey second_scene_key = 112;
     scene_manager.register_game_scene<TestScene>(first_scene_key);

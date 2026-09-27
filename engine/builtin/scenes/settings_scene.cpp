@@ -139,7 +139,7 @@ void SettingsScene::on_exit()
     }
 }
 
-void SettingsScene::reset()
+void SettingsScene::on_reset()
 {
     _paused = false;
     _transitioning = false;

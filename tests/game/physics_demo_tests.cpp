@@ -14,6 +14,7 @@
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
+#include "engine/scene/runtime/fixed_step_runtime.h"
 #include "engine/tools/development_overlay.h"
 #include "../../game/input/gameplay_input_map.h"
 #include "tests/support/test_assertions.h"
@@ -32,6 +33,17 @@ template<class T>
 elysia::physics::PhysicsObjectHandle add_physics(elysia::physics::PhysicsWorld& world,T& object){
  auto h=world.register_object(object,object.body_definition(),object.collider_definitions());object.bind_physics(world,h);return h;
 }
+std::uint32_t advance_world(
+    elysia::scene::FixedStepRuntime& clock,
+    elysia::physics::PhysicsWorld& world,
+    double delta)
+{
+    clock.advance(delta, [&](std::uint64_t, double fixed_delta) {
+        world.step(fixed_delta);
+    });
+    world.finalize_frame(clock.stats().interpolation_alpha);
+    return clock.stats().executed_steps;
+}
 void register_example_scenes(elysia::scene::SceneManager& scene_manager)
 {
     example::application::GameModule{}.register_scenes(
@@ -43,7 +55,7 @@ class RegistrationProbeScene final : public elysia::scene::Scene
 public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 };
 
 struct DemoReturnPayload
@@ -61,7 +73,7 @@ public:
         marker = value ? value->marker : 0;
     }
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 
     static inline int marker = 0;
 };
@@ -195,6 +207,7 @@ void test_actor_provider_and_damage_flow()
     elysia::physics::PhysicsWorldConfig config;
     config.gravity = {};
     elysia::physics::PhysicsWorld world(config);
+    elysia::scene::FixedStepRuntime clock({});
 
     auto player_span = player.collider_definitions();
     auto enemy_span = enemy.collider_definitions();
@@ -230,23 +243,23 @@ void test_actor_provider_and_damage_flow()
             "Actor rendering must not require a generated white texture");
 
     player.start_attack();
-    (void)world.advance(0.10);
+    (void)advance_world(clock, world, 0.10);
     require(player_span[2].enabled,
         "Player HitBox must enable during the active attack window");
-    (void)world.advance(1.0 / 60.0);
+    (void)advance_world(clock, world, 1.0 / 60.0);
     require(enemy.health().current() == 25,
         "A hostile player attack must apply its configured damage");
-    (void)world.advance(1.0 / 60.0);
+    (void)advance_world(clock, world, 1.0 / 60.0);
     require(enemy.health().current() == 25,
         "Stay contacts from one attack instance must not repeat damage");
 
     for (int step = 0; step < 42; ++step)
-        (void)world.advance(1.0 / 60.0);
+        (void)advance_world(clock, world, 1.0 / 60.0);
     require(world.teleport_object(player_handle, {0, 0}, elysia::physics::TeleportVelocityMode::Clear)
             && world.teleport_object(enemy_handle, {40, 0}, elysia::physics::TeleportVelocityMode::Clear),
         "Reset the separated actors into melee range for the next attack");
     player.start_attack();
-    (void)world.advance(0.10);
+    (void)advance_world(clock, world, 0.10);
     require(!enemy.alive() && enemy.health().current() == 0,
         "A new attack instance must be able to deal damage and kill");
     combat.flush_deaths();
@@ -270,11 +283,11 @@ void test_drop_through_all_supporting_tiles()
     DemoCombatSession combat(world, runtime);
     require(player.bind_combat(combat), "Drop-through player binds combat");
     for (int i = 0; i < 120; ++i)
-        world.advance(1.0 / 60);
+        world.step(1.0 / 60);
     require(combat.is_grounded(player), "Player stands across a tile seam");
     require(combat.request_drop_through(player), "Gameplay requests drop through both supports");
     for (int i = 0; i < 45; ++i)
-        world.advance(1.0 / 60);
+        world.step(1.0 / 60);
     require(player.position().y > 130, "Gameplay drop does not leave a second support blocking");
 }
 
@@ -287,12 +300,13 @@ void test_input_is_latched_until_a_fixed_step()
     PhysicsWorldConfig config;
     config.gravity = {0, 1200};
     PhysicsWorld world(config);
+    elysia::scene::FixedStepRuntime clock({});
     require(add_physics(world, player).is_valid()
             && add_physics(world, floor).is_valid(), "Jump fixtures register");
     elysia::gameplay::collision::GameplayCollisionRuntime runtime(world);
     DemoCombatSession combat(world, runtime);
     require(player.bind_combat(combat), "Player binds combat");
-    (void)world.advance(1.0 / 60);
+    (void)advance_world(clock, world, 1.0 / 60);
     require(combat.is_grounded(player), "Player starts grounded");
 
     auto input_map = example::input::make_gameplay_input_map();
@@ -303,19 +317,19 @@ void test_input_is_latched_until_a_fixed_step()
         auto r = input_map.resolve(raw.take());
         player.on_control_command({.state = std::move(r.frame), .events = std::move(r.events)}, 1.0 / 60.0);
     }
-    require(world.advance(1.0 / 240) == 0, "First display frame has no physics step");
+    require(advance_world(clock, world, 1.0 / 240) == 0, "First display frame has no physics step");
     raw.press(elysia::input::RawInputControl::KeySpace, false);
     raw.press(elysia::input::RawInputControl::KeyJ, false);
     {
         auto r = input_map.resolve(raw.take());
         player.on_control_command({.state = std::move(r.frame), .events = std::move(r.events)}, 1.0 / 60.0);
     }
-    require(world.advance(1.0 / 240) == 0, "Release frame also has no physics step");
-    require(world.advance(1.0 / 120) == 1 && std::fabs(player.velocity().y + 500) < 0.001f,
+    require(advance_world(clock, world, 1.0 / 240) == 0, "Release frame also has no physics step");
+    require(advance_world(clock, world, 1.0 / 120) == 1 && std::fabs(player.velocity().y + 500) < 0.001f,
         "A tap between fixed steps must still produce one jump");
-    (void)world.advance(1.0 / 60);
+    (void)advance_world(clock, world, 1.0 / 60);
     require(std::fabs(player.velocity().y + 480) < 0.001f, "Consumed jump must not retrigger");
-    (void)world.advance(3.0 / 60);
+    (void)advance_world(clock, world, 3.0 / 60);
     require(player.collider_definitions()[2].enabled, "A short primary tap must survive until the fixed attack window");
 }
 
@@ -327,9 +341,10 @@ void test_moving_obstacle_rendering_uses_interpolation()
     config.shape = elysia::physics::AabbShape{{0, 0, 40, 10}};
     KinematicMovingPlatform platform(config, -100, 100, 120);
     elysia::physics::PhysicsWorld world;
+    elysia::scene::FixedStepRuntime clock({});
     require(add_physics(world, platform).is_valid(), "Platform registers");
-    (void)world.advance(1.0 / 60);
-    (void)world.advance(1.0 / 120);
+    (void)advance_world(clock, world, 1.0 / 60);
+    (void)advance_world(clock, world, 1.0 / 120);
     std::vector<elysia::core::RenderCommand> commands;
     platform.submit_render_commands(commands);
     require(platform.position().nearly_equals({2, 0}) && commands.size() == 1
@@ -443,6 +458,9 @@ void test_scene_keys_are_unique()
 void test_game_module_registers_demo_scenes()
 {
     elysia::scene::SceneManager scene_manager;
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
+    scene_manager.initialize(context);
     register_example_scenes(scene_manager);
 
     for (const elysia::scene::SceneKey key : {
@@ -521,8 +539,8 @@ void require_demo_camera(
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     register_example_scenes(scene_manager);
-    scene_manager.set_runtime_context(context);
     if (!elysia::gameplay::ControllerService::instance()->session_active())
         (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
@@ -561,7 +579,8 @@ void test_query_controller_uses_active_mapping_and_fixed_tick() {
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr,registry,1280,720);
     elysia::scene::SceneManager manager;
-    register_example_scenes(manager); manager.set_runtime_context(context);
+    manager.initialize(context);
+    register_example_scenes(manager);
     require(bool(elysia::gameplay::ControllerService::instance()->begin_session()),"Explicit query demo session");
     require(bool(manager.local_players().bind_source(PrimaryLocalPlayer,InputSourceId::gamepad(7))),"Query pad ownership");
     const elysia::scene::SceneRoute route{
@@ -618,8 +637,8 @@ void test_each_physics_demo_owns_one_inspector_panel()
         elysia::scene::SceneRuntimeContext context(
             nullptr, registry, 1280, 720, nullptr, &panels);
         elysia::scene::SceneManager scene_manager;
+        scene_manager.initialize(context);
         register_example_scenes(scene_manager);
-        scene_manager.set_runtime_context(context);
         if (!elysia::gameplay::ControllerService::instance()->session_active())
             (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene_manager.start({
@@ -644,9 +663,9 @@ void test_physics_demo_navigation_and_recreate_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     register_example_scenes(scene_manager);
     scene_manager.register_game_scene<DemoReturnScene>(1);
-    scene_manager.set_runtime_context(context);
 
     const elysia::scene::SceneRoute caller{
         .target = 1,
@@ -693,9 +712,9 @@ void test_animation_preview_returns_complete_caller_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     register_example_scenes(scene_manager);
     scene_manager.register_game_scene<DemoReturnScene>(1);
-    scene_manager.set_runtime_context(context);
     if (!elysia::gameplay::ControllerService::instance()->session_active())
         (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
@@ -720,8 +739,8 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(nullptr, registry, 1280, 720);
     elysia::scene::SceneManager scene_manager;
+    scene_manager.initialize(context);
     register_example_scenes(scene_manager);
-    scene_manager.set_runtime_context(context);
     if (!elysia::gameplay::ControllerService::instance()->session_active())
         (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({

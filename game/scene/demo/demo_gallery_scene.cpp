@@ -106,7 +106,7 @@ void DemoGalleryScene::on_exit()
     }
 }
 
-void DemoGalleryScene::reset()
+void DemoGalleryScene::on_reset()
 {
     _paused = false;
     _return_route = {};

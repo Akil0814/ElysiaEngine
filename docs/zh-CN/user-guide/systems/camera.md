@@ -23,7 +23,7 @@ void configure_camera() {
 }
 ```
 
-在场景类中重写 `resolve_camera_focus_rect()` 返回目标的 `render_rect()`；没有有效目标时返回 `std::nullopt`。场景持有的目标指针必须在对象移除时清空。Main 每帧接收此回调结果，不要同时把手工 `set_focus` 作为 Main 的持久焦点来源。
+在场景类中重写 `resolve_camera_focus()`，将目标的 `render_rect()` 作为 `CameraFocus` 的两个矩形；没有有效目标时返回 `std::nullopt`。场景持有的目标指针必须在对象移除时清空。启用 `CameraUpdateMode::Dynamic` 后，配置的渲染槽位每帧接收此回调结果，不要同时把手工 `set_focus` 作为该槽位的持久焦点来源。
 
 ## 常用操作
 

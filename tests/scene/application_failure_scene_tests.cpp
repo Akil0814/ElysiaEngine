@@ -13,6 +13,7 @@
 #include "engine/ui/widgets/ui_button.h"
 #include "engine/builtin/scenes/application_failure_presentation.h"
 #include "tests/support/test_assertions.h"
+#include "tests/support/scene_test_access.h"
 
 #include <cstdlib>
 #include <array>
@@ -173,7 +174,7 @@ void configure_scene_manager(
     elysia::scene::SceneManager& scene_manager,
     const elysia::scene::SceneRuntimeContext& context)
 {
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
     scene_manager.register_engine_scene<ApplicationFailureScene>(
         elysia::builtin::SceneKeys::ApplicationFailure);
 }
@@ -208,7 +209,10 @@ void test_scene_identity_and_route_contract()
     ApplicationFailureScene scene;
     require(
         throws_logic_error_containing(
-            [&scene] { scene.on_enter(elysia::scene::ScenePayload{ 42 }); },
+            [&scene] {
+                elysia::scene::SceneTestAccess::enter(
+                    scene, elysia::scene::ScenePayload{ 42 });
+            },
             "ApplicationFailureScene"),
         "wrong application failure payload type must identify the scene");
 }

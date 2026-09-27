@@ -48,10 +48,7 @@ class CaptureScene final : public GameplayScene
     void on_exit() override
     {
     }
-    void reset() override
-    {
-        reset_input_routing();
-    }
+    void on_reset() override {}
 };
 void key(InputSystem &input, Uint32 type, SDL_Keycode code)
 {
@@ -70,8 +67,8 @@ int main()
     auto controller=elysia::tests::local_controller(scene,PrimaryLocalPlayer);
     require(bool(service->bind_target(controller,scene.control_context(),*actor).succeeded()), "Bind actor");
     auto step = [&] {
-        scene.on_input(input.snapshot());
-        scene.on_update(1.0 / 60);
+        scene_fixture.manager.on_input(input.snapshot());
+        scene_fixture.manager.on_update(1.0 / 60);
     };
     input.begin_frame();
     key(input, SDL_EVENT_KEY_DOWN, SDLK_D);
@@ -108,10 +105,10 @@ int main()
     input.begin_frame();
     step();
     require(actor->move.is_zero(), "Text blur must not restore held movement");
-    auto second = scene.local_players().create_player();
+    auto second = scene_fixture.manager.local_players().create_player();
     auto *other = scene.create_and_add_object<CaptureActor>();
     auto second_controller=elysia::tests::local_controller(scene,second);
-    require(scene.local_players().bind_source(second, InputSourceId::gamepad(9)) &&
+    require(scene_fixture.manager.local_players().bind_source(second, InputSourceId::gamepad(9)) &&
                 bool(service->bind_target(second_controller,scene.control_context(),*other).succeeded()),
             "Second player");
     text->set_focused(true);
@@ -182,7 +179,7 @@ int main()
     auto& partial=*partial_fixture.scene;
     InputSystem partial_input;
     auto *partial_actor = partial.create_and_add_object<CaptureActor>();
-    require(bool(partial.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9))), "Partial capture gamepad binding succeeds");
+    require(bool(partial_fixture.manager.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9))), "Partial capture gamepad binding succeeds");
     auto partial_controller=elysia::tests::local_controller(partial,PrimaryLocalPlayer);
     require(service->bind_target(partial_controller,partial.control_context(),*partial_actor).succeeded(), "Test controller binding completes successfully");
     partial_input.set_development_input_capture(InputCapture::Keyboard);
@@ -192,10 +189,10 @@ int main()
     down.gbutton.which = 9;
     down.gbutton.button = SDL_GAMEPAD_BUTTON_SOUTH;
     partial_input.process_event(down);
-    partial.on_input(partial_input.snapshot());
+    partial_fixture.manager.on_input(partial_input.snapshot());
     partial_input.begin_frame();
-    partial.on_input(partial_input.snapshot());
-    partial.on_update(1.0 / 60);
+    partial_fixture.manager.on_input(partial_input.snapshot());
+    partial_fixture.manager.on_update(1.0 / 60);
     require(partial_actor->presses == 1,
             "Persistent keyboard capture must not discard another device's pending action across zero ticks");
 
@@ -204,7 +201,7 @@ int main()
     auto& exact=*exact_fixture.scene;
     InputSystem exact_input;
     auto *exact_actor = exact.create_and_add_object<CaptureActor>();
-    require(bool(exact.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9))), "Exact capture gamepad binding succeeds");
+    require(bool(exact_fixture.manager.local_players().bind_source(PrimaryLocalPlayer, InputSourceId::gamepad(9))), "Exact capture gamepad binding succeeds");
     auto exact_controller=elysia::tests::local_controller(exact,PrimaryLocalPlayer);
     require(service->bind_target(exact_controller,exact.control_context(),*exact_actor).succeeded(), "Test controller binding completes successfully");
     auto *once = exact.create_and_add_object<elysia::ui::UiButton>(elysia::core::Rect{0, 0, 100, 40});
@@ -223,8 +220,8 @@ int main()
         up.type = SDL_EVENT_GAMEPAD_BUTTON_UP;
         exact_input.process_event(up);
     }
-    exact.on_input(exact_input.snapshot());
-    exact.on_update(1.0 / 60);
+    exact_fixture.manager.on_input(exact_input.snapshot());
+    exact_fixture.manager.on_update(1.0 / 60);
     require(exact_actor->presses == 1,
             "Consumption belongs to one original operation, not every matching control in the frame");
 
@@ -236,17 +233,17 @@ int main()
     auto *probe = frame_scene.create_and_add_object<UiFrameProbe>();
     frame_input.begin_frame();
     key(frame_input, SDL_EVENT_KEY_DOWN, SDLK_RETURN);
-    frame_scene.on_input(frame_input.snapshot());
+    frame_scene_fixture.manager.on_input(frame_input.snapshot());
     require(probe->last.state.is_just_pressed(elysia::ui::UiAction::Confirm),
             "UI frame has a first-press edge");
     frame_input.begin_frame();
-    frame_scene.on_input(frame_input.snapshot());
+    frame_scene_fixture.manager.on_input(frame_input.snapshot());
     require(probe->last.state.is_pressed(elysia::ui::UiAction::Confirm) &&
                 !probe->last.state.is_just_pressed(elysia::ui::UiAction::Confirm),
             "Held UI state must not repeat a press edge every frame");
     frame_input.begin_frame();
     key(frame_input, SDL_EVENT_KEY_UP, SDLK_RETURN);
-    frame_scene.on_input(frame_input.snapshot());
+    frame_scene_fixture.manager.on_input(frame_input.snapshot());
     require(probe->last.state.is_just_released(elysia::ui::UiAction::Confirm),
             "UI frame preserves the release edge");
 }

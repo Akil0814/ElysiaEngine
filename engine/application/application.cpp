@@ -11,6 +11,7 @@
 #include "presentation/application_window_settings.h"
 
 #include "../builtin/resources/builtin_asset_catalog.h"
+#include "../builtin/scenes/application_failure_scene_payload.h"
 #include "../audio/audio_service.h"
 #include "../bootstrap/bootstrapper.h"
 #include "../core/time.h"
@@ -22,6 +23,7 @@
 #include "../resources/resource_service.h"
 #include "../save/save_service.h"
 #include "../tools/logger.h"
+#include "../tools/termination_manager.h"
 #include "../ui/style/ui_theme_defaults.h"
 
 #include <cmath>
@@ -345,7 +347,16 @@ bool Application::initialize(
         descriptor.logical_height,
         &_font_resolver,
         development_panels);
-    _scene_manager.set_runtime_context(*_scene_runtime_context);
+    _scene_manager.initialize(
+        *_scene_runtime_context,
+        [](const elysia::scene::SceneBoundaryFailure& failure) {
+            auto route = elysia::builtin::make_application_failure_route(
+                elysia::builtin::ApplicationFailurePresentation::RuntimeFatal,
+                "scene",
+                failure.message);
+            route.reload_mode = elysia::scene::SceneReloadMode::Recreate;
+            return route;
+        });
 
     return enter_initial_scene(game_module,descriptor);
 }
@@ -657,6 +668,15 @@ bool Application::shutdown() noexcept
 void Application::on_scene_manager_quit_requested()
 {
     _normal_exit_requested = true;
+}
+
+void Application::on_scene_manager_fault(
+    const elysia::scene::SceneBoundaryFailure& failure)
+{
+    elysia::tools::TerminationManager::instance()->request_termination(
+        elysia::tools::TerminationReason::FatalRuntimeFailure,
+        "scene",
+        failure.message);
 }
 
 namespace

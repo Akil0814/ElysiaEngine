@@ -81,7 +81,7 @@ void UiComponentGalleryScene::on_exit()
     clear_ui();
 }
 
-void UiComponentGalleryScene::reset()
+void UiComponentGalleryScene::on_reset()
 {
     _paused = false;
     clear_ui();

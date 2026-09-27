@@ -28,6 +28,7 @@
 #include "engine/localization/localization_manager.h"
 #include "engine/io/path/path_manager.h"
 #include "tests/support/test_assertions.h"
+#include "tests/support/scene_test_access.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -107,7 +108,7 @@ public:
     }
 
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 
     static inline int marker = 0;
 };
@@ -187,12 +188,13 @@ void test_engine_feature_overlay_cycle()
     const std::array<std::size_t,5> expected_indices{ 3,4,0,1,2 };
     for (const std::size_t expected_index : expected_indices)
     {
-        scene.on_input(elysia::tests::events_snapshot(events));
+        elysia::scene::SceneTestAccess::route_input(
+            scene, elysia::tests::events_snapshot(events));
         require(scene.color_overlay_index() == expected_index,
             "Space must cycle all Engine feature color overlays and wrap");
     }
 
-    scene.reset();
+    elysia::scene::SceneTestAccess::reset(scene);
     require(scene.color_overlay_index() == 2,
         "reset must restore the Engine feature test default overlay");
 }
@@ -201,13 +203,13 @@ void test_payload_contract_names_each_scene()
 {
     example::scene::DemoGalleryScene home_scene;
     require(throws_logic_error_containing(
-            [&home_scene] { home_scene.on_enter({}); },
+            [&home_scene] { elysia::scene::SceneTestAccess::enter(home_scene); },
             "DemoGalleryScene"),
         "DemoGalleryScene must name itself when the demo payload is missing");
 
     example::scene::UiComponentGalleryScene ui_test_scene;
     require(throws_logic_error_containing(
-            [&ui_test_scene] { ui_test_scene.on_enter({}); },
+            [&ui_test_scene] { elysia::scene::SceneTestAccess::enter(ui_test_scene); },
             "UiComponentGalleryScene"),
         "UiComponentGalleryScene must name itself when the demo payload is missing");
 
@@ -217,7 +219,9 @@ void test_payload_contract_names_each_scene()
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
-            [&feature_test_scene,&invalid_payload] { feature_test_scene.on_enter(invalid_payload); },
+            [&feature_test_scene,&invalid_payload] {
+                elysia::scene::SceneTestAccess::enter(feature_test_scene, invalid_payload);
+            },
             "EngineFeatureLabScene"),
         "EngineFeatureLabScene must name itself when the return route is invalid");
 }
@@ -253,7 +257,7 @@ void test_escape_returns_the_full_caller_route()
     elysia::scene::SceneRuntimeContext context(
         fixture.renderer(),registry,1280,720,&font_resolver);
     elysia::scene::SceneManager scene_manager;
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
     scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
         example::scene_keys::DemoGallery);
     scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(

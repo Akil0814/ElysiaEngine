@@ -2,6 +2,7 @@
 #include "../../../engine/physics/physics_world.h"
 #include "../../../engine/core/render/render_command.h"
 #include "../../../engine/scene/routing/scene_key.h"
+#include "../../../engine/scene/runtime/fixed_step_runtime.h"
 #include <memory>
 #include <string>
 #include <string_view>
@@ -39,6 +40,7 @@ struct ScenarioResult
     bool debug_geometry = false;
     bool mixed_debug_samples = false;
     elysia::physics::PhysicsStepStats stats{};
+    elysia::scene::FixedStepStats fixed_step_stats{};
 };
 std::span<const ScenarioDescriptor> physics_scenarios();
 const ScenarioDescriptor* find_physics_scenario(std::string_view id);

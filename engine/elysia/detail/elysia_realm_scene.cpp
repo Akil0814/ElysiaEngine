@@ -55,7 +55,7 @@ void ElysiaRealmScene::on_exit()
     }
 }
 
-void ElysiaRealmScene::reset()
+void ElysiaRealmScene::on_reset()
 {
     _paused = false;
     _return_route = {};

@@ -9,17 +9,16 @@ namespace example::scene
 class MultiTargetCameraScene final : public elysia::gameplay::GameplayScene
 {
 public:
+    MultiTargetCameraScene();
+protected:
     void on_enter(const elysia::scene::ScenePayload& payload) override;
     void on_exit() override;
-    void reset() override;
-    void on_update(double delta) override;
+    void on_reset() override;
+    void on_after_update(double delta) override;
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
 
-  protected:
     [[nodiscard]] std::optional<elysia::camera::CameraFocus> resolve_camera_focus() const override;
-
-  protected:
     void on_control_target_removing(elysia::core::SceneObject&) override;
     void on_game_fixed_update(std::uint64_t tick, double delta) override;
 

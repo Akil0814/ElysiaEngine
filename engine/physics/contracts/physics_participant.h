@@ -19,6 +19,11 @@ class PhysicsParticipant
         _world = &world;
         _handle = handle;
     }
+    void unbind_physics() noexcept
+    {
+        _world = nullptr;
+        _handle = {};
+    }
     PhysicsObjectHandle physics_handle() const noexcept
     {
         return _handle;

@@ -39,7 +39,7 @@ public:
     }
 
     void on_exit() override {}
-    void reset() override {}
+    void on_reset() override {}
 
     static inline int enter_count = 0;
     static inline int received_marker = 0;
@@ -119,7 +119,7 @@ int main()
         descriptor.logical_width,
         descriptor.logical_height);
     elysia::scene::SceneManager scene_manager;
-    scene_manager.set_runtime_context(context);
+    scene_manager.initialize(context);
 
     elysia::application::compose_application_scenes(
         scene_manager,
@@ -151,11 +151,9 @@ int main()
                 "unregistered engine-owned"),
             "Application composition must not register legacy development-demo keys");
     }
-    require(throws_logic_error_containing(
-            [&scene_manager] { request_scene(
-                scene_manager,elysia::scene::SceneKeys::ElysiaRealm); },
-            "ElysiaRealmPayload"),
-        "Application composition must register the public Elysia Realm entry");
+    request_scene(scene_manager,elysia::scene::SceneKeys::ElysiaRealm);
+    require(scene_manager.state() == elysia::scene::SceneManagerState::Faulted,
+        "Application composition must register the public Elysia Realm entry and route its invalid-payload enter failure through the SceneManager boundary");
 
     scene_manager.shutdown();
     return EXIT_SUCCESS;
