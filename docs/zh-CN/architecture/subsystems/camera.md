@@ -10,11 +10,16 @@ CameraManager（全局唯一拥有者和写入口）
   ├─ Cinematic  Camera + CameraController
   ├─ Auxiliary1 Camera + CameraController
   └─ Auxiliary2 Camera + CameraController
+
+SceneCameraRuntime（可选的场景能力）
+  └─ owned slots、最终呈现槽、混合状态和场景句柄所有权
 ```
 
 - `Camera` 保存最终渲染中心、屏幕视口大小和缩放倍率，并负责世界坐标与屏幕坐标之间的转换。
-- `CameraController` 保存逻辑中心、焦点、世界边界、跟随策略、震屏和变焦过渡。
+- `CameraController` 保存逻辑中心、焦点、世界边界、跟随策略、震屏和单槽姿态运动。
 - `CameraManager` 固定拥有四组相机，不提供动态创建或销毁接口。
+- `SceneCameraRuntime` 保存最终呈现槽和可选的槽间混合状态，并限制场景只能操作声明拥有的槽和句柄。
+- `Scene` 只协调焦点解析、生命周期和完成事件派发，不保存相机播放状态。
 
 四个槽位定义如下：
 
@@ -27,7 +32,7 @@ CameraManager（全局唯一拥有者和写入口）
 
 ## 访问规则
 
-`CameraManager` 是受管相机的唯一配置入口。外部只能取得 `const Camera&`，用于渲染、查询可见区域和坐标投影：
+`CameraManager` 是底层相机服务。相机子系统可以直接使用它；场景代码应通过 `camera_runtime()` 操作本场景声明拥有的槽。外部只能取得 `const Camera&`，用于渲染、查询可见区域和坐标投影：
 
 ```cpp
 const auto& camera = elysia::camera::CameraManager::instance()->camera(
@@ -49,7 +54,7 @@ cameras->set_follow_strategy(
 );
 ```
 
-配置接口立即生效，包括中心、视口、缩放、焦点、边界和跟随策略。直接设置中心时，Manager 会同步 Controller 的逻辑中心和 Camera 的最终中心，避免两者失配。直接设置缩放会取消该槽位尚未处理或正在运行的平滑变焦，并按新的世界可见范围重新限制中心。
+配置接口立即生效，包括中心、视口、缩放、焦点、边界和跟随策略。直接设置中心或缩放会取消该槽正在播放的姿态运动，并同步 Controller 与最终 Camera，避免两个控制源同时写入。
 
 ## 视口、缩放与坐标
 
@@ -63,71 +68,77 @@ world_viewport_size = viewport_size / zoom
 
 ## 请求与更新时序
 
-震屏、平滑变焦、立即对焦和清除效果是瞬时请求：
+震屏、立即对焦和清除效果是 FIFO 瞬时请求；中心与缩放动画使用统一的姿态运动：
 
 ```cpp
 cameras->request_shake(CameraSlot::Main, shake_params);
-cameras->request_zoom_to(CameraSlot::Main, 2.0f, 0.5);
 cameras->request_snap_to_focus(CameraSlot::Cinematic);
 cameras->request_clear_effects(CameraSlot::Main);
+
+const auto motion = cameras->move_camera_to(
+    CameraSlot::Main, {.center = destination, .zoom = 2.0f}, 0.5);
 ```
 
-请求按提交顺序进入单线程 FIFO 队列。`CameraManager::update(delta)` 的执行顺序为：
+请求按提交顺序进入单线程 FIFO 队列。`CameraManager::update(slots, delta)` 的执行顺序为：
 
 1. 按 FIFO 顺序处理所有待执行请求。
-2. 更新四个 CameraController。
-3. Controller 使用 Smoothstep 更新手动平滑变焦，该帧暂停策略的自动缩放。
-4. Controller 应用策略返回的中心与可选 zoom，然后按更新后的倍率限制世界边界。
-5. Controller 叠加震屏偏移。
-6. 最终中心写回 Camera，供随后渲染使用。
+2. 更新调用方指定的 `CameraSlotSet`。
+3. Controller 推进活动姿态运动；播放期间暂时取得中心和缩放控制权。
+4. 没有姿态运动时，Controller 应用跟随策略返回的中心与可选 zoom。
+5. 按当前倍率限制世界边界，再叠加震屏偏移。
+6. 最终中心写回 Camera，并返回本帧自然完成的 motion 值事件。
 
-同一相机保存一个活动震屏和一个独立的平滑变焦，因此两者可以并行。新的震屏替换旧震屏，新的变焦从当前倍率接续并替换旧变焦。持续时间小于或等于零的变焦立即完成。清除效果会停止震屏和变焦，但保留停止瞬间的倍率与逻辑中心。请求严格遵循 FIFO 顺序。
+同一槽保存一个姿态运动和一个震屏，两者可以并行。路径节点使用从上一姿态到目标姿态的正时长和统一缓动；新运动从当前逻辑姿态连续替换旧运动。清除效果停止震屏但不取消姿态运动。直接设置姿态、吸附焦点或显式取消会结束运动，且不会产生自然完成事件。
 
 DeadZone 使用 viewport-local 屏幕像素定义。焦点会先按当前 zoom 投影后再与死区比较，因此改变倍率不会改变死区在屏幕上的视觉大小。
 
 ## Scene 集成
 
-Scene 不再拥有 Camera 或 CameraController。基础场景行为为：
+Scene 不拥有 Camera 或 CameraController。相机是可选运行时能力，基础场景行为为：
 
-- `Scene::lifecycle_update` 在 `CameraUpdateMode::Dynamic` 下将 `resolve_camera_focus()` 的结果写入配置的渲染槽位，仅更新该槽位；默认的 `Static` 模式不自动更新相机。焦点钩子默认返回 `std::nullopt`。
-- 场景内部渲染流程默认使用 `Main` 投影世界渲染命令。`Scene::lifecycle_render` 是由 `SceneManager` 调用的私有非虚函数；游戏对象和 UI 通过提交引擎绘制命令参与渲染，游戏场景不重写渲染入口。
+- Scene 用可选的 `CameraSceneConfig` 声明相机运行时；默认 `Scene` 和 `GameplayScene` 都没有相机。所有 owned slots 都会推进；`ResolveEachFrame` 额外调用 `resolve_camera_focus(slot)`。
+- 有相机的场景使用最终呈现相机投影世界命令。无相机场景可以正常渲染 UI，但提交世界命令或可见的世界 DebugDraw 属于配置错误。
 - UI 命令仍直接使用屏幕坐标执行，不经过世界相机。
-- Scene 子类通过构造时的 `SceneRuntimeFeatures::camera.render_slot` 选择 `Cinematic`、`Auxiliary1` 或 `Auxiliary2` 渲染世界。
-
-只有启用动态更新的渲染槽位自动接收 Scene 的焦点；其他槽位由业务代码管理。
+- `Scene::camera()` 返回最终呈现相机；活动混合期间返回 Scene 的组合相机，其余时间返回已提交槽。
 
 ```cpp
-std::optional<elysia::camera::CameraFocus> MyScene::resolve_camera_focus() const
+std::optional<elysia::camera::CameraFocus> MyScene::resolve_camera_focus(
+    elysia::camera::CameraSlot slot) const
 {
-    if (!_player)
+    if (slot != elysia::camera::CameraSlot::Main || !_player)
         return std::nullopt;
     const auto rect = _player->render_rect();
     return elysia::camera::CameraFocus{rect, rect};
 }
 ```
 
-场景若需要使用演出相机作为世界渲染相机，可以在构造时配置：
+场景若需要玩家与演出相机并行更新，可以配置：
 
 ```cpp
 MyScene::MyScene() : Scene(elysia::scene::SceneRuntimeFeatures{
-    .camera = {.render_slot = elysia::camera::CameraSlot::Cinematic,
-               .update_mode = elysia::scene::CameraUpdateMode::Dynamic}}) {}
+    .camera = elysia::scene::CameraSceneConfig{
+        .initial_slot = elysia::camera::CameraSlot::Main,
+        .owned_slots = elysia::camera::CameraSlot::Main
+                     | elysia::camera::CameraSlot::Cinematic,
+        .focus_mode = elysia::scene::CameraFocusMode::ResolveEachFrame}}) {}
 ```
+
+`camera_runtime().cut_to()` 立即提交槽；`camera_runtime().blend_to()` 捕获当前实际呈现构图作为固定源，并逐帧插值到实时目标槽。中心和缩放参与插值，视口来自目标槽。新混合从当前组合相机继续。Scene 暂停默认冻结控制器与混合，配置可允许继续推进。
 
 ## 场景切换与重置
 
-切换到不同场景，或以 `SceneReloadMode::Reset` / `Recreate` 重进当前场景时，SceneManager 会在旧场景 `on_exit()` 之后、新场景 `on_enter()` 之前重置目标场景的渲染槽位。
+切换到不同场景，或以 `SceneReloadMode::Reset` / `Recreate` 重进当前场景时，SceneManager 会在旧场景 `on_exit()` 之后、新场景 `on_enter()` 之前重置目标场景的全部 owned slots。
 
 槽位重置会：
 
 - 清除焦点和世界边界；
-- 清除跟随策略和活动效果；
+- 清除跟随策略、活动运动和效果；
 - 清除面向该槽位的未处理请求；
 - 将逻辑中心和最终中心归零；
 - 将缩放恢复为 `1.0`；
 - 保留视口大小。
 
-其他槽位不会因这次切换自动重置，业务可调用 `CameraManager::reset(slot)`。Reuse 当前活动场景不会触发重置；SceneManager 关闭时会重置全部槽位。
+未声明为 owned 的槽不会因这次切换被破坏。Reuse 当前实例不重置静态姿态，但退出时仍取消活动运动和混合；SceneManager 关闭时重置全部槽位。
 
 ## 当前边界
 
@@ -147,20 +158,21 @@ each frame after movement and physics interpolation:
 #include "engine/camera/multi_target_follow_strategy.h"
 
 // Configure once on scene entry.
-auto* cameras = elysia::camera::CameraManager::instance();
-cameras->set_follow_strategy(
+auto& cameras = camera_runtime();
+cameras.set_follow_strategy(
     elysia::camera::CameraSlot::Main,
     std::make_unique<elysia::camera::MultiTargetFollowStrategy>());
 
-// Override the new scene hook. The existing single-rectangle hook still works.
-std::optional<elysia::camera::CameraFocus> MyScene::resolve_camera_focus() const
+std::optional<elysia::camera::CameraFocus> MyScene::resolve_camera_focus(
+    elysia::camera::CameraSlot slot) const
 {
+    if (slot != elysia::camera::CameraSlot::Main) return std::nullopt;
     const std::array rects{_player->render_rect(), _companion->render_rect()};
     return elysia::camera::make_camera_focus(rects, 0); // Player is primary.
 }
 ```
 
-For other slots, pass the helper result to `CameraManager::set_focus()`.
+The same hook can return a different focus for each owned slot.
 `CameraFocus::bounds` contains the union; `primary` preserves the selected rectangle.
 Empty or entirely invalid lists return `nullopt`. Non-finite rectangles are skipped;
 an invalid primary index falls back to the first valid rectangle. Point and line
@@ -197,11 +209,13 @@ A primary larger than the visible region is centered on axes that cannot fit.
 ### Manual control and lifecycle
 
 ```cpp
-cameras->request_zoom_to(elysia::camera::CameraSlot::Main, 1.5f, 1.0);
+const auto motion = cameras.move_to(
+    elysia::camera::CameraSlot::Main, {.zoom = 1.5f}, 1.0);
 ```
 
-An active manual transition owns zoom through its final frame. Tracking continues
-using actual zoom; automatic zoom and its inward timer resume on the next frame.
+An active pose motion owns the camera pose through the final frame; omitted target
+channels hold their value from the beginning of that segment.
+Tracking and automatic zoom resume on the next frame for ResumeFollow motions.
 Immediate `set_zoom()` applies at once, with automatic zoom resuming next update.
 Values outside the automatic range return smoothly rather than snapping.
 
@@ -212,7 +226,7 @@ retain immediate first acquisition and do not change zoom.
 
 `IFollowStrategy::update()` is non-const and returns `CameraFollowResult` with center
 and optional zoom. Custom strategies must migrate from `update_center()`.
-`automatic_zoom_enabled` in the context is false during manual transitions.
+`automatic_zoom_enabled` remains available to strategies when no pose motion owns the camera.
 `reset()` clears state; `snap_on_acquisition()` defaults to true, while the new
 strategy overrides it to false.
 

@@ -44,5 +44,10 @@ public:
     {
         scene.lifecycle_update(delta);
     }
+
+    static void render(Scene& scene, SDL_Renderer* renderer)
+    {
+        scene.lifecycle_render(renderer);
+    }
 };
 } // namespace elysia::scene

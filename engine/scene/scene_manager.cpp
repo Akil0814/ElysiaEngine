@@ -283,7 +283,7 @@ std::expected<void, SceneBoundaryFailure> SceneManager::switch_to_scene(
 
     elysia::tools::DebugDraw::instance()->clear();
     if (old_scene != next_scene || route.reload_mode != SceneReloadMode::Reuse)
-        elysia::camera::CameraManager::instance()->reset(next_scene->render_camera_slot());
+        next_scene->reset_camera_runtime();
 
     if (route.reload_mode == SceneReloadMode::Recreate)
     {

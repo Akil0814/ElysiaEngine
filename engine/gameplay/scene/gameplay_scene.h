@@ -9,7 +9,7 @@ struct GameplaySceneFeatures
     elysia::scene::FixedStepConfig fixed_step{};
     std::optional<elysia::physics::PhysicsWorldConfig> physics;
     bool gameplay_collision = false;
-    elysia::scene::CameraSceneConfig camera;
+    std::optional<elysia::scene::CameraSceneConfig> camera;
 };
 
 class GameplayScene : public elysia::scene::Scene

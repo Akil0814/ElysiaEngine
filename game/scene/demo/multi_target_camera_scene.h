@@ -18,7 +18,8 @@ protected:
     void on_shortcuts(const elysia::input::RawInputFrame &input,
                       const std::vector<elysia::input::RawInputEvent> &events) override;
 
-    [[nodiscard]] std::optional<elysia::camera::CameraFocus> resolve_camera_focus() const override;
+    [[nodiscard]] std::optional<elysia::camera::CameraFocus> resolve_camera_focus(
+        elysia::camera::CameraSlot slot) const override;
     void on_control_target_removing(elysia::core::SceneObject&) override;
     void on_game_fixed_update(std::uint64_t tick, double delta) override;
 

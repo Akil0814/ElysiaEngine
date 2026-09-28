@@ -172,6 +172,11 @@ add_elysia_test(camera_manager_tests
     SDL
 )
 
+add_elysia_test(scene_camera_runtime_tests
+    LABEL camera
+    SOURCES camera/scene_camera_runtime_tests.cpp
+)
+
 add_elysia_test(camera_projection_tests
     LABEL camera
     SOURCES camera/camera_projection_tests.cpp

@@ -7,6 +7,9 @@ namespace example::scene
 {
 class LocalMultiplayerScene final : public elysia::gameplay::GameplayScene
 {
+public:
+    LocalMultiplayerScene();
+
 protected:
     void on_enter(const elysia::scene::ScenePayload &) override;
     void on_exit() override;

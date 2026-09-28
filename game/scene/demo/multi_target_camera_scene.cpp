@@ -15,8 +15,10 @@ namespace example::scene
 {
 MultiTargetCameraScene::MultiTargetCameraScene()
     : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
-          .camera = {.render_slot = elysia::camera::CameraSlot::Main,
-                     .update_mode = elysia::scene::CameraUpdateMode::Dynamic}})
+          .camera = elysia::scene::CameraSceneConfig{
+              .initial_slot = elysia::camera::CameraSlot::Main,
+              .owned_slots = elysia::camera::CameraSlot::Main,
+              .focus_mode = elysia::scene::CameraFocusMode::ResolveEachFrame}})
 {}
 
 using namespace elysia::core;
@@ -56,7 +58,7 @@ public:
         const auto viewport = camera.viewport_size();
         outline(Rect::from_center(viewport * 0.5f, viewport * 0.70f), {65, 180, 255});
         outline(Rect::from_center(viewport * 0.5f, viewport * 0.55f), {100, 210, 130});
-        if (const auto focus = _scene.resolve_camera_focus())
+        if (const auto focus = _scene.resolve_camera_focus(CameraSlot::Main))
         {
             outline(camera.world_to_screen(focus->bounds), {180, 180, 180});
             auto primary = camera.world_to_screen(focus->primary);
@@ -107,7 +109,7 @@ void MultiTargetCameraScene::install_strategy()
     auto strategy = std::make_unique<MultiTargetFollowStrategy>(
         MultiTargetFollowConfig{.dead_zone_enabled = _dead_zone});
     _strategy = strategy.get();
-    CameraManager::instance()->set_follow_strategy(slot, std::move(strategy));
+    camera_runtime().set_follow_strategy(slot, std::move(strategy));
 }
 
 void MultiTargetCameraScene::request_primary(std::size_t index)
@@ -135,10 +137,9 @@ void MultiTargetCameraScene::reset_demo()
     _dead_zone = true;
     _targets[0]->set_center({-120, 0});
     _targets[1]->set_center({120, 0});
-    auto* cameras = CameraManager::instance();
-    cameras->set_world_bounds(slot, std::nullopt);
-    cameras->set_center(slot, {});
-    cameras->set_zoom(slot, 1);
+    camera_runtime().set_world_bounds(slot, std::nullopt);
+    camera_runtime().set_center(slot, {});
+    camera_runtime().set_zoom(slot, 1);
     install_strategy();
     refresh_status();
 }
@@ -146,7 +147,7 @@ void MultiTargetCameraScene::reset_demo()
 void MultiTargetCameraScene::toggle_bounds()
 {
     _bounds = !_bounds;
-    CameraManager::instance()->set_world_bounds(slot,
+    camera_runtime().set_world_bounds(slot,
         _bounds ? std::optional(world_bounds) : std::nullopt);
 }
 
@@ -170,8 +171,10 @@ void MultiTargetCameraScene::on_reset()
     _return_route = {};
 }
 
-std::optional<CameraFocus> MultiTargetCameraScene::resolve_camera_focus() const
+std::optional<CameraFocus> MultiTargetCameraScene::resolve_camera_focus(CameraSlot slot) const
 {
+    if (slot != CameraSlot::Main)
+        return std::nullopt;
     if (!_targets[0] || !_targets[1]) return std::nullopt;
     const std::array rects{_targets[0]->render_rect(), _targets[1]->render_rect()};
     return make_camera_focus(rects, _primary);
@@ -243,7 +246,9 @@ void MultiTargetCameraScene::build_controls()
     button("Swap primary", [this] { request_primary(1 - _primary); });
     button("Auto motion", [this] { _automatic = !_automatic; _time = 0; });
     button("Teleport", [this] { _targets[1 - _primary]->set_center(_targets[_primary]->center() + Vector2{3600, 900}); });
-    button("Zoom to 1.5", [] { CameraManager::instance()->request_zoom_to(slot, 1.5f, 1.0); });
+    button("Zoom to 1.5", [this] {
+        (void)camera_runtime().move_to(slot, {.zoom = 1.5f}, 1.0);
+    });
     button("World bounds", [this] { toggle_bounds(); });
     button("Reset", [this] { reset_demo(); });
     button("Back", [this] { return_to_caller(); });

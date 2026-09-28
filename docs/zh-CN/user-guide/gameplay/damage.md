@@ -109,7 +109,7 @@ public:
             throw std::runtime_error("Damage example listener binding failed.");
         }
         // 无跟随策略时明确设置视野，保证两个对象可见。
-        ELYSIA_CAMERA->set_center(elysia::camera::CameraSlot::Main, {140, 116});
+        camera_runtime().set_center(elysia::camera::CameraSlot::Main, {140, 116});
         resume();
         queued_ = true;
     }

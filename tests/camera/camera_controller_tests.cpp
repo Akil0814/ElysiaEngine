@@ -19,29 +19,34 @@ using elysia::camera::SmoothFollowStrategy;
 using elysia::core::Rect;
 using elysia::core::Vector2;
 
+std::optional<elysia::camera::CameraFocus> focus(const Rect& rect)
+{
+    return elysia::camera::CameraFocus{rect, rect};
+}
+
 void test_focus_loss_and_reacquisition()
 {
     Camera camera(Vector2::zero(), Vector2(100.0f, 100.0f));
     CameraController controller(camera);
 
-    controller.set_focus_rect(Rect(5.0f, 5.0f, 10.0f, 10.0f));
-    controller.update(0.0);
+    controller.set_focus(focus(Rect(5.0f, 5.0f, 10.0f, 10.0f)));
+    (void)controller.update(0.0);
     require(camera.center() == Vector2(10.0f, 10.0f),
         "first focus must initialize the camera center");
 
-    controller.set_focus_rect(std::nullopt);
+    controller.set_focus(std::nullopt);
     controller.set_center(Vector2(20.0f, 20.0f));
-    controller.update(0.0);
+    (void)controller.update(0.0);
     require(camera.center() == Vector2(20.0f, 20.0f),
         "missing focus must preserve an explicitly configured center");
 
-    controller.set_focus_rect(Rect(35.0f, 35.0f, 10.0f, 10.0f));
-    controller.update(0.0);
+    controller.set_focus(focus(Rect(35.0f, 35.0f, 10.0f, 10.0f)));
+    (void)controller.update(0.0);
     require(camera.center() == Vector2(40.0f, 40.0f),
         "reacquired focus must initialize again");
 
     controller.set_center(Vector2(30.0f, 30.0f));
-    controller.update(0.0);
+    (void)controller.update(0.0);
     require(camera.center() == Vector2(30.0f, 30.0f),
         "persistent focus without a strategy must not snap every frame");
 }
@@ -97,6 +102,18 @@ void test_dead_zone_uses_screen_pixels()
         "dead-zone screen correction must convert back to world units");
 }
 
+void test_camera_easing_curves()
+{
+    using elysia::camera::apply_camera_easing;
+    using elysia::camera::CameraEasing;
+    require(std::abs(apply_camera_easing(CameraEasing::Linear, 0.25) - 0.25) < 0.0001,
+        "linear easing must preserve normalized progress");
+    require(std::abs(apply_camera_easing(CameraEasing::SmoothStep, 0.25) - 0.15625) < 0.0001,
+        "smoothstep easing must use cubic Hermite progress");
+    require(std::abs(apply_camera_easing(CameraEasing::EaseInOutCubic, 0.25) - 0.0625) < 0.0001,
+        "ease-in-out cubic must use the expected first-half curve");
+}
+
 void test_zoom_aware_world_bounds()
 {
     Camera camera(Vector2::zero(), Vector2(100.0f, 100.0f));
@@ -117,38 +134,40 @@ void test_zoom_aware_world_bounds()
         "world smaller than the visible area must center the camera");
 }
 
-void test_zoom_transition_and_effect_composition()
+void test_motion_and_effect_composition()
 {
     Camera camera(Vector2::zero(), Vector2(100.0f, 100.0f));
     CameraController controller(camera);
 
-    controller.start_zoom_transition(3.0f, 2.0);
-    controller.update(1.0);
+    controller.start_motion({1}, elysia::camera::CameraMotionSpec{
+        .nodes = {{{.zoom = 3.0f}, 2.0, elysia::camera::CameraEasing::SmoothStep}}
+    });
+    (void)controller.update(1.0);
     require(camera.zoom() == 2.0f,
         "Smoothstep transition must reach its midpoint at half duration");
 
-    controller.start_zoom_transition(4.0f, 2.0);
-    controller.update(1.0);
+    controller.start_motion({2}, elysia::camera::CameraMotionSpec{
+        .nodes = {{{.zoom = 4.0f}, 2.0, elysia::camera::CameraEasing::SmoothStep}}
+    });
+    (void)controller.update(1.0);
     require(camera.zoom() == 3.0f,
         "replacement transition must continue from the current zoom");
 
     controller.clear_effects();
-    controller.update(1.0);
-    require(camera.zoom() == 3.0f,
-        "clearing effects must preserve the current zoom");
-
-    controller.start_zoom_transition(5.0f, 0.0);
-    require(camera.zoom() == 5.0f,
-        "zero-duration transition must apply immediately");
+    (void)controller.update(1.0);
+    require(camera.zoom() == 4.0f,
+        "clearing transient effects must not cancel independent pose motion");
 
     controller.set_zoom(1.0f);
-    controller.start_zoom_transition(3.0f, 1.0);
+    controller.start_motion({3}, elysia::camera::CameraMotionSpec{
+        .nodes = {{{.zoom = 3.0f}, 1.0, elysia::camera::CameraEasing::Linear}}
+    });
     controller.start_shake(CameraShakeParams{
         .amplitude = Vector2(0.0f, 10.0f),
         .duration_seconds = 1.0,
         .frequency_hz = 0.0
     });
-    controller.update(0.5);
+    (void)controller.update(0.5);
     require(camera.zoom() == 2.0f,
         "zoom transition must progress while shake is active");
     require(camera.center().nearly_equals(Vector2(0.0f, 5.0f)),
@@ -165,8 +184,9 @@ int main()
     test_focus_loss_and_reacquisition();
     test_follow_strategies();
     test_dead_zone_uses_screen_pixels();
+    test_camera_easing_curves();
     test_zoom_aware_world_bounds();
-    test_zoom_transition_and_effect_composition();
+    test_motion_and_effect_composition();
     std::cout << "camera controller tests passed\n";
     return EXIT_SUCCESS;
 }

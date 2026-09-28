@@ -46,7 +46,8 @@ protected:
     elysia::gameplay::ControllerHandle& player_controller() { return _controller; }
     virtual void configure_player_controller(example::demo::physics::BlockCombatActor&);
     virtual void build_demo() = 0;
-    [[nodiscard]] std::optional<elysia::camera::CameraFocus> resolve_camera_focus() const override;
+    [[nodiscard]] std::optional<elysia::camera::CameraFocus> resolve_camera_focus(
+        elysia::camera::CameraSlot slot) const override;
 
     template <typename T, typename... Args>
     T* add_actor(Args&&... args)

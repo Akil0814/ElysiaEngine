@@ -561,12 +561,11 @@ void require_demo_camera(
     require(cameras->camera(slot).center() == expected_player_center,
         "Physics demo cameras must initially snap to the player");
 
-    cameras->set_focus_rect(
-        slot,
-        elysia::core::Rect::from_center(
-            expected_player_center + elysia::core::Vector2{100.0f, 0.0f},
-            {1.0f, 1.0f}));
-    cameras->update(0.1);
+    const auto focus_rect = elysia::core::Rect::from_center(
+        expected_player_center + elysia::core::Vector2{100.0f, 0.0f},
+        {1.0f, 1.0f});
+    cameras->set_focus(slot, elysia::camera::CameraFocus{focus_rect, focus_rect});
+    (void)cameras->update(elysia::camera::CameraSlotSet(slot), 0.1);
     require(cameras->camera(slot).center().nearly_equals(
             expected_player_center + elysia::core::Vector2{100.0f, 0.0f}),
         "Physics demo cameras must follow their focus immediately");

@@ -123,7 +123,9 @@ void integration()
     controller.set_focus(single(Rect{-1500, -20, 3000, 40}));
     controller.update(0);
     require(camera.center() == held, "reacquisition must not snap");
-    controller.start_zoom_transition(2, 1);
+    controller.start_motion({1}, CameraMotionSpec{
+        .nodes = {{{.zoom = 2.0f}, 1.0, CameraEasing::Linear}}
+    });
     controller.update(0.5);
     near(camera.zoom(), (held_zoom + 2) * 0.5f, "manual transition must own zoom");
     controller.update(0.5);
@@ -140,22 +142,26 @@ void integration()
     controller.set_center({-10000, 0});
     controller.start_shake(CameraShakeParams{.amplitude = {0, 10}, .duration_seconds = 1, .frequency_hz = 0});
     controller.update(0.1);
-    require(camera.center().y != controller.logical_center().y, "shake must compose after logical framing");
-    const auto half_view = camera.world_viewport_size() * 0.5f;
-    near(controller.logical_center().x, -1000 + half_view.x,
-        "world bounds must clamp with the newly blended zoom, before shake");
+    const auto shaken_center = camera.center();
     controller.clear_effects();
+    require(shaken_center.y != camera.center().y, "shake must compose after logical framing");
+    const auto half_view = camera.world_viewport_size() * 0.5f;
+    near(camera.center().x, -1000 + half_view.x,
+        "world bounds must clamp with the newly blended zoom, before shake");
     controller.set_world_bounds(std::nullopt);
     controller.set_follow_strategy(std::make_unique<HardFollowStrategy>());
-    controller.set_focus_rect(Rect{10, 10, 20, 20});
+    controller.set_focus(single(Rect{10, 10, 20, 20}));
     controller.update(0);
     require(camera.center() == Vector2(20, 20), "legacy acquisition must still snap");
-    controller.set_focus_rect(Rect{1000, 10, 20, 20});
+    controller.set_focus(single(Rect{1000, 10, 20, 20}));
     controller.set_follow_strategy(std::make_unique<SmoothFollowStrategy>(10));
     controller.update(0.1);
     near(camera.center().x, 21, "switching legacy strategies must preserve ongoing focus without a new snap");
     controller.reset_scene_state();
-    require(camera.zoom() == 1 && !controller.focus_rect(), "reset must clear focus and zoom");
+    controller.set_center({7, 8});
+    controller.update(0);
+    require(camera.zoom() == 1 && camera.center() == Vector2(7, 8),
+        "reset must clear focus, follow strategy, and zoom");
 
     auto* manager = CameraManager::instance();
     manager->reset_all();
@@ -163,7 +169,7 @@ void integration()
     manager->set_follow_strategy(CameraSlot::Main, std::make_unique<MultiTargetFollowStrategy>());
     manager->set_focus(CameraSlot::Main, single(Rect{-1000, -20, 2000, 40}));
     manager->set_zoom(CameraSlot::Auxiliary1, 3);
-    manager->update(0.1);
+    (void)manager->update(CameraSlotSet::all(), 0.1);
     require(manager->camera(CameraSlot::Main).zoom() < 1 && manager->camera(CameraSlot::Auxiliary1).zoom() == 3,
         "automatic zoom must remain isolated to its slot");
     manager->reset_all();
@@ -174,16 +180,18 @@ public:
     void on_enter(const elysia::scene::ScenePayload&) override {}
     void on_exit() override {}
     void on_reset() override {}
-    std::optional<CameraFocus> resolve_camera_focus() const override
+    std::optional<CameraFocus> resolve_camera_focus(CameraSlot) const override
     { return single(Rect{10, 20, 30, 40}); }
-    std::optional<CameraFocus> default_focus() const { return Scene::resolve_camera_focus(); }
+    std::optional<CameraFocus> default_focus() const
+    { return Scene::resolve_camera_focus(CameraSlot::Main); }
 };
 }
 int main()
 {
     aggregation(); framing_and_smoothing(); overflow_and_recovery(); integration();
     FocusScene scene;
-    require(scene.resolve_camera_focus()->primary == Rect(10, 20, 30, 40), "Scene hook must provide camera focus");
+    require(scene.resolve_camera_focus(CameraSlot::Main)->primary == Rect(10, 20, 30, 40),
+        "Scene hook must provide camera focus");
     require(!scene.default_focus(), "base Scene focus must be empty");
     std::cout << "multi-target camera tests passed\n";
 }

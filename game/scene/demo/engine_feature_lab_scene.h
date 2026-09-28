@@ -33,7 +33,7 @@ class EngineFeatureLabScene final : public elysia::gameplay::GameplayScene
     };
 
 public:
-    EngineFeatureLabScene() = default;
+    EngineFeatureLabScene();
     [[nodiscard]] std::size_t color_overlay_index() const noexcept;
 
 protected:

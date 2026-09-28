@@ -41,8 +41,10 @@ PhysicsCombatDemoSceneBase::PhysicsCombatDemoSceneBase(
     : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
           .physics = config,
           .gameplay_collision = true,
-          .camera = {.render_slot = elysia::camera::CameraSlot::Main,
-                     .update_mode = elysia::scene::CameraUpdateMode::Dynamic}}),
+          .camera = elysia::scene::CameraSceneConfig{
+              .initial_slot = elysia::camera::CameraSlot::Main,
+              .owned_slots = elysia::camera::CameraSlot::Main,
+              .focus_mode = elysia::scene::CameraFocusMode::ResolveEachFrame}}),
       _own_key(own_key),
       _scene_name(std::move(scene_name)), _title(std::move(title)),
       _controls(std::move(controls)),
@@ -116,12 +118,12 @@ void PhysicsCombatDemoSceneBase::on_enter(
         const auto layout=make_physics_test_layout(float(runtime_context().logical_width()),float(runtime_context().logical_height()));
         const auto bounds=_scenario->bounds();
         const float zoom=std::min(layout.arena.width()/bounds.width(),layout.arena.height()/bounds.height())*.9f;
-        auto* cameras=elysia::camera::CameraManager::instance();
-        cameras->set_follow_strategy(elysia::camera::CameraSlot::Main,std::make_unique<elysia::camera::HardFollowStrategy>());
-        cameras->set_focus_rect(elysia::camera::CameraSlot::Main,std::nullopt);
-        cameras->set_world_bounds(elysia::camera::CameraSlot::Main,std::nullopt);
-        cameras->set_zoom(elysia::camera::CameraSlot::Main,zoom);
-        cameras->set_center(elysia::camera::CameraSlot::Main,bounds.center()-(layout.arena.center()-layout.viewport.center())/zoom);
+        auto& cameras=camera_runtime();
+        cameras.set_follow_strategy(elysia::camera::CameraSlot::Main,std::make_unique<elysia::camera::HardFollowStrategy>());
+        cameras.set_focus(elysia::camera::CameraSlot::Main, std::nullopt);
+        cameras.set_world_bounds(elysia::camera::CameraSlot::Main,std::nullopt);
+        cameras.set_zoom(elysia::camera::CameraSlot::Main,zoom);
+        cameras.set_center(elysia::camera::CameraSlot::Main,bounds.center()-(layout.arena.center()-layout.viewport.center())/zoom);
     }
     if (_tile_map && physics_world().tile_world() != _tile_map)
         (void)physics_world().set_tile_world(*_tile_map);
@@ -247,8 +249,10 @@ void PhysicsCombatDemoSceneBase::on_control_target_removing(
 }
 
 std::optional<elysia::camera::CameraFocus>
-PhysicsCombatDemoSceneBase::resolve_camera_focus() const
+PhysicsCombatDemoSceneBase::resolve_camera_focus(elysia::camera::CameraSlot slot) const
 {
+    if (slot != elysia::camera::CameraSlot::Main)
+        return std::nullopt;
     if (!_player)
         return std::nullopt;
 
@@ -483,14 +487,14 @@ void PhysicsCombatDemoSceneBase::configure_fixed_camera()
     if (!_demo_camera_center)
         return;
 
-    auto* cameras = elysia::camera::CameraManager::instance();
+    auto& cameras = camera_runtime();
     constexpr auto slot = elysia::camera::CameraSlot::Main;
-    cameras->set_follow_strategy(
+    cameras.set_follow_strategy(
         slot, std::make_unique<elysia::camera::HardFollowStrategy>());
-    cameras->set_focus_rect(slot, std::nullopt);
-    cameras->set_world_bounds(slot, std::nullopt);
-    cameras->set_zoom(slot, 2.0f);
-    cameras->set_center(slot, *_demo_camera_center);
+    cameras.set_focus(slot, std::nullopt);
+    cameras.set_world_bounds(slot, std::nullopt);
+    cameras.set_zoom(slot, 2.0f);
+    cameras.set_center(slot, *_demo_camera_center);
 }
 
 void PhysicsCombatDemoSceneBase::update_hud()

@@ -265,6 +265,47 @@ public:
     {
         return create_and_add_object<ParticipantProbe>();
     }
+
+    elysia::ui::UiElement* add_ui()
+    {
+        return create_and_add_object<elysia::ui::UiElement>();
+    }
+
+    [[nodiscard]] bool camera_runtime_available() const noexcept
+    {
+        return try_camera_runtime() != nullptr;
+    }
+
+    void require_camera_runtime()
+    {
+        (void)camera_runtime();
+    }
+};
+
+class WorldRenderProbe final : public elysia::core::GameObject
+{
+public:
+    WorldRenderProbe() : GameObject(elysia::core::DepthLayer::Item) {}
+
+    void submit_render_commands(std::vector<elysia::core::RenderCommand>& commands) const override
+    {
+        commands.push_back(elysia::core::RenderCommand{});
+    }
+};
+
+class NoCameraWorldScene final : public elysia::scene::Scene
+{
+public:
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        if (!_probe)
+            _probe = create_and_add_object<WorldRenderProbe>();
+    }
+    void on_exit() override {}
+    void on_reset() override {}
+
+private:
+    WorldRenderProbe* _probe = nullptr;
 };
 
 class KeyedProbeScene final : public elysia::scene::Scene
@@ -870,14 +911,57 @@ void test_runtime_features_are_opt_in_and_registration_rolls_back()
     ParticipantProbe::was_unbound_at_destruction = false;
 
     NoPhysicsProbeScene scene;
-    require(!scene.has_fixed_step() && !scene.has_physics(),
-        "a plain Scene must not allocate fixed-step or physics runtimes");
+    require(!scene.has_fixed_step() && !scene.has_physics() && !scene.has_camera()
+            && !scene.camera_runtime_available(),
+        "a plain Scene must not allocate fixed-step, physics, or camera runtimes");
+    require(throws_logic_error_containing(
+            [&scene] { scene.require_camera_runtime(); },
+            "camera runtime"),
+        "required camera access must reject a Scene without the capability");
     require(throws_logic_error_containing(
             [&scene] { (void)scene.add_participant(); },
             "without physics"),
         "a Scene without physics must reject PhysicsParticipant immediately");
     require(ParticipantProbe::destructions == 1,
         "failed PhysicsParticipant registration must roll back ownership");
+
+    elysia::scene::SceneTestAccess::enter(scene);
+    require(scene.add_ui() != nullptr,
+        "camera-less Scene must still accept UI roots");
+    elysia::scene::SceneTestAccess::render(
+        scene, reinterpret_cast<SDL_Renderer*>(1));
+
+    auto* debug_draw = elysia::tools::DebugDraw::instance();
+    const bool previous_debug_enabled = debug_draw->enabled();
+    const auto previous_debug_categories = debug_draw->enabled_categories();
+    debug_draw->set_enabled(true);
+    debug_draw->set_enabled_categories(elysia::tools::DebugDrawCategory::Gameplay);
+    debug_draw->draw_rect(
+        elysia::tools::DebugDrawCategory::Gameplay,
+        {0.0f, 0.0f, 10.0f, 10.0f},
+        elysia::core::Color{255, 255, 255, 255});
+    require(throws_logic_error_containing(
+            [&scene] {
+                elysia::scene::SceneTestAccess::render(
+                    scene, reinterpret_cast<SDL_Renderer*>(1));
+            },
+            "camera runtime"),
+        "a camera-less Scene must reject visible world DebugDraw commands");
+    debug_draw->clear();
+    debug_draw->set_enabled_categories(previous_debug_categories);
+    debug_draw->set_enabled(previous_debug_enabled);
+    elysia::scene::SceneTestAccess::exit(scene);
+
+    NoCameraWorldScene world_scene;
+    elysia::scene::SceneTestAccess::enter(world_scene);
+    require(throws_logic_error_containing(
+            [&world_scene] {
+                elysia::scene::SceneTestAccess::render(
+                    world_scene, reinterpret_cast<SDL_Renderer*>(1));
+            },
+            "camera runtime"),
+        "a camera-less Scene must reject world render commands");
+    elysia::scene::SceneTestAccess::exit(world_scene);
 }
 
 void test_default_gameplay_fixed_step_pause_and_reset()
@@ -894,9 +978,9 @@ void test_default_gameplay_fixed_step_pause_and_reset()
     manager.start({.target = 17});
 
     auto& scene = *DefaultGameplayProbeScene::instance;
-    require(scene.has_fixed_step() && !scene.has_physics()
+    require(scene.has_fixed_step() && !scene.has_physics() && !scene.has_camera()
             && !scene.collision_available(),
-        "GameplayScene must default to fixed-step control without physics or collision");
+        "GameplayScene must default to fixed-step control without physics, collision, or camera");
 
     manager.on_update(1.0 / 30.0);
     require(DefaultGameplayProbeScene::fixed_updates == 2

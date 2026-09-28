@@ -58,7 +58,7 @@ inline void register_room(elysia::scene::SceneManager& scenes) {
 | --- | --- |
 | `create_and_add_object<T>(...)` | 创建 GameObject 或 UiElement 派生对象并交给场景；返回借用指针，失败可返回空 |
 | `add_object(std::unique_ptr<T>)` | 转移现有对象所有权；调用后不自行释放它 |
-| `pause()` / `resume()` | 改变场景暂停状态；暂停不阻止所有 UI、相机和清理流程 |
+| `pause()` / `resume()` | 改变场景暂停状态；相机播放默认冻结，可由 `advance_when_paused` 覆盖 |
 | `on_update(double)` | 额外逐帧逻辑；每帧调用一次 `Scene::on_update(delta)`，否则对象更新、物理、相机和清理都会被跳过 |
 | `on_fixed_update(tick, delta)` | 普通 Scene 的固定步规则；仅实际模拟步发生时执行 |
 | `on_shortcuts(frame, events)` | UI 处理后的快捷操作；用 `consume_input(event)` 消费已处理事件 |
@@ -66,10 +66,15 @@ inline void register_room(elysia::scene::SceneManager& scenes) {
 | `on_routed_input(snapshot)` | 经场景路由处理的输入；GameplayScene 已接管此扩展点 |
 | `on_pause_changed(bool)` | 普通 Scene 响应暂停变化；GameplayScene 有自己的 final 实现 |
 | `on_scene_object_registered` / `on_scene_object_removing` | 同步业务关联；重写注册回调时保留基类行为；移除回调内不要销毁仍在执行的监听者 |
-| `physics_world()` / `camera()` | 访问本场景物理世界及当前渲染相机；具体用法见对应专题 |
-| `resolve_camera_focus()` | 提供配置的渲染相机跟随目标，不保存相机内部状态 |
+| `has_camera()` / `camera()` | 查询相机能力并访问最终呈现相机；未启用时强制访问会抛出契约异常 |
+| `try_camera_runtime()` / `camera_runtime()` | 在派生场景中查询或访问相机运行时，规则与物理能力访问一致 |
+| `resolve_camera_focus(slot)` | 为场景拥有的每个槽提供跟随目标，不保存相机内部状态 |
+| `camera_runtime().cut_to()` / `blend_to()` | 立即选择或平滑切换最终呈现槽 |
+| `camera_runtime().move_to()` / `play_path()` | 播放单段移动或多节点相机姿态轨迹 |
 
 输入细节见[输入](../systems/input.md)，固定步与暂停见[时间](../systems/time-and-timers.md)，物理与坐标分别见[物理](../systems/physics.md)、[相机](../systems/camera.md)。场景的渲染入口是私有非虚函数；通过对象提交命令，不能重写 `on_render()`。
+
+相机与物理一样是按需能力。纯 UI 场景不配置相机；需要提交世界绘制命令或世界 DebugDraw 的场景必须在 `SceneRuntimeFeatures` 或 `GameplaySceneFeatures` 中显式提供 `CameraSceneConfig`。默认 `GameplayScene` 只启用固定步与控制能力。
 
 对象正在更新、遍历或查询时，不向同一对象集合插入对象。把生成请求暂存，在派生场景调用基类更新之前或返回之后统一执行；不要在对象自己的 `update()` 中直接扩容场景列表。
 

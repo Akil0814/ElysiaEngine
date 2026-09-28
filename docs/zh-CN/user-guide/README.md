@@ -64,7 +64,6 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | --- | --- | --- | --- |
 | `ELYSIA_ANIMATIONS` | 动画服务 | [动画与特效](systems/animation-and-effects.md) | [animation_service.h](../../../engine/animation/animation_service.h) |
 | `ELYSIA_AUDIO` | 音频服务 | [音频服务](systems/audio.md) | [audio_service.h](../../../engine/audio/audio_service.h) |
-| `ELYSIA_CAMERA` | 相机管理 | [相机工作流](systems/camera.md) | [camera_manager.h](../../../engine/camera/camera_manager.h) |
 | `ELYSIA_CONFIG` | 按类型读取游戏配置 | [运行时配置](content/configuration.md) | [config_service.h](../../../engine/config/config_service.h) |
 | `ELYSIA_USER_CONFIG` | 用户设置管理 | [运行时配置](content/configuration.md) | [user_config_service.h](../../../engine/config/user_config_service.h) |
 | `ELYSIA_TIME` | 时间相关功能 | [时间与计时器](systems/time-and-timers.md) | [time.h](../../../engine/core/time.h) |

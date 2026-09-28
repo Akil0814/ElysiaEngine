@@ -47,6 +47,11 @@ std::unique_ptr<elysia::ui::UiButton> make_control_button(const char* label)
 }
 }
 
+EngineFeatureLabScene::EngineFeatureLabScene()
+    : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+          .camera = elysia::scene::CameraSceneConfig{}})
+{}
+
 void EngineFeatureLabScene::on_after_update(double delta)
 {
     (void)delta;

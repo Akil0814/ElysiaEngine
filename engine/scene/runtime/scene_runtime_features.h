@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../../camera/camera_manager.h"
 #include "../../physics/physics_world_config.h"
+#include "scene_camera_config.h"
 
 #include <cstdint>
 #include <optional>
@@ -14,22 +14,10 @@ struct FixedStepConfig
     std::uint32_t max_steps_per_frame = 8;
 };
 
-enum class CameraUpdateMode
-{
-    Static,
-    Dynamic
-};
-
-struct CameraSceneConfig
-{
-    elysia::camera::CameraSlot render_slot = elysia::camera::CameraSlot::Main;
-    CameraUpdateMode update_mode = CameraUpdateMode::Static;
-};
-
 struct SceneRuntimeFeatures
 {
     std::optional<FixedStepConfig> fixed_step;
     std::optional<elysia::physics::PhysicsWorldConfig> physics;
-    CameraSceneConfig camera;
+    std::optional<CameraSceneConfig> camera;
 };
 } // namespace elysia::scene

@@ -39,6 +39,11 @@ class PlayerBlock final : public example::demo::physics::ColoredBlockObject,
     }
 };
 } // namespace
+LocalMultiplayerScene::LocalMultiplayerScene()
+    : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+          .camera = elysia::scene::CameraSceneConfig{}})
+{}
+
 void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
 {
     const auto *route = elysia::scene::try_scene_payload<DemoScenePayload>(payload);
@@ -135,7 +140,7 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
     configure_keyboard(_swapped);
     _window->set_visible(true);
     _window->set_active(true);
-    elysia::camera::CameraManager::instance()->set_center(elysia::camera::CameraSlot::Main, {0, 0});
+    camera_runtime().set_center(elysia::camera::CameraSlot::Main, {0, 0});
 }
 void LocalMultiplayerScene::bind_players()
 {

@@ -64,16 +64,16 @@ constexpr auto physics_debug_categories =
 
 Scene::Scene() : Scene(SceneRuntimeFeatures{}) {}
 
-Scene::Scene(SceneRuntimeFeatures features) : _features(std::move(features))
+Scene::Scene(SceneRuntimeFeatures features)
 {
-    if (_features.physics && !_features.fixed_step)
+    if (features.physics && !features.fixed_step)
         throw std::invalid_argument("Scene physics requires a fixed-step runtime.");
-    if (_features.camera.render_slot == elysia::camera::CameraSlot::Count)
-        throw std::invalid_argument("Scene render camera slot cannot be CameraSlot::Count.");
-    if (_features.fixed_step)
-        _fixed_step = std::make_unique<FixedStepRuntime>(*_features.fixed_step);
-    if (_features.physics)
-        _physics_world = std::make_unique<elysia::physics::PhysicsWorld>(*_features.physics);
+    if (features.camera)
+        _camera_runtime = std::make_unique<SceneCameraRuntime>(*features.camera);
+    if (features.fixed_step)
+        _fixed_step = std::make_unique<FixedStepRuntime>(*features.fixed_step);
+    if (features.physics)
+        _physics_world = std::make_unique<elysia::physics::PhysicsWorld>(*features.physics);
 }
 
 Scene::~Scene()
@@ -143,6 +143,7 @@ void Scene::lifecycle_enter(const ScenePayload& payload)
     }
     catch (...)
     {
+        cancel_camera_activity();
         _lifecycle_state = SceneLifecycleState::Inactive;
         throw;
     }
@@ -174,6 +175,8 @@ void Scene::lifecycle_exit()
             detail::log_cleanup_exception("Exit object retirement");
     }
 
+    cancel_camera_activity();
+
     _lifecycle_state = SceneLifecycleState::Inactive;
     if (failure)
         std::rethrow_exception(failure);
@@ -191,7 +194,7 @@ void Scene::lifecycle_reset()
         _paused = false;
         if (_fixed_step)
             _fixed_step->reset();
-        elysia::camera::CameraManager::instance()->reset(_features.camera.render_slot);
+        reset_camera_runtime();
         on_runtime_reset();
         on_reset();
     }
@@ -280,12 +283,8 @@ void Scene::lifecycle_update(double delta)
                 _physics_world->debug_snapshot(), *debug_draw);
         }
 
-        if (_features.camera.update_mode == CameraUpdateMode::Dynamic)
-        {
-            auto* camera_manager = elysia::camera::CameraManager::instance();
-            camera_manager->set_focus(_features.camera.render_slot, resolve_camera_focus());
-            camera_manager->update(_features.camera.render_slot, delta);
-        }
+        if (_camera_runtime)
+            _camera_runtime->advance(delta, _paused, *this);
 
         on_after_update(delta);
     }
@@ -331,13 +330,19 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
             if (object && !object->is_destroyed() && object->is_visible())
                 object->submit_render_commands(render_commands);
         }
+        if (render_commands.empty())
+            continue;
         elysia::core::project_render_commands_to_screen(
             render_commands, camera(), projected_render_commands);
         elysia::core::execute_render_commands(renderer, projected_render_commands);
     }
 
     auto* debug_draw = elysia::tools::DebugDraw::instance();
-    if (debug_draw->enabled())
+    const bool has_visible_debug_commands = debug_draw->enabled()
+        && std::ranges::any_of(debug_draw->commands(), [debug_draw](const auto& command) {
+               return debug_draw->is_enabled(command.category);
+           });
+    if (has_visible_debug_commands)
     {
         std::vector<elysia::core::UiRenderCommand> debug_commands;
         debug_commands.reserve(debug_draw->commands().size());
@@ -400,6 +405,7 @@ void Scene::prepare_for_destruction()
         throw std::logic_error("Scene runtime services must be detached before destruction.");
 
     _lifecycle_state = SceneLifecycleState::PreparingDestruction;
+    cancel_camera_activity();
     std::exception_ptr failure;
     try
     {
@@ -758,14 +764,9 @@ void Scene::clear_runtime_context() noexcept
     _runtime_context = nullptr;
 }
 
-const elysia::camera::Camera& Scene::camera() const noexcept
+const elysia::camera::Camera& Scene::camera() const
 {
-    return elysia::camera::CameraManager::instance()->camera(_features.camera.render_slot);
-}
-
-elysia::camera::CameraSlot Scene::render_camera_slot() const noexcept
-{
-    return _features.camera.render_slot;
+    return camera_runtime().presented_camera();
 }
 
 elysia::physics::PhysicsWorld& Scene::physics_world()
@@ -782,7 +783,35 @@ const elysia::physics::PhysicsWorld& Scene::physics_world() const
     return *_physics_world;
 }
 
-std::optional<elysia::camera::CameraFocus> Scene::resolve_camera_focus() const
+SceneCameraRuntime& Scene::camera_runtime()
+{
+    if (!_camera_runtime)
+        throw std::logic_error("Scene does not have a camera runtime.");
+    return *_camera_runtime;
+}
+
+const SceneCameraRuntime& Scene::camera_runtime() const
+{
+    if (!_camera_runtime)
+        throw std::logic_error("Scene does not have a camera runtime.");
+    return *_camera_runtime;
+}
+
+void Scene::cancel_camera_activity() noexcept
+{
+    if (_camera_runtime)
+        _camera_runtime->cancel_activity();
+}
+
+void Scene::reset_camera_runtime() noexcept
+{
+    if (_camera_runtime)
+        _camera_runtime->reset();
+}
+
+std::optional<elysia::camera::CameraFocus> Scene::resolve_camera_focus(
+    elysia::camera::CameraSlot
+) const
 {
     return std::nullopt;
 }

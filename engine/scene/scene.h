@@ -15,11 +15,11 @@
 #include "routing/scene_request.h"
 #include "routing/scene_request_observer.h"
 #include "runtime/fixed_step_runtime.h"
+#include "runtime/scene_camera_runtime.h"
 #include "runtime/scene_runtime_context.h"
 #include "runtime/scene_runtime_features.h"
 #include "scene_boundary_failure.h"
 
-#include "../camera/camera_manager.h"
 #include "../core/depth_layer.h"
 #include "../core/event/subject.h"
 #include "../core/game_object.h"
@@ -53,7 +53,8 @@ enum class SceneLifecycleState
 };
 
 class Scene : public elysia::core::Subject<SceneRequestObserver>,
-              public elysia::object_query::IGameObjectQueryRuntime
+              public elysia::object_query::IGameObjectQueryRuntime,
+              private SceneCameraRuntimeHost
 {
 public:
     Scene();
@@ -84,6 +85,7 @@ public:
     [[nodiscard]] SceneLifecycleState lifecycle_state() const noexcept { return _lifecycle_state; }
     [[nodiscard]] bool has_fixed_step() const noexcept { return static_cast<bool>(_fixed_step); }
     [[nodiscard]] bool has_physics() const noexcept { return static_cast<bool>(_physics_world); }
+    [[nodiscard]] bool has_camera() const noexcept { return static_cast<bool>(_camera_runtime); }
     [[nodiscard]] const FixedStepStats* fixed_step_stats() const noexcept
     {
         return _fixed_step ? &_fixed_step->stats() : nullptr;
@@ -92,8 +94,7 @@ public:
     {
         return _fixed_step ? &_fixed_step->config() : nullptr;
     }
-    [[nodiscard]] const elysia::camera::Camera& camera() const noexcept;
-    [[nodiscard]] elysia::camera::CameraSlot render_camera_slot() const noexcept;
+    [[nodiscard]] const elysia::camera::Camera& camera() const;
     [[nodiscard]] elysia::input::LocalPlayerRegistry& local_players() noexcept
     {
         return *_players;
@@ -213,7 +214,23 @@ protected:
     }
     [[nodiscard]] elysia::physics::PhysicsWorld& physics_world();
     [[nodiscard]] const elysia::physics::PhysicsWorld& physics_world() const;
-    [[nodiscard]] virtual std::optional<elysia::camera::CameraFocus> resolve_camera_focus() const;
+    [[nodiscard]] SceneCameraRuntime* try_camera_runtime() noexcept
+    {
+        return _camera_runtime.get();
+    }
+    [[nodiscard]] const SceneCameraRuntime* try_camera_runtime() const noexcept
+    {
+        return _camera_runtime.get();
+    }
+    [[nodiscard]] SceneCameraRuntime& camera_runtime();
+    [[nodiscard]] const SceneCameraRuntime& camera_runtime() const;
+
+    virtual void on_camera_blend_completed(
+        elysia::camera::CameraBlendId, elysia::camera::CameraSlot) {}
+    virtual void on_camera_motion_completed(
+        elysia::camera::CameraMotionId, elysia::camera::CameraSlot) {}
+    [[nodiscard]] virtual std::optional<elysia::camera::CameraFocus>
+        resolve_camera_focus(elysia::camera::CameraSlot slot) const;
 
     bool _paused = false;
 
@@ -241,6 +258,8 @@ private:
         _input_router.set_ui_access(access);
     }
     void reset_input_routing();
+    void cancel_camera_activity() noexcept;
+    void reset_camera_runtime() noexcept;
 
     void visit_game_objects(elysia::core::DepthLayerMask layers,
                             const elysia::object_query::GameObjectVisitor& visitor) const override;
@@ -275,7 +294,7 @@ private:
         std::vector<elysia::physics::ColliderId> colliders;
     };
 
-    SceneRuntimeFeatures _features;
+    std::unique_ptr<SceneCameraRuntime> _camera_runtime;
     std::unique_ptr<FixedStepRuntime> _fixed_step;
     std::unique_ptr<elysia::physics::PhysicsWorld> _physics_world;
 
