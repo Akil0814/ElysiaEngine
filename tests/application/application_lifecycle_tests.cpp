@@ -46,6 +46,12 @@ public:
         if (mode == "render_draw") (void)create_and_add_object<RenderProbe>();
     }
     void on_reset() override {}
+    void on_runtime_detach() override
+    {
+        if (mode=="cleanup_backend")
+            throw elysia::core::RenderBackendError({"cleanup detach",
+                elysia::core::make_failure_diagnostic("backend detach after update failure")});
+    }
     void on_exit() override
     {
         ++exits;
@@ -56,6 +62,7 @@ public:
     {
         updated = true;
         frames.push_back(delta);
+        if (mode=="cleanup_backend") throw std::runtime_error("primary update before backend cleanup");
         if (mode.starts_with("exit_") || (mode == "timing" && frames.size() >= 190))
             request_quit();
     }
@@ -83,7 +90,9 @@ public:
         return result;
     }
     void register_scenes(elysia::scene::SceneManager& manager) const override
-    { manager.register_game_scene<ProbeScene>(1); }
+    {
+        manager.register_game_scene<ProbeScene>(1);
+    }
     std::unique_ptr<elysia::tools::IDevelopmentOverlay> create_development_overlay() const override
     { return mode == "event" ? std::make_unique<ThrowingOverlay>() : nullptr; }
 };
@@ -189,7 +198,7 @@ int main(int argc,char** argv)
     std::vector<std::string> render_operations;
     static std::vector<std::string>* operation_log = nullptr;
     operation_log = &render_operations;
-    if (mode.starts_with("render_"))
+    if (mode.starts_with("render_") || mode=="cleanup_backend")
     {
         elysia::core::detail::render_operation_probe = [](std::string_view operation)
         {
@@ -207,9 +216,21 @@ int main(int argc,char** argv)
     const double latency_ms = requested_at ? (SDL_GetPerformanceCounter() - requested_at.load()) * 1000.0 / frequency : 0.0;
     require(exits == 1 && destroyed == 1,"application must exit and destroy the scene");
     require(SDL_WasInit(0) == 0,"SDL must be shut down after every exit path");
-    const bool fault = mode.starts_with("exit_") || mode == "event" || mode == "fault" || mode.starts_with("render_");
+    const bool fault = mode.starts_with("exit_") || mode == "event" || mode == "fault" || mode.starts_with("render_") || mode=="cleanup_backend";
     require(result == (fault ? elysia::application::ApplicationRunResult::FaultExit
                             : elysia::application::ApplicationRunResult::NormalExit),"correct final exit result");
+    if (mode=="cleanup_backend")
+    {
+        const auto info = elysia::tools::TerminationManager::instance()->termination_info();
+        require(info && info->reason==elysia::tools::TerminationReason::FatalRuntimeFailure && info->category=="render",
+            "backend error during scene recovery cleanup must produce FaultExit");
+        require(info->message.find("backend detach after update failure")!=std::string_view::npos
+            && info->message.find("primary update before backend cleanup")!=std::string_view::npos,
+            "cleanup backend diagnostic and original ordinary failure must survive application shutdown");
+        require(std::find(render_operations.begin(),render_operations.end(),"SDL_RenderPresent")==render_operations.end(),
+            "backend recovery cleanup failure must skip frame presentation");
+        require(frames.size()==1,"recovery cleanup backend failure must skip frame waiting");
+    }
     if (mode.starts_with("render_"))
     {
         const auto info = elysia::tools::TerminationManager::instance()->termination_info();

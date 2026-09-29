@@ -89,9 +89,15 @@ struct SceneBoundaryFailure
     SceneKey scene,SceneBoundary boundary,std::string message,
     std::source_location origin = std::source_location::current())
 {
-    auto diagnostic = elysia::core::make_failure_diagnostic(std::move(message),
-        {elysia::core::make_failure_diagnostic_entry("scene",std::to_string(scene),
-            {},{},{},std::string(scene_boundary_name(boundary)),origin)},origin);
-    return {scene,boundary,std::move(diagnostic)};
+    return {scene,boundary,elysia::core::make_failure_diagnostic(std::move(message),std::vector<elysia::core::FailureDiagnosticEntry>{},origin)};
+}
+
+[[nodiscard]] inline elysia::core::FailureDiagnostic to_failure_diagnostic(const SceneBoundaryFailure& failure)
+{
+    auto diagnostic = failure.diagnostic;
+    diagnostic.entries.insert(diagnostic.entries.begin(),elysia::core::make_failure_diagnostic_entry(
+        "scene",std::to_string(failure.scene),{},{},{},
+        std::string(scene_boundary_name(failure.boundary)),diagnostic.origin));
+    return diagnostic;
 }
 } // namespace elysia::scene

@@ -88,8 +88,10 @@ inline void execute_textured_render_command(
     });
 }
 
-[[nodiscard]] inline RenderResult execute_render_command(
-    SDL_Renderer* renderer,const UiRenderCommand& render_command);
+namespace detail
+{
+inline void execute_render_command_impl(SDL_Renderer* renderer,const UiRenderCommand& render_command);
+}
 
 [[nodiscard]] inline bool finite_render_vector(const Vector2& value) noexcept
 {
@@ -171,9 +173,10 @@ inline void execute_filled_triangle_render_command(
     });
 }
 
-[[nodiscard]] inline RenderResult execute_render_command(SDL_Renderer* renderer, const ScreenRenderCommand& render_command)
+namespace detail
 {
-    return detail::render_boundary(renderer,[&] {
+inline void execute_render_command_impl(SDL_Renderer* renderer, const ScreenRenderCommand& render_command)
+{
     if (render_command.type == RenderCommandType::Texture)
     {
         execute_textured_render_command(
@@ -246,13 +249,11 @@ inline void execute_filled_triangle_render_command(
     case RenderCommandType::FillTriangle:
         return;
     }
-    require_render_success(execute_render_command(renderer,primitive));
-    });
+    execute_render_command_impl(renderer,primitive);
 }
 
-[[nodiscard]] inline RenderResult execute_render_command(SDL_Renderer* renderer, const UiRenderCommand& render_command)
+inline void execute_render_command_impl(SDL_Renderer* renderer, const UiRenderCommand& render_command)
 {
-    return detail::render_boundary(renderer,[&] {
 
     detail::RendererState state(renderer);
     detail::with_render_state(state,[&] {
@@ -350,7 +351,17 @@ inline void execute_filled_triangle_render_command(
     }
 
     });
-    });
+}
+} // namespace detail
+
+[[nodiscard]] inline RenderResult execute_render_command(SDL_Renderer* renderer,const ScreenRenderCommand& command)
+{
+    return detail::render_boundary(renderer,[&] { detail::execute_render_command_impl(renderer,command); });
+}
+
+[[nodiscard]] inline RenderResult execute_render_command(SDL_Renderer* renderer,const UiRenderCommand& command)
+{
+    return detail::render_boundary(renderer,[&] { detail::execute_render_command_impl(renderer,command); });
 }
 
 template<typename Command>
@@ -359,7 +370,7 @@ template<typename Command>
 {
     return detail::render_boundary(renderer,[&] {
         for (const Command& command : render_commands)
-            require_render_success(execute_render_command(renderer,command));
+            detail::execute_render_command_impl(renderer,command);
     });
 }
 

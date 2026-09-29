@@ -1,6 +1,8 @@
 #include "scene_factory.h"
 
 #include "../scene.h"
+#include "scene_failure_boundary.h"
+#include "scene_failure_log.h"
 
 #include <stdexcept>
 
@@ -61,6 +63,20 @@ bool SceneFactory::destroy_all_scene() noexcept
         catch (...)
         {
             succeeded = false;
+            try
+            {
+                detail::SceneFailureCollector failures;
+                failures.capture(key,SceneBoundary::ObjectRemoval,"Shutdown scene destruction");
+                if (auto result = failures.finish(); !result) detail::log_scene_failure(result.error());
+            }
+            catch (const elysia::core::RenderBackendError& error)
+            {
+                elysia::tools::Logger::instance()->log_stream(elysia::tools::LogLevel::Error,"scene_shutdown",
+                    [&](std::ostream& output) {
+                        output << elysia::core::format_failure_diagnostic(error.failure().diagnostic,"RENDER-BACKEND","render");
+                    },error.failure().diagnostic.origin);
+            }
+            catch (...) { detail::log_cleanup_exception("Shutdown scene diagnostic"); }
         }
     }
     _scene_cache.clear();

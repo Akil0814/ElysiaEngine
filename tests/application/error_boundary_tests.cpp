@@ -3,6 +3,7 @@
 #include "engine/application/lifecycle/application_event_boundary.h"
 #include "engine/builtin/scenes/application_failure_presentation.h"
 #include "engine/scene/scene_manager.h"
+#include "engine/scene/detail/scene_failure_log.h"
 #include "engine/io/loaders/content_registry_loader.h"
 #include "engine/ui/core/ui_element.h"
 #include "tests/support/test_assertions.h"
@@ -185,6 +186,165 @@ void test_transition_backend_failures(SDL_Renderer* renderer)
     require(retirement_manager.shutdown(),"backend retirement failure must still retire the object completely");
     termination->reset_for_testing();
 }
+struct CleanupState
+{
+    bool armed = true;
+    bool primary_backend = false;
+    bool attach_failure = false;
+    bool destruction_backend = false;
+    bool detach_backend = true;
+    bool first_removal_ordinary = false;
+    int detaches = 0,removals = 0,destructions = 0;
+    std::source_location backend_origin;
+};
+class CleanupScene final : public elysia::scene::Scene
+{
+public:
+    explicit CleanupScene(CleanupState& state) : _state(state) {}
+    ~CleanupScene() override { ++_state.destructions; }
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        if (_state.armed)
+        {
+            (void)create_and_add_object<RectProbe>();
+            (void)create_and_add_object<RectProbe>();
+            if (_state.primary_backend) backend("primary backend");
+            throw std::runtime_error("primary ordinary");
+        }
+        (void)create_and_add_object<RectProbe>();
+    }
+    void on_exit() override {}
+    void on_reset() override {}
+    void on_runtime_attach() override
+    {
+        if (_state.armed && _state.attach_failure) throw std::runtime_error("primary attach");
+    }
+    void on_runtime_detach() override
+    {
+        ++_state.detaches;
+        if (_state.armed)
+        {
+            if (_state.detach_backend) backend("detach backend");
+            throw std::runtime_error("secondary detach");
+        }
+    }
+    void on_scene_object_removing(elysia::core::SceneObject&) override
+    {
+        ++_state.removals;
+        if (_state.armed && _state.destruction_backend)
+        {
+            if (_state.first_removal_ordinary && _state.removals==1) throw std::runtime_error("first removal ordinary");
+            backend("destruction backend");
+        }
+    }
+private:
+    void backend(const char* operation)
+    {
+        const auto origin = std::source_location::current();
+        if (_state.backend_origin.line()==0) _state.backend_origin = origin;
+        throw RenderBackendError({operation,make_failure_diagnostic(operation,{},{},origin)});
+    }
+    CleanupState& _state;
+};
+class RegistrationCleanupScene final : public elysia::scene::Scene
+{
+public:
+    explicit RegistrationCleanupScene(int& removals) : _removals(removals) {}
+    void on_enter(const elysia::scene::ScenePayload&) override { (void)create_and_add_object<RectProbe>(); }
+    void on_exit() override {}
+    void on_reset() override {}
+    void on_scene_object_registered(elysia::core::SceneObject&) override { throw std::logic_error("registration ordinary"); }
+    void on_scene_object_removing(elysia::core::SceneObject&) override
+    {
+        ++_removals;
+        throw RenderBackendError({"registration rollback render",make_failure_diagnostic("registration rollback backend")});
+    }
+private:
+    int& _removals;
+};
+void test_cleanup_backend_failures(SDL_Renderer* renderer)
+{
+    using namespace elysia::scene;
+    elysia::io::ContentRegistry registry;
+    SceneRuntimeContext context(renderer,registry,64,64);
+    for (int scenario = 0; scenario < 5; ++scenario)
+    {
+        CleanupState state;
+        state.primary_backend = scenario==1;
+        state.attach_failure = scenario==2;
+        state.destruction_backend = scenario==1 || scenario==3 || scenario==4;
+        state.detach_backend = scenario!=1 && scenario!=3 && scenario!=4;
+        state.first_removal_ordinary = scenario>=3;
+        state.armed = scenario!=4;
+        int recoveries = 0;
+        SceneManager manager;
+        manager.initialize(context,[&](const auto&) { ++recoveries; return SceneRoute{.target=2}; });
+        manager.register_game_scene<CleanupScene>(1,std::ref(state));
+        manager.register_game_scene<RenderScene>(2);
+        if (scenario==4)
+        {
+            manager.start({.target=1});
+            manager.on_scene_request({.type=SceneRequestType::Switch,.route={.target=2}});
+            manager.on_update(0);
+            state.armed = true;
+        }
+        bool caught = false;
+        try
+        {
+            if (scenario==4)
+            {
+                manager.on_scene_request({.type=SceneRequestType::Switch,.route={.target=1}});
+                manager.on_update(0);
+            }
+            else manager.start({.target=1});
+        }
+        catch (const RenderBackendError& error)
+        {
+            caught = true;
+            const auto expected = scenario==1 ? "primary backend" : scenario>=3 ? "destruction backend" : "detach backend";
+            require(error.failure().operation==expected,"first backend operation must win over primary/secondary ordinary errors");
+            require(error.failure().diagnostic.origin.line()==state.backend_origin.line()
+                && error.failure().diagnostic.origin.file_name()==state.backend_origin.file_name(),
+                "first backend source must survive all nested cleanup collectors");
+            const auto report = format_failure_diagnostic(error.failure().diagnostic,"RENDER-BACKEND","render");
+            require(report.find(scenario==2 ? "primary attach" : scenario==1 ? "destruction backend" : "primary ordinary")!=std::string::npos,
+                "backend report must retain primary and later cleanup failures");
+            require(report.find("key=1")!=std::string::npos,"backend cleanup report must retain scene context");
+            if (scenario==1) require(report.find("secondary detach")!=std::string::npos,"ordinary cleanup failures after a primary backend error must survive");
+            if (scenario>=3) require(report.find("first removal ordinary")!=std::string::npos,"later retirement backend failures must not be hidden by the first ordinary callback failure");
+        }
+        require(caught && recoveries==0 && state.destructions==1,
+            "cleanup backend failures must bypass recovery and release the failed candidate");
+        require(state.removals==(scenario==2 ? 0 : scenario==4 ? 3 : 2),
+            "all candidate objects must retire even after a backend cleanup failure");
+        state.armed = false;
+        require(manager.shutdown(),"cleanup failure must leave shutdown clean");
+    }
+    CleanupState recovery;
+    SceneManager manager;
+    int recoveries = 0;
+    manager.initialize(context,[&](const auto&) { ++recoveries; return SceneRoute{.target=2}; });
+    manager.register_game_scene<TaggedScene>(1);
+    manager.register_game_scene<CleanupScene>(2,std::ref(recovery));
+    auto* termination = elysia::tools::TerminationManager::instance();
+    termination->reset_for_testing();
+    require(!elysia::application::run_event_boundary("recovery cleanup",[&] { manager.start({.target=1}); })
+        && recoveries==1 && termination->termination_info()->category=="render",
+        "backend cleanup failure in the recovery candidate must not recursively recover");
+    require(manager.shutdown(),"failed recovery candidate must close completely");
+    termination->reset_for_testing();
+    SceneManager registration;
+    int removals = 0;
+    registration.initialize(context);
+    registration.register_game_scene<RegistrationCleanupScene>(1,std::ref(removals));
+    require(!elysia::application::run_event_boundary("registration rollback",[&] { registration.start({.target=1}); })
+        && termination->termination_info()->category=="render" && removals==1,
+        "registration rollback backend failures must survive tagged exception wrapping and release ownership");
+    require(termination->termination_info()->message.find("registration ordinary")!=std::string_view::npos,
+        "registration rollback report must preserve the primary logic exception");
+    require(registration.shutdown(),"registration rollback must leave shutdown clean");
+    termination->reset_for_testing();
+}
 class Observer final : public elysia::scene::SceneManagerObserver
 {
 public:
@@ -227,7 +387,7 @@ void test_scene_diagnostics()
     require(payload && payload->diagnostic.entries.front().subject_key=="19"
         && payload->diagnostic.entries.front().reason=="Enter","route must retain scene and boundary");
     const auto report = elysia::builtin::build_application_failure_presentation(*payload,"test.log",true);
-    const auto diagnostic_text = format_failure_diagnostic(last.saved.diagnostic,"APPLICATION-FATAL","scene");
+    const auto diagnostic_text = format_failure_diagnostic(to_failure_diagnostic(last.saved),"APPLICATION-FATAL","scene");
     const auto source = std::string(source_file_basename(last.saved.diagnostic.origin))
         + ':' + std::to_string(last.saved.diagnostic.origin.line());
     require(logs.str().find(diagnostic_text)!=std::string::npos
@@ -242,11 +402,25 @@ void test_scene_diagnostics()
     const auto manual_route = elysia::builtin::make_application_failure_route(manual_failure);
     const auto* manual_payload = try_scene_payload<elysia::builtin::ApplicationFailureScenePayload>(manual_route.payload);
     require(manual_payload && manual_payload->diagnostic.entries.size()==2
-        && manual_payload->diagnostic.entries[0].subject_key=="custom"
-        && manual_payload->diagnostic.entries[1].subject_key=="19"
-        && manual_payload->diagnostic.entries[1].reason=="Input"
+        && manual_payload->diagnostic.entries[1].subject_key=="custom"
+        && manual_payload->diagnostic.entries[0].subject_key=="19"
+        && manual_payload->diagnostic.entries[0].reason=="Input"
         && manual_payload->diagnostic.origin.line()==TaggedScene::origin.line(),
         "direct scene failure conversion must preserve explicit scene fields and existing diagnostic entries");
+    const auto projected = to_failure_diagnostic(manual_failure);
+    const auto projected_again = to_failure_diagnostic(manual_failure);
+    require(manual_failure.diagnostic.entries.size()==1 && projected.entries.size()==2
+        && format_failure_diagnostic(projected,"APPLICATION-FATAL","scene")
+            ==format_failure_diagnostic(projected_again,"APPLICATION-FATAL","scene"),
+        "diagnostic projection must be repeatable without changing the original scene failure");
+    elysia::scene::detail::log_scene_failure(manual_failure);
+    const auto manual_text = format_failure_diagnostic(projected,"APPLICATION-FATAL","scene");
+    const auto manual_report = elysia::builtin::build_application_failure_presentation(*manual_payload,"test.log",true);
+    require(logs.str().find(manual_text)!=std::string::npos
+        && manual_report.copy_report.find("manual failure")!=std::string::npos
+        && manual_report.copy_report.find("custom")!=std::string::npos,
+        "manually constructed scene failures must use the same projection for logs and reports");
+    require(last.saved.diagnostic.entries.empty(),"scene factories must leave primary context in typed fields");
     SceneManager ordinary_manager;
     ordinary_manager.initialize(context);
     ordinary_manager.register_game_scene<UntaggedScene>(20);
@@ -257,6 +431,20 @@ void test_scene_diagnostics()
         && std::string_view(last.saved.diagnostic.origin.file_name())!=UntaggedScene::origin.file_name(),
         "ordinary exceptions must report the catch site, not an invented throw site");
     require(ordinary_manager.shutdown(),"ordinary fault must close");
+    CleanupState shutdown_state;
+    shutdown_state.armed = false;
+    shutdown_state.detach_backend = false;
+    shutdown_state.destruction_backend = true;
+    SceneManager shutdown_manager;
+    shutdown_manager.initialize(context);
+    shutdown_manager.register_game_scene<CleanupScene>(21,std::ref(shutdown_state));
+    shutdown_manager.start({.target=21});
+    shutdown_state.armed = true;
+    require(!shutdown_manager.shutdown() && !shutdown_manager.shutdown()
+        && shutdown_state.detaches==1 && shutdown_state.removals==1 && shutdown_state.destructions==1,
+        "final shutdown must remain nonthrowing, sticky and complete after ordinary and backend cleanup errors");
+    require(logs.str().find("destruction backend")!=std::string::npos && logs.str().find("key=21")!=std::string::npos,
+        "shutdown must log the complete backend diagnostic with the failed scene key");
     std::clog.rdbuf(previous);
     logger->shutdown();
 }
@@ -310,6 +498,15 @@ int main()
         const auto result=execute_render_command(renderer,command);
         require(!result && result.error().operation==operation,"restoration alone must still report render failure");
     }
+    ScreenRenderCommand forwarded;
+    forwarded.type = RenderCommandType::FillCircle;
+    forwarded.circle_center = {10,10}; forwarded.circle_radius = 5;
+    baseline(renderer); failures={"filledCircleRGBA"};
+    const auto forwarded_failure = execute_render_commands(renderer,std::vector{forwarded,forwarded});
+    require(!forwarded_failure && forwarded_failure.error().operation=="filledCircleRGBA"
+        && std::count(operations.begin(),operations.end(),"filledCircleRGBA")==1,
+        "world-to-UI forwarding must stop the batch after the first failure");
+    assert_restored(renderer);
     UiRenderCommand stroke=command; stroke.type=UiRenderCommandType::DrawRect;
     for (const char* operation : {"SDL_GetRenderScale","SDL_GetRenderLogicalPresentation","SDL_GetRenderLogicalPresentationRect","SDL_GetRenderViewport","SDL_RenderGeometry"})
     {
@@ -365,6 +562,7 @@ int main()
     termination->reset_for_testing();
     detail::render_operation_probe=nullptr;
     test_transition_backend_failures(renderer);
+    test_cleanup_backend_failures(renderer);
     test_scene_diagnostics();
     SDL_DestroyTexture(texture); SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit();
 }

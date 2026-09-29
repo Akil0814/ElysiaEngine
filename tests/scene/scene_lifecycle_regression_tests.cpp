@@ -1,5 +1,7 @@
 #define SDL_MAIN_HANDLED
 #include "engine/scene/scene_manager.h"
+#include "engine/scene/detail/scene_failure_boundary.h"
+#include "engine/scene/detail/scene_failure_log.h"
 #include "engine/gameplay/scene/gameplay_scene.h"
 #include "engine/gameplay/collision/gameplay_collision_service.h"
 #include "engine/physics/contracts/physics_participant.h"
@@ -110,15 +112,19 @@ void cascade_retirement()
     LogCapture logs;
     bool caught = false;
     try { SceneTestAccess::update(scene, 0); }
-    catch (const scene::SceneBoundaryRuntimeError& error)
+    catch (...)
     {
-        caught = error.scene_boundary() == scene::SceneBoundary::ObjectRemoval
-            && std::string(error.what()) == "cascade primary";
+        scene::detail::SceneFailureCollector failures;
+        failures.capture(1,scene::SceneBoundary::Update,"Update");
+        const auto result = failures.finish();
+        caught = !result && result.error().boundary==scene::SceneBoundary::ObjectRemoval
+            && result.error().diagnostic.message=="cascade primary";
+        scene::detail::log_scene_failure(result.error());
     }
     require(caught && destructions == 2 && scene.removals == std::array<int, 4>{1, 1, 1, 1},
         "all callback and destructor cascades must retire exactly once despite reset and exceptions");
     require(scene.world().registered_object_count() == 0, "retirement must leave no stale physics owners");
-    require(logs.output.str().find("ObjectRemoval callback: cascade secondary") != std::string::npos,
+    require(logs.output.str().find("ObjectRemoval callback (ObjectRemoval): cascade secondary") != std::string::npos,
         "later batch failures must be diagnosed without replacing the primary failure");
     SceneTestAccess::update(scene, 1.0 / 60);
     SceneTestAccess::exit(scene);
@@ -268,7 +274,7 @@ void secondary_failure_logging()
     require(occurrences(output, "type=scene key=1 reason=Enter source=") == 1
             && occurrences(output,"original enter") == 1,
         "cleanup errors must not replace the original failure");
-    require(occurrences(output, "Candidate detach: secondary detach") == 1,
+    require(occurrences(output, "Runtime detach (Detach): secondary detach") == 1,
         "secondary detach failure must be logged once with its stage");
     require(manager.shutdown(), "secondary candidate failure must not leave attached services");
 }

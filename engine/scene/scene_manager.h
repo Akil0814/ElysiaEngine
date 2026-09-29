@@ -23,6 +23,7 @@
 
 namespace elysia::scene
 {
+namespace detail { class SceneFailureCollector; }
 enum class SceneManagerState
 {
     Constructed,
@@ -89,12 +90,11 @@ private:
     [[nodiscard]] std::expected<void, SceneBoundaryFailure>
         switch_to_scene(Scene* next_scene, std::unique_ptr<Scene> staged_scene,
                         const SceneRoute& route);
-    [[nodiscard]] std::expected<void, SceneBoundaryFailure>
-        leave_current_scene();
+    void leave_current_scene(detail::SceneFailureCollector& failures);
 
-    void attach_to_scene(Scene& scene);
-    void detach_from_scene(Scene& scene);
-    void discard_scene(SceneKey key, Scene* expected) noexcept;
+    void attach_to_scene(Scene& scene,SceneKey key);
+    void detach_from_scene(Scene& scene,SceneKey key);
+    void discard_scene(SceneKey key, Scene* expected);
     [[nodiscard]] SceneBoundaryFailure make_failure(
         SceneKey key, SceneBoundary boundary,
         std::source_location origin = std::source_location::current()) const;

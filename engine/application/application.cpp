@@ -399,27 +399,14 @@ bool Application::initialize_runtime(
     if (!check_startup_step(_window != nullptr,"platform","SDL_CreateWindow Error"))
         return false;
 
-    if (user_settings.window.mode
-            == elysia::config::WindowMode::BorderlessFullscreen
-        && !SDL_SetWindowFullscreen(_window,SDL_WINDOW_FULLSCREEN))
-    {
-        auto diagnostic = elysia::core::make_failure_diagnostic(
-            std::string("SDL_SetWindowFullscreen: ") + SDL_GetError());
-        elysia::tools::Logger::instance()->warn("application",diagnostic.message,diagnostic.origin);
-        const auto restore = [&](bool success,const char* operation,
-            std::source_location origin = std::source_location::current())
-        {
-            if (!success)
-                diagnostic.entries.push_back(elysia::core::make_failure_diagnostic_entry(
-                    "window-rollback",operation,{},{},{},SDL_GetError(),origin));
-        };
-        restore(SDL_SetWindowFullscreen(_window,false),"SDL_SetWindowFullscreen");
-        restore(SDL_SetWindowSize(_window,user_settings.window.windowed_size.width,user_settings.window.windowed_size.height),"SDL_SetWindowSize");
-        restore(SDL_SetWindowPosition(_window,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED),"SDL_SetWindowPosition");
-        if (!diagnostic.entries.empty())
-            return startup_fail("platform",elysia::core::format_failure_diagnostic(
-                diagnostic,"STARTUP-WINDOW","platform"));
-    }
+    const auto startup_window = detail::apply_startup_window_settings(
+        user_settings.window,detail::make_sdl_window_operations(_window));
+    if (!startup_window)
+        return startup_fail("platform",elysia::core::format_failure_diagnostic(
+            startup_window.error(),"STARTUP-WINDOW","platform"),startup_window.error().origin);
+    if (*startup_window)
+        elysia::tools::Logger::instance()->warn("application",elysia::core::format_failure_diagnostic(
+            **startup_window,"STARTUP-WINDOW","platform"),(**startup_window).origin);
 
     _renderer = SDL_CreateGPURenderer(nullptr,_window);
     if (!check_startup_step(_renderer != nullptr,"platform","SDL GPU renderer creation failed"))
@@ -701,7 +688,7 @@ void Application::on_scene_manager_fault(
     {
         elysia::tools::TerminationManager::instance()->request_termination(
             elysia::tools::TerminationReason::FatalRuntimeFailure,"scene",
-            elysia::core::format_failure_diagnostic(failure.diagnostic,"APPLICATION-FATAL","scene"),
+            elysia::core::format_failure_diagnostic(elysia::scene::to_failure_diagnostic(failure),"APPLICATION-FATAL","scene"),
             failure.diagnostic.origin);
     }
     catch (...)
@@ -788,30 +775,16 @@ Application::apply_window_settings(
     if (!_window)
         return runtime_apply_failure("window_settings","Application window is unavailable.");
 
-    detail::ApplicationWindowSnapshot previous{
-        elysia::config::UserConfigService::instance()->user_config().window_settings()};
-    if (!SDL_GetWindowPosition(_window,&previous.x,&previous.y))
-        return runtime_apply_failure("window_settings",std::string("SDL_GetWindowPosition: ") + SDL_GetError());
-    if (!(SDL_GetWindowFlags(_window) & SDL_WINDOW_FULLSCREEN))
-    {
-        if (!SDL_GetWindowSize(_window,&previous.settings.windowed_size.width,&previous.settings.windowed_size.height))
-            return runtime_apply_failure("window_settings",std::string("SDL_GetWindowSize: ") + SDL_GetError());
-        previous.settings.mode = elysia::config::WindowMode::Windowed;
-    }
-    else previous.settings.mode = elysia::config::WindowMode::BorderlessFullscreen;
-    const auto checked = [](bool success,const char* operation,
-        std::source_location origin = std::source_location::current()) -> detail::WindowOperationResult
-    {
-        if (success) return {};
-        return std::unexpected(elysia::core::make_failure_diagnostic(
-            std::string(operation) + ": " + SDL_GetError(),{},{},origin));
-    };
-    const auto result = detail::apply_window_settings_transactional(settings,previous,
-        detail::ApplicationWindowOperations{
-            .set_fullscreen = [&](bool enabled) { return checked(SDL_SetWindowFullscreen(_window,enabled),"SDL_SetWindowFullscreen"); },
-            .set_size = [&](int width,int height) { return checked(SDL_SetWindowSize(_window,width,height),"SDL_SetWindowSize"); },
-            .set_position = [&](int x,int y) { return checked(SDL_SetWindowPosition(_window,x,y),"SDL_SetWindowPosition"); }
-        });
+    const auto operations = detail::make_sdl_window_operations(_window);
+    if (auto valid = detail::validate_window_settings(settings,operations); !valid)
+        return std::unexpected(elysia::config::UserConfigFailure{
+            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",valid.error().message,valid.error()});
+    auto previous = detail::capture_window_snapshot(
+        elysia::config::UserConfigService::instance()->user_config().window_settings(),operations);
+    if (!previous)
+        return std::unexpected(elysia::config::UserConfigFailure{
+            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",previous.error().message,previous.error()});
+    const auto result = detail::apply_window_settings_transactional(settings,*previous,operations);
     if (!result)
     {
         return std::unexpected(elysia::config::UserConfigFailure{

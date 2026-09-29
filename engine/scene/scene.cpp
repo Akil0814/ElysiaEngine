@@ -1,7 +1,7 @@
 #include "scene.h"
 
 #include "detail/scene_input_order.h"
-#include "detail/scene_failure_log.h"
+#include "detail/scene_failure_boundary.h"
 
 #include "../core/render/debug_draw_projection.h"
 #include "../core/render/render_command_projection.h"
@@ -154,14 +154,14 @@ void Scene::lifecycle_exit()
     if (_lifecycle_state != SceneLifecycleState::Active)
         throw std::logic_error("Scene can only exit from the active state.");
     _lifecycle_state = SceneLifecycleState::Exiting;
-    std::exception_ptr failure;
+    detail::SceneFailureCollector failures;
     try
     {
         on_exit();
     }
     catch (...)
     {
-        failure = std::current_exception();
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Exit,"Scene exit");
     }
     try
     {
@@ -169,17 +169,13 @@ void Scene::lifecycle_exit()
     }
     catch (...)
     {
-        if (!failure)
-            failure = std::current_exception();
-        else
-            detail::log_cleanup_exception("Exit object retirement");
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Exit,"Exit object retirement");
     }
 
     cancel_camera_activity();
 
     _lifecycle_state = SceneLifecycleState::Inactive;
-    if (failure)
-        std::rethrow_exception(failure);
+    failures.rethrow_if_failed();
 }
 
 void Scene::lifecycle_reset()
@@ -187,7 +183,7 @@ void Scene::lifecycle_reset()
     if (_lifecycle_state != SceneLifecycleState::Inactive)
         throw std::logic_error("Scene can only reset while inactive.");
     _lifecycle_state = SceneLifecycleState::Resetting;
-    std::exception_ptr failure;
+    detail::SceneFailureCollector failures;
     try
     {
         reset_input_routing();
@@ -200,7 +196,7 @@ void Scene::lifecycle_reset()
     }
     catch (...)
     {
-        failure = std::current_exception();
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Reset,"Scene reset");
     }
     try
     {
@@ -208,15 +204,11 @@ void Scene::lifecycle_reset()
     }
     catch (...)
     {
-        if (!failure)
-            failure = std::current_exception();
-        else
-            detail::log_cleanup_exception("Reset object retirement");
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Reset,"Reset object retirement");
     }
 
     _lifecycle_state = SceneLifecycleState::Inactive;
-    if (failure)
-        std::rethrow_exception(failure);
+    failures.rethrow_if_failed();
 }
 
 void Scene::lifecycle_input(const elysia::input::InputSnapshot& input)
@@ -232,7 +224,7 @@ void Scene::lifecycle_update(double delta)
         return;
 
 
-    std::exception_ptr failure;
+    detail::SceneFailureCollector failures;
     try
     {
         auto* debug_draw = elysia::tools::DebugDraw::instance();
@@ -290,7 +282,7 @@ void Scene::lifecycle_update(double delta)
     }
     catch (...)
     {
-        failure = std::current_exception();
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Update,"Scene update");
     }
 
     try
@@ -299,14 +291,10 @@ void Scene::lifecycle_update(double delta)
     }
     catch (...)
     {
-        if (!failure)
-            failure = std::current_exception();
-        else
-            detail::log_cleanup_exception("Update object retirement");
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Update,"Update object retirement");
     }
 
-    if (failure)
-        std::rethrow_exception(failure);
+    failures.rethrow_if_failed();
 }
 
 void Scene::lifecycle_render(SDL_Renderer* renderer)
@@ -368,22 +356,14 @@ void Scene::attach_runtime_services()
     if (_runtime_services_attached)
         throw std::logic_error("Scene runtime services are already attached.");
     _runtime_services_attached = true;
-    try
-    {
-        on_runtime_attach();
-    }
+    try { on_runtime_attach(); }
     catch (...)
     {
-        try
-        {
-            on_runtime_detach();
-        }
-        catch (...)
-        {
-            detail::log_cleanup_exception("Runtime attach rollback");
-        }
+        detail::SceneFailureCollector failures;
+        failures.capture(SceneKeys::Invalid,SceneBoundary::Attach,"Runtime attach");
+        failures.attempt(SceneKeys::Invalid,SceneBoundary::Detach,"Runtime attach rollback",[&] { on_runtime_detach(); });
         _runtime_services_attached = false;
-        throw;
+        failures.rethrow_if_failed();
     }
 }
 
@@ -406,14 +386,14 @@ void Scene::prepare_for_destruction()
 
     _lifecycle_state = SceneLifecycleState::PreparingDestruction;
     cancel_camera_activity();
-    std::exception_ptr failure;
+    detail::SceneFailureCollector failures;
     try
     {
         clear_scene_objects();
     }
     catch (...)
     {
-        failure = std::current_exception();
+        failures.capture(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,"Destruction object retirement");
     }
     try
     {
@@ -421,15 +401,11 @@ void Scene::prepare_for_destruction()
     }
     catch (...)
     {
-        if (!failure)
-            failure = std::current_exception();
-        else
-            detail::log_cleanup_exception("Destruction input reset");
+        failures.capture(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,"Destruction input reset");
     }
     clear_runtime_context();
     _lifecycle_state = SceneLifecycleState::PreparedForDestruction;
-    if (failure)
-        std::rethrow_exception(failure);
+    failures.rethrow_if_failed();
 }
 
 void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
@@ -485,16 +461,11 @@ void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
     }
     catch (...)
     {
-        const std::exception_ptr registration_failure = std::current_exception();
-        try
-        {
-            on_scene_object_removing(*object);
-        }
-        catch (...)
-        {
-            detail::log_cleanup_exception("ObjectRegistration rollback callback");
-        }
-        std::rethrow_exception(registration_failure);
+        detail::SceneFailureCollector failures;
+        failures.capture(SceneKeys::Invalid,SceneBoundary::ObjectRegistration,"Object registration callback");
+        failures.attempt(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,"ObjectRegistration rollback callback",
+            [&] { on_scene_object_removing(*object); });
+        failures.rethrow_if_failed();
     }
 }
 
@@ -559,12 +530,9 @@ void Scene::remove_destroyed_objects()
         ~Guard() { value = false; }
     } guard{_retiring_objects};
 
-    std::exception_ptr failure;
+    detail::SceneFailureCollector failures;
     auto record_failure = [&](const char* stage) {
-        if (!failure)
-            failure = std::current_exception();
-        else
-            detail::log_cleanup_exception(stage);
+        failures.capture(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,stage);
     };
     auto retire = [&](elysia::core::SceneObject& object) {
         try
@@ -634,32 +602,7 @@ void Scene::remove_destroyed_objects()
         });
     }
 
-    if (failure)
-    {
-        try
-        {
-            std::rethrow_exception(failure);
-        }
-        catch (const elysia::core::RenderBackendError&)
-        {
-            throw;
-        }
-        catch (const SceneBoundaryTagged&)
-        {
-            throw;
-        }
-        catch (const std::exception& error)
-        {
-            throw SceneBoundaryRuntimeError(
-                SceneBoundary::ObjectRemoval, error.what());
-        }
-        catch (...)
-        {
-            throw SceneBoundaryRuntimeError(
-                SceneBoundary::ObjectRemoval,
-                "Unknown scene object removal exception.");
-        }
-    }
+    failures.rethrow_if_failed();
 }
 
 std::span<const elysia::physics::ColliderId> Scene::registered_physics_colliders(
