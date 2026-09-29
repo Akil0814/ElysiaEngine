@@ -3,6 +3,8 @@
 #include "engine/io/json/strict_json.h"
 #include "engine/io/loaders/i18n_manifest_loader.h"
 #include "tests/support/test_assertions.h"
+#include "engine/config/content/config_load_utils.h"
+#include "engine/io/loaders/detail/content_registry_json_failure.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -12,6 +14,30 @@
 namespace
 {
 using elysia::tests::require;
+
+void test_read_failure_projection()
+{
+    using namespace elysia;
+    const auto origin = std::source_location::current();
+    const io::JsonFileFailure failure{io::JsonFileError::ReadFailed,"read interrupted",
+        "assets/config.json",{},"/field",origin};
+    for (const auto name : {"", "game"})
+    {
+        const auto projected = config::config_failure_from_json(failure,
+            config::ConfigOrigin{failure.file_path.generic_string(),{},name,{}});
+        require(projected.error == config::ConfigLoadError::FilesystemAccess
+            && projected.message == failure.message && projected.origin.line() == origin.line()
+            && projected.first.json_pointer == failure.json_pointer
+            && projected.first.config_path == failure.file_path.generic_string(),
+            "manifest and document conversions retain read error category and origin");
+    }
+    const auto registry = io::detail::registry_failure_from_json(failure);
+    require(registry.code == io::ContentRegistryError::FilesystemAccess
+        && registry.diagnostic.message == failure.message && registry.diagnostic.origin.line() == origin.line()
+        && registry.diagnostic.entries.front().declaration_pointer == failure.json_pointer
+        && registry.diagnostic.entries.front().declaration_path == failure.file_path,
+        "registry conversion retains read error category and complete diagnostic");
+}
 
 void test_typed_json_failures()
 {
@@ -113,6 +139,7 @@ void test_diagnostic_path_normalization()
 
 int main()
 {
+    test_read_failure_projection();
     test_typed_json_failures();
     test_diagnostic_path_normalization();
     std::cout << "json file failure tests passed\n";

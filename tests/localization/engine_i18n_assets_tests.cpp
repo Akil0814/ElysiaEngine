@@ -167,6 +167,7 @@ const std::set<std::string> expected_keys = {
     "engine.settings.sections.audio",
     "engine.settings.sections.display",
     "engine.settings.sections.general",
+    "engine.settings.status.save_failed",
     "engine.settings.status.saved",
     "engine.settings.status.saved_restart_required",
     "engine.settings.status.restart_required",

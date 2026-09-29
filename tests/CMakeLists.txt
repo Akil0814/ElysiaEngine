@@ -453,6 +453,11 @@ add_elysia_test(json_file_failure_tests
     SOURCES io/json_file_failure_tests.cpp
 )
 
+add_elysia_test(persistence_boundary_tests
+    LABEL persistence
+    SOURCES io/persistence_boundary_tests.cpp
+)
+
 add_elysia_test(engine_i18n_assets_tests
     LABEL localization
     SOURCES localization/engine_i18n_assets_tests.cpp

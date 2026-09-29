@@ -203,7 +203,8 @@ bool Application::initialize(
             elysia::io::PathManager::instance()->saves());
         !save_result)
     {
-        return startup_fail("save",save_result.error().message);
+        return startup_fail("save",elysia::core::format_failure_diagnostic(
+            save_result.error().diagnostic,"SAVE-INITIALIZE","save"),save_result.error().diagnostic.origin);
     }
 
     if (bootstrap_output.warning)
@@ -316,7 +317,7 @@ bool Application::initialize(
         {
             ELYSIA_LOG_WARN("application",
                 "Localization warning: normalize language in config failed: "
-                << language_result.error().message);
+                << elysia::core::format_failure_diagnostic(language_result.error().diagnostic,"CONFIG-APPLY","config"));
         }
         else if (const auto save_result =
             elysia::config::UserConfigService::instance()->save_user_config();
@@ -324,7 +325,7 @@ bool Application::initialize(
         {
             ELYSIA_LOG_WARN("application",
                 "Localization warning: save normalized language failed: "
-                << save_result.error().message);
+                << elysia::core::format_failure_diagnostic(save_result.error().diagnostic,"CONFIG-SAVE","config"));
         }
     }
 
@@ -708,12 +709,11 @@ std::unexpected<elysia::config::UserConfigFailure> runtime_apply_failure(
     const std::string& message,
     std::source_location origin = std::source_location::current())
 {
-    return std::unexpected(elysia::config::UserConfigFailure{
+    return std::unexpected(elysia::config::make_user_config_failure(
         elysia::config::UserConfigError::RuntimeApplyFailed,
         setting,
-        message,
         elysia::core::make_failure_diagnostic(message,{},{},origin)
-    });
+    ));
 }
 }
 
@@ -747,9 +747,9 @@ Application::apply_language(std::string_view language)
     if (auto result = ELYSIA_LOCALIZATION->set_language(std::string(language));
         !result)
     {
-        return std::unexpected(elysia::config::UserConfigFailure{
+        return std::unexpected(elysia::config::make_user_config_failure(
             elysia::config::UserConfigError::RuntimeApplyFailed,"language",
-            result.error().diagnostic.message,result.error().diagnostic});
+            result.error().diagnostic));
     }
 
     return {};
@@ -777,19 +777,19 @@ Application::apply_window_settings(
 
     const auto operations = detail::make_sdl_window_operations(_window);
     if (auto valid = detail::validate_window_settings(settings,operations); !valid)
-        return std::unexpected(elysia::config::UserConfigFailure{
-            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",valid.error().message,valid.error()});
+        return std::unexpected(elysia::config::make_user_config_failure(
+            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",valid.error()));
     auto previous = detail::capture_window_snapshot(
         elysia::config::UserConfigService::instance()->user_config().window_settings(),operations);
     if (!previous)
-        return std::unexpected(elysia::config::UserConfigFailure{
-            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",previous.error().message,previous.error()});
+        return std::unexpected(elysia::config::make_user_config_failure(
+            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",previous.error()));
     const auto result = detail::apply_window_settings_transactional(settings,*previous,operations);
     if (!result)
     {
-        return std::unexpected(elysia::config::UserConfigFailure{
+        return std::unexpected(elysia::config::make_user_config_failure(
             elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",
-            result.error().message,result.error()});
+            result.error()));
     }
     return {};
 }

@@ -10,7 +10,15 @@
 #include "tests/support/test_assertions.h"
 #include "tests/support/scene_test_access.h"
 
+#include "engine/ui/window/ui_window.h"
+#include "engine/ui/presets/settings_panel.h"
+#include "engine/ui/widgets/label/ui_label.h"
+#include "engine/ui/widgets/ui_button.h"
+#include "engine/tools/logger.h"
+
 #include <cstdlib>
+#include <iostream>
+#include <sstream>
 #include <filesystem>
 #include <functional>
 #include <stdexcept>
@@ -69,7 +77,13 @@ public:
     std::expected<void,elysia::config::UserConfigFailure>
         apply_master_volume(int) override { return {}; }
     std::expected<void,elysia::config::UserConfigFailure>
-        apply_music_volume(int) override { return {}; }
+        apply_music_volume(int value) override
+    {
+        if (reject_music && value == 13)
+            return std::unexpected(elysia::config::make_user_config_failure(
+                elysia::config::UserConfigError::RuntimeApplyFailed,"music_volume","primary-music-failure"));
+        return {};
+    }
     std::expected<void,elysia::config::UserConfigFailure>
         apply_sound_volume(int) override { return {}; }
     std::expected<void,elysia::config::UserConfigFailure>
@@ -77,6 +91,9 @@ public:
     std::expected<void,elysia::config::UserConfigFailure>
         apply_target_fps(double value) override
     {
+        if (reject_fps_rollback && value == 60.0)
+            return std::unexpected(elysia::config::make_user_config_failure(
+                elysia::config::UserConfigError::RuntimeApplyFailed,"target_fps","rollback-fps-failure"));
         target_fps_values.push_back(value);
         return {};
     }
@@ -84,6 +101,7 @@ public:
         apply_window_settings(
             const elysia::config::WindowSettings&) override { return {}; }
 
+    bool reject_music = false,reject_fps_rollback = false;
     std::vector<double> target_fps_values;
 };
 
@@ -246,6 +264,61 @@ void test_cancel_returns_to_each_callers_full_route()
     std::filesystem::remove_all(directory);
 }
 
+void test_save_failure_shows_short_localized_status_and_logs_details()
+{
+    using namespace elysia;
+    const auto directory = std::filesystem::temp_directory_path()/"elysia_settings_short_failure_tests";
+    std::filesystem::remove_all(directory);
+    auto* service = config::UserConfigService::instance();
+    config::UserConfigData defaults;
+    defaults.language = "en";
+    defaults.target_fps = 60.0;
+    require(service->initialize(defaults,directory/"settings.json").has_value(),"failure test initializes config");
+    ConfigHandler handler;
+    handler.reject_music = handler.reject_fps_rollback = true;
+    service->register_user_config_change_handler(handler);
+    io::ContentRegistry registry;
+    scene::SceneRuntimeContext context(nullptr,registry,1280,720);
+    builtin::SettingsScene settings;
+    scene::SceneTestAccess::bind(settings,context);
+    scene::SceneTestAccess::enter(settings,builtin::SettingsScenePayload{.return_route = {.target = 1}});
+    auto* window = dynamic_cast<ui::UiWindow*>(scene::SceneTestAccess::ui_root(settings,0));
+    auto* panel = window ? dynamic_cast<ui::SettingsPanel*>(window->child_at(0)) : nullptr;
+    require(panel,"settings scene owns panel");
+    auto* status = dynamic_cast<ui::UiLabel*>(panel->child_at(2));
+    auto* actions = dynamic_cast<ui::UiListContainer*>(panel->child_at(3));
+    auto* save = actions ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
+    require(status && save,"fixed status and save controls exist");
+    auto draft = panel->draft();
+    draft.target_fps = 120.0;
+    draft.music_volume = 13;
+    panel->set_draft(draft);
+    std::ostringstream logs;
+    auto* previous = std::clog.rdbuf(logs.rdbuf());
+    try
+    {
+        save->set_focused(true);
+        (void)save->on_ui_input_event({.action = ui::UiAction::Confirm,.type = ui::UiInputEventType::ActionPressed});
+        (void)save->on_ui_input_event({.action = ui::UiAction::Confirm,.type = ui::UiInputEventType::ActionReleased});
+    }
+    catch (...) { std::clog.rdbuf(previous); throw; }
+    std::clog.rdbuf(previous);
+    require(status->is_visible() && status->text_content().kind == ui::UiTextContentKind::TextKey
+        && status->text_content().value == "engine.settings.status.save_failed",
+        "failure label uses a short localized key rather than a multiline report");
+    require(logs.str().find("primary-music-failure") != std::string::npos
+        && logs.str().find("rollback-fps-failure") != std::string::npos,
+        "full primary and rollback diagnostics remain in the log");
+    require(panel->draft().target_fps == service->user_config().target_fps()
+        && panel->draft().music_volume == service->user_config().music_volume()
+        && panel->draft().target_fps == 120.0,"draft follows actual state after partial rollback");
+    scene::SceneTestAccess::exit(settings);
+    scene::SceneTestAccess::reset(settings);
+    service->unregister_user_config_change_handler(handler);
+    service->shutdown();
+    std::filesystem::remove_all(directory);
+}
+
 void test_save_applies_fps_and_tracks_vsync_restart_state()
 {
     const std::filesystem::path directory =
@@ -351,6 +424,7 @@ int main()
 {
     test_settings_payload_contract_names_the_scene();
     test_cancel_returns_to_each_callers_full_route();
+    test_save_failure_shows_short_localized_status_and_logs_details();
     test_save_applies_fps_and_tracks_vsync_restart_state();
     return EXIT_SUCCESS;
 }

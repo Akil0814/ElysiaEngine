@@ -10,6 +10,11 @@ namespace elysia::scene
 class SceneTestAccess final
 {
 public:
+    static elysia::ui::UiElement* ui_root(Scene& scene,std::size_t index)
+    {
+        return scene._ui_roots.at(index).get();
+    }
+
     static void bind(Scene& scene, const SceneRuntimeContext& context) noexcept
     {
         scene.bind_runtime_context(context);

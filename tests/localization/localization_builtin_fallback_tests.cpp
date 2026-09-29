@@ -183,6 +183,8 @@ int main()
 
     require(localization->tr("common.save") == "Save",
         "project translations must remain the first lookup source");
+    require(localization->tr("engine.settings.status.save_failed") == "Failed to save settings",
+        "save failure must fall back to a short built-in translation");
     require(localization->tr("engine.settings.title") == "Settings",
         "missing Engine namespace keys must fall back to Engine translations");
     require(localization->tr(missing_key) == missing_key

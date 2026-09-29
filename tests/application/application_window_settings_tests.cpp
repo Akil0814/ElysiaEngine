@@ -68,8 +68,8 @@ struct Handler final : elysia::config::IUserConfigChangeHandler
             if (!previous) result = std::unexpected(previous.error());
             else result = apply_window_settings_transactional(settings,*previous,operations);
         }
-        if (!result) return std::unexpected(elysia::config::UserConfigFailure{
-            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",result.error().message,result.error()});
+        if (!result) return std::unexpected(elysia::config::make_user_config_failure(
+            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",result.error()));
         return {};
     }
     std::expected<void,elysia::config::UserConfigFailure> apply_master_volume(int) override { return {}; }

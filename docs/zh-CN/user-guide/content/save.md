@@ -12,29 +12,37 @@
 #include <cstdint>
 
 bool save_level() {
+    const auto log_failure = [](const elysia::save::SaveFailure& failure,
+        elysia::tools::LogLevel level = elysia::tools::LogLevel::Error) {
+        elysia::tools::Logger::instance()->log_stream(level, "save",
+            [&](std::ostream& output) {
+                output << elysia::core::format_failure_diagnostic(
+                    failure.diagnostic, "SAVE", "save");
+            }, failure.diagnostic.origin);
+    };
     auto* saves = ELYSIA_SAVE;
     auto opened = saves->open("slot_01");
     if (!opened) {
-        ELYSIA_LOG_ERROR("save", opened.error().message);
+        log_failure(opened.error());
         return false;
     }
-    if (opened->recovered)
-        ELYSIA_LOG_WARN("save", opened->warning);
+    if (opened->warning)
+        log_failure(*opened->warning, elysia::tools::LogLevel::Warn);
     auto changed = saves->set("slot_01", "player.level", std::int64_t{12});
     if (!changed) {
-        ELYSIA_LOG_ERROR("save", changed.error().message);
+        log_failure(changed.error());
         (void)saves->close("slot_01", elysia::save::SaveClosePolicy::DiscardChanges);
         return false;
     }
     auto committed = saves->commit("slot_01");
     if (!committed) {
-        ELYSIA_LOG_ERROR("save", committed.error().message);
+        log_failure(committed.error());
         // 本例选择放弃内存编辑；需要重试的业务应保留打开文档并另行管理。
         (void)saves->close("slot_01", elysia::save::SaveClosePolicy::DiscardChanges);
         return false;
     }
     auto closed = saves->close("slot_01");
-    if (!closed) ELYSIA_LOG_ERROR("save", closed.error().message);
+    if (!closed) log_failure(closed.error());
     return closed.has_value();
 }
 ```
@@ -109,3 +117,17 @@ player_data/saves/slot_01.json.bak
 
 - [服务接口](../../../../engine/save/save_service.h)、[错误类型](../../../../engine/save/save_types.h)
 - [场景生命周期](../scene/scene.md)、[返回使用指南](../README.md)
+
+## 消费失败与恢复警告
+
+所有返回结果都必须检查。可预期的文件访问、写入、校验和恢复失败通过 `expected` 返回，不因保存失败自动退出应用。调用方依据 `error` 和可选的 `persistence` 决定提示或重试；保存失败后内存修改仍为 dirty，不要显示“已保存”。
+
+`SaveFailure::diagnostic` 是唯一报告来源，可通过 `format_failure_diagnostic` 写入日志或展示。`SaveOpenResult::warning` 为可选的 `SaveFailure`，恢复成功后仍应检查。旧的 `SaveFailure::message` 和字符串 warning 已删除。
+
+恢复结果与文件存在状态分别记录。恢复失败或状态未知时保留现有副本，重新加载并检查结果后再决定重试；不能因备份存在就断言数据有效，也不能把状态查询失败当作文件缺失。
+
+### 保存前的临时副本保护
+
+保存前先检查主文件。主文件缺失且已有 `.tmp` 时，复用加载校验：有效副本先提升为主文件，再开始新写入；确认损坏才允许重写，访问失败或未来版本则停止。提升失败保留副本原内容。有效 `.tmp` 优先于旧 `.bak`，后续正常轮换以恢复后的主文件为备份；提升本身不代表新内容已经保存成功。
+
+恢复操作的原始结果在构造诊断前保存。恢复后的状态查询或诊断分配再次异常时，日志仍保留主失败和此前恢复错误；必要恢复完成后传播原异常，成功恢复不重复执行。持续内存不足时日志可降级，清理边界不得抛出二次异常。

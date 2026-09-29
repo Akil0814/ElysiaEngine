@@ -77,6 +77,7 @@
         "ko": "한국어"
       },
       "status": {
+        "save_failed": "設定儲存失敗",
         "saved": "設定已儲存。",
         "saved_restart_required": "設定已儲存。垂直同步將在重新啟動遊戲後生效。",
         "restart_required": "請重新啟動遊戲以套用垂直同步變更。"

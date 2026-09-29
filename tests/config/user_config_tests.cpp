@@ -3,6 +3,7 @@
 #include "tests/support/test_assertions.h"
 
 #include <array>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -26,7 +27,11 @@ public:
             return failure("master_volume");
         return {};
     }
-    std::expected<void,elysia::config::UserConfigFailure> apply_music_volume(int) override { return {}; }
+    std::expected<void,elysia::config::UserConfigFailure> apply_music_volume(int value) override
+    {
+        if (fail_music_value && value == *fail_music_value) return failure("music_volume");
+        return {};
+    }
     std::expected<void,elysia::config::UserConfigFailure> apply_sound_volume(int) override { return {}; }
     std::expected<void,elysia::config::UserConfigFailure> apply_language(std::string_view value) override
     {
@@ -50,6 +55,7 @@ public:
     }
 
     std::optional<int> fail_master_value;
+    std::optional<int> fail_music_value;
     std::optional<elysia::config::WindowSettings> fail_window_settings;
     std::string fail_language;
     std::vector<double> target_fps_calls;
@@ -58,11 +64,11 @@ public:
 private:
     static std::unexpected<elysia::config::UserConfigFailure> failure(std::string setting)
     {
-        return std::unexpected(elysia::config::UserConfigFailure{
+        return std::unexpected(elysia::config::make_user_config_failure(
             elysia::config::UserConfigError::RuntimeApplyFailed,
             std::move(setting),
             "Injected runtime apply failure."
-        });
+        ));
     }
 };
 }
@@ -152,6 +158,8 @@ int main()
     preserved.close();
 
     std::filesystem::remove(path);
+    std::filesystem::remove(path.string()+".tmp");
+    std::filesystem::remove(path.string()+".bak");
     auto* service = elysia::config::UserConfigService::instance();
     require(service->initialize(defaults,path).has_value(),"UserConfigService must initialize from defaults");
     Handler handler; service->register_user_config_change_handler(handler);
@@ -216,15 +224,31 @@ int main()
 
     Data rollback_failure = baseline;
     rollback_failure.audio.master_volume = 10;
+    rollback_failure.audio.music_volume = 11;
     rollback_failure.language = "still_unsupported";
     handler.fail_language = "still_unsupported";
     handler.fail_master_value = baseline.audio.master_volume;
+    handler.fail_music_value = baseline.audio.music_volume;
     const auto rollback_failure_result = service->apply_and_save_user_config(rollback_failure);
     require(!rollback_failure_result && rollback_failure_result.error().rollback_failure
         && service->user_config().master_volume() == 10,
         "rollback failure must be reported while UserConfig keeps the actual runtime state");
 
+    require(rollback_failure_result.error().rollback_failure->setting_name == "master_volume"
+        && service->user_config().music_volume() == 11
+        && std::ranges::any_of(rollback_failure_result.error().rollback_failure->diagnostic.entries,
+            [](const auto& entry) { return entry.subject_key == "music_volume"; }),
+        "rollback continues after first failure and retains subsequent diagnostics");
+    const auto combined = elysia::config::to_failure_diagnostic(rollback_failure_result.error());
+    const auto projected_again = elysia::config::to_failure_diagnostic(rollback_failure_result.error());
+    const auto report = elysia::core::format_failure_diagnostic(combined,"SETTINGS-APPLY","settings");
+    require(combined.message == rollback_failure_result.error().cause.diagnostic.message
+        && combined.origin.line() == rollback_failure_result.error().cause.diagnostic.origin.line()
+        && combined.entries.size() == projected_again.entries.size()
+        && report.find("master_volume") != std::string::npos && report.find("music_volume") != std::string::npos,
+        "commit report retains original source and all rollback errors without mutating failure");
     handler.fail_master_value.reset();
+    handler.fail_music_value.reset();
     handler.fail_language.clear();
 
     require(service->apply_and_save_user_config(baseline).has_value(),
