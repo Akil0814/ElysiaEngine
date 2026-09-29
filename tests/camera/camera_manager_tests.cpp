@@ -25,7 +25,7 @@ using elysia::camera::CameraSlotSet;
 using elysia::core::Rect;
 using elysia::core::Vector2;
 
-constexpr std::array<CameraSlot, 4> k_camera_slots{
+constexpr std::array<CameraSlot, 4> kCameraSlots{
     CameraSlot::Main,
     CameraSlot::Cinematic,
     CameraSlot::Auxiliary1,
@@ -42,7 +42,7 @@ void reset_cameras()
     auto* manager = CameraManager::instance();
     manager->reset_all();
 
-    for (CameraSlot slot : k_camera_slots)
+    for (CameraSlot slot : kCameraSlots)
     {
         manager->set_viewport_size(slot, Vector2::zero());
     }

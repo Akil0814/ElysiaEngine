@@ -152,7 +152,7 @@ void DemoGalleryScene::build_ui()
                     elysia::builtin::ApplicationFailurePresentation::
                         RuntimeFatal,
                     "demo_gallery",
-                    "Injected runtime failure from the Demo Gallery."));
+                    elysia::core::make_failure_diagnostic("Injected runtime failure from the Demo Gallery.")));
         });
         (void)_failure_confirmation->register_with_window(*_root_window);
     }

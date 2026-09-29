@@ -85,6 +85,19 @@ elysia::ui::SettingsPanelOptions make_panel_options(
 
 std::string describe_failure(const elysia::config::UserConfigFailure& failure)
 {
+    if (!failure.diagnostic.message.empty())
+    {
+        elysia::tools::Logger::instance()->log_stream(
+            elysia::tools::LogLevel::Error,"settings",[&](std::ostream& output) {
+                output << elysia::core::format_failure_diagnostic(
+                    failure.diagnostic,"SETTINGS-APPLY","settings");
+            },failure.diagnostic.origin);
+        std::string message = failure.diagnostic.message;
+        for (const auto& entry : failure.diagnostic.entries)
+            if (entry.subject_type == "window-rollback")
+                message += " Rollback failed: " + entry.reason;
+        return message;
+    }
     if (!failure.message.empty())
         return failure.message;
 

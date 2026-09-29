@@ -1,6 +1,7 @@
 #include "engine/core/diagnostics/failure_diagnostic.h"
 #include "engine/io/json/json_loader.h"
 #include "engine/io/json/strict_json.h"
+#include "engine/io/loaders/i18n_manifest_loader.h"
 #include "tests/support/test_assertions.h"
 
 #include <cstdlib>
@@ -51,6 +52,48 @@ void test_typed_json_failures()
     require(!opened && !loader.is_loaded()
         && opened.error().code == elysia::io::JsonFileError::DuplicateProperty,
         "JsonLoader must reuse strict typed parsing and publish no partial state");
+
+    using elysia::io::ManifestLoadError;
+    const auto manifest_path = root / "i18n.json";
+    const auto check = [&](elysia::io::json document,ManifestLoadError code,std::string pointer)
+    {
+        std::ofstream(manifest_path) << document.dump();
+        const auto result = elysia::io::I18nManifestLoader{}.load(manifest_path);
+        require(!result && result.error().code == code
+            && result.error().diagnostic.entries.front().declaration_pointer == pointer,
+            "schema failures must retain a typed reason and exact JSON pointer");
+    };
+    const elysia::io::json valid = {{"default_language","en"},{"languages",{"en"}},{"file",{"en.json"}}};
+    auto document = valid; document.erase("default_language");
+    check(document,ManifestLoadError::MissingField,"/default_language");
+    document = valid; document["default_language"] = 42;
+    check(document,ManifestLoadError::InvalidField,"/default_language");
+    document = valid; document["default_language"] = "";
+    check(document,ManifestLoadError::InvalidValue,"/default_language");
+    document = valid; document["languages"] = 42;
+    check(document,ManifestLoadError::InvalidField,"/languages");
+    document = valid; document.erase("languages");
+    check(document,ManifestLoadError::MissingField,"/languages");
+    document = valid; document["languages"] = nullptr;
+    check(document,ManifestLoadError::InvalidField,"/languages");
+    document = valid; document["languages"] = {"en",42};
+    check(document,ManifestLoadError::InvalidField,"/languages/1");
+    document = valid; document["languages"] = {"en",""};
+    check(document,ManifestLoadError::InvalidValue,"/languages/1");
+    document = valid; document["languages"] = elysia::io::json::array();
+    check(document,ManifestLoadError::MissingContent,"/languages");
+    document = valid; document["file"] = {"en.json",false};
+    check(document,ManifestLoadError::InvalidField,"/file/1");
+    document = valid; document.erase("file");
+    check(document,ManifestLoadError::MissingField,"/file");
+    document = valid; document["file"] = "en.json";
+    check(document,ManifestLoadError::InvalidField,"/file");
+    document = valid; document["file"] = {"en.json",""};
+    check(document,ManifestLoadError::InvalidValue,"/file/1");
+    document = valid; document["file"] = elysia::io::json::array();
+    check(document,ManifestLoadError::MissingContent,"/file");
+    std::ofstream(manifest_path) << valid.dump();
+    require(elysia::io::I18nManifestLoader{}.load(manifest_path),"valid i18n manifest must load");
 
     std::filesystem::remove_all(root);
 }

@@ -9,7 +9,7 @@ namespace elysia::input
 {
 namespace
 {
-constexpr float k_value_epsilon = 0.001f;
+constexpr float kValueEpsilon = 0.001f;
 
 float clamp_axis(float value)
 {
@@ -18,12 +18,12 @@ float clamp_axis(float value)
 
 bool value_is_zero(const InputActionValue &value)
 {
-    return std::fabs(value.x) <= k_value_epsilon && std::fabs(value.y) <= k_value_epsilon;
+    return std::fabs(value.x) <= kValueEpsilon && std::fabs(value.y) <= kValueEpsilon;
 }
 
 bool value_changed(const InputActionValue &lhs, const InputActionValue &rhs)
 {
-    return std::fabs(lhs.x - rhs.x) > k_value_epsilon || std::fabs(lhs.y - rhs.y) > k_value_epsilon;
+    return std::fabs(lhs.x - rhs.x) > kValueEpsilon || std::fabs(lhs.y - rhs.y) > kValueEpsilon;
 }
 
 void add_component(InputActionValue &value, InputActionComponent component, float contribution)

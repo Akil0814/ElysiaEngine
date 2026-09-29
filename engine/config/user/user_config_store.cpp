@@ -13,7 +13,7 @@ namespace
 {
 using Data = UserConfigData;
 using Json = elysia::io::json;
-constexpr int k_schema_version = 2;
+constexpr int kSchemaVersion = 2;
 
 enum class ParseKind { Valid, Invalid, Future };
 struct ParseResult
@@ -48,9 +48,9 @@ ParseResult parse(const std::filesystem::path& path,const Data& defaults)
         || !root.at("schema_version").is_number_integer())
         return {ParseKind::Invalid,{},"UserConfig schema_version must be an integer.","/schema_version"};
     const int version = root.at("schema_version").get<int>();
-    if (version > k_schema_version)
+    if (version > kSchemaVersion)
         return {ParseKind::Future,{},"UserConfig schema_version is newer than this application.","/schema_version"};
-    if (version != k_schema_version)
+    if (version != kSchemaVersion)
         return {ParseKind::Invalid,{},"Unsupported UserConfig schema_version.","/schema_version"};
     Data data = defaults;
     std::string error;
@@ -133,7 +133,7 @@ Json serialize(const Data& data)
         mode = "borderless_fullscreen";
         break;
     }
-    return {{"schema_version",k_schema_version},
+    return {{"schema_version",kSchemaVersion},
         {"window",{
             {"mode",mode},
             {"windowed_size",{

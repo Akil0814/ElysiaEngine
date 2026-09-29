@@ -512,7 +512,7 @@ target_compile_definitions(audio_fade_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT
 add_elysia_test(frame_pacing_tests LABEL application SOURCES application/frame_pacing_tests.cpp)
 add_elysia_test(application_lifecycle_tests LABEL gpu SOURCES application/application_lifecycle_tests.cpp LIBRARIES Threads::Threads)
 set_tests_properties(application_lifecycle_tests PROPERTIES RUN_SERIAL TRUE TIMEOUT 30)
-foreach(CASE IN ITEMS exit_unknown low fault queue manager_standard manager_unknown)
+foreach(CASE IN ITEMS exit_unknown low fault queue manager_standard manager_unknown render_clear render_draw render_present init_backend)
     add_test(NAME application_lifecycle_${CASE} COMMAND application_lifecycle_tests ${CASE})
     set_tests_properties(application_lifecycle_${CASE} PROPERTIES LABELS "application" RUN_SERIAL TRUE TIMEOUT 30)
 endforeach()
@@ -520,3 +520,10 @@ if(ELYSIA_ENABLE_IMGUI)
     add_test(NAME application_lifecycle_event COMMAND application_lifecycle_tests event)
     set_tests_properties(application_lifecycle_event PROPERTIES LABELS "application" RUN_SERIAL TRUE TIMEOUT 30)
 endif()
+
+add_elysia_test(error_boundary_tests
+    LABEL application
+    SOURCES application/error_boundary_tests.cpp
+    SDL
+)
+set_tests_properties(error_boundary_tests PROPERTIES RUN_SERIAL TRUE TIMEOUT 30)

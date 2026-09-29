@@ -192,7 +192,7 @@ void test_scene_identity_and_route_contract()
     const auto route = elysia::builtin::make_application_failure_route(
         ApplicationFailurePresentation::RuntimeFatal,
         "resource",
-        "missing atlas");
+        elysia::core::make_failure_diagnostic("missing atlas"));
     const auto* payload =
         elysia::scene::try_scene_payload<ApplicationFailureScenePayload>(
             route.payload);
@@ -356,12 +356,13 @@ void test_payload_normalization_and_termination()
                 == "Startup resource loading failed.",
         "empty startup diagnostics must use the startup fallback");
 
+    const auto runtime_origin = std::source_location::current();
     ApplicationFailureSceneTestAccess::apply_payload(
         scene,
         ApplicationFailureScenePayload{
             .presentation = ApplicationFailurePresentation::RuntimeFatal,
             .category = "physics",
-            .diagnostic = elysia::core::make_failure_diagnostic("world state is invalid")
+            .diagnostic = elysia::core::make_failure_diagnostic("world state is invalid",{},{},runtime_origin)
         });
     ApplicationFailureSceneTestAccess::confirm_exit(scene);
 
@@ -371,7 +372,8 @@ void test_payload_normalization_and_termination()
             && info->reason
                 == elysia::tools::TerminationReason::FatalRuntimeFailure
             && info->category == "physics"
-            && info->message == "world state is invalid",
+            && info->message.find("world state is invalid") != std::string_view::npos
+            && info->location.line() == runtime_origin.line(),
         "confirming an application failure must publish its latest diagnostic");
     termination->reset_for_testing();
 
@@ -400,7 +402,7 @@ void test_cancel_key_reopens_the_dialog()
         elysia::builtin::make_application_failure_route(
             ApplicationFailurePresentation::RuntimeFatal,
             "runtime",
-            "cancel reopen probe"));
+            elysia::core::make_failure_diagnostic("cancel reopen probe")));
 
     send_control(
         scene_manager,
@@ -435,7 +437,7 @@ void test_persistent_button_reopens_the_dialog()
         elysia::builtin::make_application_failure_route(
             ApplicationFailurePresentation::RuntimeFatal,
             "runtime",
-            "button reopen probe"));
+            elysia::core::make_failure_diagnostic("button reopen probe")));
 
     send_control(
         scene_manager,

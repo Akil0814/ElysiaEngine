@@ -174,7 +174,7 @@ void test_motion_and_effect_composition()
         "shake offset must compose with zoom transition");
 
     controller.reset_scene_state();
-    require(camera.zoom() == Camera::k_default_zoom,
+    require(camera.zoom() == Camera::kDefaultZoom,
         "reset must restore default zoom");
 }
 }

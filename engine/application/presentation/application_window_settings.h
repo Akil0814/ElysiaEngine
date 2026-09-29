@@ -1,23 +1,30 @@
 #pragma once
 
 #include "../../config/user_config_data.h"
-
-#include <cstdint>
+#include "../../core/diagnostics/failure_diagnostic.h"
 #include <expected>
 #include <functional>
-#include <string>
 
 namespace elysia::application::detail
 {
+using WindowOperationResult = std::expected<void,elysia::core::FailureDiagnostic>;
 struct ApplicationWindowOperations
 {
-    std::function<int(std::uint32_t)> set_fullscreen;
-    std::function<void(int,int)> set_size;
-    std::function<void()> center;
-    std::function<std::string()> error_message;
+    std::function<WindowOperationResult(bool)> set_fullscreen;
+    std::function<WindowOperationResult(int,int)> set_size;
+    std::function<WindowOperationResult(int,int)> set_position;
 };
-
-[[nodiscard]] std::expected<void,std::string> apply_window_settings(
+struct ApplicationWindowSnapshot
+{
+    elysia::config::WindowSettings settings;
+    int x = 0;
+    int y = 0;
+};
+[[nodiscard]] WindowOperationResult apply_window_settings(
     const elysia::config::WindowSettings& settings,
+    const ApplicationWindowOperations& operations);
+[[nodiscard]] WindowOperationResult apply_window_settings_transactional(
+    const elysia::config::WindowSettings& settings,
+    const ApplicationWindowSnapshot& previous,
     const ApplicationWindowOperations& operations);
 }

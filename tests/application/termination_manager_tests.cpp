@@ -50,6 +50,8 @@ void test_truncation_and_shutdown_sealing()
         "fixed-size termination diagnostics must report truncation");
     require(truncated_info->message.size() < long_message.size(),
         "truncated termination messages must fit the fixed record");
+    require(truncated_info->message.ends_with(" [truncated]"),
+        "truncation must be visible in the bounded diagnostic itself");
 
     manager->reset_for_testing();
     manager->request_termination(TerminationReason::FatalRuntimeFailure,"worker","before seal");

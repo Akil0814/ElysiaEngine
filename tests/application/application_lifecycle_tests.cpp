@@ -1,5 +1,6 @@
 #include "engine/application/application.h"
 #include "engine/application/lifecycle/frame_pacing.h"
+#include "engine/core/render/sdl_render_boundary.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/tools/termination_manager.h"
@@ -21,11 +22,29 @@ std::string mode;
 int exits = 0, destroyed = 0, overlay_stops = 0;
 std::vector<double> frames;
 std::atomic<bool> updated = false;
+class RenderProbe final : public elysia::ui::UiElement
+{
+public:
+    void submit_ui_render_commands(std::vector<elysia::core::UiRenderCommand>& out) const override
+    {
+        elysia::core::UiRenderCommand command;
+        command.type = elysia::core::UiRenderCommandType::FillRect;
+        command.screen_rect = {0,0,10,10};
+        command.color = {255,0,0,255};
+        out.push_back(command);
+    }
+};
 class ProbeScene final : public elysia::scene::Scene
 {
 public:
     ~ProbeScene() override { ++destroyed; }
-    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        if (mode == "init_backend")
+            throw elysia::core::RenderBackendError({"initial scene render",
+                elysia::core::make_failure_diagnostic("injected initial scene backend failure")});
+        if (mode == "render_draw") (void)create_and_add_object<RenderProbe>();
+    }
     void on_reset() override {}
     void on_exit() override
     {
@@ -103,6 +122,17 @@ int main(int argc,char** argv)
         return 0;
     }
     Module module;
+    if (mode == "init_backend")
+    {
+        require(!ELYSIA_INITIALIZE_APP(argc,argv,module),"initial scene backend failure must reject initialization");
+        const auto info = elysia::tools::TerminationManager::instance()->termination_info();
+        require(info && info->reason==elysia::tools::TerminationReason::FatalRuntimeFailure
+            && info->category=="render" && info->message.find("injected initial scene backend failure")!=std::string_view::npos,
+            "initial scene backend failure must preserve render diagnostic and fatal exit reason");
+        require(SDL_WasInit(0)==0 && destroyed==1 && exits==0,
+            "initial backend failure must close SDL and destroy the failed candidate without a second exit");
+        return 0;
+    }
     require(ELYSIA_INITIALIZE_APP(argc,argv,module),"GPU application initialization");
     int count = 0;
     auto windows = SDL_GetWindows(&count);
@@ -156,14 +186,39 @@ int main(int argc,char** argv)
             }
         });
     }
+    std::vector<std::string> render_operations;
+    static std::vector<std::string>* operation_log = nullptr;
+    operation_log = &render_operations;
+    if (mode.starts_with("render_"))
+    {
+        elysia::core::detail::render_operation_probe = [](std::string_view operation)
+        {
+            operation_log->emplace_back(operation);
+            const bool fails = (mode=="render_clear" && operation=="SDL_RenderClear")
+                || (mode=="render_draw" && operation=="SDL_RenderFillRect")
+                || (mode=="render_present" && operation=="SDL_RenderPresent");
+            if (fails) SDL_SetError("injected application render failure");
+            return !fails;
+        };
+    }
     const double frequency = static_cast<double>(SDL_GetPerformanceFrequency());
     auto result = ELYSIA_RUN_APP;
+    elysia::core::detail::render_operation_probe = nullptr;
     const double latency_ms = requested_at ? (SDL_GetPerformanceCounter() - requested_at.load()) * 1000.0 / frequency : 0.0;
     require(exits == 1 && destroyed == 1,"application must exit and destroy the scene");
     require(SDL_WasInit(0) == 0,"SDL must be shut down after every exit path");
-    const bool fault = mode.starts_with("exit_") || mode == "event" || mode == "fault";
+    const bool fault = mode.starts_with("exit_") || mode == "event" || mode == "fault" || mode.starts_with("render_");
     require(result == (fault ? elysia::application::ApplicationRunResult::FaultExit
                             : elysia::application::ApplicationRunResult::NormalExit),"correct final exit result");
+    if (mode.starts_with("render_"))
+    {
+        const auto info = elysia::tools::TerminationManager::instance()->termination_info();
+        require(info && info->reason==elysia::tools::TerminationReason::FatalRuntimeFailure,
+            "render failures must use the fatal runtime path");
+        require(frames.size()==1,"render failure must stop the first frame before waiting");
+        require(mode=="render_present" || std::find(render_operations.begin(),render_operations.end(),"SDL_RenderPresent")==render_operations.end(),
+            "clear or draw failure must skip presentation");
+    }
     if (mode.starts_with("exit_"))
         require(!elysia::tools::TerminationManager::instance()->termination_requested(),
             "cleanup failure after normal exit must work even when termination is sealed");

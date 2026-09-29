@@ -334,7 +334,7 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
             continue;
         elysia::core::project_render_commands_to_screen(
             render_commands, camera(), projected_render_commands);
-        elysia::core::execute_render_commands(renderer, projected_render_commands);
+        elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,projected_render_commands));
     }
 
     auto* debug_draw = elysia::tools::DebugDraw::instance();
@@ -348,7 +348,7 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
         debug_commands.reserve(debug_draw->commands().size());
         elysia::core::append_projected_debug_draw_commands(
             debug_draw->commands(), debug_draw->enabled_categories(), camera(), debug_commands);
-        elysia::core::execute_render_commands(renderer, debug_commands);
+        elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,debug_commands));
     }
 
     for (const auto& ui_root : _ui_roots)
@@ -360,7 +360,7 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
         elysia::ui::render_command_range_utils::apply_translation_to_range(
             ui_render_commands, begin, ui_root->presentation_translation());
     }
-    elysia::core::execute_render_commands(renderer, ui_render_commands);
+    elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,ui_render_commands));
 }
 
 void Scene::attach_runtime_services()
@@ -639,6 +639,10 @@ void Scene::remove_destroyed_objects()
         try
         {
             std::rethrow_exception(failure);
+        }
+        catch (const elysia::core::RenderBackendError&)
+        {
+            throw;
         }
         catch (const SceneBoundaryTagged&)
         {

@@ -16,7 +16,7 @@ namespace elysia::save::detail
 namespace
 {
 using Json = elysia::io::json;
-constexpr std::int64_t k_format_version = 1;
+constexpr std::int64_t kFormatVersion = 1;
 
 enum class ParseKind
 {
@@ -156,9 +156,9 @@ ParseResult parse_document(const std::filesystem::path& path)
     const auto version = read_int64(root.at("format_version"));
     if (!version)
         return {ParseKind::Invalid,{},"Save format_version " + version.error() + "."};
-    if (*version > k_format_version)
+    if (*version > kFormatVersion)
         return {ParseKind::Future,{},"Save format_version is newer than this engine."};
-    if (*version != k_format_version)
+    if (*version != kFormatVersion)
         return {ParseKind::Invalid,{},"Unsupported Save format_version."};
 
     const Json& types = root.at("types");
@@ -218,7 +218,7 @@ Json serialize_document(const SaveData& data)
         },value);
     }
     return Json{
-        {"format_version",k_format_version},
+        {"format_version",kFormatVersion},
         {"types",std::move(types)},
         {"values",std::move(values)}
     };

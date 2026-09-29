@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <source_location>
 #include <string>
 #include <thread>
@@ -25,8 +26,71 @@
 #include <SDL3_mixer/SDL_mixer.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+namespace elysia::loading
+{
+struct GameContentLoaderTestAccess
+{
+    static void test_stop_synchronization()
+    {
+        GameContentLoader loader;
+        std::unique_lock lock(loader._prepare_mutex);
+        std::promise<void> entered;
+        auto started = entered.get_future();
+        std::promise<void> completed;
+        auto stopped = completed.get_future();
+        std::thread stopper([&] {
+            entered.set_value();
+            loader.request_worker_stop();
+            completed.set_value();
+        });
+        started.wait();
+        const bool stop_waited_for_mutex =
+            stopped.wait_for(std::chrono::milliseconds(25)) == std::future_status::timeout
+            && !loader._stop_workers.load();
+        lock.unlock();
+        stopper.join();
+        elysia::tests::require(stop_waited_for_mutex && loader._stop_workers.load(),
+            "stop publication must use the condition variable wait mutex to prevent lost wakeups");
+        for (int attempt = 0; attempt < 100; ++attempt)
+        {
+            loader._stop_workers.store(false);
+            loader._worker_threads.emplace_back(&GameContentLoader::worker_loop,&loader);
+            loader.shutdown_worker_threads();
+        }
+        elysia::tests::require(closed(loader),"idle workers must always wake and join on shutdown");
+    }
+    static inline int mode = 0;
+    static void inject(GameContentLoader& loader,int selected)
+    {
+        mode = selected;
+        loader._worker_probe = [](GameContentLoader::WorkerStage stage,std::size_t index)
+        {
+            const std::size_t creation_failure_index = std::thread::hardware_concurrency() == 1 ? 0 : 1;
+            if (mode == 4 && stage == GameContentLoader::WorkerStage::Starting && index == creation_failure_index)
+                throw std::runtime_error("injected thread creation failure");
+            if (stage == GameContentLoader::WorkerStage::Preparing)
+            {
+                if (mode == 1) throw std::runtime_error("injected worker exception");
+                if (mode == 2) throw 42;
+            }
+            if (mode == 3 && stage == GameContentLoader::WorkerStage::Publishing)
+                throw std::bad_alloc();
+        };
+    }
+    static bool closed(const GameContentLoader& loader)
+    {
+        return loader._worker_threads.empty() && loader._prepare_jobs.empty()
+            && loader._in_flight_prepare_job_count.load() == 0
+            && loader._completed_texture_results.empty() && loader._completed_atlas_frame_results.empty()
+            && loader._ready_texture_results.empty() && loader._ready_atlas_frame_results.empty()
+            && !loader._worker_exception;
+    }
+};
+}
+
 int main()
 {
+    elysia::loading::GameContentLoaderTestAccess::test_stop_synchronization();
     using elysia::tests::require;
     using elysia::loading::ContentLoadError;
     constexpr std::array cases{
@@ -217,6 +281,42 @@ int main()
 		paths->content_registry());
 	require(runtime_registry,
 		"post-preflight deletion test must parse the restored content registry");
+	using WorkerAccess = elysia::loading::GameContentLoaderTestAccess;
+	elysia::loading::GameContentLoader injected_loader;
+	for (int mode : {1,2,3,4})
+	{
+		WorkerAccess::inject(injected_loader,mode);
+		const auto started = injected_loader.start(renderer,*runtime_registry,point_sizes);
+		if (mode == 4)
+			require(!started && injected_loader.failure()->code == ContentLoadError::Plan,
+				"partial thread creation failure must return a Plan failure");
+		else
+		{
+			require(started,"worker fixture must start before injection");
+			for (int attempt = 0; attempt < 2000 && injected_loader.is_running(); ++attempt)
+			{
+				injected_loader.update();
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			require(injected_loader.has_failed() && injected_loader.failure()
+				&& !injected_loader.failure()->diagnostic.entries.empty(),
+				"standard, unknown and publication exceptions must become contextual content failures");
+		}
+		require(WorkerAccess::closed(injected_loader),"worker failure must join every worker and finish all accounting");
+		injected_loader.reset();
+		require(injected_loader.state() == elysia::loading::GameContentLoaderState::Idle,
+			"reset must clear worker fault state");
+	}
+	WorkerAccess::inject(injected_loader,0);
+	require(injected_loader.start(renderer,*runtime_registry,point_sizes),"same loader must restart after worker failure");
+	for (int attempt = 0; attempt < 5000 && injected_loader.is_running(); ++attempt)
+	{
+		injected_loader.update();
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+	require(injected_loader.is_finished() && WorkerAccess::closed(injected_loader),
+		"restart must publish complete content and leave no worker behind");
+	injected_loader.reset();
 	elysia::loading::GameContentLoader runtime_loader;
 	const auto runtime_start = runtime_loader.start(renderer,*runtime_registry,point_sizes);
 	require(runtime_start,

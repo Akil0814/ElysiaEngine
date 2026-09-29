@@ -53,3 +53,7 @@ elysia::scene::SceneRoute make_startup_route(
 - [Payload 定义](../../../../engine/builtin/scenes/startup_loading_scene_payload.h)
 - [仓库游戏模块示例](../../../../game/application/example_game_module.cpp)
 - [游戏初始化](../game-initialization.md)、[返回使用指南](../README.md)
+
+## 工作线程错误边界
+
+资源准备线程将首个标准或非标准异常、准备或发布阶段和任务上下文保存到互斥保护的预留记录中。主线程优先处理该记录，停止派发并回收全部线程，释放排队结果和已提交半成品，再转换为 `ContentLoadFailure`。部分线程创建成功后启动失败同样会回收线程，并返回 Plan 阶段失败。`reset()` 清除异常记录和线程状态，允许失败后重新启动加载器。

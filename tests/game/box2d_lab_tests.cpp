@@ -74,13 +74,13 @@ int main(int argc, char **argv)
             screen);
         SDL_SetRenderDrawColor(renderer, 24, 30, 42, 255);
         SDL_RenderClear(renderer);
-        elysia::core::execute_render_commands(renderer, screen);
+        elysia::core::require_render_success(elysia::core::execute_render_commands(renderer, screen));
         auto *debug = elysia::tools::DebugDraw::instance();
         std::vector<elysia::core::UiRenderCommand> overlay;
         elysia::core::append_projected_debug_draw_commands(debug->commands(), debug->enabled_categories(),
             elysia::camera::CameraManager::instance()->camera(elysia::camera::CameraSlot::Main), overlay);
         require(!overlay.empty(), "Debug overlay projects into the preview");
-        elysia::core::execute_render_commands(renderer, overlay);
+        elysia::core::require_render_success(elysia::core::execute_render_commands(renderer, overlay));
         SDL_RenderPresent(renderer);
         if (argc > 1)
             require(IMG_SavePNG(surface, argv[1]), "Lab preview saved");

@@ -199,12 +199,13 @@ void ApplicationFailureScene::sync_dialog_state()
 
 void ApplicationFailureScene::confirm_exit()
 {
+    const std::string category = _category.empty() ? fallback_category : _category;
+    const std::string report = elysia::core::format_failure_diagnostic(
+        _diagnostic,_error_code,category);
+    elysia::tools::Logger::instance()->error(category,report,_diagnostic.origin);
     elysia::tools::TerminationManager::instance()->request_termination(
         elysia::tools::TerminationReason::FatalRuntimeFailure,
-        _category.empty() ? fallback_category : _category,
-        _diagnostic.message.empty()
-            ? fallback_diagnostic_message(_presentation)
-            : _diagnostic.message);
+        category,report,_diagnostic.origin);
 }
 
 void ApplicationFailureScene::destroy_ui() noexcept

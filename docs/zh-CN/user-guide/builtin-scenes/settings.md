@@ -48,3 +48,7 @@ void open_settings(elysia::scene::SceneRoute return_route)
 - [Payload](../../../../engine/builtin/scenes/settings_scene_payload.h)、[可见项与草稿](../../../../engine/ui/presets/settings_panel.h)
 - [运行时配置](../content/configuration.md)、[本地化](../systems/localization.md)
 - [返回使用指南](../README.md)
+
+## 窗口操作错误契约
+
+窗口全屏、尺寸和位置操作均返回 `expected<void, FailureDiagnostic>`，在失败点捕获 SDL 错误和操作名。运行时先保存实际模式、窗口化尺寸和位置；应用失败后直接执行物理恢复，即使配置值没有变化也不会跳过。恢复中的各步骤继续尝试，原始失败和所有恢复失败同时保留并写入日志。失败操作不提交配置，也不返回 `Applied`。

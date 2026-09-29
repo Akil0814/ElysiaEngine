@@ -82,7 +82,7 @@ private:
     void notify_quit_requested();
     void notify_fault(const SceneBoundaryFailure& failure) noexcept;
     void process_pending_request();
-    void recover_from_failure(const SceneBoundaryFailure& failure) noexcept;
+    void recover_from_failure(const SceneBoundaryFailure& failure);
 
     [[nodiscard]] std::expected<void, SceneBoundaryFailure>
         switch_to_registered_scene(const SceneRoute& route);
@@ -96,7 +96,8 @@ private:
     void detach_from_scene(Scene& scene);
     void discard_scene(SceneKey key, Scene* expected) noexcept;
     [[nodiscard]] SceneBoundaryFailure make_failure(
-        SceneKey key, SceneBoundary boundary) const;
+        SceneKey key, SceneBoundary boundary,
+        std::source_location origin = std::source_location::current()) const;
     [[noreturn]] static void throw_invalid_route_key(SceneKey key);
 
     SceneManagerState _state = SceneManagerState::Constructed;

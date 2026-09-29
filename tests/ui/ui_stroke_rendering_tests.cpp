@@ -158,16 +158,16 @@ private:
     std::vector<std::uint32_t> _pixels;
 };
 
-constexpr elysia::core::Color k_white{ 255,255,255,255 };
+constexpr elysia::core::Color kWhite{ 255,255,255,255 };
 
 void require_hairline_rect(int output_width,int output_height)
 {
     using namespace elysia::core;
     SdlStrokeFixture fixture(output_width,output_height);
     const Rect rect{ 100.4f,100.4f,200.2f,120.2f };
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
-        make_ui_draw_rect_command(rect,k_white,rect,0.0f));
+        make_ui_draw_rect_command(rect,kWhite,rect,0.0f)));
     fixture.read_pixels();
 
     const Vector2 top_left = fixture.window_point(rect.top_left());
@@ -214,21 +214,21 @@ void require_curved_and_line_strokes(int output_width,int output_height)
     SdlStrokeFixture fixture(output_width,output_height);
 
     const Rect rounded{ 100,80,220,120 };
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
-        make_ui_draw_rect_command(rounded,k_white,24.0f));
+        make_ui_draw_rect_command(rounded,kWhite,24.0f)));
 
     const Vector2 circle_center{ 500,140 };
     constexpr float circle_radius = 54.0f;
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
-        make_ui_draw_circle_command(circle_center,circle_radius,k_white));
+        make_ui_draw_circle_command(circle_center,circle_radius,kWhite)));
 
     const Vector2 line_start{ 650,100 };
     const Vector2 line_end{ 900,180 };
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
-        make_ui_draw_line_command(line_start,line_end,k_white));
+        make_ui_draw_line_command(line_start,line_end,kWhite)));
     fixture.read_pixels();
 
     const Vector2 rounded_top = fixture.window_point(rounded.top_center());
@@ -295,13 +295,13 @@ int logical_stroke_output_width(int output_width,int output_height)
     using namespace elysia::core;
     SdlStrokeFixture fixture(output_width,output_height);
     const Rect rect{ 100,100,200,120 };
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
         make_ui_draw_rect_command(
             rect,
-            k_white,
+            kWhite,
             0.0f,
-            UiStrokeWidth{ UiStrokeWidthMode::Logical,2.0f }));
+            UiStrokeWidth{ UiStrokeWidthMode::Logical,2.0f })));
     fixture.read_pixels();
     const Vector2 top_left = fixture.window_point(rect.top_left());
     const Vector2 center_left = fixture.window_point(rect.center_left());
@@ -325,13 +325,13 @@ void test_logical_stroke_scales_and_renderer_state_is_restored()
     const SDL_Rect original_clip{ 5,6,700,500 };
     SDL_SetRenderClipRect(fixture.renderer(),&original_clip);
 
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
         make_ui_draw_circle_command(
             Vector2{ 200,200 },
             50.0f,
-            k_white,
-            Rect{ 100.2f,100.2f,200.2f,200.2f }));
+            kWhite,
+            Rect{ 100.2f,100.2f,200.2f,200.2f })));
 
     Uint8 r = 0;
     Uint8 g = 0;
@@ -362,37 +362,37 @@ void test_world_primitives_render_and_restore_state()
     fill_rect.type = RenderCommandType::FillRect;
     fill_rect.screen_rect = {20, 20, 40, 30};
     fill_rect.color = {255, 0, 0, 128};
-    execute_render_command(fixture.renderer(), fill_rect);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), fill_rect));
 
     ScreenRenderCommand draw_rect;
     draw_rect.type = RenderCommandType::DrawRect;
     draw_rect.screen_rect = {100, 20, 40, 30};
-    draw_rect.color = k_white;
+    draw_rect.color = kWhite;
     draw_rect.stroke_width = 3.0f;
-    execute_render_command(fixture.renderer(), draw_rect);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), draw_rect));
 
     ScreenRenderCommand fill_circle;
     fill_circle.type = RenderCommandType::FillCircle;
     fill_circle.circle_center = {200, 40};
     fill_circle.circle_radius = 15.0f;
-    fill_circle.color = k_white;
-    execute_render_command(fixture.renderer(), fill_circle);
+    fill_circle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), fill_circle));
 
     ScreenRenderCommand draw_circle;
     draw_circle.type = RenderCommandType::DrawCircle;
     draw_circle.circle_center = {260, 40};
     draw_circle.circle_radius = 15.0f;
     draw_circle.stroke_width = 2.0f;
-    draw_circle.color = k_white;
-    execute_render_command(fixture.renderer(), draw_circle);
+    draw_circle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), draw_circle));
 
     ScreenRenderCommand line;
     line.type = RenderCommandType::DrawLine;
     line.line_start = {320, 20};
     line.line_end = {350, 50};
     line.stroke_width = 2.0f;
-    line.color = k_white;
-    execute_render_command(fixture.renderer(), line);
+    line.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), line));
     fixture.read_pixels();
 
     require(fixture.visible(40, 35),
@@ -410,7 +410,7 @@ void test_world_primitives_render_and_restore_state()
     SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
     const SDL_Rect original_clip{5, 6, 700, 500};
     SDL_SetRenderClipRect(fixture.renderer(),&original_clip);
-    execute_render_command(fixture.renderer(), fill_rect);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), fill_rect));
 
     Uint8 r = 0;
     Uint8 g = 0;
@@ -449,12 +449,12 @@ void require_adjacent_world_fill_rects_are_seamless(
     ScreenRenderCommand first_command;
     first_command.type = RenderCommandType::FillRect;
     first_command.screen_rect = first;
-    first_command.color = k_white;
-    execute_render_command(fixture.renderer(),first_command);
+    first_command.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),first_command));
 
     ScreenRenderCommand second_command = first_command;
     second_command.screen_rect = second;
-    execute_render_command(fixture.renderer(),second_command);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),second_command));
     fixture.read_pixels();
 
     float scale_x = 1.0f;
@@ -479,11 +479,11 @@ void test_ui_fill_rect_keeps_integer_rasterization()
 {
     using namespace elysia::core;
     SdlStrokeFixture fixture(1280,720);
-    execute_render_command(
+    elysia::core::require_render_success(execute_render_command(
         fixture.renderer(),
         make_ui_fill_rect_command(
             {500.25f,340.25f,95.99998f,32.0f},
-            k_white));
+            kWhite)));
     fixture.read_pixels();
 
     require(fixture.visible(594,350),
@@ -501,7 +501,7 @@ void test_world_triangles_render_and_restore_state()
     background.type = RenderCommandType::FillRect;
     background.screen_rect = {10, 10, 180, 80};
     background.color = {0, 0, 255, 255};
-    execute_render_command(fixture.renderer(),background);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),background));
 
     SDL_SetRenderDrawColor(fixture.renderer(),11,22,33,44);
     SDL_SetRenderDrawBlendMode(fixture.renderer(),SDL_BLENDMODE_ADD);
@@ -514,7 +514,7 @@ void test_world_triangles_render_and_restore_state()
         Vector2{20, 20},Vector2{80, 20},Vector2{50, 80}
     };
     clockwise.color = {255, 0, 0, 128};
-    execute_render_command(fixture.renderer(),clockwise);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),clockwise));
 
     ScreenRenderCommand counter_clockwise;
     counter_clockwise.type = RenderCommandType::FillTriangle;
@@ -522,7 +522,7 @@ void test_world_triangles_render_and_restore_state()
         Vector2{120, 20},Vector2{150, 80},Vector2{180, 20}
     };
     counter_clockwise.color = {0, 255, 0, 255};
-    execute_render_command(fixture.renderer(),counter_clockwise);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),counter_clockwise));
     fixture.read_pixels();
 
     const Color blended = fixture.pixel_color(50,40);
@@ -582,16 +582,16 @@ void test_texture_and_world_primitive_submission_order()
     textured.texture = texture;
     textured.screen_rect = {500, 100, 20, 20};
 
-    execute_render_command(fixture.renderer(), primitive);
-    execute_render_command(fixture.renderer(), textured);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), primitive));
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), textured));
     fixture.read_pixels();
     const Color texture_last = fixture.pixel_color(510, 110);
     require(texture_last.b > texture_last.r,
         "A texture submitted after a primitive must remain on top");
 
     fixture.clear();
-    execute_render_command(fixture.renderer(), textured);
-    execute_render_command(fixture.renderer(), primitive);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), textured));
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), primitive));
     fixture.read_pixels();
     const Color primitive_last = fixture.pixel_color(510, 110);
     require(primitive_last.r > primitive_last.b,
@@ -608,29 +608,29 @@ void test_invalid_world_primitive_geometry_is_skipped()
     rect.type = RenderCommandType::FillRect;
     rect.screen_rect = {
         std::numeric_limits<float>::quiet_NaN(), 20, 10, 10};
-    rect.color = k_white;
-    execute_render_command(fixture.renderer(), rect);
+    rect.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), rect));
 
     rect.screen_rect = {
         20, 20, std::numeric_limits<float>::infinity(), 10};
-    execute_render_command(fixture.renderer(), rect);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), rect));
 
     rect.screen_rect = {40, 40, 0, 10};
-    execute_render_command(fixture.renderer(), rect);
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), rect));
 
     ScreenRenderCommand circle;
     circle.type = RenderCommandType::FillCircle;
     circle.circle_center = {50, 50};
     circle.circle_radius = 0.0f;
-    circle.color = k_white;
-    execute_render_command(fixture.renderer(), circle);
+    circle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), circle));
 
     ScreenRenderCommand line;
     line.type = RenderCommandType::DrawLine;
     line.line_start = {80, 80};
     line.line_end = line.line_start;
-    line.color = k_white;
-    execute_render_command(fixture.renderer(), line);
+    line.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(), line));
 
     ScreenRenderCommand non_finite_triangle;
     non_finite_triangle.type = RenderCommandType::FillTriangle;
@@ -639,8 +639,8 @@ void test_invalid_world_primitive_geometry_is_skipped()
         Vector2{std::numeric_limits<float>::quiet_NaN(), 110},
         Vector2{110, 120}
     };
-    non_finite_triangle.color = k_white;
-    execute_render_command(fixture.renderer(),non_finite_triangle);
+    non_finite_triangle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),non_finite_triangle));
 
     ScreenRenderCommand infinite_triangle;
     infinite_triangle.type = RenderCommandType::FillTriangle;
@@ -649,24 +649,24 @@ void test_invalid_world_primitive_geometry_is_skipped()
         Vector2{150, std::numeric_limits<float>::infinity()},
         Vector2{160, 120}
     };
-    infinite_triangle.color = k_white;
-    execute_render_command(fixture.renderer(),infinite_triangle);
+    infinite_triangle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),infinite_triangle));
 
     ScreenRenderCommand repeated_triangle;
     repeated_triangle.type = RenderCommandType::FillTriangle;
     repeated_triangle.triangle_vertices = {
         Vector2{180, 100},Vector2{180, 100},Vector2{190, 120}
     };
-    repeated_triangle.color = k_white;
-    execute_render_command(fixture.renderer(),repeated_triangle);
+    repeated_triangle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),repeated_triangle));
 
     ScreenRenderCommand collinear_triangle;
     collinear_triangle.type = RenderCommandType::FillTriangle;
     collinear_triangle.triangle_vertices = {
         Vector2{220, 100},Vector2{230, 110},Vector2{240, 120}
     };
-    collinear_triangle.color = k_white;
-    execute_render_command(fixture.renderer(),collinear_triangle);
+    collinear_triangle.color = kWhite;
+    elysia::core::require_render_success(execute_render_command(fixture.renderer(),collinear_triangle));
     fixture.read_pixels();
 
     require(!fixture.any_visible(),

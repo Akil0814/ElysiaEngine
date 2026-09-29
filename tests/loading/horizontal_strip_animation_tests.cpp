@@ -385,7 +385,7 @@ void test_horizontal_strip_build_and_render_commands()
 			screen_overlay.texture,12,34,56)
 			&& SDL_SetTextureAlphaMod(screen_overlay.texture,77),
 		"executor test must configure an initial shared texture modulation");
-	core::execute_render_command(renderer,screen_overlay);
+	elysia::core::require_render_success(core::execute_render_command(renderer,screen_overlay));
 	Uint8 restored_red = 0;
 	Uint8 restored_green = 0;
 	Uint8 restored_blue = 0;

@@ -145,7 +145,7 @@ void CameraController::reset_scene_state() noexcept
     _active_effect.reset();
     _motion.reset();
     _has_initialized_focus = false;
-    _camera.set_zoom(Camera::k_default_zoom);
+    _camera.set_zoom(Camera::kDefaultZoom);
     _logical_center = elysia::core::Vector2::zero();
     write_final_camera_center(_logical_center);
 }

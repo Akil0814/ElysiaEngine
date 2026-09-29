@@ -2,6 +2,7 @@
 
 #include "../builtin_scene_keys.h"
 #include "../../scene/routing/scene_route.h"
+#include "../../scene/scene_boundary_failure.h"
 #include "../../core/diagnostics/failure_diagnostic.h"
 #include "../../loading/content_load_failure.h"
 
@@ -82,7 +83,7 @@ struct ApplicationFailureScenePayload
 [[nodiscard]] inline elysia::scene::SceneRoute make_application_failure_route(
     ApplicationFailurePresentation presentation,
     std::string category,
-    std::string diagnostic_message)
+    elysia::core::FailureDiagnostic diagnostic)
 {
     return elysia::scene::SceneRoute{
         .target = SceneKeys::ApplicationFailure,
@@ -94,10 +95,26 @@ struct ApplicationFailureScenePayload
             .error_code = presentation == ApplicationFailurePresentation::StartupLoading
                 ? "STARTUP-FAILURE" : "APPLICATION-FATAL",
             .category = std::move(category),
-            .diagnostic = elysia::core::make_failure_diagnostic(
-                std::move(diagnostic_message))
+            .diagnostic = std::move(diagnostic)
         },
         .reload_mode = elysia::scene::SceneReloadMode::Reuse
     };
 }
+[[nodiscard]] inline elysia::scene::SceneRoute make_application_failure_route(
+    const elysia::scene::SceneBoundaryFailure& failure)
+{
+    auto diagnostic = failure.diagnostic;
+    const std::string scene_key = std::to_string(failure.scene);
+    const std::string boundary(elysia::scene::scene_boundary_name(failure.boundary));
+    bool has_boundary = false;
+    for (const auto& entry : diagnostic.entries)
+        if (entry.subject_type == "scene" && entry.subject_key == scene_key && entry.reason == boundary)
+            has_boundary = true;
+    if (!has_boundary)
+        diagnostic.entries.push_back(elysia::core::make_failure_diagnostic_entry(
+            "scene",scene_key,{},{},{},boundary,diagnostic.origin));
+    return make_application_failure_route(ApplicationFailurePresentation::RuntimeFatal,
+        "scene",std::move(diagnostic));
+}
+
 }

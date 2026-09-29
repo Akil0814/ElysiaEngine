@@ -107,11 +107,14 @@ std::size_t TerminationManager::copy_text(std::string_view source,char* destinat
     std::size_t capacity,bool& truncated) noexcept
 {
     const std::size_t copied_size = capacity == 0 ? 0 : std::min(source.size(),capacity - 1);
+    truncated = copied_size < source.size();
     if (copied_size > 0)
         std::copy_n(source.data(),copied_size,destination);
     if (capacity > 0)
         destination[copied_size] = '\0';
-    truncated = copied_size < source.size();
+    constexpr std::string_view marker = " [truncated]";
+    if (truncated && copied_size >= marker.size())
+        std::copy(marker.begin(),marker.end(),destination + copied_size - marker.size());
     return copied_size;
 }
 }

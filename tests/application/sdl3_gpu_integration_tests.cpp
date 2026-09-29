@@ -30,15 +30,15 @@ int main()
     UiRenderCommand circle;
     circle.type=UiRenderCommandType::FillCircle;
     circle.circle_center={100,100}; circle.circle_radius=45; circle.color={220,70,90,255};
-    execute_render_command(renderer,circle);
+    elysia::core::require_render_success(execute_render_command(renderer,circle));
     UiRenderCommand rounded;
     rounded.type=UiRenderCommandType::FillRoundedRect;
     rounded.screen_rect=Rect({180,55},{180,90}); rounded.corner_radius=20; rounded.color={50,190,130,128};
-    execute_render_command(renderer,rounded);
+    elysia::core::require_render_success(execute_render_command(renderer,rounded));
     UiRenderCommand stroke=rounded;
     stroke.type=UiRenderCommandType::DrawRoundedRect; stroke.color={230,230,240,255};
     stroke.stroke_width={UiStrokeWidthMode::Logical,3};
-    execute_render_command(renderer,stroke);
+    elysia::core::require_render_success(execute_render_command(renderer,stroke));
     const std::filesystem::path root=ELYSIA_SOURCE_DIR;
     SDL_Surface* source=SDL_CreateSurface(24,24,SDL_PIXELFORMAT_RGBA32);
     require(source != nullptr,"GPU test surface");

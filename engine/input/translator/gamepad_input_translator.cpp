@@ -8,8 +8,8 @@ namespace elysia::input
 {
 namespace
 {
-constexpr float k_trigger_pressed_threshold = 0.5f;
-constexpr float k_trigger_released_threshold = 0.4f;
+constexpr float kTriggerPressedThreshold = 0.5f;
+constexpr float kTriggerReleasedThreshold = 0.4f;
 }
 
 std::vector<RawInputEvent> GamepadInputTranslator::translate_event(const SDL_Event& event)
@@ -67,7 +67,7 @@ std::vector<RawInputEvent> GamepadInputTranslator::translate_event(const SDL_Eve
             const float normalized_value = normalize_trigger_axis(event.gaxis.value);
             append_axis_event(events, RawInputAxis::GamepadLeftTrigger, normalized_value);
 
-            if (!_left_trigger_pressed && normalized_value >= k_trigger_pressed_threshold)
+            if (!_left_trigger_pressed && normalized_value >= kTriggerPressedThreshold)
             {
                 _left_trigger_pressed = true;
                 append_trigger_virtual_button_event(
@@ -76,7 +76,7 @@ std::vector<RawInputEvent> GamepadInputTranslator::translate_event(const SDL_Eve
                     true
                 );
             }
-            else if (_left_trigger_pressed && normalized_value <= k_trigger_released_threshold)
+            else if (_left_trigger_pressed && normalized_value <= kTriggerReleasedThreshold)
             {
                 _left_trigger_pressed = false;
                 append_trigger_virtual_button_event(
@@ -93,7 +93,7 @@ std::vector<RawInputEvent> GamepadInputTranslator::translate_event(const SDL_Eve
             const float normalized_value = normalize_trigger_axis(event.gaxis.value);
             append_axis_event(events, RawInputAxis::GamepadRightTrigger, normalized_value);
 
-            if (!_right_trigger_pressed && normalized_value >= k_trigger_pressed_threshold)
+            if (!_right_trigger_pressed && normalized_value >= kTriggerPressedThreshold)
             {
                 _right_trigger_pressed = true;
                 append_trigger_virtual_button_event(
@@ -102,7 +102,7 @@ std::vector<RawInputEvent> GamepadInputTranslator::translate_event(const SDL_Eve
                     true
                 );
             }
-            else if (_right_trigger_pressed && normalized_value <= k_trigger_released_threshold)
+            else if (_right_trigger_pressed && normalized_value <= kTriggerReleasedThreshold)
             {
                 _right_trigger_pressed = false;
                 append_trigger_virtual_button_event(

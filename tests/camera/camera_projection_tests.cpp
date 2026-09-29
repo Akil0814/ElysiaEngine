@@ -68,19 +68,19 @@ void test_zoom_validation()
     Camera camera;
 
     camera.set_zoom(0.0f);
-    require(camera.zoom() == Camera::k_min_zoom,
+    require(camera.zoom() == Camera::kMinZoom,
         "zero zoom must clamp to the minimum");
 
     camera.set_zoom(100.0f);
-    require(camera.zoom() == Camera::k_max_zoom,
+    require(camera.zoom() == Camera::kMaxZoom,
         "large zoom must clamp to the maximum");
 
     camera.set_zoom(std::numeric_limits<float>::quiet_NaN());
-    require(camera.zoom() == Camera::k_default_zoom,
+    require(camera.zoom() == Camera::kDefaultZoom,
         "NaN zoom must fall back to the default");
 
     camera.set_zoom(std::numeric_limits<float>::infinity());
-    require(camera.zoom() == Camera::k_default_zoom,
+    require(camera.zoom() == Camera::kDefaultZoom,
         "infinite zoom must fall back to the default");
 }
 

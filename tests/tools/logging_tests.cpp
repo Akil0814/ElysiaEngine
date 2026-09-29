@@ -245,6 +245,15 @@ void test_logger_console_sink()
     captured.messages.clear();
     auto* termination_manager = tools::TerminationManager::instance();
     termination_manager->reset_for_testing();
+    termination_manager->request_termination(
+        tools::TerminationReason::FatalRuntimeFailure,"render",std::string(2048,'x'));
+    elysia::application::log_published_termination(termination_manager->termination_info());
+    require(captured.messages.size() == 3
+            && captured.messages[0].find("[truncated]") != std::string::npos
+            && captured.messages[1].find("Termination record was truncated") != std::string::npos,
+        "termination logs must visibly identify the bounded record and point to the complete failure log");
+    captured.messages.clear();
+    termination_manager->reset_for_testing();
     const unsigned int startup_termination_line = __LINE__ + 1;
     termination_manager->request_termination(
         tools::TerminationReason::FatalRuntimeFailure,

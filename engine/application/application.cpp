@@ -33,6 +33,7 @@
 #include <utility>
 
 #include <SDL3_image/SDL_image.h>
+#include "../core/render/sdl_render_boundary.h"
 #include <SDL3_mixer/SDL_mixer.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
@@ -350,10 +351,7 @@ bool Application::initialize(
     _scene_manager.initialize(
         *_scene_runtime_context,
         [](const elysia::scene::SceneBoundaryFailure& failure) {
-            auto route = elysia::builtin::make_application_failure_route(
-                elysia::builtin::ApplicationFailurePresentation::RuntimeFatal,
-                "scene",
-                failure.message);
+            auto route = elysia::builtin::make_application_failure_route(failure);
             route.reload_mode = elysia::scene::SceneReloadMode::Recreate;
             return route;
         });
@@ -405,15 +403,22 @@ bool Application::initialize_runtime(
             == elysia::config::WindowMode::BorderlessFullscreen
         && !SDL_SetWindowFullscreen(_window,SDL_WINDOW_FULLSCREEN))
     {
-        ELYSIA_LOG_WARN(
-            "application",
-            "Failed to enter borderless fullscreen: " << SDL_GetError());
-        SDL_ClearError();
-        SDL_SetWindowSize(
-            _window,
-            user_settings.window.windowed_size.width,
-            user_settings.window.windowed_size.height);
-        SDL_SetWindowPosition(_window,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED);
+        auto diagnostic = elysia::core::make_failure_diagnostic(
+            std::string("SDL_SetWindowFullscreen: ") + SDL_GetError());
+        elysia::tools::Logger::instance()->warn("application",diagnostic.message,diagnostic.origin);
+        const auto restore = [&](bool success,const char* operation,
+            std::source_location origin = std::source_location::current())
+        {
+            if (!success)
+                diagnostic.entries.push_back(elysia::core::make_failure_diagnostic_entry(
+                    "window-rollback",operation,{},{},{},SDL_GetError(),origin));
+        };
+        restore(SDL_SetWindowFullscreen(_window,false),"SDL_SetWindowFullscreen");
+        restore(SDL_SetWindowSize(_window,user_settings.window.windowed_size.width,user_settings.window.windowed_size.height),"SDL_SetWindowSize");
+        restore(SDL_SetWindowPosition(_window,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED),"SDL_SetWindowPosition");
+        if (!diagnostic.entries.empty())
+            return startup_fail("platform",elysia::core::format_failure_diagnostic(
+                diagnostic,"STARTUP-WINDOW","platform"));
     }
 
     _renderer = SDL_CreateGPURenderer(nullptr,_window);
@@ -451,6 +456,14 @@ bool Application::enter_initial_scene(
             _scene_manager,
             game_module,
             descriptor);
+    }
+    catch (const elysia::core::RenderBackendError&)
+    {
+        const auto failure = std::current_exception();
+        (void)run_event_boundary("scene",[&] { std::rethrow_exception(failure); });
+        log_published_termination(elysia::tools::TerminationManager::instance()->termination_info());
+        (void)shutdown();
+        return false;
     }
     catch (const std::exception& error)
     {
@@ -558,8 +571,13 @@ ApplicationRunResult Application::run()
         if (resolve_exit())
             break;
 
-        SDL_SetRenderDrawColor(_renderer,0,0,0,255);
-        SDL_RenderClear(_renderer);
+        if (!run_event_boundary("render_begin",[this] {
+            elysia::core::require_render_success(elysia::core::begin_render_frame(_renderer));
+        }))
+        {
+            stop_after_boundary_failure();
+            break;
+        }
 
         if (!run_event_boundary("render",[this]()
         {
@@ -575,7 +593,13 @@ ApplicationRunResult Application::run()
         if (resolve_exit())
             break;
 
-        SDL_RenderPresent(_renderer);
+        if (!run_event_boundary("render_present",[this] {
+            elysia::core::require_render_success(elysia::core::present_render_frame(_renderer));
+        }))
+        {
+            stop_after_boundary_failure();
+            break;
+        }
         if (resolve_exit())
             break;
 
@@ -673,22 +697,35 @@ void Application::on_scene_manager_quit_requested()
 void Application::on_scene_manager_fault(
     const elysia::scene::SceneBoundaryFailure& failure)
 {
-    elysia::tools::TerminationManager::instance()->request_termination(
-        elysia::tools::TerminationReason::FatalRuntimeFailure,
-        "scene",
-        failure.message);
+    try
+    {
+        elysia::tools::TerminationManager::instance()->request_termination(
+            elysia::tools::TerminationReason::FatalRuntimeFailure,"scene",
+            elysia::core::format_failure_diagnostic(failure.diagnostic,"APPLICATION-FATAL","scene"),
+            failure.diagnostic.origin);
+    }
+    catch (...)
+    {
+        elysia::tools::Logger::instance()->error(
+            "scene",failure.diagnostic.message,failure.diagnostic.origin);
+        elysia::tools::TerminationManager::instance()->request_termination(
+            elysia::tools::TerminationReason::FatalRuntimeFailure,"scene",
+            failure.diagnostic.message,failure.diagnostic.origin);
+    }
 }
 
 namespace
 {
 std::unexpected<elysia::config::UserConfigFailure> runtime_apply_failure(
     const char* setting,
-    const std::string& message)
+    const std::string& message,
+    std::source_location origin = std::source_location::current())
 {
     return std::unexpected(elysia::config::UserConfigFailure{
         elysia::config::UserConfigError::RuntimeApplyFailed,
         setting,
-        message
+        message,
+        elysia::core::make_failure_diagnostic(message,{},{},origin)
     });
 }
 }
@@ -723,7 +760,9 @@ Application::apply_language(std::string_view language)
     if (auto result = ELYSIA_LOCALIZATION->set_language(std::string(language));
         !result)
     {
-        return runtime_apply_failure("language",result.error().diagnostic.message);
+        return std::unexpected(elysia::config::UserConfigFailure{
+            elysia::config::UserConfigError::RuntimeApplyFailed,"language",
+            result.error().diagnostic.message,result.error().diagnostic});
     }
 
     return {};
@@ -749,33 +788,35 @@ Application::apply_window_settings(
     if (!_window)
         return runtime_apply_failure("window_settings","Application window is unavailable.");
 
-    const auto result = detail::apply_window_settings(settings,
+    detail::ApplicationWindowSnapshot previous{
+        elysia::config::UserConfigService::instance()->user_config().window_settings()};
+    if (!SDL_GetWindowPosition(_window,&previous.x,&previous.y))
+        return runtime_apply_failure("window_settings",std::string("SDL_GetWindowPosition: ") + SDL_GetError());
+    if (!(SDL_GetWindowFlags(_window) & SDL_WINDOW_FULLSCREEN))
+    {
+        if (!SDL_GetWindowSize(_window,&previous.settings.windowed_size.width,&previous.settings.windowed_size.height))
+            return runtime_apply_failure("window_settings",std::string("SDL_GetWindowSize: ") + SDL_GetError());
+        previous.settings.mode = elysia::config::WindowMode::Windowed;
+    }
+    else previous.settings.mode = elysia::config::WindowMode::BorderlessFullscreen;
+    const auto checked = [](bool success,const char* operation,
+        std::source_location origin = std::source_location::current()) -> detail::WindowOperationResult
+    {
+        if (success) return {};
+        return std::unexpected(elysia::core::make_failure_diagnostic(
+            std::string(operation) + ": " + SDL_GetError(),{},{},origin));
+    };
+    const auto result = detail::apply_window_settings_transactional(settings,previous,
         detail::ApplicationWindowOperations{
-            .set_fullscreen = [this](std::uint32_t flags)
-            {
-                return SDL_SetWindowFullscreen(_window,flags != 0) ? 0 : -1;
-            },
-            .set_size = [this](int width,int height)
-            {
-                SDL_SetWindowSize(_window,width,height);
-            },
-            .center = [this]()
-            {
-                SDL_SetWindowPosition(
-                    _window,
-                    SDL_WINDOWPOS_CENTERED,
-                    SDL_WINDOWPOS_CENTERED);
-            },
-            .error_message = []()
-            {
-                return std::string(SDL_GetError());
-            }
+            .set_fullscreen = [&](bool enabled) { return checked(SDL_SetWindowFullscreen(_window,enabled),"SDL_SetWindowFullscreen"); },
+            .set_size = [&](int width,int height) { return checked(SDL_SetWindowSize(_window,width,height),"SDL_SetWindowSize"); },
+            .set_position = [&](int x,int y) { return checked(SDL_SetWindowPosition(_window,x,y),"SDL_SetWindowPosition"); }
         });
     if (!result)
     {
-        return runtime_apply_failure(
-            "window_settings",
-            result.error());
+        return std::unexpected(elysia::config::UserConfigFailure{
+            elysia::config::UserConfigError::RuntimeApplyFailed,"window_settings",
+            result.error().message,result.error()});
     }
     return {};
 }

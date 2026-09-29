@@ -99,3 +99,7 @@ ELYSIA_LOG_WARN("inventory", "Reward skipped because inventory is full.");
 
 - [随机数接口](../../../../engine/tools/random_generator.h)、[日志接口](../../../../engine/tools/logger.h)
 - [返回使用指南](../README.md)
+
+## JSON 文件与字段检查
+
+`JsonLoader::open_file()` 返回 `expected<void, JsonFileFailure>`，其余查询接口为 `root()` 和 `is_loaded()`，`reset()` 清除加载状态。字段由领域加载器显式检查 JSON 节点并返回领域失败；不再提供输出参数读取、默认值读取或对象字段读取包装。i18n manifest 使用 `ManifestLoadFailure` 区分缺失、类型错误、非法空值，并为每个失败保留准确 JSON pointer。

@@ -239,9 +239,10 @@ void failed_entry_services()
         require(manager.shutdown(), "failure rollback leaves shutdown clean");
         require_services_unbound();
         const auto output = logs.output.str();
-        require(occurrences(output, "SceneKey 1 boundary Enter: enter primary") == 1,
+        require(occurrences(output, "type=scene key=1 reason=Enter source=") == 1
+                && occurrences(output,"enter primary") == (scenario == 1 ? 2 : 1),
             "primary failure must be logged exactly once with key, boundary and message");
-        require(occurrences(output, "SceneKey 2 boundary Enter: enter primary") == (scenario == 1 ? 1 : 0),
+        require(occurrences(output, "type=scene key=2 reason=Enter source=") == (scenario == 1 ? 1 : 0),
             "recovery failure must receive one separate diagnostic");
     }
 }
@@ -264,7 +265,8 @@ void secondary_failure_logging()
     manager.start({.target = 1});
     require_services_unbound();
     const auto output = logs.output.str();
-    require(occurrences(output, "SceneKey 1 boundary Enter: original enter") == 1,
+    require(occurrences(output, "type=scene key=1 reason=Enter source=") == 1
+            && occurrences(output,"original enter") == 1,
         "cleanup errors must not replace the original failure");
     require(occurrences(output, "Candidate detach: secondary detach") == 1,
         "secondary detach failure must be logged once with its stage");

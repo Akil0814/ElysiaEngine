@@ -325,7 +325,7 @@ void test_atomic_project_activation(FontResolverFixture& fixture)
             elysia::builtin::ApplicationFailurePresentation::
                 RuntimeFatal,
             "typography",
-            "project font failure"));
+            elysia::core::make_failure_diagnostic("project font failure")));
     require(!resolver.project_fonts_active(),
         "entering ApplicationFailureScene must deactivate project fonts");
     const auto failure_scene_font = resolver.resolve_ui(

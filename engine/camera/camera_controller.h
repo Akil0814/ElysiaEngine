@@ -51,7 +51,7 @@ private:
         std::size_t node_index = 0;
         double elapsed_seconds = 0.0;
         elysia::core::Vector2 segment_start_center{};
-        float segment_start_zoom = Camera::k_default_zoom;
+        float segment_start_zoom = Camera::kDefaultZoom;
         bool paused = false;
         bool holding = false;
     };

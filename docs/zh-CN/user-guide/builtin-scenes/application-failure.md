@@ -40,3 +40,13 @@ Payload 包含 `presentation`、`reason`、`error_code`、`category` 和 `diagno
 - [诊断 Payload 与辅助函数](../../../../engine/builtin/scenes/application_failure_scene_payload.h)
 - [错误场景实现](../../../../engine/builtin/scenes/application_failure_scene.cpp)
 - [启动加载](startup-loading.md)、[日志](../tools/utilities.md)、[返回使用指南](../README.md)
+
+## 诊断传播与底层渲染失败
+
+`SceneBoundaryFailure` 使用 `FailureDiagnostic` 携带场景键、边界和来源。通过 `make_application_failure_route(failure)` 转换时完整保留诊断；通用失败路由的第三个参数为 `FailureDiagnostic`，消息需要在调用点显式通过 `make_failure_diagnostic()` 创建。
+
+底层 SDL 渲染失败使用 `RenderFailure` 和 `RenderBackendError`，直接进入应用故障退出，不进入错误场景。执行器返回 `expected`，先恢复已修改的状态，保留恢复错误，然后停止后续绘制；应用跳过提交和帧等待并执行完整关闭。关闭失败同样返回 `FaultExit`。
+
+确认退出前写入完整诊断日志；有界终止记录保留诊断来源，并在截断时指引查看原始日志。Release 界面仍遵循隐藏原始诊断的现有呈现规则。
+
+渲染执行器的单条和批量 `execute_render_command(s)` 返回 `[[nodiscard]] expected<void, RenderFailure>`，批量在首个失败后停止。`RenderFailure` 保存操作名及统一诊断；Scene 使用 `RenderBackendError` 传播到应用边界。执行器在绘制失败后仍尝试恢复已读取且已修改的状态，恢复错误附加到首个失败。清屏与帧提交走同一故障退出路径，失败后不再提交后续帧或等待帧节奏。
