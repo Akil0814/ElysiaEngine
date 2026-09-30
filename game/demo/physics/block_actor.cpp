@@ -40,6 +40,16 @@ BlockCombatActor::BlockCombatActor(ActorConfig config)
       _health(config.maximum_health), _team(config.team),
       _move_speed(config.move_speed)
 {
+    _world_health_bar.set_range(0.0f, static_cast<float>(config.maximum_health));
+    _world_health_bar.set_value(static_cast<float>(config.maximum_health));
+    _nameplate.set_text_key(config.team == elysia::gameplay::collision::teams::Player
+        ? "gameplay_ui_demo.player" : "gameplay_ui_demo.enemy");
+    _nameplate.set_world_units_per_pixel(0.3f);
+    _nameplate.set_color_mode(elysia::gameplay::ui::TextColorMode::Baked);
+    _speech_bubble.text().set_text_key("gameplay_ui_demo.hit");
+    _speech_bubble.text().set_world_units_per_pixel(0.35f);
+    _speech_bubble.text().set_max_width(85.0f);
+    _speech_bubble.set_visible(false);
     const auto size = config.rect.size();
     _colliders[0] = make_actor_collider(
         collision_layers::Body,
@@ -70,6 +80,8 @@ BlockCombatActor::~BlockCombatActor() = default;
 void BlockCombatActor::update(double delta)
 {
     update_visual(delta);
+    _speech_remaining = std::max(0.0, _speech_remaining - std::max(0.0, delta));
+    _speech_bubble.set_visible(_speech_remaining > 0.0);
 }
 
 void BlockCombatActor::fixed_update(double delta)
@@ -103,20 +115,14 @@ void BlockCombatActor::submit_render_commands(
 
     constexpr float bar_height = 4.0f;
     const auto visual_rect = render_rect();
-    const float ratio = static_cast<float>(health().current())
-        / static_cast<float>(health().maximum());
     const elysia::core::Rect background{
         visual_rect.left(), visual_rect.top() - 8.0f,
         visual_rect.width(), bar_height};
-    out_commands.push_back(elysia::core::make_world_fill_rect_command(
-        background, {40, 40, 40, 255}));
-    if (ratio > 0.0f)
-    {
-        auto fill = background;
-        fill.set_width(background.width() * ratio);
-        out_commands.push_back(elysia::core::make_world_fill_rect_command(
-            fill, {76, 175, 80, 255}));
-    }
+    _world_health_bar.submit_render_commands(out_commands, background);
+    _nameplate.submit_render_commands(out_commands,
+        {visual_rect.center().x, visual_rect.top() - 10.0f}, {0.5f, 1.0f});
+    _speech_bubble.submit_render_commands(out_commands,
+        {visual_rect.center().x, visual_rect.top() - 24.0f});
 }
 
 bool BlockCombatActor::bind_combat(DemoCombatSession& session)
@@ -182,8 +188,11 @@ DamageResult BlockCombatActor::apply_damage(
 {
     const bool was_alive = _health.alive();
     const int applied = _health.apply_damage(definition.damage);
+    _world_health_bar.set_value(static_cast<float>(_health.current()));
     if (applied > 0)
     {
+        _speech_remaining = 1.5;
+        _speech_bubble.set_visible(true);
         flash(0.12);
         set_velocity(velocity() + definition.knockback);
     }

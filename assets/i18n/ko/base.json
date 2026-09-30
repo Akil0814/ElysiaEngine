@@ -1,4 +1,9 @@
 {
+  "gameplay_ui_demo": {
+    "player": "플레이어",
+    "enemy": "적",
+    "hit": "앗! 아파!"
+  },
   "common": {
     "save": "저장",
     "back": "뒤로",

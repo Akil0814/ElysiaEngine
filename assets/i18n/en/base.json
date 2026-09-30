@@ -1,4 +1,9 @@
 {
+  "gameplay_ui_demo": {
+    "player": "Player",
+    "enemy": "Enemy",
+    "hit": "Ouch! That hurt!"
+  },
   "common": {
     "save": "Save",
     "back": "Back",

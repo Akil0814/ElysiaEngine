@@ -114,6 +114,9 @@ void collect_leaf_keys(const elysia::io::json& value,
 }
 
 const std::set<std::string> expected_keys = {
+    "gameplay_ui_demo.player",
+    "gameplay_ui_demo.enemy",
+    "gameplay_ui_demo.hit",
     "physics_tests.actual",
     "physics_tests.awake",
     "physics_tests.back",

@@ -25,6 +25,14 @@ endfunction()
 
 find_package(Threads REQUIRED)
 
+add_elysia_test(world_ui_tests
+    LABEL gameplay_ui
+    SOURCES gameplay/world_ui_tests.cpp
+    LIBRARIES game_lib
+    SDL
+)
+target_compile_definitions(world_ui_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
 add_elysia_test(physics_scenario_tests
     LABEL physics
     SOURCES game/physics_scenario_tests.cpp

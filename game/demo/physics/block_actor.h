@@ -6,6 +6,8 @@
 
 #include "../../../engine/core/interface/updatable.h"
 #include "../../../engine/gameplay/control/control_command.h"
+#include "../../../engine/gameplay/ui/world_bar.h"
+#include "../../../engine/gameplay/ui/speech_bubble.h"
 #include "../../../engine/physics/contracts/physics_participant.h"
 #include "../../../engine/physics/contracts/physics_step_participant.h"
 
@@ -88,6 +90,10 @@ private:
     elysia::physics::BodyDefinition _body;
     std::array<elysia::physics::Collider, 3> _colliders;
     Health _health;
+    elysia::gameplay::ui::WorldBar _world_health_bar;
+    elysia::gameplay::ui::WorldText _nameplate;
+    elysia::gameplay::ui::SpeechBubble _speech_bubble;
+    double _speech_remaining = 0.0;
     elysia::gameplay::collision::ActorId _actor_id =
         elysia::gameplay::collision::InvalidActorId;
     elysia::gameplay::collision::TeamId _team;

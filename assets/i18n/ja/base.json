@@ -1,4 +1,9 @@
 {
+  "gameplay_ui_demo": {
+    "player": "プレイヤー",
+    "enemy": "敵",
+    "hit": "いたっ！やられた！"
+  },
   "common": {
     "save": "保存",
     "back": "戻る",
