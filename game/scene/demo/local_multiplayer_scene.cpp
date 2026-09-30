@@ -8,6 +8,7 @@
 #include "../../../engine/ui/widgets/ui_button.h"
 #include "../../../engine/ui/widgets/ui_text_input.h"
 #include "../../../engine/core/render/colors.h"
+#include "../../../engine/tools/logger.h"
 #include <sstream>
 namespace example::scene
 {
@@ -49,6 +50,12 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
     const auto *route = elysia::scene::try_scene_payload<DemoScenePayload>(payload);
     if (!route || !elysia::scene::SceneKeys::is_supported(route->return_route.target))
         throw std::logic_error("LocalMultiplayerScene requires a valid DemoScenePayload return route.");
+    auto previous_players = local_players();
+    std::optional<elysia::gameplay::ControllerHandle> previous_first_controller;
+    std::optional<elysia::gameplay::ControllerHandle> previous_second_controller;
+    bool acquired_first_controller = false, acquired_second_controller = false;
+    try
+    {
     _return_route = route->return_route;
     _assign_to = {};
     if (!local_players().contains(_second_player))
@@ -63,8 +70,12 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         if (!_second_player.value)
             _second_player = local_players().create_player();
     }
+    previous_first_controller = example::input::existing_session_player(PrimaryLocalPlayer);
+    previous_second_controller = example::input::existing_session_player(_second_player);
     _first_controller = example::input::session_player(PrimaryLocalPlayer);
+    acquired_first_controller = true;
     _second_controller = example::input::session_player(_second_player);
+    acquired_second_controller = true;
     if (!_saved_devices)
     {
         _saved_devices = local_players().configuration();
@@ -141,6 +152,29 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
     _window->set_visible(true);
     _window->set_active(true);
     camera_runtime().set_center(elysia::camera::CameraSlot::Main, {0, 0});
+    }
+    catch (...)
+    {
+        auto* service = elysia::gameplay::ControllerService::instance();
+        auto cleanup = [](auto&& action) {
+            try { action(); }
+            catch (...)
+            {
+                elysia::tools::Logger::instance()->error("scene_cleanup",
+                    "Multiplayer controller rollback failed after enter exception.");
+            }
+        };
+        for (auto handle : {_first_controller, _second_controller})
+            if (service->get(handle))
+                cleanup([&] { (void)service->unbind_target(handle); });
+        if (acquired_first_controller && !previous_first_controller)
+            cleanup([&] { (void)service->remove(_first_controller); });
+        if (acquired_second_controller && !previous_second_controller)
+            cleanup([&] { (void)service->remove(_second_controller); });
+        local_players().swap_state(previous_players);
+        _saved_devices.reset();
+        throw;
+    }
 }
 void LocalMultiplayerScene::bind_players()
 {

@@ -1,11 +1,18 @@
 #include "detail/physics_world_impl.h"
+#include <type_traits>
+#include <utility>
 namespace elysia::physics
 {
-void PhysicsWorld::Impl::capture_debug()
+void PhysicsWorld::Impl::capture_debug(PhysicsDebugCapture requested)
 {
-    debug.clear();
-    if (capture == PhysicsDebugCapture::None)
+    static_assert(std::is_nothrow_swappable_v<PhysicsDebugSnapshot>);
+    auto& next = debug_spare;
+    next.clear();
+    if (requested == PhysicsDebugCapture::None)
+    {
+        std::swap(debug, next);
         return;
+    }
     auto add = [&](const Shape &s) {
         if (B2_IS_NULL(s.native))
             return;
@@ -43,32 +50,33 @@ void PhysicsWorld::Impl::capture_debug()
         auto aabb = b2Shape_GetAABB(s.native);
         out.native_bounds =
             elysia::core::Rect::from_points(from(aabb.lowerBound), from(aabb.upperBound));
-        debug.shapes.push_back(out);
+        next.shapes.push_back(out);
     };
-    if (captures_physics_debug(capture, PhysicsDebugCapture::Shapes) ||
-        captures_physics_debug(capture, PhysicsDebugCapture::BroadPhase))
+    if (captures_physics_debug(requested, PhysicsDebugCapture::Shapes) ||
+        captures_physics_debug(requested, PhysicsDebugCapture::BroadPhase))
     {
         for (auto &[id, s] : shapes)
             add(s);
         for (auto &[id, s] : tile_shapes)
             add(s);
     }
-    if (captures_physics_debug(capture, PhysicsDebugCapture::Contacts))
-        debug.contacts.assign(cache.contacts().begin(), cache.contacts().end());
-    if (captures_physics_debug(capture, PhysicsDebugCapture::Joints))
+    if (captures_physics_debug(requested, PhysicsDebugCapture::Contacts))
+        next.contacts.assign(cache.contacts().begin(), cache.contacts().end());
+    if (captures_physics_debug(requested, PhysicsDebugCapture::Joints))
         for (const auto &[id, joint] : joints)
         {
             const auto *a = get(joint.first), *b = get(joint.second);
             if (joint.removed || !a || !b || B2_IS_NULL(joint.native))
                 continue;
-            debug.joints.push_back(
+            next.joints.push_back(
                 {from(b2Body_GetWorldPoint(a->native, b2Joint_GetLocalAnchorA(joint.native))),
                  from(b2Body_GetWorldPoint(b->native, b2Joint_GetLocalAnchorB(joint.native))),
                  a->previous, a->current, b->previous, b->current});
         }
-    if (captures_physics_debug(capture, PhysicsDebugCapture::Velocities))
+    if (captures_physics_debug(requested, PhysicsDebugCapture::Velocities))
         for (auto &[id, o] : objects)
-            debug.velocities.push_back(
+            next.velocities.push_back(
                 {{id}, o.current.position, from(b2Body_GetLinearVelocity(o.native))});
+    std::swap(debug, next);
 }
 } // namespace elysia::physics

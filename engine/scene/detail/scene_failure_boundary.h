@@ -4,7 +4,8 @@
 #include "../../core/render/render_failure.h"
 #include <exception>
 #include <expected>
-#include <vector>
+#include <array>
+#include <new>
 
 namespace elysia::scene::detail
 {
@@ -27,24 +28,29 @@ struct CapturedSceneFailure
     std::source_location origin;
     std::exception_ptr exception;
 };
+inline constexpr std::size_t kMaxCapturedSceneFailures = 16;
+using CapturedSceneFailures = std::array<CapturedSceneFailure,kMaxCapturedSceneFailures>;
 
 // Private transport between nested cleanup helpers. Formatting happens only after cleanup.
 class SceneFailureTransport
 {
 public:
-    explicit SceneFailureTransport(std::vector<CapturedSceneFailure> failures) : failures(std::move(failures)) {}
+    SceneFailureTransport(CapturedSceneFailures failures,std::size_t count,std::size_t overflow)
+        : failures(std::move(failures)), count(count), overflow(overflow) {}
     virtual ~SceneFailureTransport() = default;
-    std::vector<CapturedSceneFailure> failures;
+    CapturedSceneFailures failures;
+    std::size_t count = 0;
+    std::size_t overflow = 0;
 };
 
 template<typename Error>
 class SceneFailureException final : public Error,public SceneBoundaryTagged,public SceneFailureTransport
 {
 public:
-    explicit SceneFailureException(std::vector<CapturedSceneFailure> failures)
+    SceneFailureException(CapturedSceneFailures failures,std::size_t count,std::size_t overflow)
         : Error(primary_message(failures.front().exception)),
           SceneBoundaryTagged(primary_boundary(failures.front()),primary_origin(failures.front())),
-          SceneFailureTransport(std::move(failures)) {}
+          SceneFailureTransport(std::move(failures),count,overflow) {}
 private:
     static std::string primary_message(const std::exception_ptr& exception)
     {
@@ -76,15 +82,17 @@ public:
         try { if (exception) std::rethrow_exception(exception); }
         catch (const SceneFailureTransport& error)
         {
-            for (auto captured : error.failures)
+            for (std::size_t index = 0; index < error.count; ++index)
             {
+                auto captured = error.failures[index];
                 if (captured.scene == SceneKeys::Invalid) captured.scene = scene;
-                _failures.push_back(std::move(captured));
+                record(std::move(captured));
             }
+            _overflow += error.overflow;
             return;
         }
         catch (...) {}
-        if (exception) _failures.push_back({scene,boundary,stage,origin,std::move(exception)});
+        if (exception) record({scene,boundary,stage,origin,std::move(exception)});
     }
 
     template<typename Callable>
@@ -95,20 +103,31 @@ public:
         catch (...) { capture(scene,boundary,stage,std::current_exception(),origin); }
     }
 
-    [[nodiscard]] bool empty() const noexcept { return _failures.empty(); }
+    [[nodiscard]] bool empty() const noexcept { return _count == 0; }
 
     void rethrow_if_failed()
     {
-        if (_failures.empty()) return;
-        try { std::rethrow_exception(_failures.front().exception); }
-        catch (const std::logic_error&) { throw SceneFailureException<std::logic_error>(std::move(_failures)); }
-        catch (...) { throw SceneFailureException<std::runtime_error>(std::move(_failures)); }
+        if (empty()) return;
+        const auto primary = _failures.front().exception;
+        try { std::rethrow_exception(primary); }
+        catch (const std::logic_error&)
+        {
+            try { throw SceneFailureException<std::logic_error>(std::move(_failures),_count,_overflow); }
+            catch (const std::bad_alloc&) { std::rethrow_exception(primary); }
+        }
+        catch (...)
+        {
+            try { throw SceneFailureException<std::runtime_error>(std::move(_failures),_count,_overflow); }
+            catch (const std::bad_alloc&) { std::rethrow_exception(primary); }
+        }
     }
 
     [[nodiscard]] std::expected<void,SceneBoundaryFailure> finish() const
     {
-        if (_failures.empty()) return {};
-        for (std::size_t index = 0; index < _failures.size(); ++index)
+        if (empty()) return {};
+        try
+        {
+        for (std::size_t index = 0; index < _count; ++index)
         {
             try { if (_failures[index].exception) std::rethrow_exception(_failures[index].exception); }
             catch (const elysia::core::RenderBackendError& error)
@@ -116,16 +135,23 @@ public:
                 auto backend = error.failure();
                 backend.diagnostic = to_failure_diagnostic({
                     _failures[index].scene,_failures[index].boundary,std::move(backend.diagnostic)});
-                for (std::size_t other = 0; other < _failures.size(); ++other)
+                for (std::size_t other = 0; other < _count; ++other)
                     if (other != index) append(backend.diagnostic,_failures[other]);
+                append_overflow(backend.diagnostic);
                 throw elysia::core::RenderBackendError(std::move(backend));
             }
             catch (...) {}
         }
         auto primary = describe(_failures.front());
-        for (std::size_t index = 1; index < _failures.size(); ++index)
+        for (std::size_t index = 1; index < _count; ++index)
             append(primary.diagnostic,_failures[index]);
+        append_overflow(primary.diagnostic);
         return std::unexpected(std::move(primary));
+        }
+        catch (const std::bad_alloc&)
+        {
+            std::rethrow_exception(_failures.front().exception);
+        }
     }
 
 private:
@@ -157,6 +183,24 @@ private:
         append_scene_failure_context(diagnostic,describe(captured),captured.stage);
     }
 
-    std::vector<CapturedSceneFailure> _failures;
+    void append_overflow(elysia::core::FailureDiagnostic& diagnostic) const
+    {
+        if (!_overflow) return;
+        diagnostic.entries.push_back(elysia::core::make_failure_diagnostic_entry(
+            "scene-cleanup",{},{},{},{},
+            "Additional cleanup failures omitted: " + std::to_string(_overflow),
+            diagnostic.origin));
+    }
+
+    void record(CapturedSceneFailure failure) noexcept
+    {
+        if (_count < _failures.size())
+            _failures[_count++] = std::move(failure);
+        else
+            ++_overflow;
+    }
+    CapturedSceneFailures _failures{};
+    std::size_t _count = 0;
+    std::size_t _overflow = 0;
 };
 }

@@ -300,6 +300,49 @@ add_elysia_test(physics_world_lifecycle_tests
     SDL
 )
 
+add_elysia_test(demo_entry_failure_tests
+    LABEL scene
+    SOURCES game/demo_entry_failure_tests.cpp
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
+    SDL
+)
+
+add_elysia_test(application_startup_exception_tests
+    LABEL application
+    SOURCES application/application_startup_exception_tests.cpp
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
+    SDL
+)
+add_test(NAME application_startup_exception_mid
+    COMMAND application_startup_exception_tests mid 88)
+add_test(NAME application_startup_exception_descriptor
+    COMMAND application_startup_exception_tests descriptor)
+add_test(NAME application_startup_exception_late
+    COMMAND application_startup_exception_tests late)
+
+add_elysia_test(physics_exception_safety_tests
+    LABEL physics
+    SOURCES physics/physics_exception_safety_tests.cpp
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
+    SDL
+)
+foreach(INDEX IN ITEMS 1 3 7)
+    add_test(NAME physics_exception_safety_registration_${INDEX}
+        COMMAND physics_exception_safety_tests registration ${INDEX})
+endforeach()
+foreach(INDEX IN ITEMS 8 10 11)
+    add_test(NAME physics_exception_safety_ownership_${INDEX}
+        COMMAND physics_exception_safety_tests ownership ${INDEX})
+endforeach()
+add_test(NAME physics_exception_safety_debug
+    COMMAND physics_exception_safety_tests debug)
+add_test(NAME physics_exception_safety_deferred
+    COMMAND physics_exception_safety_tests deferred 1)
+add_test(NAME physics_exception_safety_deferred_removed
+    COMMAND physics_exception_safety_tests deferred_removed 1)
+add_test(NAME physics_exception_safety_shutdown
+    COMMAND physics_exception_safety_tests shutdown)
+
 add_elysia_test(physics_runtime_tests
     LABEL physics
     SOURCES physics/physics_runtime_tests.cpp

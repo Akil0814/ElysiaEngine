@@ -28,6 +28,8 @@ void SceneManager::initialize(
     if (_state != SceneManagerState::Constructed && _state != SceneManagerState::Stopped)
         throw std::logic_error("SceneManager::initialize requires a constructed or stopped manager.");
 
+    if (_state == SceneManagerState::Stopped)
+        _local_players.reset_defaults();
     elysia::gameplay::ControllerManager::instance()->initialize();
     _runtime_context = &context;
     _failure_route_factory = std::move(failure_route_factory);
@@ -514,7 +516,7 @@ bool SceneManager::shutdown() noexcept
     cleanup([] { elysia::gameplay::ControllerManager::instance()->shutdown(); });
 
     _scene_builders.clear();
-    _local_players.reset();
+    _local_players.clear_for_shutdown();
     _ui_device_access = {};
     _runtime_context = nullptr;
     _failure_route_factory = {};

@@ -299,6 +299,7 @@ void PhysicsWorld::Impl::clear()
     pending_reset = false;
     stats = {};
     debug.clear();
+    debug_spare.clear();
 }
 void PhysicsWorld::Impl::flush()
 {
@@ -309,8 +310,51 @@ void PhysicsWorld::Impl::flush()
     }
     auto pending = std::move(commands);
     commands.clear();
-    for (auto &f : pending)
-        f();
+    try
+    {
+        for (auto &f : pending)
+            f();
+    }
+    catch (...)
+    {
+        commands.clear();
+        rollback_aborted_registrations();
+        throw;
+    }
+}
+void PhysicsWorld::Impl::rollback_registration(std::uint64_t h) noexcept
+{
+    auto object = objects.find(h);
+    if (object == objects.end())
+        return;
+    std::erase_if(joints, [h](const auto& entry) {
+        return entry.second.first.value == h || entry.second.second.value == h;
+    });
+    for (auto id : object->second.shapes)
+    {
+        auto shape = shapes.find(id);
+        if (shape == shapes.end())
+            continue;
+        if (B2_IS_NON_NULL(shape->second.native))
+            mapping.erase(b2StoreShapeId(shape->second.native));
+        shapes.erase(shape);
+    }
+    if (B2_IS_NON_NULL(object->second.native))
+        b2DestroyBody(object->second.native);
+    objects.erase(object);
+}
+void PhysicsWorld::Impl::rollback_aborted_registrations() noexcept
+{
+    for (auto it = objects.begin(); it != objects.end();)
+    {
+        if (!it->second.pending_creation && !it->second.removed)
+        {
+            ++it;
+            continue;
+        }
+        const auto id = it++->first;
+        rollback_registration(id);
+    }
 }
 PhysicsWorld::PhysicsWorld(PhysicsWorldConfig c) : _impl(std::make_unique<Impl>(c))
 {
@@ -360,15 +404,30 @@ PhysicsObjectHandle PhysicsWorld::register_object(elysia::core::GameObject &owne
     o.owner = &owner;
     o.definition = d;
     o.previous = o.current = {owner.position(), d.angle};
-    for (auto c : cs)
+    o.pending_creation = true;
+    o.shapes.reserve(cs.size());
+    try
     {
-        auto id = p.next_shape++;
-        o.shapes.push_back(id);
-        p.shapes.emplace(id, Impl::Shape{{}, h, CollisionTarget::from_collider(id), c});
+        for (auto c : cs)
+        {
+            auto id = p.next_shape++;
+            p.shapes.emplace(id, Impl::Shape{{}, h, CollisionTarget::from_collider(id), c});
+            try { o.shapes.push_back(id); }
+            catch (...) { p.shapes.erase(id); throw; }
+        }
+        p.objects.emplace(h.value, std::move(o));
     }
-    p.objects.emplace(h.value, std::move(o));
-    p.enqueue([&p, h] {
-        auto &o = p.objects.at(h.value);
+    catch (...)
+    {
+        for (auto id : o.shapes)
+            p.shapes.erase(id);
+        throw;
+    }
+    auto create_native = [&p, h] {
+        auto it = p.objects.find(h.value);
+        if (it == p.objects.end() || it->second.removed || !it->second.owner)
+            return;
+        auto &o = it->second;
         auto d = b2DefaultBodyDef();
         d.type = type(o.definition.type);
         d.position = p.to(o.current.position);
@@ -386,7 +445,14 @@ PhysicsObjectHandle PhysicsWorld::register_object(elysia::core::GameObject &owne
         for (auto id : o.shapes)
             p.create_shape(p.shapes.at(id), o.native);
         p.mass(o);
-    });
+        o.pending_creation = false;
+    };
+    try { p.enqueue(create_native); }
+    catch (...)
+    {
+        p.rollback_registration(h.value);
+        throw;
+    }
     return h;
 }
 bool PhysicsWorld::unregister_object(PhysicsObjectHandle h)
@@ -395,11 +461,19 @@ bool PhysicsWorld::unregister_object(PhysicsObjectHandle h)
     auto *o = p.get(h);
     if (!o)
         return false;
+    if (o->pending_creation)
+    {
+        p.rollback_registration(h.value);
+        return true;
+    }
+    if (p.advancing)
+        p.enqueue([&p, h] { p.destroy_object(h.value); });
     o->removed = true;
     for (auto &[id, j] : p.joints)
         if (j.first == h || j.second == h)
             j.removed = true;
-    p.enqueue([&p, h] { p.destroy_object(h.value); });
+    if (!p.advancing)
+        p.destroy_object(h.value);
     return true;
 }
 bool PhysicsWorld::contains_object(PhysicsObjectHandle h) const noexcept
@@ -1108,6 +1182,8 @@ void PhysicsWorld::step(double fixed_delta_seconds)
     }
     catch (...)
     {
+        p.commands.clear();
+        p.rollback_aborted_registrations();
         p.advancing = false;
         throw;
     }
@@ -1117,7 +1193,7 @@ void PhysicsWorld::finalize_frame(double interpolation_alpha)
 {
     auto &p = *_impl;
     p.interpolation_alpha = std::clamp(interpolation_alpha, 0.0, 1.0);
-    p.capture_debug();
+    p.capture_debug(p.capture);
     p.debug.interpolation_alpha = static_cast<float>(p.interpolation_alpha);
     for (auto &[id, object] : p.objects)
     {
@@ -1126,15 +1202,14 @@ void PhysicsWorld::finalize_frame(double interpolation_alpha)
             object.owner->_render_offset = pose->position - object.current.position;
     }
 }
-void PhysicsWorld::set_debug_capture(PhysicsDebugCapture c) noexcept
+void PhysicsWorld::set_debug_capture(PhysicsDebugCapture c)
 {
     constexpr auto valid_bits = static_cast<std::uint8_t>(PhysicsDebugCapture::All);
     c = static_cast<PhysicsDebugCapture>(static_cast<std::uint8_t>(c) & valid_bits);
     if (_impl->capture == c)
         return;
+    _impl->capture_debug(c);
     _impl->capture = c;
-    _impl->debug.clear();
-    _impl->capture_debug();
     _impl->debug.interpolation_alpha = static_cast<float>(_impl->interpolation_alpha);
 }
 PhysicsDebugCapture PhysicsWorld::debug_capture() const noexcept

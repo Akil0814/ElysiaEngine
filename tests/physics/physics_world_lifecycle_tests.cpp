@@ -1,5 +1,6 @@
 #include "physics_test_support.h"
 #include "engine/physics/contracts/physics_participant.h"
+#include <exception>
 #include <iostream>
 #include <limits>
 
@@ -131,6 +132,7 @@ void teleport_command_order()
 
 int main()
 {
+    std::set_terminate([] { std::_Exit(86); });
     velocity_command_order();
     teleport_command_order();
     Probe a, b;
@@ -184,6 +186,22 @@ int main()
     source.tick = [&] { ordered.reset(); };
     step(ordered);
     require(!ordered.contains_object(sh), "Reset from fixed callback");
+    Probe cancelled;
+    auto restored_source = source.add(ordered);
+    PhysicsObjectHandle cancelled_handle;
+    source.tick = [&] {
+        cancelled_handle = cancelled.add(ordered);
+        require(ordered.set_velocity(cancelled_handle,{10,20}),
+            "Pending registration accepts a dependent velocity command");
+        require(ordered.unregister_object(cancelled_handle),
+            "Pending registration can be cancelled within the same fixed callback");
+    };
+    step(ordered);
+    require(restored_source.is_valid() && cancelled_handle.is_valid()
+            && !ordered.contains_object(cancelled_handle)
+            && ordered.registered_object_count() == 1,
+        "Cancelled pending registration must not create a native body or retain its owner");
+    source.tick = {};
     Probe left, right;
     right.set_position({100, 0});
     PhysicsWorld joints;

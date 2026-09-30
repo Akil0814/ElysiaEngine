@@ -5,10 +5,32 @@
 #include "../../../engine/core/render/render_command.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <limits>
 #include <stdexcept>
 
 namespace example::demo::physics
 {
+namespace
+{
+elysia::core::Rect validated_bounds(elysia::core::Vector2 origin,
+    elysia::core::Vector2 tile_size, int columns, int rows)
+{
+    if (columns <= 0 || rows <= 0 || !std::isfinite(origin.x) || !std::isfinite(origin.y)
+        || !std::isfinite(tile_size.x) || !std::isfinite(tile_size.y)
+        || tile_size.x <= 0 || tile_size.y <= 0)
+        throw std::invalid_argument("DemoTileMap requires finite positive dimensions.");
+    const float width = tile_size.x * columns, height = tile_size.y * rows;
+    if (!std::isfinite(width) || !std::isfinite(height)
+        || !std::isfinite(origin.x + width) || !std::isfinite(origin.y + height)
+        || static_cast<std::size_t>(columns)
+            > (static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max())
+                / sizeof(elysia::physics::TileCollisionCell)) / static_cast<std::size_t>(rows))
+        throw std::invalid_argument("DemoTileMap dimensions exceed supported limits.");
+    return {origin, {width, height}};
+}
+}
 DemoTileMap::DemoTileMap(
     elysia::core::Vector2 origin,
     elysia::core::Vector2 tile_size,
@@ -16,13 +38,11 @@ DemoTileMap::DemoTileMap(
     int rows,
     elysia::physics::TileOutOfBoundsPolicy out_of_bounds)
     : ColoredBlockObject(elysia::core::DepthLayer::Terrain,
-          {origin, {tile_size.x * columns, tile_size.y * rows}},
+          validated_bounds(origin, tile_size, columns, rows),
           elysia::core::colors::gray_700),
       _origin(origin), _tile_size(tile_size), _columns(columns), _rows(rows),
       _out_of_bounds(out_of_bounds)
 {
-    if (columns <= 0 || rows <= 0 || tile_size.x <= 0.0f || tile_size.y <= 0.0f)
-        throw std::invalid_argument("DemoTileMap requires positive dimensions.");
     _cells.resize(static_cast<std::size_t>(columns) * static_cast<std::size_t>(rows));
 }
 

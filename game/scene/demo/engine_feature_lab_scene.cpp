@@ -150,10 +150,18 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
     _controls_window->set_active(true);
     _controls_window->focus_first_available_scope();
 
-    enable_character_debug_draw();
-    refresh_character_debug_draw();
-    if (_character)
-        example::input::configure_scene_player(*this, _controller, *_character);
+    try
+    {
+        enable_character_debug_draw();
+        refresh_character_debug_draw();
+        if (_character)
+            example::input::configure_scene_player(*this, _controller, *_character);
+    }
+    catch (...)
+    {
+        restore_character_debug_draw();
+        throw;
+    }
 }
 
 void EngineFeatureLabScene::on_exit()

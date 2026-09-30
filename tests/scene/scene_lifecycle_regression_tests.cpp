@@ -278,6 +278,22 @@ void secondary_failure_logging()
         "secondary detach failure must be logged once with its stage");
     require(manager.shutdown(), "secondary candidate failure must not leave attached services");
 }
+
+void bounded_cleanup_failures()
+{
+    scene::detail::SceneFailureCollector failures;
+    for (int index = 0; index < 20; ++index)
+    {
+        try { throw std::runtime_error(index == 0 ? "primary" : "secondary"); }
+        catch (...) { failures.capture(1,scene::SceneBoundary::Exit,"Cleanup step"); }
+    }
+    const auto result = failures.finish();
+    require(!result && result.error().diagnostic.message == "primary"
+            && result.error().diagnostic.entries.size() == 16
+            && result.error().diagnostic.entries.back().reason.find("omitted: 4") != std::string::npos,
+        "bounded failure collector retains first failure and reports overflow");
+
+}
 } // namespace
 
 int main()
@@ -289,4 +305,5 @@ int main()
     collision_retirement();
     failed_entry_services();
     secondary_failure_logging();
+    bounded_cleanup_failures();
 }

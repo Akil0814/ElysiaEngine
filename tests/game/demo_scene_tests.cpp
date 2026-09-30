@@ -633,6 +633,18 @@ void test_escape_returns_the_full_caller_route()
     controls->end_session();
     require(!controls->get(first_controller) && !controls->get(second_controller),"Explicit session end invalidates demo handles");
 
+    debug_draw->set_enabled(false);
+    debug_draw->set_enabled_categories(elysia::tools::DebugDrawCategory::Gameplay);
+    scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
+        .route={.target=example::scene_keys::EngineFeatureLab,
+            .payload=example::scene::DemoScenePayload{.return_route=original_caller},
+            .reload_mode=elysia::scene::SceneReloadMode::Recreate}});
+    scene_manager.on_update(0);
+    require(scene_manager.state()==elysia::scene::SceneManagerState::Faulted
+            && !debug_draw->enabled()
+            && debug_draw->enabled_categories()==elysia::tools::DebugDrawCategory::Gameplay,
+        "Failed feature lab controller setup restores the previous global DebugDraw state");
+
 
     require(scene_manager.shutdown(), "Demo shutdown after session end restores devices without errors");
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(

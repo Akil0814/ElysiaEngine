@@ -58,6 +58,7 @@ public:
 private:
     Application() = default;
 
+    bool initialize_impl(int argc,char** argv,const IGameModule& game_module);
     bool initialize_runtime(
         const elysia::bootstrap::RuntimeSettings& settings,
         const ApplicationDescriptor& descriptor);

@@ -91,6 +91,8 @@ void PhysicsCombatDemoSceneBase::on_enter(
     auto* debug = elysia::tools::DebugDraw::instance();
     _previous_debug_enabled = debug->enabled();
     _previous_debug_categories = debug->enabled_categories();
+    try
+    {
     debug->set_enabled(true);
     debug->set_enabled_categories(
         elysia::tools::DebugDrawCategory::PhysicsCollider
@@ -128,6 +130,13 @@ void PhysicsCombatDemoSceneBase::on_enter(
     if (_tile_map && physics_world().tile_world() != _tile_map)
         (void)physics_world().set_tile_world(*_tile_map);
     register_physics_inspector();
+    }
+    catch (...)
+    {
+        debug->set_enabled_categories(_previous_debug_categories);
+        debug->set_enabled(_previous_debug_enabled);
+        throw;
+    }
 }
 
 void PhysicsCombatDemoSceneBase::on_exit()

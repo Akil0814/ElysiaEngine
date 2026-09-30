@@ -6,11 +6,16 @@
 
 int main(int argc, char** argv)
 {
-	example::application::GameModule game_module;
-	
-	if (!ELYSIA_INITIALIZE_APP(argc, argv, game_module))
+	try
+	{
+		example::application::GameModule game_module;
+		if (!ELYSIA_INITIALIZE_APP(argc, argv, game_module))
+			return EXIT_FAILURE;
+		return ELYSIA_RUN_APP == elysia::application::ApplicationRunResult::NormalExit
+			? EXIT_SUCCESS: EXIT_FAILURE;
+	}
+	catch (...)
+	{
 		return EXIT_FAILURE;
-	
-	return ELYSIA_RUN_APP == elysia::application::ApplicationRunResult::NormalExit
-		? EXIT_SUCCESS: EXIT_FAILURE;
+	}
 }

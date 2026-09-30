@@ -39,12 +39,9 @@ void ControllerManager::end_session()
         r->operation.finish(ControllerError::NoSession);
         release_reservation(*r);
     }
-    std::vector<ControllerHandle> handles;
     for (auto &[id, e] : _entries)
         if (!e.removed)
-            handles.push_back(e.command.controller);
-    for (auto h : handles)
-        (void)remove(h);
+            (void)remove(e.command.controller);
 }
 ControllerManager::Entry *ControllerManager::find(ControllerHandle h)
 {

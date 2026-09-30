@@ -47,6 +47,7 @@ struct PhysicsWorld::Impl
         std::vector<ColliderId> shapes;
         PhysicsPose previous{}, current{};
         bool removed = false;
+        bool pending_creation = false;
     };
     struct Mapping
     {
@@ -91,6 +92,7 @@ struct PhysicsWorld::Impl
     PhysicsStepStats stats{};
     PhysicsDebugCapture capture = PhysicsDebugCapture::None;
     PhysicsDebugSnapshot debug{};
+    PhysicsDebugSnapshot debug_spare{};
     explicit Impl(PhysicsWorldConfig);
     ~Impl();
     b2Vec2 to(elysia::core::Vector2 p) const
@@ -125,6 +127,8 @@ struct PhysicsWorld::Impl
             f();
     }
     void flush();
+    void rollback_registration(std::uint64_t) noexcept;
+    void rollback_aborted_registrations() noexcept;
     void clear();
     void create_shape(Shape &, b2BodyId);
     void retire(Shape &);
@@ -137,7 +141,7 @@ struct PhysicsWorld::Impl
     void prepare_snapshot();
     static bool pre_solve(b2ShapeId, b2ShapeId, b2Manifold *, void *);
     void collect(std::vector<CollisionContact> &);
-    void capture_debug();
+    void capture_debug(PhysicsDebugCapture);
     void query(const b2ShapeProxy &, b2Vec2 translation, const CollisionFilter &, bool sweep,
                bool ray, std::vector<CollisionQueryHit> &) const;
     std::optional<CollisionTarget> target(b2ShapeId id) const

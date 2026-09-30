@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <new>
 #include <utility>
 
 #include <SDL3_image/SDL_image.h>
@@ -139,6 +140,43 @@ bool Application::initialize(
     char** argv,
     const IGameModule& game_module)
 {
+    try
+    {
+        return initialize_impl(argc, argv, game_module);
+    }
+    catch (const std::bad_alloc&)
+    {
+        constexpr std::string_view message = "Out of memory during application startup.";
+        elysia::tools::Logger::instance()->error("startup", message);
+        elysia::tools::TerminationManager::instance()->request_termination(
+            elysia::tools::TerminationReason::UnhandledException, "startup", message);
+    }
+    catch (const std::exception& error)
+    {
+        elysia::tools::Logger::instance()->error("startup", error.what());
+        elysia::tools::TerminationManager::instance()->request_termination(
+            elysia::tools::TerminationReason::UnhandledException, "startup", error.what());
+    }
+    catch (...)
+    {
+        constexpr std::string_view message = "Unknown exception during application startup.";
+        elysia::tools::Logger::instance()->error("startup", message);
+        elysia::tools::TerminationManager::instance()->request_termination(
+            elysia::tools::TerminationReason::UnhandledException, "startup", message);
+    }
+    constexpr const char* fallback = "The game could not start. See the log for details.";
+    elysia::tools::Logger::instance()->error("startup",fallback);
+    if (!SDL_GetHintBoolean("ELYSIA_SUPPRESS_ERROR_DIALOGS",false))
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"Game Start Error",fallback,_window);
+    (void)shutdown();
+    return false;
+}
+
+bool Application::initialize_impl(
+    int argc,
+    char** argv,
+    const IGameModule& game_module)
+{
     elysia::tools::Logger::instance()->initialize_console();
 
     _active = true;
@@ -153,6 +191,7 @@ bool Application::initialize(
     {
         descriptor = describe_game_module(game_module);
     }
+    catch (const std::bad_alloc&) { throw; }
     catch (const std::exception& error)
     {
         return startup_fail(
@@ -226,6 +265,7 @@ bool Application::initialize(
         _development_overlay_host.set_overlay(
             game_module.create_development_overlay());
     }
+    catch (const std::bad_alloc&) { throw; }
     catch (const std::exception& error)
     {
         return startup_fail(
@@ -251,6 +291,7 @@ bool Application::initialize(
                     "development_overlay", overlay_result.error());
             }
         }
+        catch (const std::bad_alloc&) { throw; }
         catch (const std::exception& error)
         {
             return startup_fail(
@@ -453,6 +494,7 @@ bool Application::enter_initial_scene(
         (void)shutdown();
         return false;
     }
+    catch (const std::bad_alloc&) { throw; }
     catch (const std::exception& error)
     {
         return startup_fail(

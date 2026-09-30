@@ -82,7 +82,7 @@ class PhysicsWorld final : public ICollisionQueryService
     void reset() noexcept;
     const PhysicsWorldConfig &config() const noexcept;
     const PhysicsStepStats &last_step_stats() const noexcept;
-    void set_debug_capture(PhysicsDebugCapture) noexcept;
+    void set_debug_capture(PhysicsDebugCapture);
     PhysicsDebugCapture debug_capture() const noexcept;
     const PhysicsDebugSnapshot &debug_snapshot() const noexcept;
     std::optional<CollisionQueryHit> raycast(const RayCastQuery &) const override;
