@@ -10,6 +10,7 @@
 #include "../../../engine/ui/containers/ui_scroll_container.h"
 #include "../../../engine/ui/widgets/ui_button.h"
 #include "../../../engine/ui/widgets/image/ui_animation.h"
+#include "../../../engine/ui/widgets/label/ui_label.h"
 #include "../../../engine/ui/window/ui_window.h"
 #include "../../../engine/scene/runtime/scene_runtime_context.h"
 
@@ -56,6 +57,7 @@ void EngineFeatureLabScene::on_after_update(double delta)
 {
     (void)delta;
     refresh_character_debug_draw();
+    refresh_screen_status();
 }
 
 void EngineFeatureLabScene::on_shortcuts(const elysia::input::RawInputFrame &input,
@@ -68,8 +70,21 @@ void EngineFeatureLabScene::on_shortcuts(const elysia::input::RawInputFrame &inp
             && event.type == elysia::input::RawInputEventType::ControlPressed)
         {
             consume_input(event);
-            return_to_caller();
+            clear_screen_effect_or_return();
             return;
+        }
+        if (event.type == elysia::input::RawInputEventType::ControlPressed)
+        {
+            using Control = elysia::input::RawInputControl;
+            const std::array<Control, 9> shortcuts{Control::KeyF1, Control::KeyF2, Control::KeyF3,
+                Control::KeyF4, Control::KeyF5, Control::KeyF6, Control::KeyF7, Control::KeyF8, Control::KeyF9};
+            for (std::size_t i = 0; i < shortcuts.size(); ++i)
+                if (event.control == shortcuts[i])
+                {
+                    consume_input(event);
+                    trigger_screen_action(static_cast<ScreenAction>(i));
+                    return;
+                }
         }
         if (event.control == elysia::input::RawInputControl::KeySpace
             && event.type == elysia::input::RawInputEventType::ControlPressed)
@@ -149,6 +164,13 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
     _controls_window->set_visible(true);
     _controls_window->set_active(true);
     _controls_window->focus_first_available_scope();
+    if (!_screen_controls_window || _screen_controls_window->is_destroyed())
+        build_screen_controls();
+    _screen_controls_window->set_visible(true);
+    _screen_controls_window->set_active(true);
+    _screen_effect.reset();
+    _screen_action = "Ready";
+    refresh_screen_status();
 
     try
     {
@@ -166,6 +188,12 @@ void EngineFeatureLabScene::on_enter(const elysia::scene::ScenePayload& payload)
 
 void EngineFeatureLabScene::on_exit()
 {
+    _screen_effect.reset();
+    if (_screen_controls_window && !_screen_controls_window->is_destroyed())
+    {
+        _screen_controls_window->set_active(false);
+        _screen_controls_window->set_visible(false);
+    }
     _paused = false;
     if (_character)
         _character->clear_movement_input();
@@ -268,9 +296,126 @@ void EngineFeatureLabScene::build_feature_controls()
 
 void EngineFeatureLabScene::destroy_feature_controls() noexcept
 {
+    if (_screen_controls_window) _screen_controls_window->destroy();
+    _screen_controls_window = nullptr;
+    _screen_status = nullptr;
+    _screen_layer_button = nullptr;
+    _screen_effect.reset();
+    _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
     if (_controls_window)
         _controls_window->destroy();
     _controls_window = nullptr;
+}
+
+void EngineFeatureLabScene::build_screen_controls()
+{
+    using namespace elysia::ui;
+    // Leave the existing bottom number panel and its keyboard focus unchanged.
+    _screen_controls_window = create_and_add_object<UiWindow>(elysia::core::Rect{20,12,760,166},90);
+    if (!_screen_controls_window) throw std::runtime_error("Could not create screen effect controls.");
+    auto heading = std::make_unique<UiLabel>(elysia::core::Rect{0,0,728,22},0,
+        ui_raw_text("Screen effects | F1-F9 or click | Esc clears, then returns"));
+    _screen_controls_window->add_child(std::move(heading), {._margin = {16,8,0,0}});
+    const std::array<const char*,9> labels{"F1 Flash", "F2 Fade black", "F3 Hold black", "F4 Stop", "F5 Cancel",
+        "F6 Stretch", "F7 Cover", "F8 Contain", "F9 UI: After"};
+    for (std::size_t start : {std::size_t{0},std::size_t{5}})
+    {
+        auto row = std::make_unique<UiListContainer>(elysia::core::Rect{0,0,728,40});
+        row->set_direction(UiListDirection::Horizontal);
+        row->set_item_spacing(6);
+        const std::size_t end = start == 0 ? 5 : labels.size();
+        for (std::size_t i = start; i < end; ++i)
+        {
+            auto button = std::make_unique<UiButton>(elysia::core::Rect{0,0,140,40});
+            button->set_text_content(ui_raw_text(labels[i]));
+            button->set_on_click([this,i] { trigger_screen_action(static_cast<ScreenAction>(i)); });
+            if (i == 8) _screen_layer_button = button.get();
+            row->add_back(std::move(button));
+        }
+        auto* scope = row.get();
+        _screen_controls_window->add_child(std::move(row), {._margin = {16,start == 0 ? 34.0f : 78.0f,0,0}});
+        _screen_controls_window->register_focus_scope(*scope);
+    }
+    auto status = std::make_unique<UiLabel>(elysia::core::Rect{0,0,728,26});
+    _screen_status = status.get();
+    _screen_controls_window->add_child(std::move(status), {._margin = {16,122,0,0}});
+    _screen_controls_window->set_on_cancel([this] { clear_screen_effect_or_return(); });
+}
+
+void EngineFeatureLabScene::trigger_screen_action(ScreenAction action)
+{
+    using namespace elysia::effects;
+    auto* service = ELYSIA_EFFECTS;
+    if (action == ScreenAction::Stop)
+    {
+        _screen_action = _screen_effect && service->stop_screen_effect(*_screen_effect) ? "Stopping" : "Nothing to stop";
+        refresh_screen_status();
+        return;
+    }
+    if (_screen_effect) service->cancel_screen_effect(*_screen_effect);
+    _screen_effect.reset();
+    if (action == ScreenAction::Cancel) _screen_action = "Cancelled";
+    else if (action == ScreenAction::ToggleLayer)
+    {
+        _screen_layer = _screen_layer == ScreenEffectLayer::AfterUi ? ScreenEffectLayer::BeforeUi : ScreenEffectLayer::AfterUi;
+        _screen_action = "Layer changed; choose an effect";
+    }
+    else if (action == ScreenAction::Stretch || action == ScreenAction::Cover || action == ScreenAction::Contain)
+    {
+        ScreenImageEffectRequest request;
+        request.texture_key = "demo.screen_effect";
+        request.fit = action == ScreenAction::Stretch ? ScreenEffectFit::Stretch
+            : action == ScreenAction::Cover ? ScreenEffectFit::Cover : ScreenEffectFit::Contain;
+        request.playback.layer = _screen_layer;
+        request.playback.fade_in_seconds = 0.3;
+        request.playback.hold_seconds = 1;
+        request.playback.fade_out_seconds = 0.5;
+        _screen_effect = service->request_screen_image_effect(request);
+        _screen_action = "Image: " + std::string(action == ScreenAction::Stretch ? "Stretch" : action == ScreenAction::Cover ? "Cover" : "Contain");
+        if (!_screen_effect) _screen_action = "Image unavailable: demo.screen_effect";
+    }
+    else
+    {
+        ScreenColorEffectRequest request;
+        request.playback.layer = _screen_layer;
+        request.playback.hold_seconds = 0;
+        if (action == ScreenAction::Flash)
+        {
+            request.color = {255,255,255};
+            request.playback.fade_out_seconds = 0.25;
+            _screen_action = "Flash";
+        }
+        else
+        {
+            request.color = {0,0,0};
+            request.playback.fade_in_seconds = 0.4;
+            request.playback.fade_out_seconds = 0.4;
+            request.playback.hold_seconds = 0.3;
+            request.playback.end = action == ScreenAction::HoldBlack ? ScreenEffectEnd::Manual : ScreenEffectEnd::Timed;
+            _screen_action = action == ScreenAction::HoldBlack ? "Hold black (F4 fades, F5/Esc clears)" : "Fade black";
+        }
+        _screen_effect = service->request_screen_color_effect(request);
+        if (!_screen_effect) _screen_action = "Effect request failed";
+    }
+    refresh_screen_status();
+}
+
+void EngineFeatureLabScene::refresh_screen_status()
+{
+    const bool active = _screen_effect && ELYSIA_EFFECTS->is_screen_effect_active(*_screen_effect);
+    if (_screen_status && !_screen_status->is_destroyed())
+        _screen_status->set_text_content(elysia::ui::ui_raw_text(
+            std::string(active ? "Playing: " : _screen_effect ? "Finished: " : "") + _screen_action));
+    if (_screen_layer_button && !_screen_layer_button->is_destroyed())
+        _screen_layer_button->set_text_content(elysia::ui::ui_raw_text(
+            _screen_layer == elysia::effects::ScreenEffectLayer::AfterUi ? "F9 UI: After" : "F9 UI: Before"));
+}
+
+void EngineFeatureLabScene::clear_screen_effect_or_return()
+{
+    if (_screen_effect && ELYSIA_EFFECTS->is_screen_effect_active(*_screen_effect))
+        trigger_screen_action(ScreenAction::Cancel);
+    else return_to_caller();
 }
 
 void EngineFeatureLabScene::spawn_floating_number_effect(

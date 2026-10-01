@@ -143,6 +143,20 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 
 默认时钟下，旧场景从下一次更新开始累计 `ELYSIA_TIME->raw_delta()`，累计到 0.4 秒时发出切换请求。退出旧场景会清理旧遮罩；新场景进入时创建的新遮罩从全黑开始淡出。因此新场景第一帧仍为黑色，不需要跨场景句柄。场景路由和转场计时由游戏负责。
 
+### 在游戏中手动测试
+
+主菜单 → 演示画廊 → 引擎功能实验室，顶部的 Screen effects 面板支持鼠标按钮和快捷键：
+
+| 按键 | 效果 |
+|---|---|
+| F1 | 闪白并自动淡出 |
+| F2 / F3 | 渐黑后自动恢复 / 渐黑后持续保持 |
+| F4 / F5 | 从当前透明度淡出 / 立即取消 |
+| F6 / F7 / F8 | 图片 Stretch / Cover / Contain |
+| F9 | 切换 UI 前后层级，清除当前预览后重新选择效果 |
+
+面板显示 Playing、Finished 或请求失败状态。每次选择效果会替换上一次预览。黑屏遮住按钮时仍可用快捷键；Esc 优先清除正在播放的效果，没有活动效果时才返回画廊。图片使用已加载的 `demo.screen_effect` 测试纹理；其 3:2 网格、四角标记和圆环用于观察拉伸、裁切、等比显示和透明叠加。
+
 ## 资源配置
 
 下文是项目需提供的 JSON 格式；核心 manifest 路径由 content_registry 的 required 项指定。实体资源包的模板、布局与 key 规则见本目录[资源指南](../content/resources.md)。

@@ -115,6 +115,7 @@ int main()
 		"a finished content load must register core resources, all Ryougi clips, and effects together");
 	require(resource_service->find_atlas("test.animation") != nullptr
 		&& resource_service->find_texture("ui.moon") != nullptr
+		&& resource_service->find_texture("demo.screen_effect") != nullptr
 		&& resource_service->find_font("ui.latin.20") != nullptr
 		&& resource_service->find_sound("system.button_click_down") != nullptr
 		&& resource_service->find_sound("system.button_click_up") != nullptr

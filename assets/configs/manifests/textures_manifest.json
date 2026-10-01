@@ -2,6 +2,9 @@
   "textures": {
     "ui.moon": {
       "path": "ui/moon.png"
+    },
+    "demo.screen_effect": {
+      "path": "ui/screen_effect_test.svg"
     }
   }
 }

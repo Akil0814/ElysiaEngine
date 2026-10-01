@@ -57,14 +57,14 @@ void test_minimal_repository_resource_plan()
         "the minimal manifests must assemble into a valid resource plan");
     const auto& plan = *plan_result;
 
-    require(plan.texture_requests().size() == 1
+    require(plan.texture_requests().size() == 2
             && plan.sound_requests().size() == 2
             && plan.music_requests().empty()
             && plan.font_requests().size() == 10
             && plan.atlas_build_requests().size() == 9
             && plan.animation_build_requests().size() == 9
             && plan.animation_effect_build_requests().size() == 1
-            && plan.total_request_count() == 32,
+            && plan.total_request_count() == 33,
         "the plan must contain the reviewed core resources and eight Ryougi animation clips");
 
     const auto* texture = find_request(
@@ -75,6 +75,15 @@ void test_minimal_repository_resource_plan()
             && texture->origin.config_path.filename() == "textures_manifest.json"
             && texture->origin.capability == "textures",
         "ui.moon must preserve its key, path, and manifest origin");
+
+    const auto* screen_texture = find_request(
+        plan.texture_requests(), "demo.screen_effect",
+        [](const auto& request) -> const std::string& { return request.key; });
+    require(screen_texture != nullptr
+            && screen_texture->file_path == paths->textures() / "ui" / "screen_effect_test.svg"
+            && screen_texture->origin.config_path.filename() == "textures_manifest.json"
+            && screen_texture->origin.capability == "textures",
+        "the screen effect demo must preserve its image key, path, and manifest origin");
 
     for (const std::string_view key : {
             "system.button_click_down", "system.button_click_up" })
@@ -196,7 +205,7 @@ void test_minimal_repository_resource_plan()
     auto no_fonts = assembler.assemble(content, std::span<const int>{});
     require(no_fonts
             && no_fonts->font_requests().empty()
-            && no_fonts->total_request_count() == 22,
+            && no_fonts->total_request_count() == 23,
         "an empty project font-size set must omit only project font requests");
 }
 }
