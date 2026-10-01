@@ -25,6 +25,12 @@ endfunction()
 
 find_package(Threads REQUIRED)
 
+add_elysia_test(screen_effect_tests
+    LABEL effects
+    SOURCES effects/screen_effect_tests.cpp
+    SDL
+)
+
 add_elysia_test(world_ui_tests
     LABEL gameplay_ui
     SOURCES gameplay/world_ui_tests.cpp

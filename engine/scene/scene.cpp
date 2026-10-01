@@ -10,6 +10,7 @@
 #include "../physics/physics_debug_draw.h"
 #include "../tools/debug_draw.h"
 #include "../ui/core/ui_render_command_range_utils.h"
+#include "../effects/runtime/effect_manager.h"
 
 #include <algorithm>
 #include <cassert>
@@ -339,6 +340,11 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
         elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,debug_commands));
     }
 
+    const elysia::core::Rect viewport(0, 0,
+        _runtime_context ? static_cast<float>(_runtime_context->logical_width()) : 0.0f,
+        _runtime_context ? static_cast<float>(_runtime_context->logical_height()) : 0.0f);
+    auto* effects = elysia::effects::EffectManager::instance();
+    elysia::core::require_render_success(effects->render_screen_effects(renderer, elysia::effects::ScreenEffectLayer::BeforeUi, viewport));
     for (const auto& ui_root : _ui_roots)
     {
         if (!ui_root || ui_root->is_destroyed() || !ui_root->is_visible())
@@ -349,6 +355,7 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
             ui_render_commands, begin, ui_root->presentation_translation());
     }
     elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,ui_render_commands));
+    elysia::core::require_render_success(effects->render_screen_effects(renderer, elysia::effects::ScreenEffectLayer::AfterUi, viewport));
 }
 
 void Scene::attach_runtime_services()

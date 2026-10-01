@@ -1,6 +1,8 @@
 # 动画与特效 JSON
 
-Animation 负责 Atlas 与 Animation 资源。Effect 只将已存在的 Animation 注册为 EffectDefinition，不会单独请求图片或创建动画。核心 manifest 和 additional module 最终进入同一请求计划与资源 registry。
+Animation 负责 Atlas 与 Animation 资源。EffectDefinition 加载只将已存在的 Animation 注册为定义，不会单独请求图片或创建动画。核心 manifest 和 additional module 最终进入同一请求计划与资源 registry。
+
+运行时 `EffectService` 还支持纯色和静态图片屏幕特效；图片通过已加载的 texture key 查询，不新增 EffectDefinition 配置。屏幕特效由 EffectManager 内的独立运行时管理，使用逻辑视口坐标，在 UI 前或 UI 后绘制。所有实例属于当前场景，场景解绑时清理，不跨场景保留；内容清理先释放特效，再释放其借用的纹理。
 
 依赖查询与阶段终止是两个独立事件：`find_atlas()` / `find_definition()` 查询失败时的 Warn 记录缺失依赖；随后 Animation 或 EffectDefinition 注册终止时的 Error 记录加载阶段失败。两条日志不得合并或按重复日志删除。
 

@@ -2,10 +2,25 @@
 
 #include "../../animation/animation_service.h"
 #include "../../scene/scene.h"
+#include "../../resources/resource_service.h"
+#include "../../core/time.h"
 #include "../../tools/logger.h"
 
 namespace elysia::effects
 {
+std::optional<ScreenEffectHandle> EffectManager::dispatch(const ScreenColorEffectRequest& request)
+{
+    auto handle = _screen_effects.create(request, _active_scene, elysia::core::Time::instance()->frame_count());
+    if (!handle) ELYSIA_LOG_WARN("effects", "Screen color effect rejected: no active scene or invalid playback parameters.");
+    return handle;
+}
+std::optional<ScreenEffectHandle> EffectManager::dispatch(const ScreenImageEffectRequest& request)
+{
+    auto handle = _screen_effects.create(request, ELYSIA_RESOURCES->find_texture(request.texture_key), _active_scene,
+        elysia::core::Time::instance()->frame_count());
+    if (!handle) ELYSIA_LOG_WARN("effects", "Screen image effect rejected: no active scene, invalid parameters or missing texture: " << request.texture_key);
+    return handle;
+}
 void EffectManager::set_runtime_dependencies(
 	SDL_Renderer* renderer,
 	const elysia::typography::FontResolver* font_resolver) noexcept
@@ -127,6 +142,7 @@ bool EffectManager::dispatch(const FloatingNumberEffectSpawnRequest& request)
 
 void EffectManager::clear_content() noexcept
 {
+	_screen_effects.clear();
 	_animation_effect_definitions.clear();
 	_floating_number_effect_factory.clear_cache();
 }
@@ -138,6 +154,7 @@ void EffectManager::bind_active_scene(elysia::scene::Scene& scene) noexcept
 
 void EffectManager::unbind_active_scene(const elysia::scene::Scene& scene) noexcept
 {
+	_screen_effects.unbind(&scene);
 	if (_active_scene == &scene)
 		_active_scene = nullptr;
 }
