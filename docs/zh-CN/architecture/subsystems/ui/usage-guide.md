@@ -5,7 +5,7 @@
 ## 最小窗口
 
 `UiWindow` 是场景 UI 树的根。场景对象负责其生命周期；窗口负责子节点、焦点域、
-overlay 与 popup 的协调。以下模式来自 `game/scene/main_menu_scene.cpp`：
+overlay 与 popup 的协调。以下模式来自 `game/navigation/main_menu_scene.cpp`：
 
 ```cpp
 auto* window = Scene::create_and_add_object<elysia::ui::UiWindow>(
@@ -20,8 +20,8 @@ auto* start = window->create_child<elysia::ui::UiButton>(
     elysia::ui::UiButtonConfig{.content = elysia::ui::ui_text_key("menu_scene.demo_gallery")});
 start->set_on_click([this] {
     request_scene_switch(
-        example::scene_keys::DemoGallery,
-        example::scene::DemoScenePayload{
+        example::scene_keys::ShowcaseGallery,
+        example::scene::ShowcaseEnterPayload{
             .return_route = {
                 .target = example::scene_keys::MainMenu,
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
@@ -34,9 +34,6 @@ settings->set_on_click([this] {
         elysia::builtin::SettingsScenePayload{
             .return_route = elysia::scene::SceneRoute{
                 .target = example::scene_keys::MainMenu,
-                .payload = example::scene::MainMenuEnterPayload{
-                    .replay_theme_music = false
-                },
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse
             }
         });

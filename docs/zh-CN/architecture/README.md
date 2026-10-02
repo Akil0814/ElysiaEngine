@@ -2,6 +2,7 @@
 
 ## 当前实现参考
 
+- [Gameplay UI](subsystems/gameplay-ui.md)：世界文字、数值条、被动气泡与游戏对象组合。
 - [UI](ui/README.md)：保留模式 UI、布局、焦点、窗口表面、样式和控件参考。
 - [Input](input/README.md)：Raw Input、Action Mapping、Gameplay Input 和场景分发。
 - [资源加载与 JSON](resources/README.md)：内容注册表、manifest、实体资源、动画和特效配置。

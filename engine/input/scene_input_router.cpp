@@ -1,6 +1,7 @@
 #include "scene_input_router.h"
 #include "../scene/scene.h"
 #include <algorithm>
+#include <exception>
 namespace elysia::input
 {
 InputCapture SceneInputRouter::gameplay_capture(InputSourceId source, InputCapture external, bool focus_lost,
@@ -67,10 +68,29 @@ void SceneInputRouter::cancel_source(InputSourceId source, InputCancelReason rea
 void SceneInputRouter::reset_ui_interaction()
 {
     _ui_input_router.reset_transient_state();
-    for (auto &root : _scene._ui_roots)
-        if (root)
-            root->cancel_input_interaction();
+    cancel_ui_interactions();
     dispatch_ui_frame({});
+}
+void SceneInputRouter::cancel_ui_interactions()
+{
+    using Lifetime = elysia::ui::UiElement::CancellationLifetime;
+    std::vector<std::shared_ptr<Lifetime>> snapshot;
+    for (const auto& root : _scene._ui_roots)
+        if (root)
+        {
+            if (!root->_cancellation_lifetime)
+                root->_cancellation_lifetime = std::make_shared<Lifetime>(root.get());
+            snapshot.push_back(root->_cancellation_lifetime);
+        }
+    std::exception_ptr first_failure;
+    for (const auto& lifetime : snapshot)
+        if (auto* root = lifetime->element; root && _scene.contains_object_address(root))
+        {
+            try { root->cancel_input_interaction(); }
+            catch (...) { if (!first_failure) first_failure = std::current_exception(); }
+        }
+    if (first_failure)
+        std::rethrow_exception(first_failure);
 }
 void SceneInputRouter::set_ui_gamepad(InputSourceId source)
 {
@@ -113,9 +133,7 @@ void SceneInputRouter::reset()
         suppress(player);
     _await_initial_input = true;
     _last_ui_state = {};
-    for (auto &root : _scene._ui_roots)
-        if (root)
-            root->cancel_input_interaction();
+    cancel_ui_interactions();
     _ui_input_router.reset_transient_state();
     _consumed.clear();
     _block_gameplay = false;
@@ -158,9 +176,7 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
         if (source == ui_gamepad())
         {
             _ui_input_router.reset_transient_state();
-            for (auto &root : _scene._ui_roots)
-                if (root)
-                    root->cancel_input_interaction();
+            cancel_ui_interactions();
         }
         if (source == ui_gamepad())
             set_ui_gamepad({});
@@ -179,9 +195,7 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
         for (const auto &source : input.sources)
             _ui_suppression[source.source].block(source.frame.state, AllInputCapture);
         _ui_input_router.reset_transient_state();
-        for (auto &root : _scene._ui_roots)
-            if (root)
-                root->cancel_input_interaction();
+        cancel_ui_interactions();
         dispatch_ui_frame({});
     }
     std::vector<InputSourceId> ui_sources{InputSourceId::keyboard(), InputSourceId::mouse()};
@@ -190,9 +204,7 @@ void SceneInputRouter::route(const InputSnapshot &snapshot)
     if (_await_initial_input || ui_sources != _previous_ui_sources)
     {
         _ui_input_router.reset_transient_state();
-        for (auto &root : _scene._ui_roots)
-            if (root)
-                root->cancel_input_interaction();
+        cancel_ui_interactions();
         for (const auto &source : input.sources)
         {
             if (_await_initial_input)

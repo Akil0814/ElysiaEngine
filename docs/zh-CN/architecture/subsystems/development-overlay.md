@@ -76,7 +76,7 @@ Panel callback 属于调用方代码，契约要求不得抛异常。若 callbac
 
 ## Physics Combat Demo 示例
 
-三个 Physics Combat Demo 由 `PhysicsCombatDemoSceneBase` 共同注册 `physics_demo.inspector`。F2 显示或隐藏 Overlay，F1 原有 DebugDraw 开关保持不变。Inspector 展示：
+三个 Physics Combat Demo 由 `GameplayDemoSceneBase` 共同注册 `physics_demo.inspector`。F2 显示或隐藏 Overlay，F1 原有 DebugDraw 开关保持不变。Inspector 展示：
 
 - frame delta、ImGui FPS 和场景名；
 - fixed step、gravity、追赶步数和 solver iterations；

@@ -1,5 +1,5 @@
 #include "tests/support/control_scene_fixture.h"
-#include "../../game/input/command_view.h"
+#include "game/input/command_view.h"
 #define SDL_MAIN_HANDLED
 #include "engine/gameplay/scene/gameplay_scene.h"
 #include "engine/input/input_system.h"

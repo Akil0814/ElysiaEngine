@@ -4,7 +4,7 @@
 #define SDL_MAIN_HANDLED
 
 #include "engine/builtin/object/engine_character.h"
-#include "../../game/input/gameplay_input_map.h"
+#include "game/input/gameplay_input_map.h"
 #include "engine/builtin/resources/builtin_resources.h"
 #include "engine/builtin/resources/builtin_asset_catalog.h"
 #include "engine/tools/debug_draw.h"

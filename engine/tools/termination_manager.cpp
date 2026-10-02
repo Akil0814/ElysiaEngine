@@ -8,8 +8,11 @@ namespace elysia::tools
 void TerminationManager::initialize_lifecycle() noexcept
 {
     bool expected = false;
-    if (!_lifecycle_initialized.compare_exchange_strong(expected,true,
-        std::memory_order_acq_rel,std::memory_order_acquire))
+    if (!_lifecycle_initialized.compare_exchange_strong(
+        expected,
+        true,
+        std::memory_order_acq_rel,
+        std::memory_order_acquire))
     {
         return;
     }

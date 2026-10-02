@@ -11,9 +11,9 @@
 #include "engine/physics/contracts/physics_participant.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/scene/scene_manager.h"
-#include "game/scene/demo/physics/box2d_lab_scene.h"
-#include "game/demo/physics/physics_scenario_presentation.h"
-#include "game/scene/example_scene_keys.h"
+#include "game/showcase/physics/box2d_lab_scene.h"
+#include "game/showcase/scenarios/showcase_scenario_presentation.h"
+#include "game/navigation/showcase_scene_keys.h"
 #include "tests/support/test_assertions.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -35,13 +35,13 @@ int main(int argc, char **argv)
         if (!elysia::gameplay::ControllerService::instance()->session_active())
             (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene.start({.target = example::scene_keys::Box2DLab,
-                     .payload = example::scene::DemoScenePayload{
-                         .return_route = {.target = example::scene_keys::PhysicsCombatGallery}}});
-        using example::demo::physics::PhysicsScenarioPresentation;
+                     .payload = example::scene::ScenarioEnterPayload{
+                         .return_route = {.target = example::scene_keys::PhysicsGallery},.scenario_id="motion"}});
+        using example::showcase::scenarios::ShowcaseScenarioPresentation;
         auto find_presentation=[](){
             for(auto* o:ELYSIA_OBJECT_QUERY->find_objects<>())
-                if(auto* p=dynamic_cast<PhysicsScenarioPresentation*>(o))return p;
-            return static_cast<PhysicsScenarioPresentation*>(nullptr);
+                if(auto* p=dynamic_cast<ShowcaseScenarioPresentation*>(o))return p;
+            return static_cast<ShowcaseScenarioPresentation*>(nullptr);
         };
         auto* presentation=find_presentation();
         require(presentation!=nullptr,"Lab exposes the shared scenario presentation");
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
             elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyP,
                                                 .type = elysia::input::RawInputEventType::ControlPressed}}));
         for(int i=0;i<120;++i)scene.on_update(1.0/60);
-        require(presentation->scenario().result().status==example::demo::physics::ScenarioStatus::Passed,
+        require(presentation->scenario().result().status==example::showcase::scenarios::ScenarioStatus::Passed,
                 "Scene runs the same behavioral checks as the headless runner");
         auto objects = ELYSIA_OBJECT_QUERY->find_objects<>();
         const auto& world=presentation->scenario().world();

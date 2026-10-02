@@ -1,24 +1,27 @@
-#include "example_game_module.h"
-#include "../scene/demo/local_multiplayer_scene.h"
-#include "../scene/demo/multi_target_camera_scene.h"
+#include "game/showcase/audio/audio_showcase_scene.h"
+#include "game/showcase/gameplay/gameplay_gallery_scene.h"
+#include "game/showcase/scenarios/scenario_scene.h"
+#include "game/application/example_game_module.h"
+#include "game/showcase/input/local_multiplayer_scene.h"
+#include "game/showcase/camera/multi_target_camera_scene.h"
 
-#include "../scene/main_menu_scene.h"
-#include "../scene/demo/animation_preview_scene.h"
-#include "../scene/demo/demo_gallery_scene.h"
-#include "../scene/demo/engine_feature_lab_scene.h"
-#include "../scene/demo/ui_component_gallery_scene.h"
-#include "../scene/demo/physics/collider_combat_demo_scene.h"
-#include "../scene/demo/physics/box2d_lab_scene.h"
-#include "../scene/demo/physics/physics_combat_gallery_scene.h"
-#include "../scene/demo/physics/platform_tile_combat_demo_scene.h"
-#include "../scene/demo/physics/top_down_tile_combat_demo_scene.h"
-#include "../scene/example_scene_keys.h"
+#include "game/navigation/main_menu_scene.h"
+#include "game/showcase/animation/animation_preview_scene.h"
+#include "game/showcase/shared/showcase_gallery_scene.h"
+#include "game/showcase/effects/effects_showcase_scene.h"
+#include "game/showcase/ui/ui_component_gallery_scene.h"
+#include "game/showcase/gameplay/collider_combat_demo_scene.h"
+#include "game/showcase/physics/box2d_lab_scene.h"
+#include "game/showcase/physics/physics_gallery_scene.h"
+#include "game/showcase/gameplay/platform_tile_combat_demo_scene.h"
+#include "game/showcase/gameplay/top_down_tile_combat_demo_scene.h"
+#include "game/navigation/showcase_scene_keys.h"
 
-#include "../../engine/builtin/builtin_scene_keys.h"
-#include "../../engine/builtin/scenes/startup_loading_scene.h"
-#include "../../engine/scene/scene_manager.h"
+#include "engine/builtin/builtin_scene_keys.h"
+#include "engine/builtin/scenes/startup_loading_scene.h"
+#include "engine/scene/scene_manager.h"
 #if ELYSIA_ENABLE_IMGUI
-#include "../../engine/tools/imgui/imgui_development_overlay.h"
+#include "engine/tools/imgui/imgui_development_overlay.h"
 #endif
 
 namespace example::application
@@ -47,9 +50,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
         .payload = StartupLoadingScenePayload{
             .success_route = SceneRoute{
                 .target = example::scene_keys::MainMenu,
-                .payload = example::scene::MainMenuEnterPayload{
-                    .replay_theme_music = true
-                },
+                .payload = elysia::scene::ScenePayload{},
                 .reload_mode = SceneReloadMode::Reuse
             },
             .failure_route = std::nullopt,
@@ -65,6 +66,9 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
 void GameModule::register_scenes(
     elysia::scene::SceneManager& scene_manager) const
 {
+    scene_manager.register_game_scene<example::scene::AudioShowcaseScene>(example::scene_keys::AudioShowcase);
+    scene_manager.register_game_scene<example::scene::GameplayGalleryScene>(example::scene_keys::GameplayGallery);
+    scene_manager.register_game_scene<example::scene::GameplayVerificationScene>(example::scene_keys::GameplayVerification);
     scene_manager.register_game_scene<example::scene::LocalMultiplayerScene>(
         example::scene_keys::LocalMultiplayer);
     scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(example::scene_keys::MultiTargetCamera);
@@ -72,8 +76,8 @@ void GameModule::register_scenes(
         example::scene_keys::MainMenu);
     scene_manager.register_game_scene<example::scene::AnimationPreviewScene>(
         example::scene_keys::AnimationPreview);
-    scene_manager.register_game_scene<example::scene::PhysicsCombatGalleryScene>(
-        example::scene_keys::PhysicsCombatGallery);
+    scene_manager.register_game_scene<example::scene::PhysicsGalleryScene>(
+        example::scene_keys::PhysicsGallery);
     scene_manager.register_game_scene<example::scene::ColliderCombatDemoScene>(
         example::scene_keys::ColliderCombatDemo);
     scene_manager.register_game_scene<example::scene::Box2DLabScene>(
@@ -82,12 +86,12 @@ void GameModule::register_scenes(
         example::scene_keys::PlatformTileCombatDemo);
     scene_manager.register_game_scene<example::scene::TopDownTileCombatDemoScene>(
         example::scene_keys::TopDownTileCombatDemo);
-    scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
-        example::scene_keys::DemoGallery);
+    scene_manager.register_game_scene<example::scene::ShowcaseGalleryScene>(
+        example::scene_keys::ShowcaseGallery);
     scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(
         example::scene_keys::UiComponentGallery);
-    scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
-        example::scene_keys::EngineFeatureLab);
+    scene_manager.register_game_scene<example::scene::EffectsShowcaseScene>(
+        example::scene_keys::EffectsShowcase);
 }
 
 std::unique_ptr<elysia::tools::IDevelopmentOverlay>

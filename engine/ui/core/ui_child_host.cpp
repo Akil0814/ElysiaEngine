@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <exception>
 
 namespace elysia::ui
 {
@@ -536,9 +537,17 @@ elysia::input::InputCapture elysia::ui::UiChildHost::input_capture() const noexc
     return result;
 }
 
-void elysia::ui::UiChildHost::cancel_input_interaction() noexcept
+void elysia::ui::UiChildHost::cancel_input_interaction()
 {
-    for (auto &child : _children)
-        if (child.element)
-            child.element->cancel_input_interaction();
+    ensure_child_order_cache();
+    const auto snapshot = _logical_child_order;
+    std::exception_ptr first_failure;
+    for (const auto& handle : snapshot)
+        if (auto* child = handle.resolve())
+        {
+            try { child->cancel_input_interaction(); }
+            catch (...) { if (!first_failure) first_failure = std::current_exception(); }
+        }
+    if (first_failure)
+        std::rethrow_exception(first_failure);
 }

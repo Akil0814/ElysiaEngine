@@ -71,6 +71,7 @@ class SceneInputRouter
     bool ui_enabled(InputSourceId source) const;
     void cancel_source(InputSourceId, InputCancelReason = InputCancelReason::Suppressed);
     void reset_ui_interaction();
+    void cancel_ui_interactions();
     void dispatch_ui_frame(const elysia::ui::UiInputFrame &input);
     elysia::scene::Scene &_scene;
     bool _auto_claim_ui_gamepad = true;

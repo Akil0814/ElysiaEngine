@@ -1,34 +1,43 @@
-# Demo Gallery and Development Demos
+# 模块展示应用
 
-The project-owned `DemoGalleryScene` is the single runtime entry for showcases.
-It lives under `game/scene/demo/` together with `AnimationPreviewScene` and the
-shared `DemoScenePayload`. UI component and cross-subsystem experiments live in
-the same demo scene tree; domain helpers for physics demos live under
-`game/demo/physics/`.
-None of these files are compiled into or registered by `engine_lib`.
+`game_lib` 是项目拥有的引擎功能展示应用。主菜单保留模块展示、设置和退出；模块总目录按 UI、输入与控制、相机、动画、特效、音频、物理、Gameplay 排列。Elysia Realm 和需要确认的故障注入位于辅助功能区。
 
-The main menu links only to Demo Gallery, Settings, and Exit. Demo Gallery then
-routes to Physics & Combat, Animation Preview, UI Component Gallery, Engine
-Feature Lab, Elysia Realm, and the guarded Application Failure test. Every demo
-receives a complete return route through `DemoScenePayload`, so Escape restores
-the caller key, payload, and reload mode. The failure test is a danger action and
-requires confirmation before it enters the terminating engine failure flow.
+## 文件与职责
 
-- Put each camera, physics, effects, or other subsystem showcase in its own scene
-  and register its entry through Demo Gallery.
-- Put reusable runtime helpers for a demo domain under `game/demo/<domain>/`.
-- Keep automated unit and integration tests under `tests/`; that directory is
-  not runtime demo code.
-- Do not place production startup, settings, or failure scenes here; they remain
-  under `engine/builtin/scenes/`.
+- `game/application` 显式注册场景并配置启动路线。
+- `game/navigation` 保存主菜单和场景 key；已有数值保持稳定，音频、Gameplay 目录和 Gameplay 验证分别使用 15、16、17。
+- `game/showcase/<module>` 就近保存 Scene、展示组件、状态和运行逻辑。Scene 管理输入、场景路线与生命周期；View 构建 UI、显示数据并调用操作回调。
+- `game/showcase/shared` 保存多个模块实际使用的外壳、几何布局和 Inspector。
+- `game/showcase/scenarios` 保存共同的案例执行器、验证显示和目录组织。战斗 actor、combat session、地图和障碍物位于 `game/showcase/gameplay/runtime`。
 
-## Engine Feature Lab
+Scene 继续拥有窗口及 SceneObject，View 的控件指针均为借用引用。重建前清理主题注册和引用；退出前撤销 Inspector、恢复设备与调试状态。`destroy()` 只标记对象，最终释放由 Scene 安全点完成。
 
-The animation comparison keeps the left sprite unmodified and applies a coverage
-mask color overlay to the right sprite. Press `Space` to cycle through no
-overlay, white, blue, purple, and gray. The world-space `EngineCharacter` at the
-center uses the built-in idle and move animations; move it with WASD or the arrow
-keys. Its green AABB is submitted through the `PhysicsCollider` debug category.
-The control window contains a horizontally scrollable set of `Damage`, `Critical`, `Heal`, `Percent`,
-`Fraction`, and `Decimal` buttons that spawn representative floating-number
-effects above the character. Press `Escape` to return to the caller.
+## 路由与展示
+
+普通模块和自由游玩使用 `ShowcaseEnterPayload{return_route}`。验证场景使用 `ScenarioEnterPayload{return_route, scenario_id, pressure_tier}`；保留完整返回路线中的目标、payload 与 reload mode。
+
+目录、UI、相机、动画和特效允许缓存复用；本地多人、音频、自由游玩及验证场景从目录进入时重新创建。验证重启重新创建案例；暂停与单步不创建另一套世界。
+
+`ShowcaseFrame` 提供统一标题、说明、返回与状态区域；列表页面使用滚动内容区，世界展示使用轻量外壳和独立操作面板。UI Gallery 保留分页。技能示例的冷却与道具状态由 `HudDemoState` 保存，控件由 `HudDemoView` 显示；隐藏页不处理快捷键。
+
+## 物理与 Gameplay
+
+物理组提供十个基础案例，以及 bodies、contacts、tiles 三个压力案例的低、中、高档。Gameplay 组提供碰撞战斗、平台战斗、俯视战斗三个玩法场景，以及对应的三个战斗验证案例。
+
+`ShowcaseScenario` 是展示与 CTest 共用的案例执行器。保留原案例 ID、步数和阈值。物理验证只拥有案例世界；自由游玩只拥有 GameplayScene 的世界。Gameplay 验证使用 key 17，不再通过同一场景中的 Verify/FreePlay 分支切换运行方式。
+
+Gameplay 操作区提供暂停、单步、重启、世界 UI 显示开关、气泡触发与返回。WorldBar、WorldText 和 SpeechBubble 复用 actor 的实现，锚定角色呈现位置；伤害、死亡和清理仍遵循原战斗逻辑。
+
+## 音频
+
+运行 `python scripts/generate_showcase_audio.py` 可重建低音量 PCM WAV 演示素材。素材不依赖外部音频，项目清单登记一个音效和两段循环音乐。
+
+音频展示覆盖即时/延迟音效、循环、分组限制及冷却、音乐淡入淡出与切换、音量控制。场景保存自己取得的 SoundHandle，退出时取消这些活动或待播放请求；其他场景的音效请求不被全局取消。音量和分组设置在退出及进入失败时恢复，不写入用户配置。音乐使用引擎的单一音乐播放通道，展示中的音乐播放会使用该通道。
+
+## 验证
+
+测试位于 `tests/game`，展示代码不放入测试目录，也不编入 `engine_lib`。现有案例 CTest 名称保持不变，新增 `showcase_tests` 检查模块顺序、案例归属、音频素材和退出恢复；`showcase_render_tests` 加载项目资源并遍历模块、玩法、验证场景及五种语言。
+
+自动测试包括完整返回路线、重复进入、HUD 键鼠交互、相机重入、多人设备恢复、Inspector 注销、Gameplay 世界 UI 以及基础和战斗案例。软件渲染截图用于布局核对，真实键鼠、手柄体验和音频试听需要另行记录。
+
+本次重构的执行结果及待完成的手动验收见 [展示重构验收记录](showcase-validation.md)。

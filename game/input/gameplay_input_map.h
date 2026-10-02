@@ -1,5 +1,5 @@
 #pragma once
-#include "../../engine/input/action/input_action_map.h"
+#include "engine/input/action/input_action_map.h"
 #include <set>
 namespace example::input
 {

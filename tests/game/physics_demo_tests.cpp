@@ -3,20 +3,20 @@
 #include "tests/support/input_snapshot_builder.h"
 #define SDL_MAIN_HANDLED
 
-#include "game/demo/physics/block_actor.h"
-#include "game/demo/physics/demo_tile_map.h"
-#include "game/demo/physics/demo_obstacle.h"
+#include "game/showcase/gameplay/runtime/block_actor.h"
+#include "game/showcase/gameplay/runtime/demo_tile_map.h"
+#include "game/showcase/gameplay/runtime/demo_obstacle.h"
 #include "game/application/example_game_module.h"
-#include "game/scene/example_scene_keys.h"
-#include "game/scene/demo/demo_scene_payload.h"
-#include "game/scene/demo/physics/physics_combat_layout.h"
+#include "game/navigation/showcase_scene_keys.h"
+#include "game/showcase/shared/showcase_enter_payload.h"
+#include "game/showcase/shared/showcase_layout.h"
 #include "engine/camera/camera_manager.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "engine/scene/runtime/fixed_step_runtime.h"
 #include "engine/tools/development_overlay.h"
-#include "../../game/input/gameplay_input_map.h"
+#include "game/input/gameplay_input_map.h"
 #include "tests/support/test_assertions.h"
 
 #include <array>
@@ -153,7 +153,7 @@ void click_at(elysia::scene::SceneManager& manager, int x, int y)
 
 void test_health_contract()
 {
-    example::demo::physics::Health health(50);
+    example::showcase::gameplay::Health health(50);
     require(health.maximum() == 50 && health.current() == 50 && health.alive(),
         "Health must start at its configured maximum");
     require(health.apply_damage(0) == 0 && health.apply_damage(-3) == 0,
@@ -171,7 +171,7 @@ void test_health_contract()
 
 void test_tile_adapter_contract()
 {
-    using namespace example::demo::physics;
+    using namespace example::showcase::gameplay;
     DemoTileMap map({-64, 24}, {16, 32}, 4, 3,
         elysia::physics::TileOutOfBoundsPolicy::Block);
     require(map.world_origin() == elysia::core::Vector2(-64, 24)
@@ -201,7 +201,7 @@ void test_tile_adapter_contract()
 
 void test_actor_provider_and_damage_flow()
 {
-    using namespace example::demo::physics;
+    using namespace example::showcase::gameplay;
     PlatformPlayerCharacter player({0, 0, 34, 56});
     StationaryEnemy enemy({40, 0, 38, 52}, player);
     elysia::physics::PhysicsWorldConfig config;
@@ -269,7 +269,7 @@ void test_actor_provider_and_damage_flow()
 
 void test_drop_through_all_supporting_tiles()
 {
-    using namespace example::demo::physics;
+    using namespace example::showcase::gameplay;
     using namespace elysia::physics;
     DemoTileMap tiles({0, 100}, {100, 20}, 3, 1, TileOutOfBoundsPolicy::Empty);
     tiles.fill_row(0, 0, 2, one_way_tile());
@@ -293,7 +293,7 @@ void test_drop_through_all_supporting_tiles()
 
 void test_input_is_latched_until_a_fixed_step()
 {
-    using namespace example::demo::physics;
+    using namespace example::showcase::gameplay;
     using namespace elysia::physics;
     PlatformPlayerCharacter player({0, 0, 34, 56});
     StaticBlockObstacle floor({.rect = {0, 56, 200, 20}, .shape = AabbShape{{0, 0, 200, 20}}});
@@ -335,7 +335,7 @@ void test_input_is_latched_until_a_fixed_step()
 
 void test_moving_obstacle_rendering_uses_interpolation()
 {
-    using namespace example::demo::physics;
+    using namespace example::showcase::gameplay;
     ObstacleConfig config;
     config.rect = {0, 0, 40, 10};
     config.shape = elysia::physics::AabbShape{{0, 0, 40, 10}};
@@ -354,7 +354,7 @@ void test_moving_obstacle_rendering_uses_interpolation()
 
 void test_obstacle_material_and_kinematic_platform()
 {
-    using namespace example::demo::physics;
+    using namespace example::showcase::gameplay;
     ObstacleConfig config;
     config.rect = {20, 30, 80, 12};
     config.shape = elysia::physics::AabbShape{{0, 0, 80, 12}};
@@ -401,8 +401,8 @@ void test_obstacle_material_and_kinematic_platform()
 
 void test_colored_object_visual_states_use_primitive_color()
 {
-    using namespace example::demo::physics;
-    ColoredBlockObject object(
+    using namespace example::showcase::gameplay;
+    example::showcase::ColoredBlockObject object(
         elysia::core::DepthLayer::Character, {3, 4, 20, 10}, {10, 20, 30, 200});
     object.set_alpha(128);
 
@@ -431,25 +431,25 @@ void test_scene_keys_are_unique()
 {
     require(example::scene_keys::MainMenu == 2
             && example::scene_keys::AnimationPreview == 4
-            && example::scene_keys::PhysicsCombatGallery == 5
+            && example::scene_keys::PhysicsGallery == 5
             && example::scene_keys::ColliderCombatDemo == 6
             && example::scene_keys::PlatformTileCombatDemo == 7
             && example::scene_keys::TopDownTileCombatDemo == 8
-            && example::scene_keys::DemoGallery == 9
+            && example::scene_keys::ShowcaseGallery == 9
             && example::scene_keys::UiComponentGallery == 10
-            && example::scene_keys::EngineFeatureLab == 11,
+            && example::scene_keys::EffectsShowcase == 11,
         "Renamed game scene keys must retain their persisted numeric values");
 
     constexpr std::array keys{
         example::scene_keys::MainMenu,
         example::scene_keys::AnimationPreview,
-        example::scene_keys::PhysicsCombatGallery,
+        example::scene_keys::PhysicsGallery,
         example::scene_keys::ColliderCombatDemo,
         example::scene_keys::PlatformTileCombatDemo,
         example::scene_keys::TopDownTileCombatDemo,
-        example::scene_keys::DemoGallery,
+        example::scene_keys::ShowcaseGallery,
         example::scene_keys::UiComponentGallery,
-        example::scene_keys::EngineFeatureLab};
+        example::scene_keys::EffectsShowcase};
     for (std::size_t i = 0; i < keys.size(); ++i)
         for (std::size_t j = i + 1; j < keys.size(); ++j)
             require(keys[i] != keys[j], "Game scene keys must be unique");
@@ -464,10 +464,10 @@ void test_game_module_registers_demo_scenes()
     register_example_scenes(scene_manager);
 
     for (const elysia::scene::SceneKey key : {
-            example::scene_keys::DemoGallery,
+            example::scene_keys::ShowcaseGallery,
             example::scene_keys::AnimationPreview,
             example::scene_keys::UiComponentGallery,
-            example::scene_keys::EngineFeatureLab })
+            example::scene_keys::EffectsShowcase })
     {
         bool duplicate_rejected = false;
         try
@@ -491,35 +491,33 @@ void test_physics_combat_layout_contract()
             elysia::core::Vector2{1280.0f, 720.0f},
             elysia::core::Vector2{960.0f, 540.0f}})
     {
-        const example::scene::PhysicsCombatLayout layout =
-            example::scene::make_physics_combat_layout(
+        const example::scene::GameplayLayout layout =
+            example::scene::make_gameplay_layout(
                 logical_size.x, logical_size.y);
         require(layout.viewport.contains(layout.hud_panel)
                 && layout.viewport.contains(layout.title)
                 && layout.viewport.contains(layout.controls)
                 && layout.viewport.contains(layout.health)
                 && layout.viewport.contains(layout.stats)
-                && layout.viewport.contains(layout.status)
-                && layout.viewport.contains(layout.menu_list),
+                && layout.viewport.contains(layout.status),
             "Physics demo screen layout must stay inside the logical viewport");
         require(!layout.title.intersects(layout.controls)
                 && !layout.title.intersects(layout.health)
                 && !layout.controls.intersects(layout.health)
                 && !layout.controls.intersects(layout.stats),
             "Physics demo HUD regions must not overlap");
-        require(layout.status.center().nearly_equals(layout.viewport.center())
-                && layout.menu_list.center().nearly_equals(layout.viewport.center()),
-            "Physics demo status and menu must remain centered");
+        require(layout.status.center().nearly_equals(layout.viewport.center()),
+            "Gameplay status must remain centered");
 
         const auto options =
-            example::scene::physics_combat_layout_options(layout.stats);
+            example::scene::showcase_layout_options(layout.stats);
         require(options._anchor == elysia::ui::UiLayoutAnchor::TopLeft
                 && options._use_size_override
                 && options._margin.left == layout.stats.x()
                 && options._margin.top == layout.stats.y()
                 && options._size_override == layout.stats.size(),
             "Physics demo elements must use explicit window layout metadata");
-        const auto tests=example::scene::make_physics_test_layout(logical_size.x,logical_size.y);
+        const auto tests=example::scene::make_scenario_layout(logical_size.x,logical_size.y);
         require(tests.viewport.contains(tests.details)&&tests.viewport.contains(tests.arena)
                 &&!tests.details.intersects(tests.arena),"Test detail panel stays outside the simulation area");
         require(!tests.title.intersects(tests.purpose)&&!tests.purpose.intersects(tests.expected),
@@ -545,7 +543,7 @@ void require_demo_camera(
         (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
         .target = scene_key,
-        .payload = example::scene::DemoScenePayload{
+        .payload = example::scene::ShowcaseEnterPayload{
             .return_route = {
                 .target = example::scene_keys::MainMenu,
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
@@ -584,7 +582,7 @@ void test_query_controller_uses_active_mapping_and_fixed_tick() {
     require(bool(manager.local_players().bind_source(PrimaryLocalPlayer,InputSourceId::gamepad(7))),"Query pad ownership");
     const elysia::scene::SceneRoute route{
         .target=example::scene_keys::ColliderCombatDemo,
-        .payload=example::scene::DemoScenePayload{.return_route={.target=example::scene_keys::MainMenu}}};
+        .payload=example::scene::ShowcaseEnterPayload{.return_route={.target=example::scene_keys::MainMenu}}};
     manager.start(route);
     auto* debug=DebugDraw::instance();
     elysia::tests::InputSnapshotBuilder input;
@@ -642,9 +640,9 @@ void test_each_physics_demo_owns_one_inspector_panel()
             (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene_manager.start({
             .target = scene_key,
-            .payload = example::scene::DemoScenePayload{
+            .payload = example::scene::ShowcaseEnterPayload{
                 .return_route = {
-                    .target = example::scene_keys::PhysicsCombatGallery,
+                    .target = example::scene_keys::PhysicsGallery,
                     .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
             .reload_mode = elysia::scene::SceneReloadMode::Recreate});
         scene_manager.on_update(0.0);
@@ -673,16 +671,15 @@ void test_physics_demo_navigation_and_recreate_route()
     if (!elysia::gameplay::ControllerService::instance()->session_active())
         (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
-        .target = example::scene_keys::PhysicsCombatGallery,
-        .payload = example::scene::DemoScenePayload{
+        .target = example::scene_keys::GameplayGallery,
+        .payload = example::scene::ShowcaseEnterPayload{
             .return_route = caller},
         .reload_mode = elysia::scene::SceneReloadMode::Reuse});
 
     scene_manager.on_update(0);
-    click_at(scene_manager, 640, 75);
-    require(scene_manager.current_scene_key() == example::scene_keys::PhysicsCombatGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::GameplayGallery,
         "Selecting a category must not start a simulation");
-    click_at(scene_manager, 640, 129);
+    click_at(scene_manager, 640, 109);
     require(scene_manager.current_scene_key()
             == example::scene_keys::ColliderCombatDemo,
         "Combat category must open Collider Combat free play");
@@ -695,7 +692,7 @@ void test_physics_demo_navigation_and_recreate_route()
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
     require(scene_manager.current_scene_key()
-            == example::scene_keys::PhysicsCombatGallery,
+            == example::scene_keys::GameplayGallery,
         "A recreated Physics demo must retain its Physics menu return route");
 
     press_and_release_key(
@@ -718,7 +715,7 @@ void test_animation_preview_returns_complete_caller_route()
         (void)elysia::gameplay::ControllerService::instance()->begin_session();
     scene_manager.start({
         .target = example::scene_keys::AnimationPreview,
-        .payload = example::scene::DemoScenePayload{
+        .payload = example::scene::ShowcaseEnterPayload{
             .return_route = {
                 .target = 1,
                 .payload = DemoReturnPayload{.marker = 91},
@@ -748,7 +745,7 @@ void test_main_menu_uses_gallery_as_its_primary_demo_entry()
 
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEnter);
-    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
         "The first Main Menu action must open the unified Demo Gallery");
     require(elysia::gameplay::ControllerService::instance()->session_active(),"Demo Gallery begins the game session");
     press_and_release_key(

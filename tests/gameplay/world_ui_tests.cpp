@@ -14,7 +14,7 @@
 #include "engine/resources/resource_service.h"
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
-#include "game/demo/physics/block_actor.h"
+#include "game/showcase/gameplay/runtime/block_actor.h"
 
 #include <SDL3_ttf/SDL_ttf.h>
 #include <limits>
@@ -202,7 +202,14 @@ void test_bubble(SDL_Renderer* renderer)
 
 void test_actor_integration()
 {
-    example::demo::physics::BlockCombatActor actor({
+    example::showcase::gameplay::BlockCombatActor minimum_health({
+        .rect = {0,0,32,48}, .maximum_health = 0});
+    std::vector<core::RenderCommand> minimum_commands;
+    minimum_health.submit_render_commands(minimum_commands);
+    require(minimum_commands.size() == 4
+        && minimum_commands[1].command_rect == minimum_commands[2].command_rect,
+        "bar initialization must use the health model's normalized maximum");
+    example::showcase::gameplay::BlockCombatActor actor({
         .rect = {100,120,32,48},
         .team = gameplay::collision::teams::Player,
         .maximum_health = 100});
@@ -229,6 +236,23 @@ void test_actor_integration()
     commands.clear();
     actor.submit_render_commands(commands);
     require(commands.size() == 4, "game update must hide expired speech without removing actor UI");
+    actor.set_world_ui_visible(false);
+    commands.clear();
+    actor.submit_render_commands(commands);
+    require(commands.size()==1,"showcase toggle hides every world UI primitive and retains the actor");
+    actor.set_world_ui_visible(true);
+    actor.show_speech();
+    commands.clear();
+    actor.submit_render_commands(commands);
+    require(commands.size()==14,"showcase speech action reuses the actor bubble");
+    (void)actor.apply_damage({}, {.damage=100});
+    commands.clear();
+    actor.submit_render_commands(commands);
+    require(commands.size()==1,"dead targets stop submitting nameplate, health and bubble");
+    minimum_health.destroy();
+    minimum_commands.clear();
+    minimum_health.submit_render_commands(minimum_commands);
+    require(minimum_commands.size()==1,"retired targets stop submitting world UI before the safe point");
 }
 }
 

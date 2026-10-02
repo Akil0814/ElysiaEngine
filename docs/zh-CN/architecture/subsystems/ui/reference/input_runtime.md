@@ -19,6 +19,8 @@ Scene::on_input 委托 SceneInputRouter，先将键鼠及指定 UI 手柄的输�
 
 `cancel_input_interaction()` 清除按钮按住、拖拽等临时交互而保留内容和焦点，用于失焦、设备断开及UI 手柄切换。它与清空控件配置的 reset 不同。
 
+该虚接口允许交互取消通知抛出异常；仅清状态的控件仍可使用 `noexcept` override。`UiChildHost` 和场景输入路由使用稳定生命周期快照完成整批取消，再传播首次异常。HUD [UiActionButton](ui_action_button.md) 会将正在进行的鼠标交互通知为 `Canceled`；其外部状态更新不会产生交互回调。
+
 详细路由与生命周期见 [输入架构](../../input/architecture.md)。
 
 纯菜单默认 Navigation，可用首个手柄按下取得 UI 操作权，不绑定游戏玩家。玩法场景默认 Pointer，普通 HUD 只响应指针；打开交互菜单显式启用 Navigation。激活文本框始终接管键盘，结束编辑后被抑制按键须释放才能恢复玩法。

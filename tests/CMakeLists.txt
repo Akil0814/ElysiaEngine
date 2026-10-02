@@ -25,6 +25,22 @@ endfunction()
 
 find_package(Threads REQUIRED)
 
+add_elysia_test(showcase_tests
+    LABEL scene
+    SOURCES game/showcase_tests.cpp
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
+    SDL
+)
+target_compile_definitions(showcase_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+add_elysia_test(showcase_render_tests
+    LABEL scene
+    SOURCES game/showcase_render_tests.cpp
+    LIBRARIES game_lib ${ELYSIA_SDL_LIBRARIES}
+    SDL
+)
+target_compile_definitions(showcase_render_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
 add_elysia_test(world_ui_tests
     LABEL gameplay_ui
     SOURCES gameplay/world_ui_tests.cpp
@@ -416,6 +432,7 @@ foreach(LOADING_TEST_TARGET IN ITEMS
 endforeach()
 
 foreach(UI_TEST_TARGET IN ITEMS
+    ui_action_button_tests
     ui_layout_tests
     ui_style_tests
     ui_theme_defaults_tests

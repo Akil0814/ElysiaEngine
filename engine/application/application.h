@@ -71,16 +71,15 @@ private:
     void on_scene_manager_fault(
         const elysia::scene::SceneBoundaryFailure& failure) override;
 
-    bool check_startup_step(
-        bool flag,
-        std::string_view category,
-        const char* err_msg,
+
+    bool check_startup_step(bool flag,std::string_view category,const char* err_msg,
         std::source_location location = std::source_location::current());
-    bool startup_fail(
-        std::string_view category,
-        const std::string& err_msg,
+
+    bool startup_fail(std::string_view category,const std::string& err_msg,
         std::source_location location = std::source_location::current());
+
     bool startup_fail(const elysia::bootstrap::BootstrapFailure& failure);
+
     bool startup_fail(const elysia::localization::LocalizationFailure& failure);
 
 private:

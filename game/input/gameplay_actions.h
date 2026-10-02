@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../engine/input/action/input_action_types.h"
+#include "engine/input/action/input_action_types.h"
 
 namespace example::input::actions
 {

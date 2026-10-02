@@ -1,6 +1,6 @@
 #pragma once
-#include "gameplay_actions.h"
-#include "../../engine/gameplay/control/control_command.h"
+#include "game/input/gameplay_actions.h"
+#include "engine/gameplay/control/control_command.h"
 #include <algorithm>
 namespace example::input
 {

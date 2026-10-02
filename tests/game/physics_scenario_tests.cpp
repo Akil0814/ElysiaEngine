@@ -1,16 +1,17 @@
-#include "game/demo/physics/physics_scenario.h"
+#include "game/showcase/scenarios/showcase_scenario.h"
 #include "tests/support/test_assertions.h"
 #include <cmath>
 #include <iostream>
 #include <set>
 
-using namespace example::demo::physics;
+
+using namespace example::showcase::scenarios;
 using elysia::tests::require;
 namespace
 {
 ScenarioResult run(const ScenarioDescriptor& d,int tier,int fps=60)
 {
-    PhysicsScenario scenario(d.id,tier);
+    ShowcaseScenario scenario(d.id,tier);
     require(scenario.result().status==ScenarioStatus::Ready,"Cases enter ready without automatically starting");
     scenario.advance(1);
     require(scenario.result().steps==0,"Ready case does not simulate");
@@ -39,13 +40,13 @@ ScenarioResult run(const ScenarioDescriptor& d,int tier,int fps=60)
 int main(int argc,char** argv)
 {
     std::set<std::string_view> ids;
-    for(const auto& d:physics_scenarios()){
+    for(const auto& d:showcase_scenarios()){
         require(ids.insert(d.id).second,"Scenario IDs are unique");
         require(d.max_steps>0&&!d.title_key().empty()&&!d.purpose_key().empty()&&!d.expected_key().empty(),"Catalog metadata is complete");
-        require(find_physics_scenario(d.id)==&d,"Every catalog ID resolves");
+        require(find_showcase_scenario(d.id)==&d,"Every catalog ID resolves");
     }
     if(argc>1){
-        auto* d=find_physics_scenario(argv[1]);require(d!=nullptr,"Requested case exists");
+        auto* d=find_showcase_scenario(argv[1]);require(d!=nullptr,"Requested case exists");
         const int tier=argc>2?std::stoi(argv[2]):0;
         auto first=run(*d,tier);
         if(d->category!=ScenarioCategory::Stress){
@@ -58,11 +59,11 @@ int main(int argc,char** argv)
         require(recent_scenario_result(d->id,tier)->status==ScenarioStatus::Passed,"Session history retains results");
         std::cout<<d->id<<" passed "<<first.checks.size()<<" checks in "<<first.steps<<" steps\n";
     }else{
-        PhysicsScenario timeout("motion");timeout.start();timeout.finish_timeout();
+        ShowcaseScenario timeout("motion");timeout.start();timeout.finish_timeout();
         require(timeout.result().status==ScenarioStatus::Failed&&timeout.result().failure=="timeout","Timeout is a visible failure");
-        PhysicsScenario debug("stress_bodies");debug.start();for(int i=0;i<122;++i)debug.advance(1.0/60);
+        ShowcaseScenario debug("stress_bodies");debug.start();for(int i=0;i<122;++i)debug.advance(1.0/60);
         debug.set_debug_geometry(true);require(debug.result().mixed_debug_samples,"Changing debug mode labels mixed timing samples");
-        bool rejected=false;try{PhysicsScenario invalid("missing");}catch(const std::invalid_argument&){rejected=true;}
+        bool rejected=false;try{ShowcaseScenario invalid("missing");}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Unknown IDs are rejected");
     }
 }

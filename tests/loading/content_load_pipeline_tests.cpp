@@ -89,8 +89,8 @@ void test_current_repository_loads_minimal_sample()
 		&& module->second.audio_entries.empty()
 		&& result.font_manifest.fonts.size() == 5
 		&& result.texture_manifest.textures.size() == 1
-		&& result.audio_manifest.sounds.size() == 2
-		&& result.audio_manifest.music.empty()
+		&& result.audio_manifest.sounds.size() == 3
+		&& result.audio_manifest.music.size() == 2
 		&& result.animation_manifest.animations.size() == 1
 		&& result.animation_effect_manifest.effects.size() == 1,
 		"the standalone repository must expose the reviewed core resources and Ryougi animation sample");

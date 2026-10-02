@@ -3,7 +3,7 @@
 #define SDL_MAIN_HANDLED
 
 #include "engine/gameplay/control/control_command.h"
-#include "../../game/input/gameplay_input_map.h"
+#include "game/input/gameplay_input_map.h"
 #include "tests/support/test_assertions.h"
 
 #include <iostream>

@@ -17,7 +17,7 @@
 ## 独立组件参考
 
 - Core 与运行时：[UiElement](reference/ui_element.md)、[UiChildHost](reference/ui_child_host.md)、[UiControl](reference/ui_control.md)、[UiFocusScope](reference/ui_focus_scope.md)、[UiControlFocusScopeHost](reference/ui_control_focus_scope_host.md)、[UiWindow](reference/ui_window.md)、[输入与滚动运行时](reference/input_runtime.md)、[动画基础状态机](reference/animation_primitives.md)、[样式与主题运行时](reference/theme_runtime.md)
-- Widgets：[Button](reference/ui_button.md)、[基础选择控件](reference/selection_controls.md)、[拖拽与数值调节](reference/drag_value_controls.md)、[TextInput](reference/ui_text_input.md)、[数值展示](reference/value_display.md)、[Label](reference/ui_label.md)、[TextBlock](reference/ui_text_block.md)、[媒体控件](reference/media_controls.md)、[透明度动画组件](reference/opacity_variants.md)
+- Widgets：[Button](reference/ui_button.md)、[HUD ActionButton](reference/ui_action_button.md)、[基础选择控件](reference/selection_controls.md)、[拖拽与数值调节](reference/drag_value_controls.md)、[TextInput](reference/ui_text_input.md)、[数值展示](reference/value_display.md)、[Label](reference/ui_label.md)、[TextBlock](reference/ui_text_block.md)、[媒体控件](reference/media_controls.md)、[透明度动画组件](reference/opacity_variants.md)
 - Containers：[List](reference/ui_list_container.md)、[Grid](reference/ui_grid_container.md)、[Panel](reference/ui_panel.md)、[ScrollContainer](reference/ui_scroll_container.md)、[ChromeContainer](reference/ui_chrome_container.md)、[选择组](reference/selection_groups.md)、[页签组件](reference/tabs.md)
 - Composites：[Dropdown](reference/ui_dropdown.md)、[对话框](reference/dialogs.md)、[Tooltip](reference/ui_tooltip.md)、[带标签选择控件](reference/labeled_controls.md)
 - Presets：[SettingsPanel](reference/settings_panel.md)

@@ -11,8 +11,11 @@
 #include "../effects/ui_translation_animation_player.h"
 
 #include <optional>
+#include <memory>
 #include <string>
 #include <string_view>
+
+namespace elysia::input { class SceneInputRouter; }
 
 namespace elysia::ui
 {
@@ -42,7 +45,7 @@ public:
         noexcept : _screen_rect(elysia::core::Rect::from_center(center, size)), _order(order) {}
 
     ~UiElement() override;
-    virtual void cancel_input_interaction() noexcept
+    virtual void cancel_input_interaction()
     {
     }
     [[nodiscard]] virtual elysia::input::InputCapture input_capture() const noexcept
@@ -185,6 +188,10 @@ protected:
 
 private:
     friend class UiChildHost;
+    friend class elysia::input::SceneInputRouter;
+    // Created only for root cancellation snapshots; destruction invalidates all snapshots.
+    struct CancellationLifetime { UiElement* element = nullptr; };
+    std::shared_ptr<CancellationLifetime> _cancellation_lifetime;
 
     static std::uint8_t multiply_alpha(std::uint8_t a, std::uint8_t b) noexcept
     {

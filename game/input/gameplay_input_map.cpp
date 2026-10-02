@@ -1,5 +1,5 @@
-#include "gameplay_input_map.h"
-#include "gameplay_actions.h"
+#include "game/input/gameplay_input_map.h"
+#include "game/input/gameplay_actions.h"
 #include <stdexcept>
 namespace example::input
 {

@@ -14,6 +14,7 @@
 #include "../widgets/text/ui_text_block.h"
 #include "../widgets/ui_bar.h"
 #include "../widgets/ui_button.h"
+#include "../widgets/ui_action_button.h"
 #include "../widgets/ui_checkbox.h"
 #include "../widgets/ui_drag_handle.h"
 #include "../widgets/ui_radio_button.h"
@@ -44,6 +45,14 @@ void register_builtin_ui_theme_adapters(UiThemeStyleResolver& r)
     (void)r.register_adapter<UiNumber>([](UiNumber& e,const UiTheme& t) { e.set_base_style(apply_theme_colors(UiNumberStyle{},t.number_style)); });
     (void)r.register_adapter<UiBar>([](UiBar& e,const UiTheme& t) { e.set_base_style(apply_theme_colors(UiBarStyle{},t.bar(e.visual_role()))); });
     (void)r.register_adapter<UiButton>([](UiButton& e,const UiTheme& t) { e.set_base_style(apply_theme_colors(UiButtonStyle{},t.button(e.visual_role()))); });
+    (void)r.register_adapter<UiActionButton>([](UiActionButton& e,const UiTheme& t) {
+        const auto button = apply_theme_colors(UiButtonStyle{},t.button());
+        UiActionButtonStyle style;
+        style.chrome = button.chrome;
+        style.text = button.text;
+        style.selected_border = button.chrome.border.active;
+        e.set_base_style(style);
+    });
     (void)r.register_adapter<UiCheckbox>([](UiCheckbox& e,const UiTheme& t) { e.set_base_style(apply_theme_colors(UiCheckboxStyle{},t.checkbox_style)); });
     (void)r.register_adapter<UiRadioButton>([](UiRadioButton& e,const UiTheme& t) { e.set_base_style(apply_theme_colors(UiRadioButtonStyle{},t.radio_button_style)); });
     (void)r.register_adapter<UiDragHandle>([](UiDragHandle& e,const UiTheme& t) { e.set_base_style(apply_theme_colors(UiDragHandleStyle{},t.drag_handle_style)); });

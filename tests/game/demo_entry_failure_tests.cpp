@@ -1,7 +1,7 @@
 #define SDL_MAIN_HANDLED
-#include "game/scene/demo/local_multiplayer_scene.h"
-#include "game/scene/demo/physics/physics_combat_demo_scene_base.h"
-#include "game/scene/example_scene_keys.h"
+#include "game/showcase/input/local_multiplayer_scene.h"
+#include "game/showcase/gameplay/gameplay_demo_scene_base.h"
+#include "game/navigation/showcase_scene_keys.h"
 #include "game/input/local_controls.h"
 #include "engine/gameplay/control/controller_service.h"
 #include "engine/io/loaders/asset_config_types.h"
@@ -16,11 +16,11 @@
 
 namespace
 {
-class ThrowingPhysicsDemo final : public example::scene::PhysicsCombatDemoSceneBase
+class ThrowingPhysicsDemo final : public example::scene::GameplayDemoSceneBase
 {
 public:
-    ThrowingPhysicsDemo() : PhysicsCombatDemoSceneBase(
-        example::scene_keys::ColliderCombatDemo,"exception probe",{},"Probe","Probe") {}
+    ThrowingPhysicsDemo() : GameplayDemoSceneBase(
+        example::scene_keys::ColliderCombatDemo,"exception probe",{}) {}
 private:
     void build_demo() override { throw std::runtime_error("injected physics demo build failure"); }
 };
@@ -41,7 +41,7 @@ int main()
         try
         {
             elysia::scene::SceneTestAccess::enter(scene,
-                example::scene::DemoScenePayload{.return_route={.target=example::scene_keys::MainMenu}});
+                example::scene::ShowcaseEnterPayload{.return_route={.target=example::scene_keys::MainMenu}});
         }
         catch (const std::runtime_error& error)
         {
@@ -68,7 +68,7 @@ int main()
         try
         {
             elysia::scene::SceneTestAccess::enter(scene,
-                example::scene::DemoScenePayload{.return_route={.target=example::scene_keys::MainMenu}});
+                example::scene::ShowcaseEnterPayload{.return_route={.target=example::scene_keys::MainMenu}});
         }
         catch (const std::exception& error)
         {
@@ -93,7 +93,7 @@ int main()
         bool rejected = false;
         try
         {
-            example::demo::physics::DemoTileMap tiles({}, {invalid, 1}, 2, 1, {});
+            example::showcase::gameplay::DemoTileMap tiles({}, {invalid, 1}, 2, 1, {});
         }
         catch (const std::invalid_argument&) { rejected = true; }
         require(rejected,"DemoTileMap rejects nonfinite or overflowing tile dimensions");

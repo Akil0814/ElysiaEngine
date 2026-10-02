@@ -1,7 +1,7 @@
 #pragma once
-#include "gameplay_input_map.h"
-#include "gameplay_actions.h"
-#include "../../engine/gameplay/scene/gameplay_scene.h"
+#include "game/input/gameplay_input_map.h"
+#include "game/input/gameplay_actions.h"
+#include "engine/gameplay/scene/gameplay_scene.h"
 #include <map>
 #include <optional>
 #include <stdexcept>

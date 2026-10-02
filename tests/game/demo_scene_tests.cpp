@@ -15,14 +15,16 @@
 #include "engine/resources/resource_service.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
-#include "game/scene/demo/demo_gallery_scene.h"
-#include "game/scene/demo/multi_target_camera_scene.h"
-#include "game/scene/demo/local_multiplayer_scene.h"
+#include "game/showcase/shared/showcase_gallery_scene.h"
+#include "game/showcase/camera/multi_target_camera_scene.h"
+#include "game/showcase/input/local_multiplayer_scene.h"
 #include "engine/input/input_system.h"
-#include "game/scene/demo/demo_scene_payload.h"
-#include "game/scene/demo/engine_feature_lab_scene.h"
-#include "game/scene/demo/ui_component_gallery_scene.h"
-#include "game/scene/example_scene_keys.h"
+#include "game/showcase/shared/showcase_enter_payload.h"
+#include "game/showcase/effects/effects_showcase_scene.h"
+#include "game/showcase/ui/ui_component_gallery_scene.h"
+#include "engine/ui/widgets/ui_action_button.h"
+#include "engine/ui/composites/ui_tab_container.h"
+#include "game/navigation/showcase_scene_keys.h"
 #include "engine/tools/debug_draw.h"
 #include "engine/typography/font_resolver.h"
 #include "engine/localization/localization_manager.h"
@@ -88,6 +90,85 @@ private:
     SDL_Surface* _surface = nullptr;
     SDL_Renderer* _renderer = nullptr;
 };
+
+void test_gallery_hud(const elysia::scene::SceneRuntimeContext& context,SDL_Renderer* renderer)
+{
+    using namespace elysia;
+    example::scene::UiComponentGalleryScene scene;
+    scene::SceneTestAccess::bind(scene,context);
+    scene::SceneTestAccess::enter(scene,example::scene::ShowcaseEnterPayload{
+        .return_route = { .target=1 } });
+    auto* root = scene::SceneTestAccess::ui_root(scene,0);
+    ui::UiTabContainer* tabs = nullptr;
+    std::vector<ui::UiActionButton*> slots;
+    const auto visit = [&](auto&& self,ui::UiElement& element) -> void {
+        if (auto* tab = dynamic_cast<ui::UiTabContainer*>(&element); tab && !tabs) tabs = tab;
+        if (auto* slot = dynamic_cast<ui::UiActionButton*>(&element)) slots.push_back(slot);
+        if (auto* host = dynamic_cast<ui::UiChildHost*>(&element))
+            for (std::size_t index = 0; index < host->child_count(); ++index)
+                self(self,*host->child_at(index));
+    };
+    visit(visit,*root);
+    require(tabs && slots.size() == 4,"controls page must contain the skill, two items and pause HUD slots");
+    require(tabs->set_selected_index(2),"HUD example must be accessible on the controls page");
+    scene::SceneTestAccess::update(scene,0);
+    SDL_SetRenderDrawColor(renderer,20,24,32,255);
+    SDL_RenderClear(renderer);
+    scene::SceneTestAccess::render(scene,renderer);
+    if (const char* path = SDL_getenv("ELYSIA_HUD_QA_PATH"))
+    {
+        SDL_Surface* capture = SDL_RenderReadPixels(renderer,nullptr);
+        require(capture != nullptr && IMG_SavePNG(capture,path),"HUD example capture must save");
+        SDL_DestroySurface(capture);
+    }
+    tests::InputSnapshotBuilder devices;
+    const auto route = [&] { scene::SceneTestAccess::route_input(scene,devices.take()); };
+    const auto key = [&](input::RawInputControl control) {
+        devices.press(control,true); route();
+        devices.press(control,false); route();
+    };
+    route();
+    devices.press(input::RawInputControl::KeyE,true); route();
+    require(slots[0]->badge_text().value == "1" && slots[0]->overlay_ratio() == 1 && slots[0]->is_external_pressed(),
+        "gameplay key must cast once and sync skill count, cooldown and external hold");
+    route();
+    require(slots[0]->badge_text().value == "1","holding key must not repeat the skill");
+    devices.press(input::RawInputControl::KeyE,false); route();
+    key(input::RawInputControl::KeyP);
+    scene::SceneTestAccess::update(scene,1);
+    require(slots[3]->is_selected() && slots[0]->overlay_ratio() == 1,"demo pause must freeze cooldown");
+    key(input::RawInputControl::Key1);
+    require(slots[1]->badge_text().value == "8","paused demo must not consume an item");
+    key(input::RawInputControl::KeyP);
+    scene::SceneTestAccess::update(scene,3);
+    require(slots[0]->is_enabled() && slots[0]->overlay_ratio() == 0,"skill must become ready after its cooldown");
+    const auto click = [&](ui::UiActionButton& slot) {
+        const auto center = slot.presentation_screen_rect().center();
+        for (auto type : { input::RawInputEventType::ControlPressed,input::RawInputEventType::ControlReleased })
+        {
+            devices.event({ .control=input::RawInputControl::MouseLeft,.type=type,
+                .mouse_x=static_cast<int>(center.x),.mouse_y=static_cast<int>(center.y) });
+            route();
+        }
+    };
+    click(*slots[0]);
+    require(slots[0]->badge_text().value == "2","mouse and keyboard must share the game skill action");
+    click(*slots[2]);
+    require(slots[2]->badge_text().value == "2" && slots[2]->is_selected() && !slots[1]->is_selected(),
+        "successful item click must consume once and select the used slot");
+    key(input::RawInputControl::Key2);
+    key(input::RawInputControl::Key2);
+    require(slots[2]->badge_text().value == "0" && !slots[2]->is_enabled(),"empty stock must disable item use");
+    click(*slots[3]);
+    require(slots[3]->is_selected(),"mouse pause must use the same game pause action");
+    key(input::RawInputControl::KeyP);
+    devices.press(input::RawInputControl::KeyE,true); route();
+    require(slots[0]->is_external_pressed(),"external hold must sync during cooldown");
+    require(tabs->set_selected_index(0) && !slots[0]->is_pressed(),"leaving HUD page must clear interaction state");
+    key(input::RawInputControl::Key1);
+    require(slots[1]->badge_text().value == "8","hidden HUD must ignore its gameplay shortcuts");
+    scene::SceneTestAccess::exit(scene);
+}
 
 struct ReturnPayload
 {
@@ -174,7 +255,7 @@ void click_mouse(
 
 void test_engine_feature_overlay_cycle()
 {
-    example::scene::EngineFeatureLabScene scene;
+    example::scene::EffectsShowcaseScene scene;
     require(scene.color_overlay_index() == 2,
         "Engine feature test must start with the blue overlay");
 
@@ -201,11 +282,11 @@ void test_engine_feature_overlay_cycle()
 
 void test_payload_contract_names_each_scene()
 {
-    example::scene::DemoGalleryScene home_scene;
+    example::scene::ShowcaseGalleryScene home_scene;
     require(throws_logic_error_containing(
             [&home_scene] { elysia::scene::SceneTestAccess::enter(home_scene); },
-            "DemoGalleryScene"),
-        "DemoGalleryScene must name itself when the demo payload is missing");
+            "ShowcaseGalleryScene"),
+        "ShowcaseGalleryScene must name itself when the demo payload is missing");
 
     example::scene::UiComponentGalleryScene ui_test_scene;
     require(throws_logic_error_containing(
@@ -213,17 +294,17 @@ void test_payload_contract_names_each_scene()
             "UiComponentGalleryScene"),
         "UiComponentGalleryScene must name itself when the demo payload is missing");
 
-    example::scene::EngineFeatureLabScene feature_test_scene;
+    example::scene::EffectsShowcaseScene feature_test_scene;
     const elysia::scene::ScenePayload invalid_payload =
-        example::scene::DemoScenePayload{
+        example::scene::ShowcaseEnterPayload{
             .return_route = elysia::scene::SceneRoute{ .target = 1000 }
         };
     require(throws_logic_error_containing(
             [&feature_test_scene,&invalid_payload] {
                 elysia::scene::SceneTestAccess::enter(feature_test_scene, invalid_payload);
             },
-            "EngineFeatureLabScene"),
-        "EngineFeatureLabScene must name itself when the return route is invalid");
+            "EffectsShowcaseScene"),
+        "EffectsShowcaseScene must name itself when the return route is invalid");
 }
 
 void test_escape_returns_the_full_caller_route()
@@ -258,12 +339,12 @@ void test_escape_returns_the_full_caller_route()
         fixture.renderer(),registry,1280,720,&font_resolver);
     elysia::scene::SceneManager scene_manager;
     scene_manager.initialize(context);
-    scene_manager.register_game_scene<example::scene::DemoGalleryScene>(
-        example::scene_keys::DemoGallery);
+    scene_manager.register_game_scene<example::scene::ShowcaseGalleryScene>(
+        example::scene_keys::ShowcaseGallery);
     scene_manager.register_game_scene<example::scene::UiComponentGalleryScene>(
         example::scene_keys::UiComponentGallery);
-    scene_manager.register_game_scene<example::scene::EngineFeatureLabScene>(
-        example::scene_keys::EngineFeatureLab);
+    scene_manager.register_game_scene<example::scene::EffectsShowcaseScene>(
+        example::scene_keys::EffectsShowcase);
     scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(
         example::scene_keys::MultiTargetCamera);
     scene_manager.register_game_scene<example::scene::LocalMultiplayerScene>(
@@ -280,7 +361,7 @@ void test_escape_returns_the_full_caller_route()
 
     scene_manager.start(elysia::scene::SceneRoute{
         .target = example::scene_keys::UiComponentGallery,
-        .payload = example::scene::DemoScenePayload{
+        .payload = example::scene::ShowcaseEnterPayload{
             .return_route = elysia::scene::SceneRoute{
                 .target = 1,
                 .payload = ReturnPayload{ .marker = 17 },
@@ -317,8 +398,8 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = example::scene_keys::EngineFeatureLab,
-            .payload = example::scene::DemoScenePayload{
+            .target = example::scene_keys::EffectsShowcase,
+            .payload = example::scene::ShowcaseEnterPayload{
                 .return_route = elysia::scene::SceneRoute{
                     .target = 2,
                     .payload = ReturnPayload{ .marker = 29 },
@@ -362,11 +443,11 @@ void test_escape_returns_the_full_caller_route()
         "Engine feature test must refresh one collider snapshot at the moved character position");
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 2 && SecondReturnScene::marker == 29,
-        "EngineFeatureLabScene Escape must return the caller key and payload");
+        "EffectsShowcaseScene Escape must return the caller key and payload");
     require(!debug_draw->enabled()
             && debug_draw->enabled_categories()
                 == elysia::tools::DebugDrawCategory::Gameplay,
-        "leaving EngineFeatureLabScene must restore the previous DebugDraw settings");
+        "leaving EffectsShowcaseScene must restore the previous DebugDraw settings");
 
     const elysia::scene::SceneRoute original_caller{
         .target = 1,
@@ -376,62 +457,63 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = elysia::scene::SceneRoute{
-            .target = example::scene_keys::DemoGallery,
-            .payload = example::scene::DemoScenePayload{
+            .target = example::scene_keys::ShowcaseGallery,
+            .payload = example::scene::ShowcaseEnterPayload{
                 .return_route = original_caller
             }
         }
     });
     scene_manager.on_update(0.0);
 
-    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
-    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
     press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
     require(scene_manager.current_scene_key() == example::scene_keys::UiComponentGallery,
         "Gallery keyboard navigation must open the selected child page");
     send_escape(scene_manager);
-    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
-        "Demo child Escape must return to DemoGalleryScene");
+    require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
+        "Demo child Escape must return to ShowcaseGalleryScene");
     for (int cycle = 0; cycle < 2; ++cycle)
     {
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
-        require(scene_manager.current_scene_key() == example::scene_keys::EngineFeatureLab,
+        require(scene_manager.current_scene_key() == example::scene_keys::MultiTargetCamera,
             "Down after returning to Gallery must open the next menu entry");
         send_escape(scene_manager);
-        require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+        require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
             "Engine feature Escape must return to the cached Gallery");
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyUp);
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyUp);
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
         require(scene_manager.current_scene_key() == example::scene_keys::UiComponentGallery,
             "Up after returning to Gallery must open the previous menu entry");
         send_escape(scene_manager);
-        require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+        require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
             "repeated child visits must keep returning to Gallery");
     }
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && FirstReturnScene::marker == 41,
-        "DemoGalleryScene must preserve and return the original caller route");
+        "ShowcaseGalleryScene must preserve and return the original caller route");
 
     const auto open_gallery = [&scene_manager,&original_caller]()
     {
         scene_manager.on_scene_request(elysia::scene::SceneRequest{
             .type = elysia::scene::SceneRequestType::Switch,
             .route = {
-                .target = example::scene_keys::DemoGallery,
-                .payload = example::scene::DemoScenePayload{
+                .target = example::scene_keys::ShowcaseGallery,
+                .payload = example::scene::ShowcaseEnterPayload{
                     .return_route = original_caller},
-                .reload_mode = elysia::scene::SceneReloadMode::Reuse}});
+                .reload_mode = elysia::scene::SceneReloadMode::Recreate}});
         scene_manager.on_update(0.0);
     };
 
     open_gallery();
-    click_mouse(scene_manager, 640, 502);
-    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+    for(int i=0;i<9;++i)press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
+    require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
         "Failure Test must open a confirmation without immediately leaving Gallery");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
-    require(scene_manager.current_scene_key() == example::scene_keys::DemoGallery,
+    require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
         "Canceling the Failure confirmation must remain in Gallery");
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyEscape);
@@ -439,7 +521,8 @@ void test_escape_returns_the_full_caller_route()
         "Gallery Escape must resume returning to its caller after closing the modal");
 
     open_gallery();
-    click_mouse(scene_manager, 640, 502);
+    for(int i=0;i<9;++i)press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
     press_and_release_key(
         scene_manager, elysia::input::RawInputControl::KeyRight);
     press_and_release_key(
@@ -454,6 +537,7 @@ void test_escape_returns_the_full_caller_route()
     require(localization->initialize(fixture.renderer(),
         std::filesystem::path(ELYSIA_SOURCE_DIR) / "assets/configs/manifests/i18n_manifest.json",
         "en", &font_resolver), "camera demo captures must initialize text rendering");
+    test_gallery_hud(context,fixture.renderer());
     // Exercise the actual demo UI and optionally export deterministic render captures.
     auto* cameras = elysia::camera::CameraManager::instance();
     cameras->set_viewport_size(elysia::camera::CameraSlot::Main, {1280, 720});
@@ -461,7 +545,7 @@ void test_escape_returns_the_full_caller_route()
         scene_manager.on_scene_request(elysia::scene::SceneRequest{
             .type = elysia::scene::SceneRequestType::Switch,
             .route = {.target = example::scene_keys::MultiTargetCamera,
-                .payload = example::scene::DemoScenePayload{.return_route = original_caller},
+                .payload = example::scene::ShowcaseEnterPayload{.return_route = original_caller},
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}});
         scene_manager.on_update(0);
     };
@@ -486,7 +570,7 @@ void test_escape_returns_the_full_caller_route()
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() > 1.9f,
         "demo close targets must zoom in after the settle delay");
     render_camera("01b_zoomed_in");
-    click_mouse(scene_manager, 922, 52);
+    click_mouse(scene_manager, 1130, 110);
     elysia::input::RawInputFrame movement;
     movement.state.set_pressed(elysia::input::RawInputControl::KeyD, true);
     scene_manager.on_input(elysia::tests::events_snapshot({{.control=elysia::input::RawInputControl::KeyD,.type=elysia::input::RawInputEventType::ControlPressed}}));
@@ -494,8 +578,8 @@ void test_escape_returns_the_full_caller_route()
     require(cameras->camera(elysia::camera::CameraSlot::Main).center().x > 100,
         "WASD movement must move the tracked primary and its camera");
     scene_manager.on_input(elysia::tests::events_snapshot({}));
-    click_mouse(scene_manager, 922, 52);
-    click_mouse(scene_manager, 502, 52); // Teleport the secondary target.
+    click_mouse(scene_manager, 1130, 110);
+    click_mouse(scene_manager, 614, 110); // Teleport the secondary target.
     scene_manager.on_update(0.1);
     const float first_zoom = cameras->camera(elysia::camera::CameraSlot::Main).zoom();
     require(first_zoom > 0.5f && first_zoom < 1,
@@ -505,21 +589,21 @@ void test_escape_returns_the_full_caller_route()
     require(std::abs(cameras->camera(elysia::camera::CameraSlot::Main).zoom() - 0.5f) < 0.001f,
         "demo must settle at minimum zoom when targets separate too far");
     render_camera("03_primary_only");
-    click_mouse(scene_manager, 922, 52); // Reset.
+    click_mouse(scene_manager, 1130, 110); // Reset.
     scene_manager.on_update(0);
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1,
         "demo reset must restore initial zoom");
-    click_mouse(scene_manager, 642, 52); // Manual zoom.
+    click_mouse(scene_manager, 786, 110); // Manual zoom.
     scene_manager.on_update(1);
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1.5f,
         "demo manual zoom must own its completion frame");
-    click_mouse(scene_manager, 82, 52); // DeadZone off.
-    click_mouse(scene_manager, 222, 52); // Swap primary.
-    click_mouse(scene_manager, 782, 52); // Bounds on.
+    click_mouse(scene_manager, 98, 110); // DeadZone off.
+    click_mouse(scene_manager, 270, 110); // Swap primary.
+    click_mouse(scene_manager, 958, 110); // Bounds on.
     scene_manager.on_update(0.1);
     render_camera("04_controls");
-    click_mouse(scene_manager, 922, 52);
-    click_mouse(scene_manager, 362, 52); // Automatic separation and reunion.
+    click_mouse(scene_manager, 1130, 110);
+    click_mouse(scene_manager, 442, 110); // Automatic separation and reunion.
     for (int frame = 0; frame < 900; ++frame) scene_manager.on_update(1.0 / 60.0);
     render_camera("05_reunion");
     send_escape(scene_manager);
@@ -532,7 +616,7 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = {.target = example::scene_keys::LocalMultiplayer,
-                  .payload = example::scene::DemoScenePayload{.return_route = original_caller}}});
+                  .payload = example::scene::ShowcaseEnterPayload{.return_route = original_caller}}});
     scene_manager.on_update(0);
     auto blocks = ELYSIA_OBJECT_QUERY->find_objects<>();
     require(blocks.size() == 2, "Multiplayer demo creates exactly two command-controlled actors");
@@ -616,7 +700,7 @@ void test_escape_returns_the_full_caller_route()
 
     scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
         .route={.target=example::scene_keys::LocalMultiplayer,
-                .payload=example::scene::DemoScenePayload{.return_route=original_caller},.reload_mode=elysia::scene::SceneReloadMode::Recreate}});
+                .payload=example::scene::ShowcaseEnterPayload{.return_route=original_caller},.reload_mode=elysia::scene::SceneReloadMode::Recreate}});
     scene_manager.on_update(0);
     require(controls->describe(first_controller)->bound && controls->describe(second_controller)->bound,
             "Recreated multiplayer scene explicitly restores both session controllers");
@@ -636,8 +720,8 @@ void test_escape_returns_the_full_caller_route()
     debug_draw->set_enabled(false);
     debug_draw->set_enabled_categories(elysia::tools::DebugDrawCategory::Gameplay);
     scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
-        .route={.target=example::scene_keys::EngineFeatureLab,
-            .payload=example::scene::DemoScenePayload{.return_route=original_caller},
+        .route={.target=example::scene_keys::EffectsShowcase,
+            .payload=example::scene::ShowcaseEnterPayload{.return_route=original_caller},
             .reload_mode=elysia::scene::SceneReloadMode::Recreate}});
     scene_manager.on_update(0);
     require(scene_manager.state()==elysia::scene::SceneManagerState::Faulted

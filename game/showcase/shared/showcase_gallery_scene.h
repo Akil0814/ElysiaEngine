@@ -1,0 +1,37 @@
+#pragma once
+#include "game/showcase/shared/showcase_frame.h"
+
+#include "engine/scene/scene.h"
+#include "game/showcase/shared/showcase_enter_payload.h"
+
+namespace elysia::ui
+{
+class UiWindow;
+class UiConfirmationDialog;
+}
+
+namespace example::scene
+{
+class ShowcaseGalleryScene final : public elysia::scene::Scene
+{
+protected:
+  void on_shortcuts(const elysia::input::RawInputFrame &input,
+                    const std::vector<elysia::input::RawInputEvent> &events) override;
+  void on_enter(const elysia::scene::ScenePayload &payload) override;
+  void on_exit() override;
+  void on_reset() override;
+
+private:
+    void build_ui();
+    void destroy_ui() noexcept;
+    void return_to_caller();
+    void reset_failure_confirmation() noexcept;
+    [[nodiscard]] elysia::scene::SceneRoute make_gallery_route() const;
+
+private:
+    example::showcase::ShowcaseFrame _view;
+    elysia::scene::SceneRoute _return_route;
+    elysia::ui::UiWindow* _root_window = nullptr;
+    elysia::ui::UiConfirmationDialog* _failure_confirmation = nullptr;
+};
+}

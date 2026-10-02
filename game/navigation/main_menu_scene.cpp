@@ -1,0 +1,204 @@
+#include "engine/gameplay/control/controller_service.h"
+#include "game/navigation/main_menu_scene.h"
+
+#include "game/navigation/showcase_scene_keys.h"
+#include "game/showcase/shared/showcase_enter_payload.h"
+
+#include "engine/resources/resource_service.h"
+#include "engine/builtin/builtin_scene_keys.h"
+#include "engine/builtin/scenes/settings_scene.h"
+
+#include "engine/ui/composites/ui_confirmation_dialog.h"
+#include "engine/ui/widgets/ui_button.h"
+#include "engine/ui/widgets/image/ui_image.h"
+#include "engine/ui/widgets/label/ui_label.h"
+#include "engine/ui/containers/ui_list_container.h"
+#include "engine/ui/layout/ui_layout_types.h"
+
+#include <memory>
+
+namespace example::scene
+{
+void MainMenuScene::on_enter(const elysia::scene::ScenePayload& payload)
+{
+    elysia::gameplay::ControllerService::instance()->end_session();
+    (void)payload;
+
+    if (_has_entered)
+        return;
+
+    if (!_main_menu_window || _main_menu_window->is_destroyed())
+        build_menu_buttons();
+
+    restore_menu_state();
+
+    _has_entered = true;
+}
+
+void MainMenuScene::on_shortcuts(const elysia::input::RawInputFrame &input,
+                                 const std::vector<elysia::input::RawInputEvent> &events)
+{
+}
+
+void MainMenuScene::on_exit()
+{
+    reset_exit_overlay();
+}
+
+void MainMenuScene::on_reset()
+{
+    _has_entered = false;
+    reset_exit_overlay();
+}
+
+void MainMenuScene::build_menu_buttons()
+{
+    if (_main_menu_window && !_main_menu_window->is_destroyed())
+        return;
+
+    _main_menu_window = Scene::create_and_add_object<elysia::ui::UiWindow>(
+        elysia::core::Rect{
+            0.0f,
+            0.0f,
+            static_cast<float>(runtime_context().logical_width()),
+            static_cast<float>(runtime_context().logical_height())},
+        10);
+    _exit_confirmation = nullptr;
+
+    if (!_main_menu_window)
+        return;
+
+    _exit_confirmation = _main_menu_window->create_child<elysia::ui::UiConfirmationDialog>(
+        elysia::core::Rect{ 0,0,420,240 },10);
+    if (_exit_confirmation)
+    {
+        _exit_confirmation->set_config(elysia::ui::UiConfirmationDialogConfig{
+            .title = elysia::ui::ui_text_key("menu_scene.exit_confirm.title"),
+            .message = elysia::ui::ui_text_key("menu_scene.exit_confirm.message"),
+            .confirm = elysia::ui::ui_text_key("menu_scene.exit"),
+            .cancel = elysia::ui::ui_text_key("menu_scene.exit_confirm.cancel"),
+            .close = elysia::ui::ui_text_key("menu_scene.exit_confirm.close"),
+            .confirm_visual_role = elysia::ui::UiButtonVisualRole::Danger
+            });
+        _exit_confirmation->set_on_confirm([this]() { Scene::request_quit(); });
+        (void)_exit_confirmation->register_with_window(*_main_menu_window);
+    }
+
+    //create the inner button container
+    std::unique_ptr<elysia::ui::UiListContainer> ui_list =
+        std::make_unique<elysia::ui::UiListContainer>(
+            elysia::core::Rect{0, 0, 300, 260});
+    ui_list->set_item_spacing(12.0f);
+
+    constexpr int button_wide = 250;
+    const elysia::ui::UiButtonSounds menu_button_sounds{
+        .press = "system.button_click_down",
+        .click = "system.button_click_up"
+    };
+    // Demo Gallery is the only top-level entry for project-owned showcases.
+    std::unique_ptr<elysia::ui::UiButton> ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
+    ui_button->set_text_content(
+        elysia::ui::ui_text_key("menu_scene.demo_gallery"));
+    ui_button->set_sounds(menu_button_sounds);
+    ui_button->set_on_click([this] {
+        Scene::request_scene_switch(
+            example::scene_keys::ShowcaseGallery,
+            ShowcaseEnterPayload{
+                .return_route = {
+                    .target = example::scene_keys::MainMenu,
+                    .payload = elysia::scene::ScenePayload{},
+                    .reload_mode = elysia::scene::SceneReloadMode::Reuse}},
+            elysia::scene::SceneReloadMode::Reuse);
+    });
+    ui_list->add_back(std::move(ui_button));
+
+    //setting button
+    ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
+    ui_button->set_text_content(elysia::ui::ui_text_key("menu_scene.settings"));
+    ui_button->set_sounds(menu_button_sounds);
+    ui_button->set_on_click([this] {
+        Scene::request_scene_switch(
+            elysia::builtin::SceneKeys::Settings,
+            elysia::builtin::SettingsScenePayload{
+                .return_route = elysia::scene::SceneRoute{
+                    .target = example::scene_keys::MainMenu,
+                    .payload = elysia::scene::ScenePayload{},
+                    .reload_mode = elysia::scene::SceneReloadMode::Reuse
+                }
+            });
+    });
+    ui_list->add_back(std::move(ui_button));
+
+    //exit button
+    ui_button = std::make_unique<elysia::ui::UiButton>(elysia::core::Rect{ 0,0,button_wide,75 });
+    ui_button->set_text_content(elysia::ui::ui_text_key("menu_scene.exit"));
+    ui_button->set_sounds(menu_button_sounds);
+    ui_button->set_on_click([this]
+        {
+            if (_exit_confirmation)
+                _exit_confirmation->open();
+        });
+    ui_list->add_back(std::move(ui_button));
+
+    //Title
+    std::unique_ptr<elysia::ui::UiLabel> ui_label =
+        std::make_unique<elysia::ui::UiLabel>(elysia::core::Rect{ 0,0,600,120 }, 0, elysia::ui::ui_text_key("menu_scene.project_name"));
+    ui_label->set_visual_role(elysia::ui::UiLabelVisualRole::Title);
+    ui_label->set_typography_role(
+        elysia::typography::UiTypographyRole::Title);
+    ui_label->set_text_fit_mode(elysia::ui::UiLabelTextFitMode::ScaleToFit);
+    ui_label->set_horizontal_align(elysia::ui::TextHorizontalAlign::Center);
+    ui_label->set_vertical_align(elysia::ui::TextVerticalAlign::Center);
+
+
+    std::unique_ptr<elysia::ui::UiListContainer> ui_outer_list =
+        std::make_unique<elysia::ui::UiListContainer>(
+            elysia::core::Rect{0, 0, 600, 400});
+    ui_outer_list->add_front(std::move(ui_label));
+    ui_outer_list->add_back(std::move(ui_list));
+
+    //add list to window
+    elysia::ui::UiLayoutChildOptions layout{ elysia::ui::UiLayoutAnchor::Center };
+    elysia::ui::UiElement* list_added = _main_menu_window->add_child(std::move(ui_outer_list), layout);
+
+    if (auto* list = dynamic_cast<elysia::ui::UiListContainer*>(list_added))
+        _main_menu_window->register_focus_scope(*list);
+
+    SDL_Texture* tex =
+        ELYSIA_RESOURCES->find_texture("ui.moon");
+    auto ui_background = std::make_unique<elysia::ui::UiImage>(tex, elysia::core::Rect{ 0,0,1404,844 }, -10);
+    _main_menu_window->add_child(std::move(ui_background), { elysia::ui::UiLayoutAnchor::Center });
+
+    elysia::ui::UiWindowStyleOverrides window_style{};
+    window_style.draw_background = true;
+    window_style.draw_border = false;
+    _main_menu_window->set_style_overrides(window_style);
+
+    _main_menu_window->set_on_cancel([this]{
+        if (_exit_confirmation)
+            _exit_confirmation->open();
+        });
+}
+
+void MainMenuScene::reset_exit_overlay()
+{
+    if (_main_menu_window && _exit_confirmation && !_main_menu_window->is_destroyed() && !_exit_confirmation->is_destroyed())
+        _exit_confirmation->close();
+}
+
+void MainMenuScene::restore_menu_state()
+{
+    if (!_main_menu_window || _main_menu_window->is_destroyed())
+        return;
+
+    _main_menu_window->set_active(true);
+    _main_menu_window->set_visible(true);
+
+    if (_exit_confirmation && !_exit_confirmation->is_destroyed())
+        _exit_confirmation->close();
+
+    _main_menu_window->focus_first_available_scope();
+}
+
+}
+

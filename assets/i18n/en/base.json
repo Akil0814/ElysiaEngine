@@ -25,14 +25,8 @@
     }
   },
   "demo_gallery": {
-    "title": "Demo Gallery",
-    "physics": "Physics & Combat",
-    "animation_preview": "Animation Preview",
-    "ui_gallery": "UI Component Gallery",
-    "engine_features": "Engine Feature Lab",
     "elysia_realm": "Elysia Realm",
     "failure_test": "Application Failure Test",
-    "back": "Back",
     "failure_confirm": {
       "title": "Confirm Failure Test",
       "message": "This test terminates the application. Continue?",
@@ -41,26 +35,26 @@
       "close": "Close"
     }
   },
-  "physics_combat_gallery": {
-    "box2d_lab": "Box2D Physics Lab",
-    "title": "Physics & Combat Demos",
-    "collider": "Collider Combat",
-    "platform_tile": "Platform Tile Combat",
-    "top_down_tile": "Top-Down Tile Combat",
-    "back": "Back"
-  },
   "animation_preview": {
-    "title": "Animation Preview",
-    "description": "Preview the RyougiShiki frame-directory and segmented animations.",
     "animation_idle": "Idle",
     "animation_run": "Run",
     "attack_segment": "Attack segment",
     "attack_previous": "Previous segment",
     "attack_replay": "Replay attack",
-    "attack_next": "Next segment",
-    "back": "Back"
+    "attack_next": "Next segment"
   },
   "ui_component_gallery": {
+    "hud": {
+      "description": "E: skill (3s cooldown) | 1 / 2: use item | P: pause this demo | Mouse also works",
+      "skill": "Skill",
+      "item_one": "Potion",
+      "item_two": "Bomb",
+      "pause": "Pause",
+      "resume": "Resume",
+      "ready": "Ready — skill badge counts casts; item badges show remaining stock.",
+      "cooldown": "Skill cooling down — the mask shrinks as the cooldown expires.",
+      "paused": "Demo paused — cooldown and item use are suspended."
+    },
     "typography": {
       "tab": "Typography",
       "title": "Typography Scale",
@@ -177,8 +171,14 @@
       "option_seven": "Seventh option",
       "option_eight": "Eighth option"
     },
-    "dialog": { "title": "Workbench reading dialog", "body": "This dialog verifies modal placement, focus restoration and localized long-form copy." },
-    "confirm": { "title": "Confirm workbench action", "message": "This confirmation dialog is part of the overlay coverage." },
+    "dialog": {
+      "title": "Workbench reading dialog",
+      "body": "This dialog verifies modal placement, focus restoration and localized long-form copy."
+    },
+    "confirm": {
+      "title": "Confirm workbench action",
+      "message": "This confirmation dialog is part of the overlay coverage."
+    },
     "appearance": {
       "note": "Theme names are stable engine identifiers.",
       "localized_sample": "Localized TextKey sample"
@@ -192,7 +192,6 @@
     "run": "Run / rerun",
     "pause": "Pause / resume (P)",
     "single_step": "Single step (N)",
-    "free_play": "Free play",
     "reset": "Reset (R)",
     "back": "Back (Esc)",
     "ready": "Ready",
@@ -298,6 +297,112 @@
         "purpose": "64² / 128² / 256² cells, sparse obstacles, local updates and batched queries.",
         "expected": "Tile updates and queries succeed; all states stay finite; report 600 timing samples."
       }
+    }
+  },
+  "showcase": {
+    "back": "Back",
+    "auxiliary": "Additional demonstrations",
+    "gallery": {
+      "title": "Engine showcases",
+      "description": "Choose a module to explore its controls and behavior."
+    },
+    "ui": {
+      "title": "UI",
+      "description": "Controls, layout, themes, typography, overlays and HUD."
+    },
+    "input": {
+      "title": "Input and control",
+      "description": "Local players, devices, control targets and input routing.",
+      "menu": "Players / menu",
+      "bind_one": "Bind next Start controller to player 1",
+      "bind_two": "Rebind player 2 controller",
+      "release": "Release controllers for reassignment",
+      "keyboard_one": "Keyboard: WASD P1 / arrows P2",
+      "keyboard_two": "Keyboard: arrows P1 / WASD P2",
+      "mouse_one": "Mouse: player 1",
+      "mouse_two": "Mouse: player 2",
+      "pad_one": "UI gamepad: player 1",
+      "pad_two": "UI gamepad: player 2",
+      "resume": "Resume",
+      "typing": "Typing must not move players",
+      "mouse": "mouse",
+      "pad": "gamepad",
+      "disconnected": "gamepad disconnected",
+      "ui_access": "UI: keyboard + mouse",
+      "assignment": "Press Start on an unassigned gamepad for player"
+    },
+    "camera": {
+      "title": "Camera",
+      "description": "WASD: primary target; Q/E: other target. Explore tracking, zoom and bounds.",
+      "dead_zone": "Dead zone",
+      "swap": "Swap primary",
+      "auto_motion": "Automatic motion",
+      "teleport": "Teleport target",
+      "zoom": "Zoom to 1.5",
+      "bounds": "World bounds",
+      "primary": "Primary",
+      "zoom_label": "Zoom",
+      "primary_only": "Primary only",
+      "group": "Group",
+      "blue": "Blue",
+      "orange": "Orange"
+    },
+    "animation": {
+      "title": "Animation",
+      "description": "Play idle, movement and attack segments."
+    },
+    "effects": {
+      "title": "Effects",
+      "description": "Floating numbers and color overlays.",
+      "damage": "Damage",
+      "critical": "Critical",
+      "heal": "Heal",
+      "percent": "Percent",
+      "fraction": "Fraction",
+      "decimal": "Decimal"
+    },
+    "physics": {
+      "title": "Physics and collision",
+      "description": "Shared simulation checks and stress tiers. P: pause; N: step; R: reset; F1: debug."
+    },
+    "gameplay": {
+      "title": "Gameplay",
+      "description": "Explore control, gameplay collision, combat and world UI.",
+      "capabilities": "Play a scene, or run its combat checks below. World UI follows actors and reflects damage.",
+      "collider": "Collider combat",
+      "platform": "Platform combat",
+      "topdown": "Top-down combat",
+      "health": "Health",
+      "enemies": "Enemies",
+      "bound": "Controller available",
+      "attacking": "Attacking",
+      "defeated": "Defeated — restarting…",
+      "world_ui": "Toggle world UI",
+      "speech": "Show speech bubble",
+      "collider_controls": "A/D: move | Space: jump | J: attack | K: query | P: pause | N: step | R: reset | F1: debug",
+      "platform_controls": "A/D: move | Space: jump | S+Space: drop | J: attack | P: pause | N: step | R: reset | F1: debug",
+      "topdown_controls": "WASD: move | J: attack | P: pause | N: step | R: reset | F1: debug"
+    },
+    "audio": {
+      "title": "Audio",
+      "description": "Synthetic low-gain fixtures; changes are restored when leaving.",
+      "once": "Play sound",
+      "delay": "Play after 500 ms",
+      "loop": "Loop with fade-in",
+      "stop": "Stop owned sounds",
+      "limit": "Demonstrate group limit and cooldown",
+      "music_a": "Play music A with fade-in",
+      "music_b": "Fade to music B",
+      "music_stop": "Fade out music",
+      "master": "Master volume",
+      "music_volume": "Music volume",
+      "sound_volume": "Sound volume",
+      "group_volume": "Gameplay group volume",
+      "ready": "Ready",
+      "unavailable": "Audio is unavailable",
+      "accepted": "Playback request accepted",
+      "rejected": "Playback request rejected",
+      "scheduled": "Playback scheduled"
     }
   }
 }

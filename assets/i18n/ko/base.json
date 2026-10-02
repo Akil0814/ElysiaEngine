@@ -25,14 +25,8 @@
     }
   },
   "demo_gallery": {
-    "title": "데모 갤러리",
-    "physics": "물리 및 전투",
-    "animation_preview": "애니메이션 미리보기",
-    "ui_gallery": "UI 컴포넌트 갤러리",
-    "engine_features": "엔진 기능 실험실",
     "elysia_realm": "엘리시아 렐름",
     "failure_test": "애플리케이션 오류 테스트",
-    "back": "뒤로",
     "failure_confirm": {
       "title": "오류 테스트 확인",
       "message": "이 테스트는 애플리케이션을 종료합니다. 계속하시겠습니까?",
@@ -41,26 +35,26 @@
       "close": "닫기"
     }
   },
-  "physics_combat_gallery": {
-    "box2d_lab": "Box2D 물리 실험실",
-    "title": "물리 및 전투 데모",
-    "collider": "콜라이더 전투",
-    "platform_tile": "플랫폼 타일 전투",
-    "top_down_tile": "탑다운 타일 전투",
-    "back": "뒤로"
-  },
   "animation_preview": {
-    "title": "애니메이션 미리보기",
-    "description": "RyougiShiki의 프레임 디렉터리와 다단 공격 애니메이션을 확인합니다.",
     "animation_idle": "대기",
     "animation_run": "달리기",
     "attack_segment": "공격 단계",
     "attack_previous": "이전 단계",
     "attack_replay": "공격 다시 재생",
-    "attack_next": "다음 단계",
-    "back": "뒤로"
+    "attack_next": "다음 단계"
   },
   "ui_component_gallery": {
+    "hud": {
+      "description": "E: 스킬 (3초) | 1 / 2: 아이템 사용 | P: 데모 일시 정지 | 마우스도 사용 가능",
+      "skill": "스킬",
+      "item_one": "물약",
+      "item_two": "폭탄",
+      "pause": "정지",
+      "resume": "계속",
+      "ready": "준비 완료: 스킬 배지는 사용 횟수, 아이템 배지는 남은 수량입니다.",
+      "cooldown": "스킬 재사용 대기 중: 시간이 지나면 가림막이 줄어듭니다.",
+      "paused": "데모 일시 정지: 재사용 대기 시간과 아이템 사용이 멈춥니다."
+    },
     "typography": {
       "tab": "타이포그래피",
       "title": "글꼴 크기",
@@ -73,44 +67,122 @@
       "sample_60": "60 px — 대화 상자 제목 예시",
       "sample_70": "70 px — 큰 제목 예시"
     },
-    "status": { "ready": "UI 작업대가 준비되었습니다", "interaction": "입력을 받았습니다", "submitted": "텍스트를 제출했습니다", "overlay_opened": "오버레이를 열었습니다", "selection_changed": "선택이 변경되었습니다" },
-    "pages": { "overview": "개요", "states": "상태 및 변형", "controls": "컨트롤", "media": "콘텐츠 및 미디어", "containers": "컨테이너", "overlays": "오버레이 및 포커스", "appearance": "모양 및 현지화" },
-    "sections": { "overview": "테마 인식 대시보드와 시각 역할 예시입니다.", "controls": "상호작용 컨트롤은 상태 줄을 갱신합니다.", "media": "텍스트, 숫자, 막대, 엔진 이미지와 애니메이션입니다.", "containers": "구성, 슬롯, 스크롤 및 중첩 탭입니다.", "overlays": "창이 관리하는 오버레이, 대화 상자 및 포커스 복구입니다.", "appearance": "내장 테마는 등록된 UI 트리를 즉시 갱신합니다." },
-    "actions": { "replay": "재생", "reset": "작업대 다시 만들기", "replay_effects": "효과 다시 재생", "play": "재생", "pause": "일시 정지", "resume": "계속", "reset_animation": "애니메이션 초기화" },
-    "controls": { "labeled_check": "레이블 체크 상자", "labeled_radio": "레이블 라디오 항목", "labeled_radio_far": "가장자리 라디오 레이블", "placeholder": "최대 열여섯 글자 입력" },
+    "status": {
+      "ready": "UI 작업대가 준비되었습니다",
+      "interaction": "입력을 받았습니다",
+      "submitted": "텍스트를 제출했습니다",
+      "overlay_opened": "오버레이를 열었습니다",
+      "selection_changed": "선택이 변경되었습니다"
+    },
+    "pages": {
+      "overview": "개요",
+      "states": "상태 및 변형",
+      "controls": "컨트롤",
+      "media": "콘텐츠 및 미디어",
+      "containers": "컨테이너",
+      "overlays": "오버레이 및 포커스",
+      "appearance": "모양 및 현지화"
+    },
+    "sections": {
+      "overview": "테마 인식 대시보드와 시각 역할 예시입니다.",
+      "controls": "상호작용 컨트롤은 상태 줄을 갱신합니다.",
+      "media": "텍스트, 숫자, 막대, 엔진 이미지와 애니메이션입니다.",
+      "containers": "구성, 슬롯, 스크롤 및 중첩 탭입니다.",
+      "overlays": "창이 관리하는 오버레이, 대화 상자 및 포커스 복구입니다.",
+      "appearance": "내장 테마는 등록된 UI 트리를 즉시 갱신합니다."
+    },
+    "actions": {
+      "replay": "재생",
+      "reset": "작업대 다시 만들기",
+      "replay_effects": "효과 다시 재생",
+      "play": "재생",
+      "pause": "일시 정지",
+      "resume": "계속",
+      "reset_animation": "애니메이션 초기화"
+    },
+    "controls": {
+      "labeled_check": "레이블 체크 상자",
+      "labeled_radio": "레이블 라디오 항목",
+      "labeled_radio_far": "가장자리 라디오 레이블",
+      "placeholder": "최대 열여섯 글자 입력"
+    },
     "states": {
-      "buttons_title": "버튼 콘텐츠와 역할", "buttons_description": "콘텐츠는 렌더링 경로를, 의미 역할은 테마 색상을 선택합니다.",
-      "text_button": "텍스트", "role_button": "역할", "disabled": "비활성",
-      "selection_title": "선택 상태", "selection_description": "논리 상태, 표시 모양 및 비활성 렌더링을 나란히 보여 줍니다.",
-      "presentation_title": "표현 역할", "presentation_description": "텍스트 맞춤, 텍스트 역할 및 패널 표면은 레이아웃과 독립적입니다.",
-      "fit_sample": "의도적으로 긴 맞춤 예시", "text_block_sample": "텍스트 블록은 줄바꿈된 현지화 콘텐츠를 측정합니다.", "panel_sample": "패널",
-      "inputs_title": "텍스트 입력 상태", "inputs_description": "자리 표시자, 입력된 텍스트 및 비활성 텍스트가 별도로 렌더링됩니다."
+      "buttons_title": "버튼 콘텐츠와 역할",
+      "buttons_description": "콘텐츠는 렌더링 경로를, 의미 역할은 테마 색상을 선택합니다.",
+      "text_button": "텍스트",
+      "role_button": "역할",
+      "disabled": "비활성",
+      "selection_title": "선택 상태",
+      "selection_description": "논리 상태, 표시 모양 및 비활성 렌더링을 나란히 보여 줍니다.",
+      "presentation_title": "표현 역할",
+      "presentation_description": "텍스트 맞춤, 텍스트 역할 및 패널 표면은 레이아웃과 독립적입니다.",
+      "fit_sample": "의도적으로 긴 맞춤 예시",
+      "text_block_sample": "텍스트 블록은 줄바꿈된 현지화 콘텐츠를 측정합니다.",
+      "panel_sample": "패널",
+      "inputs_title": "텍스트 입력 상태",
+      "inputs_description": "자리 표시자, 입력된 텍스트 및 비활성 텍스트가 별도로 렌더링됩니다."
     },
     "media": {
       "long_text": "이 현지화된 텍스트 블록은 폭이 다른 문자에서 줄바꿈, 조판 및 테마 렌더링을 검증합니다.",
-      "text_title": "현지화 및 원시 텍스트", "text_description": "TextKey는 현재 언어를 해석하고 RawText는 식별자를 그대로 유지합니다.",
-      "number_title": "숫자와 막대", "number_description": "경계값 숫자 서식과 네 방향 채우기를 보여 줍니다.",
-      "effects_title": "불투명도 효과", "effects_description": "페이드, 깜박임 및 펄스는 이 탭이 활성화된 동안 갱신되며 다시 재생할 수 있습니다.",
-      "fade_in": "페이드 인", "fade_in_out": "페이드 인/아웃", "blink_visible": "표시부터 깜박임", "pulse_min": "최솟값부터 펄스",
-      "animation_title": "프레임 애니메이션", "animation_description": "UI 애니메이션은 캐시 프레임을 참조하며 독립적인 재생 컨트롤을 제공합니다."
+      "text_title": "현지화 및 원시 텍스트",
+      "text_description": "TextKey는 현재 언어를 해석하고 RawText는 식별자를 그대로 유지합니다.",
+      "number_title": "숫자와 막대",
+      "number_description": "경계값 숫자 서식과 네 방향 채우기를 보여 줍니다.",
+      "effects_title": "불투명도 효과",
+      "effects_description": "페이드, 깜박임 및 펄스는 이 탭이 활성화된 동안 갱신되며 다시 재생할 수 있습니다.",
+      "fade_in": "페이드 인",
+      "fade_in_out": "페이드 인/아웃",
+      "blink_visible": "표시부터 깜박임",
+      "pulse_min": "최솟값부터 펄스",
+      "animation_title": "프레임 애니메이션",
+      "animation_description": "UI 애니메이션은 캐시 프레임을 참조하며 독립적인 재생 컨트롤을 제공합니다."
     },
     "containers": {
-      "chrome": "Chrome 슬롯", "nested_tab": "중첩 탭", "nested_tab_two": "두 번째 탭",
-      "list_title": "선형 목록", "list_description": "목록 순서가 레이아웃, 렌더링 및 주축 포커스 이동을 결정합니다.",
-      "layout_title": "그리드, 패널, Chrome 및 탭", "layout_description": "구조화 컨테이너는 레이아웃 모델에서 포커스 관계를 만듭니다.",
-      "scroll_title": "스크롤 정책", "scroll_description": "자동, 항상 표시 및 숨김 스크롤바는 동일한 콘텐츠 클리핑 동작을 유지합니다."
+      "chrome": "Chrome 슬롯",
+      "nested_tab": "중첩 탭",
+      "nested_tab_two": "두 번째 탭",
+      "list_title": "선형 목록",
+      "list_description": "목록 순서가 레이아웃, 렌더링 및 주축 포커스 이동을 결정합니다.",
+      "layout_title": "그리드, 패널, Chrome 및 탭",
+      "layout_description": "구조화 컨테이너는 레이아웃 모델에서 포커스 관계를 만듭니다.",
+      "scroll_title": "스크롤 정책",
+      "scroll_description": "자동, 항상 표시 및 숨김 스크롤바는 동일한 콘텐츠 클리핑 동작을 유지합니다."
     },
     "overlays": {
-      "open_overlay": "비모달 오버레이 열기", "open_dialog": "읽기 대화 상자 열기", "open_confirm": "확인 대화 상자 열기", "tooltip": "가리켜 툴팁 보기", "tooltip_text": "툴팁 콘텐츠는 포커스와 포인터 상태를 따릅니다.",
-      "placement_title": "오버레이 배치", "placement_description": "하나의 패널을 모든 배치, 전환 및 모달 정책으로 다시 엽니다.",
-      "open_center": "가운데(비모달)", "open_left": "왼쪽 서랍", "open_right": "오른쪽 서랍", "open_top": "위쪽 시트", "open_bottom": "아래쪽 시트",
-      "dialog_title": "모달 대화 상자", "dialog_description": "대화 상자는 포커스를 잡고 닫힐 때 이전 범위를 복원합니다.",
-      "popup_title": "팝업과 툴팁", "popup_description": "임시 팝업이 우선하며 툴팁은 수동적으로 유지됩니다.",
-      "option_four": "네 번째 옵션", "option_five": "다섯 번째 옵션", "option_six": "여섯 번째 옵션", "option_seven": "일곱 번째 옵션", "option_eight": "여덟 번째 옵션"
+      "open_overlay": "비모달 오버레이 열기",
+      "open_dialog": "읽기 대화 상자 열기",
+      "open_confirm": "확인 대화 상자 열기",
+      "tooltip": "가리켜 툴팁 보기",
+      "tooltip_text": "툴팁 콘텐츠는 포커스와 포인터 상태를 따릅니다.",
+      "placement_title": "오버레이 배치",
+      "placement_description": "하나의 패널을 모든 배치, 전환 및 모달 정책으로 다시 엽니다.",
+      "open_center": "가운데(비모달)",
+      "open_left": "왼쪽 서랍",
+      "open_right": "오른쪽 서랍",
+      "open_top": "위쪽 시트",
+      "open_bottom": "아래쪽 시트",
+      "dialog_title": "모달 대화 상자",
+      "dialog_description": "대화 상자는 포커스를 잡고 닫힐 때 이전 범위를 복원합니다.",
+      "popup_title": "팝업과 툴팁",
+      "popup_description": "임시 팝업이 우선하며 툴팁은 수동적으로 유지됩니다.",
+      "option_four": "네 번째 옵션",
+      "option_five": "다섯 번째 옵션",
+      "option_six": "여섯 번째 옵션",
+      "option_seven": "일곱 번째 옵션",
+      "option_eight": "여덟 번째 옵션"
     },
-    "dialog": { "title": "작업대 읽기 대화 상자", "body": "이 대화 상자는 모달 배치, 포커스 복구 및 현지화된 긴 문구를 검증합니다." },
-    "confirm": { "title": "작업대 작업 확인", "message": "이 확인 대화 상자는 오버레이 검증의 일부입니다." },
-    "appearance": { "note": "테마 이름은 안정적인 엔진 식별자입니다.", "localized_sample": "현지화된 TextKey 예시" }
+    "dialog": {
+      "title": "작업대 읽기 대화 상자",
+      "body": "이 대화 상자는 모달 배치, 포커스 복구 및 현지화된 긴 문구를 검증합니다."
+    },
+    "confirm": {
+      "title": "작업대 작업 확인",
+      "message": "이 확인 대화 상자는 오버레이 검증의 일부입니다."
+    },
+    "appearance": {
+      "note": "테마 이름은 안정적인 엔진 식별자입니다.",
+      "localized_sample": "현지화된 TextKey 예시"
+    }
   },
   "physics_tests": {
     "title": "물리 테스트 센터",
@@ -120,7 +192,6 @@
     "run": "실행 / 재실행",
     "pause": "일시정지 / 재개 (P)",
     "single_step": "한 스텝 (N)",
-    "free_play": "자유 플레이",
     "reset": "초기화 (R)",
     "back": "뒤로 (Esc)",
     "ready": "준비",
@@ -226,6 +297,112 @@
         "purpose": "64² / 128² / 256² 셀, 희소 장애물, 부분 갱신과 일괄 쿼리.",
         "expected": "타일 업데이트와 쿼리가 성공하고 상태가 유한하며 600 스텝을 측정합니다."
       }
+    }
+  },
+  "showcase": {
+    "back": "뒤로",
+    "auxiliary": "추가 데모",
+    "gallery": {
+      "title": "엔진 기능 데모",
+      "description": "모듈을 선택하여 조작과 동작을 확인하세요."
+    },
+    "ui": {
+      "title": "UI",
+      "description": "컨트롤, 레이아웃, 테마, 글꼴, 오버레이 및 HUD."
+    },
+    "input": {
+      "title": "입력과 제어",
+      "description": "로컬 플레이어, 장치, 제어 대상 및 입력 라우팅.",
+      "menu": "플레이어 / 메뉴",
+      "bind_one": "다음 Start 컨트롤러를 플레이어 1에 연결",
+      "bind_two": "플레이어 2 컨트롤러 재연결",
+      "release": "재할당을 위해 컨트롤러 해제",
+      "keyboard_one": "키보드: WASD P1 / 방향키 P2",
+      "keyboard_two": "키보드: 방향키 P1 / WASD P2",
+      "mouse_one": "마우스: 플레이어 1",
+      "mouse_two": "마우스: 플레이어 2",
+      "pad_one": "UI 게임패드: 플레이어 1",
+      "pad_two": "UI 게임패드: 플레이어 2",
+      "resume": "계속",
+      "typing": "입력 중에는 플레이어가 움직이지 않습니다",
+      "mouse": "마우스",
+      "pad": "게임패드",
+      "disconnected": "게임패드 연결 해제",
+      "ui_access": "UI: 키보드 + 마우스",
+      "assignment": "미할당 게임패드의 Start를 누르세요: 플레이어"
+    },
+    "camera": {
+      "title": "카메라",
+      "description": "WASD: 주 대상, Q/E: 다른 대상. 추적, 확대 및 경계를 확인하세요.",
+      "dead_zone": "데드 존",
+      "swap": "주 대상 전환",
+      "auto_motion": "자동 이동",
+      "teleport": "대상 순간이동",
+      "zoom": "1.5 배 확대",
+      "bounds": "월드 경계",
+      "primary": "주 대상",
+      "zoom_label": "확대",
+      "primary_only": "주 대상만",
+      "group": "그룹",
+      "blue": "파랑",
+      "orange": "주황"
+    },
+    "animation": {
+      "title": "애니메이션",
+      "description": "대기, 이동 및 공격 구간을 재생합니다."
+    },
+    "effects": {
+      "title": "효과",
+      "description": "떠오르는 숫자 및 색상 오버레이.",
+      "damage": "피해",
+      "critical": "치명타",
+      "heal": "회복",
+      "percent": "백분율",
+      "fraction": "분수",
+      "decimal": "소수"
+    },
+    "physics": {
+      "title": "물리 및 충돌",
+      "description": "공유 물리 검사와 부하 단계. P: 일시정지, N: 한 단계, R: 초기화, F1: 디버그."
+    },
+    "gameplay": {
+      "title": "게임플레이",
+      "description": "제어, 게임플레이 충돌, 전투 및 월드 UI를 확인하세요.",
+      "capabilities": "장면을 플레이하거나 아래 전투 검사를 실행하세요. 월드 UI는 캐릭터와 피해를 반영합니다.",
+      "collider": "콜라이더 전투",
+      "platform": "플랫폼 전투",
+      "topdown": "탑다운 전투",
+      "health": "체력",
+      "enemies": "적",
+      "bound": "컨트롤러 사용 가능",
+      "attacking": "공격 중",
+      "defeated": "패배 — 다시 시작 중…",
+      "world_ui": "월드 UI 전환",
+      "speech": "말풍선 표시",
+      "collider_controls": "A/D: 이동 | Space: 점프 | J: 공격 | K: 쿼리 | P: 정지 | N: 한 단계 | R: 초기화 | F1: 디버그",
+      "platform_controls": "A/D: 이동 | Space: 점프 | S+Space: 내려가기 | J: 공격 | P: 정지 | N: 한 단계 | R: 초기화 | F1: 디버그",
+      "topdown_controls": "WASD: 이동 | J: 공격 | P: 정지 | N: 한 단계 | R: 초기화 | F1: 디버그"
+    },
+    "audio": {
+      "title": "오디오",
+      "description": "낮은 볼륨의 합성 오디오. 나가면 설정이 복원됩니다.",
+      "once": "효과음 재생",
+      "delay": "500 ms 후 재생",
+      "loop": "페이드인 반복",
+      "stop": "데모 효과음 중지",
+      "limit": "그룹 제한 및 재사용 대기",
+      "music_a": "음악 A 페이드인",
+      "music_b": "음악 B로 전환",
+      "music_stop": "음악 페이드아웃",
+      "master": "전체 볼륨",
+      "music_volume": "음악 볼륨",
+      "sound_volume": "효과음 볼륨",
+      "group_volume": "게임플레이 그룹 볼륨",
+      "ready": "준비 완료",
+      "unavailable": "오디오를 사용할 수 없습니다",
+      "accepted": "재생 요청 승인",
+      "rejected": "재생 요청 거부",
+      "scheduled": "재생 예약됨"
     }
   }
 }

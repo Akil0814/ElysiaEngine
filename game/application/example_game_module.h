@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../engine/application/game_module.h"
+#include "engine/application/game_module.h"
 
 namespace example::application
 {

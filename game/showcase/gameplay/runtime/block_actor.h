@@ -1,0 +1,180 @@
+#pragma once
+
+#include "game/showcase/gameplay/runtime/demo_collision_layers.h"
+#include "game/showcase/gameplay/runtime/demo_combat.h"
+#include "game/showcase/shared/colored_block_object.h"
+
+#include "engine/core/interface/updatable.h"
+#include "engine/gameplay/control/control_command.h"
+#include "engine/gameplay/ui/world_bar.h"
+#include "engine/gameplay/ui/speech_bubble.h"
+#include "engine/physics/contracts/physics_participant.h"
+#include "engine/physics/contracts/physics_step_participant.h"
+
+#include <array>
+
+namespace example::showcase::gameplay
+{
+enum class Facing
+{
+    Left,
+    Right,
+    Up,
+    Down
+};
+
+struct ActorConfig
+{
+    elysia::core::Rect rect{};
+    elysia::core::Color color{};
+    elysia::gameplay::collision::TeamId team =
+        elysia::gameplay::collision::teams::Neutral;
+    int maximum_health = 1;
+    float move_speed = 0.0f;
+    bool gravity_enabled = true;
+};
+
+class BlockCombatActor
+    : public ColoredBlockObject
+    , public elysia::core::Updatable
+    , public elysia::physics::PhysicsStepParticipant
+    , public elysia::physics::PhysicsParticipant
+    , public IDamageableActor
+{
+public:
+    explicit BlockCombatActor(ActorConfig config);
+    ~BlockCombatActor() override;
+
+    void update(double delta) override;
+    void fixed_update(double delta) override;
+    void submit_render_commands(
+        std::vector<elysia::core::RenderCommand>& out_commands) const override;
+
+    [[nodiscard]] bool bind_combat(DemoCombatSession& session);
+    void start_attack();
+    [[nodiscard]] bool attacking() const noexcept { return _attacking; }
+    void set_world_ui_visible(bool visible) noexcept { _world_ui_visible=visible; }
+    void show_speech(double seconds=1.5) noexcept { _speech_remaining=seconds;_speech_bubble.set_visible(seconds>0); }
+    void stop_attack() noexcept;
+    void mark_dead() noexcept;
+
+    [[nodiscard]] elysia::gameplay::collision::ActorId actor_id() const noexcept override { return _actor_id; }
+    [[nodiscard]] const Health& health() const noexcept override { return _health; }
+    [[nodiscard]] DamageResult apply_damage(
+        const DamageRequest&, const DamageDefinition&) override;
+    [[nodiscard]] bool alive() const noexcept { return _health.alive(); }
+    [[nodiscard]] elysia::gameplay::collision::TeamId team() const noexcept { return _team; }
+    [[nodiscard]] elysia::physics::ColliderId body_collider_id() const noexcept { return physics_collider(0); }
+    [[nodiscard]] elysia::physics::ColliderId hurt_collider_id() const noexcept { return physics_collider(1); }
+    [[nodiscard]] elysia::physics::ColliderId hit_collider_id() const noexcept { return physics_collider(2); }
+    [[nodiscard]] Facing facing() const noexcept { return _facing; }
+    [[nodiscard]] float move_speed() const noexcept { return _move_speed; }
+    [[nodiscard]] DemoCombatSession* combat_session() const noexcept { return _session; }
+
+    void set_facing(Facing facing) noexcept;
+    void set_attack_definition(elysia::gameplay::collision::AttackDefinitionId definition) noexcept { _attack_definition = definition; }
+    void set_attack_timing(double total, double active_begin, double active_end,
+        double cooldown) noexcept;
+
+    [[nodiscard]] elysia::physics::BodyDefinition body_definition() const override { return _body; }
+    [[nodiscard]] std::span<const elysia::physics::Collider> collider_definitions() const override { return _colliders; }
+
+protected:
+    void tick_actor(double delta);
+    [[nodiscard]] bool attack_ready() const noexcept;
+    void face_toward(elysia::core::Vector2 direction) noexcept;
+
+private:
+    friend class DemoCombatSession;
+    void assign_actor_id(elysia::gameplay::collision::ActorId id) noexcept { _actor_id = id; }
+    void update_hit_box_shape() noexcept;
+
+    DemoCombatSession* _session = nullptr;
+    elysia::physics::BodyDefinition _body;
+    std::array<elysia::physics::Collider, 3> _colliders;
+    Health _health;
+    elysia::gameplay::ui::WorldBar _world_health_bar;
+    elysia::gameplay::ui::WorldText _nameplate;
+    elysia::gameplay::ui::SpeechBubble _speech_bubble;
+    double _speech_remaining = 0.0;
+    bool _world_ui_visible = true;
+    elysia::gameplay::collision::ActorId _actor_id =
+        elysia::gameplay::collision::InvalidActorId;
+    elysia::gameplay::collision::TeamId _team;
+    elysia::gameplay::collision::AttackDefinitionId _attack_definition = PlayerAttack;
+    elysia::gameplay::collision::AttackInstanceId _attack_instance =
+        elysia::gameplay::collision::InvalidAttackInstanceId;
+    Facing _facing = Facing::Right;
+    float _move_speed = 0.0f;
+    double _attack_elapsed = 0.0;
+    double _attack_total = 0.30;
+    double _active_begin = 0.07;
+    double _active_end = 0.18;
+    double _cooldown_remaining = 0.0;
+    double _attack_cooldown = 0.35;
+    bool _attacking = false;
+    bool _hit_box_active = false;
+};
+
+class PlatformPlayerCharacter final : public BlockCombatActor, public elysia::gameplay::ControlCommandReceiver
+{
+public:
+    explicit PlatformPlayerCharacter(const elysia::core::Rect& rect);
+    void fixed_update(double delta) override;
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override;
+    void on_control_command(const elysia::gameplay::ControlCommand &input, double fixed_delta) override;
+
+  private:
+    float _move_axis = 0.0f;
+    bool _jump_requested = false;
+    bool _drop_requested = false;
+    bool _primary_requested = false;
+};
+
+class TopDownPlayerCharacter final : public BlockCombatActor, public elysia::gameplay::ControlCommandReceiver
+{
+public:
+    explicit TopDownPlayerCharacter(const elysia::core::Rect& rect);
+    void fixed_update(double delta) override;
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override;
+    void on_control_command(const elysia::gameplay::ControlCommand &input, double fixed_delta) override;
+
+  private:
+    elysia::core::Vector2 _move{};
+    bool _primary_requested = false;
+};
+
+class StationaryEnemy final : public BlockCombatActor
+{
+public:
+    StationaryEnemy(const elysia::core::Rect& rect, BlockCombatActor& target);
+    void fixed_update(double delta) override;
+private:
+    BlockCombatActor* _target = nullptr;
+};
+
+class PlatformPatrolEnemy final : public BlockCombatActor
+{
+public:
+    PlatformPatrolEnemy(
+        const elysia::core::Rect& rect, BlockCombatActor& target,
+        float patrol_left, float patrol_right);
+    void fixed_update(double delta) override;
+private:
+    BlockCombatActor* _target = nullptr;
+    float _patrol_left = 0.0f;
+    float _patrol_right = 0.0f;
+    float _direction = -1.0f;
+};
+
+class TopDownChaseEnemy final : public BlockCombatActor
+{
+public:
+    TopDownChaseEnemy(
+        const elysia::core::Rect& rect, BlockCombatActor& target);
+    void fixed_update(double delta) override;
+private:
+    [[nodiscard]] bool has_line_of_sight() const;
+    BlockCombatActor* _target = nullptr;
+};
+}
