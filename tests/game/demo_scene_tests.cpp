@@ -10,6 +10,7 @@
 #include "engine/core/render/render_command.h"
 #include "engine/effects/number/floating_number_effect.h"
 #include "engine/effects/runtime/effect_manager.h"
+#include "engine/animation/runtime/animation_manager.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/object_query/game_object_query_service.h"
 #include "engine/resources/resource_service.h"
@@ -340,6 +341,22 @@ void test_escape_returns_the_full_caller_route()
     require(screen_image != nullptr, "Screen effect demo image must decode");
     require(elysia::resources::ResourceManager::instance()->store_texture("demo.screen_effect",std::move(screen_image)).has_value(),
         "Screen effect demo image must register");
+    const auto animation_path = std::filesystem::path{ELYSIA_SOURCE_DIR} / "assets/textures/test/frame_group.png";
+    elysia::resources::TexturePtr sheet(IMG_LoadTexture(fixture.renderer(), animation_path.string().c_str()));
+    float sheet_width = 0, sheet_height = 0;
+    require(sheet && SDL_GetTextureSize(sheet.get(), &sheet_width, &sheet_height), "demo animation sheet must load");
+    elysia::resources::Atlas demo_atlas("test.animation");
+    for(int i=0;i<14;++i)
+        require(demo_atlas.add_frame({},sheet.get(),sheet.get(),
+            elysia::core::Rect{i*sheet_width/14,0,sheet_width/14,sheet_height}), "demo animation frames must register");
+    require(elysia::resources::ResourceManager::instance()->store_texture("test.animation.sheet",std::move(sheet)), "demo animation texture must register");
+    elysia::resources::AnimationBuildRequest animation_request;
+    animation_request.animation_key="test.animation"; animation_request.atlas_key="test.animation";
+    animation_request.fps=10; animation_request.loop=true;
+    require(elysia::animation::AnimationManager::instance()->register_animation(animation_request,&demo_atlas), "demo animation must register");
+    elysia::resources::AnimationEffectBuildRequest effect_request;
+    effect_request.effect_key="effect.test"; effect_request.animation_key="test.animation";
+    require(elysia::effects::EffectManager::instance()->register_animation_effect(effect_request), "shared demo effect must register");
 
     require(elysia::io::PathManager::instance()->initialize(ELYSIA_SOURCE_DIR),
         "camera demo captures must resolve the asset root");
@@ -519,6 +536,40 @@ void test_escape_returns_the_full_caller_route()
     scene_manager.on_update(1.2);
     require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(),
         "F2 must complete its timed fade without leaving the showcase");
+    click_mouse(scene_manager,144,266); // New animation button.
+    auto animation_commands=screen_commands(elysia::effects::ScreenEffectLayer::AfterUi);
+    require(animation_commands.size()==1 && animation_commands.front().use_src_rect,
+        "visible animation button must dispatch the shared effect key");
+    elysia::core::Time::instance()->begin_frame(0.3);scene_manager.on_update(0.3);
+    capture_screen("06_animation_after_ui");
+    elysia::core::Time::instance()->begin_frame(2);scene_manager.on_update(2);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(), "default animation finishes and fades out");
+    click_mouse(scene_manager,392,266); // Enable looping (switches ending to Manual).
+    click_mouse(scene_manager,144,266);
+    elysia::core::Time::instance()->begin_frame(4);scene_manager.on_update(4);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).size()==1, "looping manual animation remains active");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF4);
+    elysia::core::Time::instance()->begin_frame(0.5);scene_manager.on_update(0.5);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(), "F4 stops looping animation");
+    click_mouse(scene_manager,888,266); // Contain -> Natural.
+    click_mouse(scene_manager,144,314); // Offset inward.
+    click_mouse(scene_manager,392,314); // Half scale.
+    click_mouse(scene_manager,640,314); // Image uses the shared layout controls.
+    const auto placed=screen_commands(elysia::effects::ScreenEffectLayer::AfterUi);
+    require(placed.size()==1 && placed.front().screen_rect==elysia::core::Rect{466,236,300,200},
+        "image and animation controls share natural sizing, offset and scale");
+    capture_screen("07_shared_image_layout");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF5);
+    click_mouse(scene_manager,640,266); // Manual -> AnimationFinished, disables loop.
+    click_mouse(scene_manager,1136,266); // Center -> CenterRight.
+    click_mouse(scene_manager,640,314); // Shared natural image at right-center.
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).front().screen_rect==elysia::core::Rect{956,236,300,200},
+        "anchor control aligns both screen content types");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF5);
+    click_mouse(scene_manager,144,266);
+    elysia::core::Time::instance()->begin_frame(2);scene_manager.on_update(2);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(),
+        "choosing animation completion disables loop and restores automatic ending");
     press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF3);
     click_mouse(scene_manager,1172,678);
     require(scene_manager.current_scene_key()==example::scene_keys::EffectsShowcase
@@ -830,6 +881,7 @@ void test_escape_returns_the_full_caller_route()
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         nullptr,nullptr);
     elysia::effects::EffectManager::instance()->clear_content();
+    elysia::animation::AnimationManager::instance()->clear();
     elysia::resources::ResourceManager::instance()->clear();
     localization->shutdown();
     font_resolver.shutdown();

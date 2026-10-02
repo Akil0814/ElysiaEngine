@@ -57,6 +57,7 @@ public:
 private:
 	std::optional<ScreenEffectHandle> dispatch(const ScreenColorEffectRequest& request);
 	std::optional<ScreenEffectHandle> dispatch(const ScreenImageEffectRequest& request);
+	std::optional<ScreenEffectHandle> dispatch(const ScreenAnimationEffectRequest& request);
 	ScreenEffectRuntime _screen_effects;
 	[[nodiscard]] bool dispatch(const AnimationEffectSpawnRequest& request);
 	[[nodiscard]] bool dispatch(const FloatingNumberEffectSpawnRequest& request);

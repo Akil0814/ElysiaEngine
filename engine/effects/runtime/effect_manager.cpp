@@ -21,6 +21,22 @@ std::optional<ScreenEffectHandle> EffectManager::dispatch(const ScreenImageEffec
     if (!handle) ELYSIA_LOG_WARN("effects", "Screen image effect rejected: no active scene, invalid parameters or missing texture: " << request.texture_key);
     return handle;
 }
+std::optional<ScreenEffectHandle> EffectManager::dispatch(const ScreenAnimationEffectRequest& request)
+{
+    const auto* effect = find_animation_effect_definition(request.effect_key);
+    const auto* definition = effect ? ELYSIA_ANIMATIONS->find_definition(effect->animation_key) : nullptr;
+    if (!_active_scene || !definition)
+    {
+        ELYSIA_LOG_WARN("effects", "Screen animation effect rejected: no active scene or missing effect/animation: " << request.effect_key);
+        return {};
+    }
+    auto animation = ELYSIA_ANIMATIONS->create_animation(effect->animation_key);
+    auto handle = _screen_effects.create(request, std::move(animation), *definition,
+        effect->default_size, request.angle_degrees.value_or(effect->angle_degrees), _active_scene,
+        elysia::core::Time::instance()->frame_count());
+    if (!handle) ELYSIA_LOG_WARN("effects", "Screen animation effect rejected: invalid playback, layout or atlas frames: " << request.effect_key);
+    return handle;
+}
 void EffectManager::set_runtime_dependencies(
 	SDL_Renderer* renderer,
 	const elysia::typography::FontResolver* font_resolver) noexcept

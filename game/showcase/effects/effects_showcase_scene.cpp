@@ -101,6 +101,7 @@ void EffectsShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
 
     cancel_screen_effect();
     _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
+    _animation_request = {};
     _screen_action_key = "showcase.effects.screen.ready";
     try
     {
@@ -133,7 +134,7 @@ void EffectsShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
         if (!_primary_animation)
         {
             _primary_animation = create_and_add_object<elysia::ui::UiAnimation>(
-                elysia::core::Rect{ 160.0f,252.0f,292.0f,292.0f });
+                elysia::core::Rect{ 160.0f,354.0f,200.0f,200.0f });
             if (!_primary_animation->set_engine_animation(
                     elysia::builtin::BuiltinAnimationId::EngineCharacterMove))
             {
@@ -144,7 +145,7 @@ void EffectsShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
         if (!_secondary_animation)
         {
             _secondary_animation = create_and_add_object<elysia::ui::UiAnimation>(
-                elysia::core::Rect{ 760.0f,256.0f,324.0f,284.0f });
+                elysia::core::Rect{ 760.0f,354.0f,228.0f,200.0f });
             if (!_secondary_animation->set_engine_animation(
                     elysia::builtin::BuiltinAnimationId::EngineCharacterMove))
             {
@@ -236,7 +237,11 @@ void EffectsShowcaseScene::build_feature_controls()
          [this]{trigger_screen_action(ScreenAction::HoldBlack);},[this]{trigger_screen_action(ScreenAction::Stop);},
          [this]{trigger_screen_action(ScreenAction::Cancel);},[this]{trigger_screen_action(ScreenAction::Stretch);},
          [this]{trigger_screen_action(ScreenAction::Cover);},[this]{trigger_screen_action(ScreenAction::Contain);},
-         [this]{trigger_screen_action(ScreenAction::ToggleLayer);}},[this]{clear_screen_effect_or_return();});
+         [this]{trigger_screen_action(ScreenAction::ToggleLayer);}},[this]{clear_screen_effect_or_return();},
+        {[this]{trigger_animation_action(AnimationAction::Play);},[this]{trigger_animation_action(AnimationAction::Loop);},
+         [this]{trigger_animation_action(AnimationAction::End);},[this]{trigger_animation_action(AnimationAction::Fit);},
+         [this]{trigger_animation_action(AnimationAction::Anchor);},[this]{trigger_animation_action(AnimationAction::Offset);},
+         [this]{trigger_animation_action(AnimationAction::Scale);},[this]{trigger_animation_action(AnimationAction::Image);}});
 }
 
 void EffectsShowcaseScene::destroy_feature_controls() noexcept
@@ -244,6 +249,7 @@ void EffectsShowcaseScene::destroy_feature_controls() noexcept
     cancel_screen_effect();
     _view.clear();
     _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
+    _animation_request = {};
     _screen_action_key = "showcase.effects.screen.ready";
     if (_controls_window)
         _controls_window->destroy();
@@ -313,11 +319,85 @@ void EffectsShowcaseScene::cancel_screen_effect() noexcept
     _screen_effect.reset();
 }
 
+void EffectsShowcaseScene::trigger_animation_action(AnimationAction action)
+{
+    using namespace elysia::effects;
+    auto& r = _animation_request;
+    if (action == AnimationAction::Loop)
+    {
+        r.loop = !r.loop;
+        if (r.loop && r.playback.end == ScreenEffectEnd::AnimationFinished) r.playback.end = ScreenEffectEnd::Manual;
+    }
+    else if (action == AnimationAction::End)
+    {
+        r.playback.end = r.playback.end == ScreenEffectEnd::AnimationFinished ? ScreenEffectEnd::Timed
+            : r.playback.end == ScreenEffectEnd::Timed ? ScreenEffectEnd::Manual : ScreenEffectEnd::AnimationFinished;
+        if (r.playback.end == ScreenEffectEnd::AnimationFinished) r.loop = false;
+    }
+    else if (action == AnimationAction::Fit)
+        r.fit = r.fit == ScreenEffectFit::Contain ? ScreenEffectFit::Natural
+            : r.fit == ScreenEffectFit::Natural ? ScreenEffectFit::Stretch
+            : r.fit == ScreenEffectFit::Stretch ? ScreenEffectFit::Cover : ScreenEffectFit::Contain;
+    else if (action == AnimationAction::Anchor)
+        r.placement.anchor = static_cast<EffectAnchor>((static_cast<int>(r.placement.anchor) + 1) % 9);
+    else if (action == AnimationAction::Offset)
+        r.placement.offset = r.placement.offset.is_zero() ? elysia::core::Vector2{-24, -24} : elysia::core::Vector2{0, 0};
+    else if (action == AnimationAction::Scale)
+        r.placement.scale = r.placement.scale.x == 1 ? elysia::core::Vector2{0.5f, 0.5f}
+            : r.placement.scale.x == 0.5f ? elysia::core::Vector2{1.5f, 1.5f} : elysia::core::Vector2{1, 1};
+    else
+    {
+        cancel_screen_effect();
+        if (action == AnimationAction::Image)
+        {
+            ScreenImageEffectRequest image;
+            image.texture_key = "demo.screen_effect"; image.fit = r.fit; image.placement = r.placement;
+            image.playback.layer = _screen_layer; image.playback.hold_seconds = 1.5;
+            image.playback.fade_out_seconds = 0.4;
+            _screen_effect = ELYSIA_EFFECTS->request_screen_image_effect(image);
+            _screen_action_key = "showcase.effects.screen.layout_image";
+        }
+        else
+        {
+            r.effect_key = "effect.test"; r.playback.layer = _screen_layer;
+            r.playback.fade_in_seconds = 0.2; r.playback.fade_out_seconds = 0.4; r.playback.hold_seconds = 1.5;
+            _screen_effect = ELYSIA_EFFECTS->request_screen_animation_effect(r);
+            _screen_action_key = "showcase.effects.screen.animation_play";
+            if (_screen_effect)
+            {
+                AnimationEffectSpawnRequest world;
+                world.effect_key = r.effect_key; world.anchor = EffectAnchor::Center;
+                world.position = _character ? _character->world_rect().center() : elysia::core::Vector2{0, 0};
+                // The shared sample loops; retire this comparison after one demonstration.
+                world.scheduled_callbacks.push_back({3.0, [](AnimationEffect& effect) { effect.destroy(); }});
+                (void)ELYSIA_EFFECTS->request_animation_effect(world);
+            }
+        }
+        if (!_screen_effect) _screen_action_key = "showcase.effects.screen.failed";
+    }
+    refresh_screen_status();
+}
+
 void EffectsShowcaseScene::refresh_screen_status()
 {
     _view.update_screen({_screen_action_key,
         _screen_effect && ELYSIA_EFFECTS->is_screen_effect_active(*_screen_effect),
         _screen_effect.has_value(), _screen_layer == elysia::effects::ScreenEffectLayer::AfterUi});
+    using namespace elysia::effects;
+    const auto& r = _animation_request;
+    const char* anchors[]={"showcase.effects.screen.anchor_tl","showcase.effects.screen.anchor_tc","showcase.effects.screen.anchor_tr",
+        "showcase.effects.screen.anchor_cl","showcase.effects.screen.anchor_center","showcase.effects.screen.anchor_cr",
+        "showcase.effects.screen.anchor_bl","showcase.effects.screen.anchor_bc","showcase.effects.screen.anchor_br"};
+    _view.update_animation({r.loop,
+        r.playback.end == ScreenEffectEnd::AnimationFinished ? "showcase.effects.screen.end_animation"
+            : r.playback.end == ScreenEffectEnd::Timed ? "showcase.effects.screen.end_timed" : "showcase.effects.screen.end_manual",
+        r.fit == ScreenEffectFit::Natural ? "showcase.effects.screen.fit_natural"
+            : r.fit == ScreenEffectFit::Stretch ? "showcase.effects.screen.fit_stretch"
+            : r.fit == ScreenEffectFit::Cover ? "showcase.effects.screen.fit_cover" : "showcase.effects.screen.fit_contain",
+        anchors[static_cast<int>(r.placement.anchor)],
+        r.placement.offset.is_zero() ? "showcase.effects.screen.offset_zero" : "showcase.effects.screen.offset_inset",
+        r.placement.scale.x == 1 ? "showcase.effects.screen.scale_one"
+            : r.placement.scale.x == 0.5f ? "showcase.effects.screen.scale_half" : "showcase.effects.screen.scale_large"});
 }
 
 void EffectsShowcaseScene::clear_screen_effect_or_return()

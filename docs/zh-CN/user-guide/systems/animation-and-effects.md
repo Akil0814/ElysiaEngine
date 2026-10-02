@@ -116,7 +116,48 @@ std::optional<elysia::effects::ScreenEffectHandle> show_screen_image() {
 
 `BeforeUi` 位于世界和调试图形之后、UI 之前；`AfterUi` 覆盖 UI。开发工具面板在两者之后绘制。同一层内按创建顺序叠加。图片默认 `Stretch` 拉伸铺满；`Cover` 等比居中铺满并裁切；`Contain` 等比居中完整显示，未覆盖区域保持透明。
 
-创建返回 optional 句柄。没有活动场景、纹理缺失、时间为负或非有限、透明度不在 0–1、定时请求的三个时长全为 0 时返回空值并记录日志。图片借用已加载纹理，资源重载前必须通过现有内容清理流程清除特效；直接释放仍被引用的纹理不受支持。本次不支持帧动画和后处理。
+创建返回 optional 句柄。没有活动场景、纹理缺失、时间为负或非有限、透明度不在 0–1、定时请求的三个时长全为 0 时返回空值并记录日志。图片借用已加载纹理，资源重载前必须通过现有内容清理流程清除特效；直接释放仍被引用的纹理不受支持。不支持 shader 后处理。
+
+### 屏幕动画与共享布局
+
+`request_screen_animation_effect` 使用与世界动画特效相同的 `effect_key`，共享已加载的动画、Atlas 和纹理，每次请求有独立播放实例。默认 `loop=false`、`fit=Contain`、`end=AnimationFinished`、保持时长 0。资源定义中的循环设置不覆盖屏幕请求；角度默认沿用 effect 定义，也可以通过 `angle_degrees` 覆盖，`flip` 默认 None。
+
+```cpp
+// 单次居中演出：完整显示动画，播放完后淡出。
+elysia::effects::ScreenAnimationEffectRequest single;
+single.effect_key = "effect.test";
+single.playback.fade_in_seconds = 0.2;
+single.playback.fade_out_seconds = 0.4;
+auto single_handle = ELYSIA_EFFECTS->request_screen_animation_effect(single);
+
+// 循环全屏遮罩：等待调用方 stop/cancel。
+auto overlay = single;
+overlay.loop = true;
+overlay.fit = elysia::effects::ScreenEffectFit::Cover;
+overlay.playback.end = elysia::effects::ScreenEffectEnd::Manual;
+auto overlay_handle = ELYSIA_EFFECTS->request_screen_animation_effect(overlay);
+
+// 右下角动画：原始尺寸，向内偏移 24 个逻辑像素。
+auto corner = single;
+corner.fit = elysia::effects::ScreenEffectFit::Natural;
+corner.placement.anchor = elysia::effects::EffectAnchor::BottomRight;
+corner.placement.offset = {-24, -24};
+corner.placement.scale = {0.5f, 0.5f};
+auto corner_handle = ELYSIA_EFFECTS->request_screen_animation_effect(corner);
+
+// 静态图片也使用相同布局参数。
+elysia::effects::ScreenImageEffectRequest image;
+image.texture_key = "demo.screen_effect";
+image.fit = corner.fit;
+image.placement = corner.placement;
+auto image_handle = ELYSIA_EFFECTS->request_screen_image_effect(image);
+```
+
+动画与淡入从下一帧同步推进。`AnimationFinished` 等动画和淡入均完成后淡出，忽略保持时长；循环动画不能使用此策略。非循环动画在 `Timed`/`Manual` 中完成后保持最后一帧；stop 淡出期间动画继续推进。每帧持续一个完整帧间隔，单次时长为帧数 / FPS，大 delta 的剩余时间会推进淡出。
+
+图片和动画共享 `ScreenEffectPlacement`：默认居中、偏移 `{0,0}`、缩放 `{1,1}`。先计算适配尺寸、应用缩放，再将内容锚点与视口同名锚点对齐并添加偏移；九宫格锚点控制摆放及 Cover 裁切方向。全部模式裁切到逻辑视口。`Natural` 使用图片原始尺寸，动画优先使用 effect 默认尺寸，否则使用首帧尺寸；其余模式按首帧宽高比适配。动画尺寸不随帧变化。旋转中心是目标矩形中心，与定位锚点独立。
+
+偏移和角度必须有限，缩放必须有限且为正。缺失 effect、动画或有效帧资源，以及无效结束策略组合，都会拒绝创建。纯色和图片不接受 `AnimationFinished`。
 
 ### 两个场景分别完成黑幕转场
 
@@ -156,6 +197,8 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 | F9 | 切换 UI 前后层级，清除当前预览后重新选择效果 |
 
 面板显示播放中、已完成或请求失败状态，文案支持项目五种语言。每次选择效果会替换上一次预览。黑屏遮住按钮时仍可用快捷键；Esc 和返回按钮优先清除正在播放的效果，没有活动效果时才返回调用方。图片使用已加载的 `demo.screen_effect` 测试纹理；其 3:2 网格、四角标记和圆环用于观察拉伸、裁切、等比显示和透明叠加。
+
+新增两行动画控制：播放动画、循环开关、结束策略、四种适配、九宫格锚点、偏移（0 或 -24）、缩放（1 / 0.5 / 1.5 倍），以及按当前布局播放图片。参数变更用于下一次播放；F4/F5 同样控制动画。开启循环会将动画完成策略切换为 Manual，选择动画完成策略会关闭循环。动画使用已加载的 `effect.test`，同时在角色位置创建同 key 的世界特效作为对照，世界对照在 3 秒后销毁。
 
 ## 资源配置
 

@@ -16,6 +16,10 @@ bool EffectService::stop_screen_effect(ScreenEffectHandle handle) noexcept
 {
     return EffectManager::instance()->_screen_effects.stop(handle);
 }
+std::optional<ScreenEffectHandle> EffectService::request_screen_animation_effect(const ScreenAnimationEffectRequest& request)
+{
+    return EffectManager::instance()->dispatch(request);
+}
 bool EffectService::cancel_screen_effect(ScreenEffectHandle handle) noexcept
 {
     return EffectManager::instance()->_screen_effects.cancel(handle);
