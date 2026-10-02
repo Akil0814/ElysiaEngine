@@ -5,7 +5,10 @@
 #include "engine/tools/debug_draw.h"
 #include "game/showcase/shared/showcase_enter_payload.h"
 
+#include "engine/effects/screen/screen_effect_types.h"
+
 #include <cstddef>
+#include <optional>
 
 namespace elysia::ui
 {
@@ -20,9 +23,10 @@ class EngineCharacter;
 
 namespace example::scene
 {
-// Project-owned playground for runtime engine features such as animation.
+// Project-owned showcase of color overlays, floating numbers and screen effects.
 class EffectsShowcaseScene final : public elysia::gameplay::GameplayScene
 {
+    enum class ScreenAction { Flash, FadeBlack, HoldBlack, Stop, Cancel, Stretch, Cover, Contain, ToggleLayer };
     enum class FloatingNumberPreset
     {
         Damage,
@@ -35,6 +39,7 @@ class EffectsShowcaseScene final : public elysia::gameplay::GameplayScene
 
 public:
     EffectsShowcaseScene();
+    ~EffectsShowcaseScene() override;
     [[nodiscard]] std::size_t color_overlay_index() const noexcept;
 
 protected:
@@ -50,6 +55,10 @@ private:
     void return_to_caller();
     void apply_secondary_color_overlay();
     void build_feature_controls();
+    void cancel_screen_effect() noexcept;
+    void trigger_screen_action(ScreenAction action);
+    void refresh_screen_status();
+    void clear_screen_effect_or_return();
     void destroy_feature_controls() noexcept;
     void spawn_floating_number_effect(FloatingNumberPreset preset);
     void enable_character_debug_draw();
@@ -63,6 +72,9 @@ private:
     elysia::builtin::EngineCharacter* _character = nullptr;
     elysia::ui::UiWindow* _controls_window = nullptr;
     example::showcase::effects::EffectsControlsView _view;
+    std::optional<elysia::effects::ScreenEffectHandle> _screen_effect;
+    elysia::effects::ScreenEffectLayer _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
+    const char* _screen_action_key = "showcase.effects.screen.ready";
     std::size_t _color_overlay_index = 2;
     bool _debug_draw_state_captured = false;
     bool _previous_debug_draw_enabled = false;

@@ -9,6 +9,7 @@
 #include "../tools/debug_draw.h"
 #include "../tools/logger.h"
 #include "../core/render/render_failure.h"
+#include "../core/time.h"
 
 #include <exception>
 #include <stdexcept>
@@ -31,6 +32,9 @@ void SceneManager::initialize(
     if (_state == SceneManagerState::Stopped)
         _local_players.reset_defaults();
     elysia::gameplay::ControllerManager::instance()->initialize();
+    // Shutdown clears screen effects even when no scene has been entered. Construct
+    // the manager here so that shutdown never performs its first allocation.
+    (void)elysia::effects::EffectManager::instance();
     _runtime_context = &context;
     _failure_route_factory = std::move(failure_route_factory);
     _shutdown_succeeded = true;
@@ -103,6 +107,9 @@ void SceneManager::on_update(double delta)
         return;
     try
     {
+        elysia::effects::EffectManager::instance()->_screen_effects.update(
+            elysia::core::Time::instance()->raw_delta(), delta, _current_scene->is_paused(),
+            elysia::core::Time::instance()->frame_count());
         _current_scene->lifecycle_update(delta);
     }
     catch (const elysia::core::RenderBackendError&) { throw; }
@@ -416,6 +423,7 @@ SceneBoundaryFailure SceneManager::make_failure(SceneKey key,SceneBoundary bound
 
 void SceneManager::recover_from_failure(const SceneBoundaryFailure& failure)
 {
+    elysia::effects::EffectManager::instance()->clear_screen_effects();
     detail::log_scene_failure(failure);
     _pending_request = {};
     _has_pending_request = false;
@@ -508,6 +516,7 @@ bool SceneManager::shutdown() noexcept
         (void)exiting_key;
     }
     cleanup([] { elysia::tools::DebugDraw::instance()->clear(); });
+    cleanup([] { elysia::effects::EffectManager::instance()->clear_screen_effects(); });
     cleanup([] { elysia::camera::CameraManager::instance()->reset_all(); });
     cleanup([&] {
         if (!_scene_factory.destroy_all_scene())

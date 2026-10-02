@@ -88,7 +88,7 @@ void test_current_repository_loads_minimal_sample()
 		&& module->second.texture_entries.empty()
 		&& module->second.audio_entries.empty()
 		&& result.font_manifest.fonts.size() == 5
-		&& result.texture_manifest.textures.size() == 1
+		&& result.texture_manifest.textures.size() == 2
 		&& result.audio_manifest.sounds.size() == 3
 		&& result.audio_manifest.music.size() == 2
 		&& result.animation_manifest.animations.size() == 1

@@ -353,13 +353,35 @@
     },
     "effects": {
       "title": "효과",
-      "description": "떠오르는 숫자 및 색상 오버레이.",
+      "description": "떠오르는 숫자, 색상 오버레이 및 화면 효과.",
       "damage": "피해",
       "critical": "치명타",
       "heal": "회복",
       "percent": "백분율",
       "fraction": "분수",
-      "decimal": "소수"
+      "decimal": "소수",
+      "screen": {
+        "instructions": "화면 효과: F1–F9 또는 클릭. Esc / 돌아가기는 활성 효과를 취소한 다음 돌아갑니다.",
+        "flash": "F1 플래시",
+        "fade_black": "F2 암전",
+        "hold_black": "F3 검은 화면 유지",
+        "stop": "F4 페이드 아웃",
+        "cancel": "F5 취소",
+        "stretch": "F6 늘이기",
+        "cover": "F7 화면 채우기",
+        "contain": "F8 전체 표시",
+        "after_ui": "F9 UI 뒤",
+        "before_ui": "F9 UI 앞",
+        "ready": "준비됨",
+        "stopping": "페이드 아웃 중",
+        "nothing_to_stop": "중지할 효과 없음",
+        "cancelled": "취소됨",
+        "layer_changed": "레이어가 변경되었습니다. 효과를 선택하세요",
+        "image_unavailable": "이미지를 사용할 수 없음: demo.screen_effect",
+        "failed": "효과 요청 실패",
+        "playing": "재생 중",
+        "finished": "완료"
+      }
     },
     "physics": {
       "title": "물리 및 충돌",

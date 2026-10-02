@@ -1,4 +1,4 @@
-﻿#include "game/input/local_controls.h"
+#include "game/input/local_controls.h"
 #include "engine/gameplay/control/controller_service.h"
 #include "tests/support/input_snapshot_builder.h"
 #include "tests/support/sdl_audio_fixture.h"
@@ -13,6 +13,8 @@
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/object_query/game_object_query_service.h"
 #include "engine/resources/resource_service.h"
+#include "engine/resources/runtime/resource_manager.h"
+#include "engine/core/time.h"
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "game/showcase/shared/showcase_gallery_scene.h"
@@ -333,7 +335,18 @@ void test_escape_returns_the_full_caller_route()
         "Engine test scene tests must configure floating-number fonts");
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         fixture.renderer(),&font_resolver);
+    const auto screen_image_path = std::filesystem::path{ELYSIA_SOURCE_DIR} / "assets/textures/ui/screen_effect_test.svg";
+    elysia::resources::TexturePtr screen_image(IMG_LoadTexture(fixture.renderer(), screen_image_path.string().c_str()));
+    require(screen_image != nullptr, "Screen effect demo image must decode");
+    require(elysia::resources::ResourceManager::instance()->store_texture("demo.screen_effect",std::move(screen_image)).has_value(),
+        "Screen effect demo image must register");
 
+    require(elysia::io::PathManager::instance()->initialize(ELYSIA_SOURCE_DIR),
+        "camera demo captures must resolve the asset root");
+    auto* localization = elysia::localization::LocalizationManager::instance();
+    require(localization->initialize(fixture.renderer(),
+        std::filesystem::path(ELYSIA_SOURCE_DIR) / "assets/configs/manifests/i18n_manifest.json",
+        "en", &font_resolver), "camera demo captures must initialize text rendering");
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(
         fixture.renderer(),registry,1280,720,&font_resolver);
@@ -441,13 +454,102 @@ void test_escape_returns_the_full_caller_route()
     require(debug_draw->commands().size() == 1 && moved_collider
             && moved_collider->rect.x() > initial_collider_x,
         "Engine feature test must refresh one collider snapshot at the moved character position");
+    const auto capture_screen = [&](const char* name) {
+        SDL_SetRenderDrawColor(fixture.renderer(),20,24,32,255);
+        SDL_RenderClear(fixture.renderer());
+        scene_manager.on_render(fixture.renderer());
+        if (const char* directory = SDL_getenv("ELYSIA_SCREEN_EFFECT_QA_DIR"))
+        {
+            std::filesystem::create_directories(directory);
+            SDL_Surface* capture = SDL_RenderReadPixels(fixture.renderer(),nullptr);
+            require(capture != nullptr, "Screen effect demo capture must read pixels");
+            const auto path = std::filesystem::path(directory) / (std::string(name) + ".png");
+            require(IMG_SavePNG(capture,path.string().c_str()), "Screen effect demo capture must save PNG");
+            SDL_DestroySurface(capture);
+        }
+    };
+    const auto screen_commands = [&](elysia::effects::ScreenEffectLayer layer) {
+        std::vector<elysia::core::UiRenderCommand> commands;
+        elysia::effects::EffectManager::instance()->append_screen_effect_commands(layer,{0,0,1280,720},commands);
+        return commands;
+    };
+    capture_screen("01_controls");
+    click_mouse(scene_manager,640,138); // Hold black button.
+    elysia::core::Time::instance()->begin_frame(0.5);
+    scene_manager.on_update(0.5);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).size() == 1,
+        "Visible Hold black button must call EffectService");
+    capture_screen("02_black_hold");
     send_escape(scene_manager);
+    require(scene_manager.current_scene_key() == example::scene_keys::EffectsShowcase
+        && screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(),
+        "Escape during black hold must clear the effect without leaving the lab");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF1);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).front().color == elysia::core::Color(255,255,255),
+        "F1 shortcut must trigger a white flash");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF5);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF9);
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF7);
+    auto cover = screen_commands(elysia::effects::ScreenEffectLayer::BeforeUi);
+    require(cover.size() == 1 && cover.front().texture != nullptr
+        && cover.front().screen_rect.height() > 720, "F7 must request Cover image before UI");
+    elysia::core::Time::instance()->begin_frame(0.3);
+    scene_manager.on_update(0.3);
+    capture_screen("03_cover_before_ui");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF8);
+    auto contain = screen_commands(elysia::effects::ScreenEffectLayer::BeforeUi);
+    require(contain.size() == 1 && contain.front().screen_rect.width() < 1280, "F8 must request Contain image");
+    elysia::core::Time::instance()->begin_frame(0.3);
+    scene_manager.on_update(0.3);
+    capture_screen("04_contain_before_ui");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF4);
+    elysia::core::Time::instance()->begin_frame(0.6);
+    scene_manager.on_update(0.6);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::BeforeUi).empty(), "F4 must stop the active preview with fade out");
+    click_mouse(scene_manager,888,186); // Toggle the layer with the same action as F9.
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF6);
+    const auto stretch=screen_commands(elysia::effects::ScreenEffectLayer::AfterUi);
+    require(stretch.size()==1 && stretch.front().screen_rect==elysia::core::Rect{0,0,1280,720},
+        "mouse layer toggle and F6 must stretch the image over the logical viewport");
+    elysia::core::Time::instance()->begin_frame(0.3);
+    scene_manager.on_update(0.3);
+    capture_screen("05_stretch_after_ui");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF2);
+    elysia::core::Time::instance()->begin_frame(1.2);
+    scene_manager.on_update(1.2);
+    require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(),
+        "F2 must complete its timed fade without leaving the showcase");
+    press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF3);
+    click_mouse(scene_manager,1172,678);
+    require(scene_manager.current_scene_key()==example::scene_keys::EffectsShowcase
+        && screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(),
+        "Back must cancel an active screen effect using the same action as Escape");
+    click_mouse(scene_manager,1172,678);
     require(scene_manager.current_scene_key() == 2 && SecondReturnScene::marker == 29,
         "EffectsShowcaseScene Escape must return the caller key and payload");
     require(!debug_draw->enabled()
             && debug_draw->enabled_categories()
                 == elysia::tools::DebugDrawCategory::Gameplay,
         "leaving EffectsShowcaseScene must restore the previous DebugDraw settings");
+
+    for(const auto reload:{elysia::scene::SceneReloadMode::Reuse,elysia::scene::SceneReloadMode::Reset}){
+        scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
+            .route={.target=example::scene_keys::EffectsShowcase,
+                .payload=example::scene::ShowcaseEnterPayload{{.target=2,.payload=ReturnPayload{29}}},
+                .reload_mode=reload}});
+        scene_manager.on_update(0);
+        require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty()
+            && screen_commands(elysia::effects::ScreenEffectLayer::BeforeUi).empty(),
+            "cached and reset showcases reenter without stale screen effects");
+        click_mouse(scene_manager,640,138);
+        require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).size()==1,
+            "rebuilt screen controls keep valid callbacks and reset their layer");
+        scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
+            .route={.target=2,.payload=ReturnPayload{29}}});
+        scene_manager.on_update(0);
+        require(screen_commands(elysia::effects::ScreenEffectLayer::AfterUi).empty(),
+            "leaving a showcase cancels its active manual screen effect");
+    }
 
     const elysia::scene::SceneRoute original_caller{
         .target = 1,
@@ -531,12 +633,6 @@ void test_escape_returns_the_full_caller_route()
             == elysia::builtin::SceneKeys::ApplicationFailure,
         "Confirming the guarded Failure Test must enter the engine failure scene");
 
-    require(elysia::io::PathManager::instance()->initialize(ELYSIA_SOURCE_DIR),
-        "camera demo captures must resolve the asset root");
-    auto* localization = elysia::localization::LocalizationManager::instance();
-    require(localization->initialize(fixture.renderer(),
-        std::filesystem::path(ELYSIA_SOURCE_DIR) / "assets/configs/manifests/i18n_manifest.json",
-        "en", &font_resolver), "camera demo captures must initialize text rendering");
     test_gallery_hud(context,fixture.renderer());
     // Exercise the actual demo UI and optionally export deterministic render captures.
     auto* cameras = elysia::camera::CameraManager::instance();
@@ -733,6 +829,8 @@ void test_escape_returns_the_full_caller_route()
     require(scene_manager.shutdown(), "Demo shutdown after session end restores devices without errors");
     elysia::effects::EffectManager::instance()->set_runtime_dependencies(
         nullptr,nullptr);
+    elysia::effects::EffectManager::instance()->clear_content();
+    elysia::resources::ResourceManager::instance()->clear();
     localization->shutdown();
     font_resolver.shutdown();
     builtin_resources.shutdown();

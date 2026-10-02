@@ -736,7 +736,12 @@ bool UiWindow::on_ui_input_event(const UiInputEvent& event)
         else if (event.type == UiInputEventType::PointerPressed
             && event.device == elysia::input::InputDevice::Mouse
             && event.control == elysia::input::RawInputControl::MouseLeft)
+        {
             (void)set_focused_scope_internal(pointer_scope);
+            // Activate the new scope before its controls process the press.
+            // Otherwise its focus synchronization clears the button's pushed state.
+            apply_scope_focus();
+        }
 
         if (event.type == UiInputEventType::ActionPressed && is_navigation_action(event.action))
         {

@@ -50,24 +50,24 @@ function New-FeatureDefinition {
 }
 
 $script:Features = @(
-    New-FeatureDefinition -Id 'cpp11-auto' -Standard 'C++11' -Kind 'Language' -Name '`auto` 类型推导' -Pattern '\b(?:(?:static|inline|constexpr|const)\s+)*auto(?:\s*[*&])?\s+[A-Za-z_]\w*\s*(?==|\{|;|:)' -Example 'game/scene/main_menu_scene.cpp'
-    New-FeatureDefinition -Id 'cpp11-lambda' -Standard 'C++11' -Kind 'Language' -Name 'Lambda 表达式' -Pattern '\[[^\]]*\]\s*(?:\([^)]*\))?\s*(?:mutable\s*)?(?:noexcept\s*)?(?:->[^\{]+)?\{' -Example 'game/scene/demo/engine_feature_lab_scene.cpp'
-    New-FeatureDefinition -Id 'cpp11-range-for' -Standard 'C++11' -Kind 'Language' -Name '基于范围的 `for`' -Pattern '(?s:\bfor\s*\((?:(?!;).)*?:(?:(?!;).)*?\))' -Example 'game/scene/demo/ui_component_gallery_content.cpp'
+    New-FeatureDefinition -Id 'cpp11-auto' -Standard 'C++11' -Kind 'Language' -Name '`auto` 类型推导' -Pattern '\b(?:(?:static|inline|constexpr|const)\s+)*auto(?:\s*[*&])?\s+[A-Za-z_]\w*\s*(?==|\{|;|:)' -Example 'game/navigation/main_menu_scene.cpp'
+    New-FeatureDefinition -Id 'cpp11-lambda' -Standard 'C++11' -Kind 'Language' -Name 'Lambda 表达式' -Pattern '\[[^\]]*\]\s*(?:\([^)]*\))?\s*(?:mutable\s*)?(?:noexcept\s*)?(?:->[^\{]+)?\{' -Example 'game/showcase/effects/effects_showcase_scene.cpp'
+    New-FeatureDefinition -Id 'cpp11-range-for' -Standard 'C++11' -Kind 'Language' -Name '基于范围的 `for`' -Pattern '(?s:\bfor\s*\((?:(?!;).)*?:(?:(?!;).)*?\))' -Example 'game/showcase/ui/ui_component_gallery_content.cpp'
     New-FeatureDefinition -Id 'cpp11-nullptr' -Standard 'C++11' -Kind 'Language' -Name '`nullptr`' -Pattern '\bnullptr\b' -Example 'engine/scene/scene_manager.h'
     New-FeatureDefinition -Id 'cpp11-enum-class' -Standard 'C++11' -Kind 'Language' -Name '有作用域枚举' -Pattern '\benum\s+class\b' -Example 'engine/animation/animation_registration_failure.h'
-    New-FeatureDefinition -Id 'cpp11-override' -Standard 'C++11' -Kind 'Language' -Name '`override`' -Pattern '\boverride\b' -Example 'game/scene/demo/ui_component_gallery_scene.h'
-    New-FeatureDefinition -Id 'cpp11-final' -Standard 'C++11' -Kind 'Language' -Name '`final`' -Pattern '\bfinal\b' -Example 'game/scene/demo/ui_component_gallery_scene.h'
-    New-FeatureDefinition -Id 'cpp11-constexpr' -Standard 'C++11' -Kind 'Language' -Name '`constexpr`' -Pattern '\bconstexpr\b' -Example 'game/scene/demo/engine_feature_lab_scene.cpp'
+    New-FeatureDefinition -Id 'cpp11-override' -Standard 'C++11' -Kind 'Language' -Name '`override`' -Pattern '\boverride\b' -Example 'game/showcase/ui/ui_component_gallery_scene.h'
+    New-FeatureDefinition -Id 'cpp11-final' -Standard 'C++11' -Kind 'Language' -Name '`final`' -Pattern '\bfinal\b' -Example 'game/showcase/ui/ui_component_gallery_scene.h'
+    New-FeatureDefinition -Id 'cpp11-constexpr' -Standard 'C++11' -Kind 'Language' -Name '`constexpr`' -Pattern '\bconstexpr\b' -Example 'game/showcase/effects/effects_showcase_scene.cpp'
     New-FeatureDefinition -Id 'cpp11-noexcept' -Standard 'C++11' -Kind 'Language' -Name '`noexcept`' -Pattern '\bnoexcept\b' -Example 'engine/scene/scene_manager.h'
     New-FeatureDefinition -Id 'cpp11-static-assert' -Standard 'C++11' -Kind 'Language' -Name '`static_assert`' -Pattern '\bstatic_assert\b' -Example 'engine/scene/scene_manager.h'
-    New-FeatureDefinition -Id 'cpp11-defaulted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式默认函数' -Pattern '=\s*default\s*;' -Example 'game/scene/main_menu_scene.h'
+    New-FeatureDefinition -Id 'cpp11-defaulted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式默认函数' -Pattern '=\s*default\s*;' -Example 'game/navigation/main_menu_scene.h'
     New-FeatureDefinition -Id 'cpp11-deleted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式删除函数' -Pattern '=\s*delete\s*;' -Example 'engine/camera/camera_manager.h'
     New-FeatureDefinition -Id 'cpp11-decltype' -Standard 'C++11' -Kind 'Language' -Name '`decltype`' -Pattern '\bdecltype\s*\(' -Example 'tests/camera/camera_manager_tests.cpp'
     New-FeatureDefinition -Id 'cpp11-type-alias' -Standard 'C++11' -Kind 'Language' -Name '`using` 类型别名' -Pattern '\busing\s+[A-Za-z_]\w*\s*=' -Example 'engine/animation/animation.h'
     New-FeatureDefinition -Id 'cpp11-variadic-templates' -Standard 'C++11' -Kind 'Language' -Name '可变参数模板' -Pattern '\b(?:class|typename)\s*\.\.\.|template\s*<[^>]*\.\.\.' -Example 'engine/ui/core/ui_child_host.h'
-    New-FeatureDefinition -Id 'cpp11-move-forward' -Standard 'C++11' -Kind 'Library' -Name '移动与完美转发工具' -Pattern '\bstd::(?:move|forward|make_move_iterator)\s*\(' -Example 'game/scene/main_menu_scene.cpp' -Symbols @('move', 'forward', 'make_move_iterator')
+    New-FeatureDefinition -Id 'cpp11-move-forward' -Standard 'C++11' -Kind 'Library' -Name '移动与完美转发工具' -Pattern '\bstd::(?:move|forward|make_move_iterator)\s*\(' -Example 'game/navigation/main_menu_scene.cpp' -Symbols @('move', 'forward', 'make_move_iterator')
     New-FeatureDefinition -Id 'cpp11-smart-pointers' -Standard 'C++11' -Kind 'Library' -Name '智能指针与 `std::make_shared`' -Pattern '\bstd::(?:unique_ptr|shared_ptr|weak_ptr|make_shared)\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('unique_ptr', 'shared_ptr', 'weak_ptr', 'make_shared')
-    New-FeatureDefinition -Id 'cpp11-array' -Standard 'C++11' -Kind 'Library' -Name '`std::array`' -Pattern '\bstd::array\b' -Example 'game/scene/demo/ui_component_gallery_scene.h' -Symbols @('array')
+    New-FeatureDefinition -Id 'cpp11-array' -Standard 'C++11' -Kind 'Library' -Name '`std::array`' -Pattern '\bstd::array\b' -Example 'game/showcase/ui/hud_demo_state.h' -Symbols @('array')
     New-FeatureDefinition -Id 'cpp11-function' -Standard 'C++11' -Kind 'Library' -Name '`std::function`' -Pattern '\bstd::function\b' -Example 'engine/animation/animation.h' -Symbols @('function')
     New-FeatureDefinition -Id 'cpp11-tuple' -Standard 'C++11' -Kind 'Library' -Name '元组工具' -Pattern '\bstd::(?:tuple|make_tuple|tie)\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('tuple', 'make_tuple', 'tie')
     New-FeatureDefinition -Id 'cpp11-chrono' -Standard 'C++11' -Kind 'Library' -Name '`std::chrono`' -Pattern '\bstd::chrono(?:::|_)' -Example 'tests/audio/sound_playback_scheduler_tests.cpp' -Symbols @('chrono')
@@ -81,10 +81,10 @@ $script:Features = @(
     New-FeatureDefinition -Id 'cpp11-system-error' -Standard 'C++11' -Kind 'Library' -Name '系统错误码工具' -Pattern '\bstd::(?:error_code|errc)\b' -Example 'engine/builtin/resources/builtin_asset_catalog.cpp' -Symbols @('error_code', 'errc')
     New-FeatureDefinition -Id 'cpp11-fixed-width-integers' -Standard 'C++11' -Kind 'Library' -Name '定宽整数类型' -Pattern '\bstd::(?:u?int(?:8|16|32|64)_t|uintptr_t)\b' -Example 'engine/audio/sound_playback_types.h' -Symbols @('int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint32_t', 'uint64_t', 'uintptr_t')
     New-FeatureDefinition -Id 'cpp11-math-functions' -Standard 'C++11' -Kind 'Library' -Name 'C++11 数学函数' -Pattern '\bstd::(?:copysign|isfinite|lround|nan|nextafter|round)\b' -Example 'engine/application/application.cpp' -Symbols @('copysign', 'isfinite', 'lround', 'nan', 'nextafter', 'round')
-    New-FeatureDefinition -Id 'cpp11-string-conversion' -Standard 'C++11' -Kind 'Library' -Name '`std::to_string`' -Pattern '\bstd::to_string\b' -Example 'game/demo/physics/demo_combat.cpp' -Symbols @('to_string')
+    New-FeatureDefinition -Id 'cpp11-string-conversion' -Standard 'C++11' -Kind 'Library' -Name '`std::to_string`' -Pattern '\bstd::to_string\b' -Example 'game/showcase/gameplay/runtime/demo_combat.cpp' -Symbols @('to_string')
     New-FeatureDefinition -Id 'cpp11-time-formatting' -Standard 'C++11' -Kind 'Library' -Name '`std::put_time`' -Pattern '\bstd::put_time\b' -Example 'engine/tools/logger.cpp' -Symbols @('put_time')
 
-    New-FeatureDefinition -Id 'cpp14-generic-lambda' -Standard 'C++14' -Kind 'Language' -Name '泛型 Lambda' -Pattern '\[[^\]]*\]\s*\([^)]*\bauto(?:\s*[*&])?\b' -Example 'game/scene/demo/physics/physics_combat_demo_scene_base.cpp'
+    New-FeatureDefinition -Id 'cpp14-generic-lambda' -Standard 'C++14' -Kind 'Language' -Name '泛型 Lambda' -Pattern '\[[^\]]*\]\s*\([^)]*\bauto(?:\s*[*&])?\b' -Example 'game/showcase/gameplay/gameplay_demo_scene_base.cpp'
     New-FeatureDefinition -Id 'cpp14-init-capture' -Standard 'C++14' -Kind 'Language' -Name 'Lambda 初始化捕获' -Pattern '\[[^\]]*\b[A-Za-z_]\w*\s*=' -Example 'engine/ui/widgets/ui_button.cpp'
     New-FeatureDefinition -Id 'cpp14-make-unique' -Standard 'C++14' -Kind 'Library' -Name '`std::make_unique`' -Pattern '\bstd::make_unique\b' -Example 'engine/animation/animation_service.cpp' -Symbols @('make_unique')
     New-FeatureDefinition -Id 'cpp14-chrono-literals' -Standard 'C++14' -Kind 'Library' -Name '时间字面量' -Pattern '\bstd::chrono_literals\b' -Example 'tests/audio/sound_playback_scheduler_tests.cpp' -Symbols @('chrono_literals')
@@ -93,7 +93,7 @@ $script:Features = @(
     New-FeatureDefinition -Id 'cpp14-digit-separators' -Standard 'C++14' -Kind 'Language' -Name '数字分隔符' -Pattern '\b\d[\dA-Fa-fxXbB]*''[\dA-Fa-f]+' -CommonUnused
     New-FeatureDefinition -Id 'cpp14-exchange' -Standard 'C++14' -Kind 'Library' -Name '`std::exchange`' -Pattern '\bstd::exchange\b' -Symbols @('exchange') -CommonUnused
 
-    New-FeatureDefinition -Id 'cpp17-structured-bindings' -Standard 'C++17' -Kind 'Language' -Name '结构化绑定' -Pattern '\b(?:const\s+)?auto(?:\s*&&?|\s+)?\s*\[[^\]]+\]' -Example 'game/demo/physics/demo_combat.cpp'
+    New-FeatureDefinition -Id 'cpp17-structured-bindings' -Standard 'C++17' -Kind 'Language' -Name '结构化绑定' -Pattern '\b(?:const\s+)?auto(?:\s*&&?|\s+)?\s*\[[^\]]+\]' -Example 'game/showcase/gameplay/runtime/demo_combat.cpp'
     New-FeatureDefinition -Id 'cpp17-if-constexpr' -Standard 'C++17' -Kind 'Language' -Name '`if constexpr`' -Pattern '\bif\s+constexpr\b' -Example 'engine/camera/camera_manager.cpp'
     New-FeatureDefinition -Id 'cpp17-if-initializer' -Standard 'C++17' -Kind 'Language' -Name '`if` 初始化语句' -Pattern '\bif\s*\(\s*(?:const\s+)?(?:auto(?:\s*[*&])?|[A-Za-z_][\w:<>]*\s*[*&]?)\s+[A-Za-z_]\w*\s*=[^;\r\n]+;' -Example 'engine/animation/runtime/animation_manager.cpp'
     New-FeatureDefinition -Id 'cpp17-nested-namespace' -Standard 'C++17' -Kind 'Language' -Name '嵌套命名空间定义' -Pattern '\bnamespace\s+[A-Za-z_]\w*(?:::[A-Za-z_]\w*)+' -Example 'engine/animation/animation.h'
@@ -114,7 +114,7 @@ $script:Features = @(
     New-FeatureDefinition -Id 'cpp17-size' -Standard 'C++17' -Kind 'Library' -Name '`std::size`' -Pattern '\bstd::size\b' -Example 'tests/loading/resource_load_plan_validator_tests.cpp' -Symbols @('size')
     New-FeatureDefinition -Id 'cpp17-type-trait-variables' -Standard 'C++17' -Kind 'Library' -Name '类型特征 `_v` 变量模板' -Pattern '\bstd::[A-Za-z_]\w*_v\b' -Example 'engine/camera/camera_manager.cpp' -Symbols @('is_abstract_v', 'is_base_of_v', 'is_const_v', 'is_copy_assignable_v', 'is_copy_constructible_v', 'is_default_constructible_v', 'is_move_assignable_v', 'is_move_constructible_v', 'is_same_v')
 
-    New-FeatureDefinition -Id 'cpp20-designated-initializers' -Standard 'C++20' -Kind 'Language' -Name '指定初始化器' -Pattern '(?s:\{\s*\.[A-Za-z_]\w*\s*=)' -Example 'game/scene/main_menu_scene.cpp'
+    New-FeatureDefinition -Id 'cpp20-designated-initializers' -Standard 'C++20' -Kind 'Language' -Name '指定初始化器' -Pattern '(?s:\{\s*\.[A-Za-z_]\w*\s*=)' -Example 'game/navigation/main_menu_scene.cpp'
     New-FeatureDefinition -Id 'cpp20-three-way-comparison' -Standard 'C++20' -Kind 'Language' -Name '三路比较' -Pattern '<=>' -Example 'engine/physics/collision/collision_target.h'
     New-FeatureDefinition -Id 'cpp20-concepts' -Standard 'C++20' -Kind 'Language' -Name 'Concepts 与 `requires` 子句' -Pattern '\bconcept\s+[A-Za-z_]\w*\s*=|\brequires\s+(?:std::|[A-Za-z_]\w*\s*<)|\brequires\s*\{' -Example 'engine/save/save_data.h'
     New-FeatureDefinition -Id 'cpp20-span' -Standard 'C++20' -Kind 'Library' -Name '`std::span`' -Pattern '\bstd::span\b' -Example 'engine/physics/contracts/collider_provider.h' -Symbols @('span')

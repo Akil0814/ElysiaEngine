@@ -353,13 +353,35 @@
     },
     "effects": {
       "title": "エフェクト",
-      "description": "フローティング数値とカラーオーバーレイ。",
+      "description": "フローティング数値、色の重ね合わせと画面エフェクト。",
       "damage": "ダメージ",
       "critical": "クリティカル",
       "heal": "回復",
       "percent": "パーセント",
       "fraction": "分数",
-      "decimal": "小数"
+      "decimal": "小数",
+      "screen": {
+        "instructions": "画面エフェクト：F1–F9 またはクリック。Esc / 戻るは実行中の効果を解除してから戻ります。",
+        "flash": "F1 フラッシュ",
+        "fade_black": "F2 暗転",
+        "hold_black": "F3 黒画面を保持",
+        "stop": "F4 フェードアウト",
+        "cancel": "F5 解除",
+        "stretch": "F6 引き伸ばし",
+        "cover": "F7 全面を覆う",
+        "contain": "F8 全体を表示",
+        "after_ui": "F9 UI の後",
+        "before_ui": "F9 UI の前",
+        "ready": "準備完了",
+        "stopping": "フェードアウト中",
+        "nothing_to_stop": "停止する効果なし",
+        "cancelled": "解除済み",
+        "layer_changed": "描画順を変更しました。効果を選択してください",
+        "image_unavailable": "画像を利用できません：demo.screen_effect",
+        "failed": "エフェクトの要求に失敗",
+        "playing": "再生中",
+        "finished": "完了"
+      }
     },
     "physics": {
       "title": "物理と衝突",

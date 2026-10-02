@@ -353,13 +353,35 @@
     },
     "effects": {
       "title": "Effects",
-      "description": "Floating numbers and color overlays.",
+      "description": "Floating numbers, color overlays and screen effects.",
       "damage": "Damage",
       "critical": "Critical",
       "heal": "Heal",
       "percent": "Percent",
       "fraction": "Fraction",
-      "decimal": "Decimal"
+      "decimal": "Decimal",
+      "screen": {
+        "instructions": "Screen effects: F1–F9 or click. Esc / Back clears an active effect, then returns.",
+        "flash": "F1 Flash",
+        "fade_black": "F2 Fade black",
+        "hold_black": "F3 Hold black",
+        "stop": "F4 Fade out",
+        "cancel": "F5 Cancel",
+        "stretch": "F6 Stretch",
+        "cover": "F7 Cover",
+        "contain": "F8 Contain",
+        "after_ui": "F9 After UI",
+        "before_ui": "F9 Before UI",
+        "ready": "Ready",
+        "stopping": "Fading out",
+        "nothing_to_stop": "Nothing to stop",
+        "cancelled": "Cancelled",
+        "layer_changed": "Layer changed; choose an effect",
+        "image_unavailable": "Image unavailable: demo.screen_effect",
+        "failed": "Effect request failed",
+        "playing": "Playing",
+        "finished": "Finished"
+      }
     },
     "physics": {
       "title": "Physics and collision",

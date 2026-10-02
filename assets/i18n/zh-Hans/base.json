@@ -353,13 +353,35 @@
     },
     "effects": {
       "title": "特效",
-      "description": "飘字与颜色覆盖。",
+      "description": "飘字、颜色覆盖与屏幕特效。",
       "damage": "伤害",
       "critical": "暴击",
       "heal": "治疗",
       "percent": "百分比",
       "fraction": "分数",
-      "decimal": "小数"
+      "decimal": "小数",
+      "screen": {
+        "instructions": "屏幕特效：F1–F9 或点击。Esc / 返回先取消活动特效，再返回。",
+        "flash": "F1 闪屏",
+        "fade_black": "F2 黑屏渐变",
+        "hold_black": "F3 保持黑屏",
+        "stop": "F4 淡出",
+        "cancel": "F5 取消",
+        "stretch": "F6 拉伸",
+        "cover": "F7 覆盖",
+        "contain": "F8 包含",
+        "after_ui": "F9 UI 之后",
+        "before_ui": "F9 UI 之前",
+        "ready": "就绪",
+        "stopping": "正在淡出",
+        "nothing_to_stop": "没有可停止的特效",
+        "cancelled": "已取消",
+        "layer_changed": "层级已切换，请选择特效",
+        "image_unavailable": "图片不可用：demo.screen_effect",
+        "failed": "特效请求失败",
+        "playing": "播放中",
+        "finished": "已完成"
+      }
     },
     "physics": {
       "title": "物理与碰撞",

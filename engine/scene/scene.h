@@ -81,6 +81,7 @@ public:
 
     void pause();
     void resume();
+    [[nodiscard]] bool is_paused() const noexcept { return _paused; }
 
     [[nodiscard]] SceneLifecycleState lifecycle_state() const noexcept { return _lifecycle_state; }
     [[nodiscard]] bool has_fixed_step() const noexcept { return static_cast<bool>(_fixed_step); }

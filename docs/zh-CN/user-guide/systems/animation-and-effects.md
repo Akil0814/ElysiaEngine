@@ -79,6 +79,84 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 AnimationEff
 
 浮动数字不需要配置动画清单，但需要有效字体与渲染依赖。text 支持 `0–9`、`-`、`.`、`/`、`%`，不支持加号或普通文字；普通文字使用 UI 文本。position、字号高度、时间必须合法，lifetime_seconds 和 target_height 为正，time_scale 非负。effects 可组合线性/弧线 motion、scale、fade，其 time_range 使用 0–1 生命周期进度。没有设置这些效果时仍按寿命结束并销毁。其 on_finished 参数为 FloatingNumberEffect&。
 
+## 全屏特效
+
+`EffectService` 支持纯色和静态图片遮罩。它们使用游戏逻辑视口的屏幕坐标，不受相机移动或缩放影响，也不覆盖窗口的留黑区域。它们全部属于当前活动场景：退出场景（包括缓存复用）、故障恢复、关闭或内容清理时移除，句柄失效；不支持跨场景保留。
+
+```cpp
+#include "engine/effects/effect_service.h"
+
+// 闪白：立即显示，然后在 0.2 秒内淡出。
+std::optional<elysia::effects::ScreenEffectHandle> flash_white() {
+    elysia::effects::ScreenColorEffectRequest request;
+    request.color = {255, 255, 255};
+    request.playback.hold_seconds = 0.0;
+    request.playback.fade_out_seconds = 0.2;
+    return ELYSIA_EFFECTS->request_screen_color_effect(request);
+}
+
+// 图片必须已通过项目的纹理资源配置加载。
+std::optional<elysia::effects::ScreenEffectHandle> show_screen_image() {
+    elysia::effects::ScreenImageEffectRequest request;
+    request.texture_key = "screen.blood"; // 项目提供的纹理 key
+    request.fit = elysia::effects::ScreenEffectFit::Cover;
+    request.playback.fade_in_seconds = 0.1;
+    request.playback.hold_seconds = 0.3;
+    request.playback.fade_out_seconds = 0.4;
+    request.playback.layer = elysia::effects::ScreenEffectLayer::BeforeUi;
+    return ELYSIA_EFFECTS->request_screen_image_effect(request);
+}
+```
+
+纯色请求与图片请求共享 `ScreenEffectPlayback`。默认目标透明度为 1，淡入/淡出为 0 秒，保持 0.6 秒，结束策略为 `Timed`，层级为 `AfterUi`，时钟为 `Unscaled`。透明度从 0 线性淡入到目标值，保持结束后线性淡出；淡入为 0 时创建即使用目标透明度。颜色 alpha、图片透明通道与播放透明度相乘。
+
+`Timed` 的保持时间从淡入完成后开始；`Manual` 淡入后持续保持，直到主动结束。`stop_screen_effect(handle)` 从当前透明度开始，使用请求中的淡出时长；为 0 时立即移除。已经淡出的特效重复 stop 返回 false，不重启淡出。`cancel_screen_effect(handle)` 立即移除。`is_screen_effect_active(handle)` 查询是否存在，不代表淡入是否完成。失效句柄安全返回 false，不能控制复用槽位的新特效。
+
+`Unscaled` 使用原始帧时间，不受时间缩放和场景暂停影响。`Scene` 使用缩放后时间，并跟随场景暂停。每帧先推进已有屏幕特效，再更新场景；在本帧输入、场景进入或更新中创建的特效从下一帧开始计时。请求不调用用户回调，可在场景对象更新中创建或取消。
+
+`BeforeUi` 位于世界和调试图形之后、UI 之前；`AfterUi` 覆盖 UI。开发工具面板在两者之后绘制。同一层内按创建顺序叠加。图片默认 `Stretch` 拉伸铺满；`Cover` 等比居中铺满并裁切；`Contain` 等比居中完整显示，未覆盖区域保持透明。
+
+创建返回 optional 句柄。没有活动场景、纹理缺失、时间为负或非有限、透明度不在 0–1、定时请求的三个时长全为 0 时返回空值并记录日志。图片借用已加载纹理，资源重载前必须通过现有内容清理流程清除特效；直接释放仍被引用的纹理不受支持。本次不支持帧动画和后处理。
+
+### 两个场景分别完成黑幕转场
+
+旧场景请求渐黑，并用与特效相同的时钟累计时间；达到淡入时长后按现有场景路由接口请求切换。使用 `Manual` 让黑幕在切换前持续保持。创建失败时不要启动转场计时。
+
+```cpp
+std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout() {
+    elysia::effects::ScreenColorEffectRequest request;
+    request.color = {0, 0, 0};
+    request.playback.fade_in_seconds = 0.4;
+    request.playback.end = elysia::effects::ScreenEffectEnd::Manual;
+    return ELYSIA_EFFECTS->request_screen_color_effect(request);
+}
+
+// 在新场景 on_enter 中调用，在首次绘制前创建全黑遮罩。
+std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
+    elysia::effects::ScreenColorEffectRequest request;
+    request.color = {0, 0, 0};
+    request.playback.hold_seconds = 0.0;
+    request.playback.fade_out_seconds = 0.4;
+    return ELYSIA_EFFECTS->request_screen_color_effect(request);
+}
+```
+
+默认时钟下，旧场景从下一次更新开始累计 `ELYSIA_TIME->raw_delta()`，累计到 0.4 秒时发出切换请求。退出旧场景会清理旧遮罩；新场景进入时创建的新遮罩从全黑开始淡出。因此新场景第一帧仍为黑色，不需要跨场景句柄。场景路由和转场计时由游戏负责。
+
+### 在游戏中手动测试
+
+主菜单 → 模块展示 → 特效，标题说明下方的屏幕特效操作区支持鼠标按钮和快捷键；底部保留飘字操作区：
+
+| 按键 | 效果 |
+|---|---|
+| F1 | 闪白并自动淡出 |
+| F2 / F3 | 渐黑后自动恢复 / 渐黑后持续保持 |
+| F4 / F5 | 从当前透明度淡出 / 立即取消 |
+| F6 / F7 / F8 | 图片 Stretch / Cover / Contain |
+| F9 | 切换 UI 前后层级，清除当前预览后重新选择效果 |
+
+面板显示播放中、已完成或请求失败状态，文案支持项目五种语言。每次选择效果会替换上一次预览。黑屏遮住按钮时仍可用快捷键；Esc 和返回按钮优先清除正在播放的效果，没有活动效果时才返回调用方。图片使用已加载的 `demo.screen_effect` 测试纹理；其 3:2 网格、四角标记和圆环用于观察拉伸、裁切、等比显示和透明叠加。
+
 ## 资源配置
 
 下文是项目需提供的 JSON 格式；核心 manifest 路径由 content_registry 的 required 项指定。实体资源包的模板、布局与 key 规则见本目录[资源指南](../content/resources.md)。

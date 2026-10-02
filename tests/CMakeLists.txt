@@ -40,6 +40,11 @@ add_elysia_test(showcase_render_tests
     SDL
 )
 target_compile_definitions(showcase_render_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_elysia_test(screen_effect_tests
+    LABEL effects
+    SOURCES effects/screen_effect_tests.cpp
+    SDL
+)
 
 add_elysia_test(world_ui_tests
     LABEL gameplay_ui
