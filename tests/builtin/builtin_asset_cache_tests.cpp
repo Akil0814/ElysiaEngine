@@ -77,21 +77,10 @@ int main()
             && resources.find_font(elysia::builtin::BuiltinFontId::Latin,20) == nullptr
             && resources.create_animation(elysia::builtin::BuiltinAnimationId::EngineCharacterIdle) == nullptr,
         "uninitialized built-in resource queries must return empty results");
-    require(resources.play_sound(
-                static_cast<elysia::builtin::BuiltinSoundId>(255)) == -1
-            && !resources.play_music(
-                elysia::builtin::BuiltinMusicId::ElysianRealm),
-        "unbound built-in audio requests must fail safely");
-
     const auto initialized = resources.initialize(
         fixture.renderer(),
         catalog,
-        default_point_sizes,
-        elysia::audio::AudioSettings{
-            .master_volume = 125,
-            .music_volume = -10,
-            .sound_volume = 42
-        });
+        default_point_sizes);
     require(initialized.has_value(), "Built-in asset cache must load all repository built-in resources");
     require(resources.is_initialized(), "successful initialization must publish live built-in resources");
     require(resources.texture_count() == 7, "resources must own all seven Engine textures");
@@ -132,16 +121,6 @@ int main()
             && resources.find_music(elysia::builtin::BuiltinMusicId::ElysianRealm) != nullptr,
         "cache must distinguish registered and unregistered Engine audio keys");
 
-    require(resources.audio_settings().master_volume == 100
-            && resources.audio_settings().music_volume == 0
-            && resources.audio_settings().sound_volume == 42,
-        "initializing built-in resources must clamp its volume snapshot");
-    require(resources.play_sound(static_cast<elysia::builtin::BuiltinSoundId>(255)) == -1
-            && !resources.play_music(static_cast<elysia::builtin::BuiltinMusicId>(255)),
-        "bound built-in audio requests must not fall back to project resources");
-    require(resources.play_music(elysia::builtin::BuiltinMusicId::ElysianRealm),
-        "bound built-in audio player must play registered scene music");
-    resources.stop_music();
     {
         const auto* idle_definition = resources.find_animation(
             elysia::builtin::BuiltinAnimationId::EngineCharacterIdle);
@@ -216,8 +195,7 @@ int main()
         const auto failed_reinitialize = resources.initialize(
             fixture.renderer(),
             elysia::builtin::BuiltinAssetCatalog(missing_root),
-            default_point_sizes,
-            {});
+            default_point_sizes);
         require(!failed_reinitialize.has_value(),
             "invalid built-in resources must reject initialization");
         require(resources.texture_count() == 7 && resources.font_count() == 35 && resources.locale_count() == 5
@@ -238,8 +216,7 @@ int main()
     const auto failed_initialize = resources.initialize(
         fixture.renderer(),
         elysia::builtin::BuiltinAssetCatalog(source_root / "missing_builtin_root"),
-        default_point_sizes,
-        {});
+        default_point_sizes);
     require(!failed_initialize && !resources.is_initialized() && resources.texture_count() == 0,
         "failed initialization of an empty singleton must leave no published resources");
 
@@ -248,8 +225,7 @@ int main()
     require(resources.initialize(
             fixture.renderer(),
             catalog,
-            custom_point_sizes,
-            {}).has_value()
+            custom_point_sizes).has_value()
             && resources.font_count() == 5
             && resources.find_font(
                 elysia::builtin::BuiltinFontId::Latin,24) != nullptr,

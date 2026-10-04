@@ -163,10 +163,11 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(
                     std::filesystem::path{ ELYSIA_SOURCE_DIR }),
-                std::array{10,20,30,40,50,60,70},
-                {})
+                std::array{10,20,30,40,50,60,70})
                 .has_value(),
         "Realm scene tests must initialize built-in resources");
+    require(elysia::builtin::BuiltinMusicPlayer::instance()->initialize({}),
+        "Realm scene tests must initialize the independent music player");
 
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(
@@ -200,14 +201,14 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     });
 
     enter_intro(33);
-    require(elysia::tests::music_playing() != 0,
+    require(elysia::tests::builtin_music_playing() != 0,
         "ElysiaIntroScene must start Realm music on entry");
 
     send_escape(scene_manager);
     require(scene_manager.current_scene_key()
             == elysia::scene::SceneKeys::ElysiaRealm,
         "ElysiaIntroScene must ignore Escape");
-    require(elysia::tests::music_playing() != 0,
+    require(elysia::tests::builtin_music_playing() != 0,
         "ignored Intro input must not stop Realm music");
 
     scene_manager.on_update(4.5);
@@ -223,13 +224,13 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
             == elysia::realm::detail::SceneKeys::RealmContent,
         "Intro must enter Realm exactly after both playbacks complete");
     scene_manager.on_render(fixture.renderer());
-    require(elysia::tests::music_playing() != 0,
+    require(elysia::tests::builtin_music_playing() != 0,
         "Intro must hand Realm music off without stopping it");
 
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && ReturnScene::marker == 33,
         "ElysiaRealmScene Escape must preserve the full caller route");
-    require(elysia::tests::music_playing() == 0,
+    require(elysia::tests::builtin_music_playing() == 0,
         "ElysiaRealmScene must stop Realm music on exit");
 
     enter_intro(34);
@@ -240,14 +241,14 @@ void test_sequence_escape_reuse_and_audio_lifecycle()
     send_escape(scene_manager);
     require(scene_manager.current_scene_key() == 1 && ReturnScene::marker == 34,
         "Realm Reuse must use the updated caller route");
-    require(elysia::tests::music_playing() == 0,
+    require(elysia::tests::builtin_music_playing() == 0,
         "Realm Reuse exit must leave Realm music stopped");
 
     enter_intro(35);
-    require(elysia::tests::music_playing() != 0,
+    require(elysia::tests::builtin_music_playing() != 0,
         "re-entered Intro must restart Realm music");
     scene_manager.shutdown();
-    require(elysia::tests::music_playing() == 0,
+    require(elysia::tests::builtin_music_playing() == 0,
         "Intro shutdown before handoff must stop Realm music");
     builtin_resources.shutdown();
 }

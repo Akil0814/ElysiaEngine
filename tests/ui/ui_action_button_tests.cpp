@@ -260,7 +260,7 @@ void test_render_content_and_order()
     const auto settings = typography::resolve_font_settings(typography::FontSettings{});
     require(settings.has_value(),"font settings must resolve");
     auto& builtin = *builtin::BuiltinResources::instance();
-    require(builtin.initialize(renderer,builtin::BuiltinAssetCatalog(*paths),settings->engine_point_sizes(),{}).has_value(),
+    require(builtin.initialize(renderer,builtin::BuiltinAssetCatalog(*paths),settings->engine_point_sizes()).has_value(),
         "HUD rendering test must load built-in fonts");
     typography::FontResolver fonts;
     require(localization->initialize(renderer,paths->configs() / "manifests" / "i18n_manifest.json","en",&fonts),

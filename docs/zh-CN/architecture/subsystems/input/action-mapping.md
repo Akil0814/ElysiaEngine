@@ -2,7 +2,7 @@
 
 `InputActionMap` 只解析 `InputSnapshot`。基于各源帧初状态和有序原始事件重放，再与帧末状态协调。同帧按下再松开、多次点击都保留动作事件顺序；帧状态只表达最后持续值。
 
-游戏定义 InputActionId、按键和手柄映射。仓库演示映射位于 [game/input](../../../game/input/gameplay_input_map.cpp)，不是引擎协议。UI 动作保持独立。
+游戏定义 InputActionId、按键和手柄映射。仓库演示映射位于 [game/input](../../../../../game/input/gameplay_input_map.cpp)，不是引擎协议。UI 动作保持独立。
 
 ## 数值语义
 

@@ -85,6 +85,22 @@ void test_blend_motion_and_handle_ownership()
             && runtime.resume_motion(owned),
         "owned motion handles must remain controllable");
 
+    runtime.cancel_motion(owned);
+    const auto hold=runtime.move_to(CameraSlot::Main,{.center=Vector2{80,0}},1,
+        CameraEasing::Linear,elysia::camera::CameraMotionEndBehavior::Hold);
+    require(runtime.advance(1).motions.size()==1 && runtime.motion_state(hold)==CameraMotionState::Holding,
+        "Hold completion retains runtime ownership and emits one completion");
+    require(runtime.advance(1).motions.empty(),"Holding does not emit duplicate completions");
+    runtime.request_shake(CameraSlot::Main,{});
+    (void)runtime.advance(.03);
+    require(runtime.pause_motion(hold),"terminal Hold can pause its shake and pose");
+    const auto frozen=runtime.slot_camera(CameraSlot::Main).center();
+    (void)runtime.advance(.5);
+    require(runtime.slot_camera(CameraSlot::Main).center()==frozen,"paused Hold freezes shake presentation");
+    require(runtime.resume_motion(hold) && runtime.motion_state(hold)==CameraMotionState::Holding,
+        "resuming terminal Hold retains its terminal state");
+    require(runtime.cancel_motion(hold) && !runtime.motion_state(hold),"runtime can cancel a completed Hold");
+
     runtime.cancel_activity();
     require(!runtime.motion_state(owned) && !runtime.blend_state(*blend),
         "lifecycle cancellation must invalidate runtime-owned playback");

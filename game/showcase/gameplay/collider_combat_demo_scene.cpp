@@ -1,4 +1,5 @@
-#include "game/input/local_controls.h"
+#include "game/gameplay/control/local_controls.h"
+#include "game/input/gameplay_actions.h"
 #include "game/showcase/gameplay/collider_combat_demo_scene.h"
 
 #include "game/showcase/gameplay/physics_combat_demo_helpers.h"

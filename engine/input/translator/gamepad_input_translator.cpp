@@ -179,7 +179,6 @@ void GamepadInputTranslator::append_controller_button_events(
     case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
         append_event(events, RawInputControl::GamepadRightShoulder, type, InputDevice::Gamepad);
         break;
-#if SDL_VERSION_ATLEAST(2, 0, 14)
     case SDL_GAMEPAD_BUTTON_MISC1:
         append_event(events, RawInputControl::GamepadMisc1, type, InputDevice::Gamepad);
         break;
@@ -198,7 +197,6 @@ void GamepadInputTranslator::append_controller_button_events(
     case SDL_GAMEPAD_BUTTON_TOUCHPAD:
         append_event(events, RawInputControl::GamepadTouchpad, type, InputDevice::Gamepad);
         break;
-#endif
     default:
         break;
     }

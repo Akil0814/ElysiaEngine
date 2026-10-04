@@ -1,9 +1,6 @@
 #pragma once
+#include <compare>
 #include <cstdint>
-namespace elysia::core
-{
-class GameObject;
-}
 namespace elysia::gameplay
 {
 class GameplayScene;
@@ -34,6 +31,7 @@ class SceneControlContext
     void activate();
     void deactivate();
     void reset();
+    void close_noexcept() noexcept;
     GameplayScene &_scene;
     std::uint64_t _instance, _generation = 1;
     bool _active = false, _retiring = false;

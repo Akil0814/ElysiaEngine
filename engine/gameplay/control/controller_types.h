@@ -15,6 +15,7 @@ enum class ControllerError
     NotInitialized,
     NoSession,
     SessionAlreadyActive,
+    SessionEnding,
     InvalidHandle,
     InvalidContext,
     InvalidTarget,
@@ -22,7 +23,8 @@ enum class ControllerError
     PlayerBusy,
     InvalidPlayer,
     InvalidMap,
-    Superseded
+    Superseded,
+    CallbackFailed
 };
 struct ControllerCreateInfo
 {

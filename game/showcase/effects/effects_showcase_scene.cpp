@@ -1,4 +1,5 @@
-#include "game/input/local_controls.h"
+#include "game/gameplay/control/local_controls.h"
+#include "game/input/gameplay_actions.h"
 #include "game/showcase/effects/effects_showcase_scene.h"
 
 #include "engine/builtin/resources/builtin_resources.h"
@@ -92,7 +93,7 @@ void EffectsShowcaseScene::on_shortcuts(const elysia::input::RawInputFrame &inpu
 void EffectsShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
     // This lab is an always-open interactive control panel, rather than a passive HUD.
-    set_ui_interaction_mode(elysia::input::UiInteractionMode::Navigation);
+    set_ui_interaction_mode(elysia::scene::UiInteractionMode::Navigation);
     const example::scene::ShowcaseEnterPayload* test_payload =
         elysia::scene::try_scene_payload<
             example::scene::ShowcaseEnterPayload>(payload);
@@ -166,7 +167,7 @@ void EffectsShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
         enable_character_debug_draw();
         refresh_character_debug_draw();
         if (_character)
-            example::input::configure_scene_player(*this, _controller, *_character);
+            example::gameplay::configure_scene_player(*this, _controller, *_character);
     }
     catch (...)
     {

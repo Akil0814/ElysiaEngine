@@ -66,8 +66,7 @@ public:
         require(elysia::builtin::BuiltinResources::instance()->initialize(
             _renderer,
             elysia::builtin::BuiltinAssetCatalog(source_root),
-            std::array{10,20,24,30,40,50,60,70},
-            {}).has_value(),
+            std::array{10,20,24,30,40,50,60,70}).has_value(),
             "FontResolver tests must initialize built-in fonts");
         elysia::resources::ResourceManager::instance()->clear();
     }

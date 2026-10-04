@@ -20,6 +20,16 @@ Scene 继续拥有窗口及 SceneObject，View 的控件指针均为借用引用
 
 `ShowcaseFrame` 提供统一标题、说明、返回与状态区域；列表页面使用滚动内容区，世界展示使用轻量外壳和独立操作面板。UI Gallery 保留分页。技能示例的冷却与道具状态由 `HudDemoState` 保存，控件由 `HudDemoView` 显示；隐藏页不处理快捷键。
 
+## 相机展示
+
+`CameraShowcaseScene` 使用 key 13，拥有 Main 和 Cinematic。跟随、镜头运动、演出三页共享两个角色和世界展示，Scene 保存 `CameraDemoState`、句柄与阶段；ControlsView 接收数据和回调，OverlayView 接收当前呈现相机的投影数据。页签使用 UiTabBar，操作行各自使用滚动容器与焦点区。
+
+演出阶段由混合和运动完成值事件推进，并校验句柄；Hold 停留计时跳过路径完成帧，防止将整帧 delta 重复计入停留。演出通过 actor 控制门控冻结角色，保持绑定并保存自动运动设置。退出及进入失败清理活动和借用引用，控件按 Scene 安全点释放。
+
+SceneCameraRuntime 保留终点 Holding 的句柄所有权；暂停该姿态时也冻结该槽的震动呈现。公共接口保持不变。
+
+执行结果和待完成的体验验收见 [相机展示验收记录](camera-showcase-validation.md)。
+
 ## 物理与 Gameplay
 
 物理组提供十个基础案例，以及 bodies、contacts、tiles 三个压力案例的低、中、高档。Gameplay 组提供碰撞战斗、平台战斗、俯视战斗三个玩法场景，以及对应的三个战斗验证案例。

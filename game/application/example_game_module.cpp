@@ -3,7 +3,7 @@
 #include "game/showcase/scenarios/scenario_scene.h"
 #include "game/application/example_game_module.h"
 #include "game/showcase/input/local_multiplayer_scene.h"
-#include "game/showcase/camera/multi_target_camera_scene.h"
+#include "game/showcase/camera/camera_showcase_scene.h"
 
 #include "game/navigation/main_menu_scene.h"
 #include "game/showcase/animation/animation_preview_scene.h"
@@ -71,7 +71,7 @@ void GameModule::register_scenes(
     scene_manager.register_game_scene<example::scene::GameplayVerificationScene>(example::scene_keys::GameplayVerification);
     scene_manager.register_game_scene<example::scene::LocalMultiplayerScene>(
         example::scene_keys::LocalMultiplayer);
-    scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(example::scene_keys::MultiTargetCamera);
+    scene_manager.register_game_scene<example::scene::CameraShowcaseScene>(example::scene_keys::CameraShowcase);
     scene_manager.register_game_scene<example::scene::MainMenuScene>(
         example::scene_keys::MainMenu);
     scene_manager.register_game_scene<example::scene::AnimationPreviewScene>(

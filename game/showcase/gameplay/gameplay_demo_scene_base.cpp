@@ -1,4 +1,4 @@
-#include "game/input/local_controls.h"
+#include "game/gameplay/control/local_controls.h"
 #include "game/showcase/gameplay/gameplay_demo_scene_base.h"
 #include "game/showcase/shared/showcase_layout.h"
 #include "game/navigation/showcase_scene_keys.h"
@@ -212,7 +212,7 @@ GameplayDemoSceneBase::resolve_camera_focus(elysia::camera::CameraSlot slot) con
 
 
 void GameplayDemoSceneBase::configure_player_controller(example::showcase::gameplay::BlockCombatActor& player) {
-    if(dynamic_cast<elysia::gameplay::ControlCommandReceiver*>(&player)) example::input::configure_scene_player(*this,_controller,player);
+    if(dynamic_cast<elysia::gameplay::ControlCommandReceiver*>(&player)) example::gameplay::configure_scene_player(*this,_controller,player);
 }
 void GameplayDemoSceneBase::set_player(
     example::showcase::gameplay::BlockCombatActor& player) noexcept

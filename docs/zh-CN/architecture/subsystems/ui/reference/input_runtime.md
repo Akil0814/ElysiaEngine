@@ -13,7 +13,7 @@
 
 ## 场景级输入协调
 
-Scene::on_input 委托 SceneInputRouter，先将键鼠及指定 UI 手柄的输入交给 UiInputRouter，再将未消费的输入交给快捷操作与本地控制器。普通 Scene 无需控制器上下文即可处理 UI。UI 事件消费会阻止对应原始操作进入玩法，持续状态也会被屏蔽到释放或回中。
+Scene 的内部生命周期输入入口委托 `elysia::scene::SceneInputRouter`（`engine/scene/input/`），先将键鼠及指定 UI 手柄的输入交给 UiInputRouter，再将未消费的输入交给快捷操作与本地控制器。普通 Scene 无需控制器上下文即可处理 UI。UI 事件消费会阻止对应原始操作进入玩法，持续状态也会被屏蔽到释放或回中。场景 UI 模式使用 `elysia::scene::UiInteractionMode`。
 
 `UiElement::input_capture()` 默认返回无捕获；UiChildHost 汇总有效子节点，焦点 UiTextInput 报告键盘捕获，UiWindow 的模态层和活动弹出层报告捕获。键盘捕获覆盖全部键盘分区；鼠标捕获作用于鼠标所属玩家；手柄捕获只作用于指定 UI 手柄。UI 手柄选择与游戏绑定相互独立。
 

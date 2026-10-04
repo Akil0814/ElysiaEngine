@@ -1,5 +1,5 @@
 ﻿#include "tests/support/control_scene_fixture.h"
-#include "game/input/command_view.h"
+#include "game/gameplay/control/command_view.h"
 #define SDL_MAIN_HANDLED
 #include "engine/gameplay/scene/gameplay_scene.h"
 #include "engine/input/input_system.h"
@@ -20,8 +20,8 @@ class Actor : public elysia::core::GameObject, public ControlCommandReceiver
     void on_control_command(const ControlCommand &c, double) override
     {
         ++ticks;
-        presses += example::input::CommandView(c).press_count(example::input::actions::Jump);
-        move = example::input::CommandView(c).move();
+        presses += example::gameplay::CommandView(c).press_count(example::input::actions::Jump);
+        move = example::gameplay::CommandView(c).move();
         last = c;
     }
     void on_control_cancelled(InputCancelReason) override

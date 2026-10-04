@@ -10,6 +10,16 @@ namespace elysia::scene
 class SceneTestAccess final
 {
 public:
+    static void attach(Scene& scene) { scene.attach_runtime_services(); }
+    static void detach(Scene& scene) { scene.detach_runtime_services(); }
+    static SceneCameraRuntime& camera_runtime(Scene& scene) { return scene.camera_runtime(); }
+    static elysia::core::GameObject* game_object(Scene& scene,std::size_t index)
+    {
+        for (auto& layer : scene._object_layers)
+            for (auto& object : layer)
+                if (index-- == 0) return object.get();
+        return nullptr;
+    }
     static elysia::ui::UiElement* ui_root(Scene& scene,std::size_t index)
     {
         return scene._ui_roots.at(index).get();
@@ -43,6 +53,16 @@ public:
     static void route_input(Scene& scene, const elysia::input::InputSnapshot& input)
     {
         scene._input_router.route(input);
+    }
+
+    static void dispatch_ui_frame(Scene& scene, const elysia::ui::UiInputFrame& input)
+    {
+        scene.dispatch_ui_frame(input);
+    }
+
+    static bool dispatch_ui_events(Scene& scene, const std::vector<elysia::ui::UiInputEvent>& events)
+    {
+        return scene.dispatch_ui_events(events);
     }
 
     static void update(Scene& scene, double delta)

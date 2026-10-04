@@ -16,14 +16,19 @@ void ControllerManager::initialize()
 }
 void ControllerManager::shutdown()
 {
-    end_session();
+    elysia::scene::detail::SceneFailureCollector failures;
+    failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Exit,
+        "Controller session shutdown", [this] { end_session(); });
     _initialized = false;
     ++_runtime;
+    failures.rethrow_if_failed();
 }
 std::expected<void, ControllerError> ControllerManager::begin_session()
 {
     if (!_initialized)
         return std::unexpected(ControllerError::NotInitialized);
+    if (_ending_session)
+        return std::unexpected(ControllerError::SessionEnding);
     if (_session)
         return std::unexpected(ControllerError::SessionAlreadyActive);
     ++_runtime;
@@ -32,22 +37,45 @@ std::expected<void, ControllerError> ControllerManager::begin_session()
 }
 void ControllerManager::end_session()
 {
-    Boundary boundary(*this);
-    _session = false;
-    for (const auto &r : _requests)
-    {
-        r->operation.finish(ControllerError::NoSession);
-        release_reservation(*r);
-    }
-    for (auto &[id, e] : _entries)
-        if (!e.removed)
-            (void)remove(e.command.controller);
+    if (_ending_session)
+        return;
+    dispatch(elysia::scene::SceneBoundary::Exit, [this] {
+        _ending_session = true;
+        struct Guard
+        {
+            bool& flag;
+            ~Guard() noexcept { flag = false; }
+        } guard{_ending_session};
+        _session = false;
+        for (const auto &r : _requests)
+        {
+            r->operation.finish(ControllerError::NoSession);
+            release_reservation(*r);
+        }
+        for (auto& [id, entry] : _entries)
+        {
+            entry.session_retiring = !entry.removed;
+            entry.removed = true;
+            entry.available = false;
+            entry.reserved_target = nullptr;
+            entry.reserved_scene = {};
+        }
+        ++_runtime;
+        elysia::scene::detail::SceneFailureCollector failures;
+        for (auto& [id, entry] : _entries)
+            if (std::exchange(entry.session_retiring, false))
+                failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Exit,
+                    "Controller session cancellation", [&] { detach(entry, InputCancelReason::Unbound); });
+        failures.rethrow_if_failed();
+    });
 }
 ControllerManager::Entry *ControllerManager::find(ControllerHandle h)
 {
     auto it = _entries.find(h.instance);
-    return it != _entries.end() && !it->second.removed && it->second.command.controller == h ? &it->second
-                                                                                             : nullptr;
+    if (!_session || h.runtime != _runtime || it == _entries.end() || it->second.removed ||
+        it->second.command.controller != h)
+        return nullptr;
+    return &it->second;
 }
 SceneControlContext *ControllerManager::context(SceneControlToken token)
 {
@@ -97,15 +125,30 @@ void ControllerManager::flush()
             flag = false;
         }
     } guard{_flushing};
+    elysia::scene::detail::SceneFailureCollector failures;
     while (!_pending.empty())
     {
         auto operation = std::move(_pending.front());
         _pending.pop_front();
         if (operation->operation.pending())
-            commit(operation);
+        {
+            try { commit(operation); }
+            catch (...)
+            {
+                failures.capture(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Update,
+                    "Controller operation callback");
+                operation->operation.finish(ControllerError::CallbackFailed);
+                release_reservation(*operation);
+                fail_requests(operation->handle, ControllerError::CallbackFailed);
+                if (Entry* entry = find(operation->handle); entry && entry->target)
+                    failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Detach,
+                        "Failed controller operation rollback", [&] { detach(*entry, InputCancelReason::Unbound); });
+            }
+        }
     }
     std::erase_if(_requests, [](const auto &r) { return !r->operation.pending(); });
     std::erase_if(_entries, [](auto &item) { return item.second.removed; });
+    failures.rethrow_if_failed();
 }
 void ControllerManager::cancel(Entry &e, InputCancelReason reason)
 {
@@ -126,9 +169,13 @@ void ControllerManager::cancel(Entry &e, InputCancelReason reason)
     } guard{e.cancelling};
     if (auto *local = dynamic_cast<LocalPlayerController *>(e.controller.get()))
         local->_map.reset_state();
-    e.controller->cancelled(reason);
+    elysia::scene::detail::SceneFailureCollector failures;
+    failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Update,
+        "Controller cancellation", [&] { e.controller->cancelled(reason); });
     if (e.receiver)
-        e.receiver->on_control_cancelled(reason);
+        failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Update,
+            "Control target cancellation", [&] { e.receiver->on_control_cancelled(reason); });
+    failures.rethrow_if_failed();
 }
 void ControllerManager::detach(Entry &e, InputCancelReason reason)
 {
@@ -144,23 +191,28 @@ void ControllerManager::detach(Entry &e, InputCancelReason reason)
     e.bound_scene = {};
     e.available = false;
     ++e.command.binding_generation;
-    cancel(e, reason);
+    elysia::scene::detail::SceneFailureCollector failures;
+    failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Detach,
+        "Controller detachment", [&] { cancel(e, reason); });
     // A controller callback may have released the old receiver.
     auto old_context = _contexts.find(old_scene.instance);
     if (receiver && old_context != _contexts.end() && old_context->second->token() == old_scene &&
         old_context->second->_scene.contains_control_target(old_target))
-        receiver->on_control_cancelled(reason);
+        failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Detach,
+            "Detached target cancellation", [&] { receiver->on_control_cancelled(reason); });
+    failures.rethrow_if_failed();
 }
 std::expected<void, ControllerError> ControllerManager::remove(ControllerHandle h)
 {
-    auto *e = find(h);
-    if (!e)
-        return std::unexpected(ControllerError::InvalidHandle);
-    Boundary boundary(*this);
-    fail_requests(h, ControllerError::InvalidHandle);
-    e->removed = true;
-    detach(*e, InputCancelReason::Unbound);
-    return {};
+    return dispatch(elysia::scene::SceneBoundary::Detach, [&]() -> std::expected<void, ControllerError> {
+        auto *e = find(h);
+        if (!e)
+            return std::unexpected(ControllerError::InvalidHandle);
+        fail_requests(h, ControllerError::InvalidHandle);
+        e->removed = true;
+        detach(*e, InputCancelReason::Unbound);
+        return {};
+    });
 }
 ControllerOperation ControllerManager::unbind(ControllerHandle h)
 {
@@ -228,57 +280,54 @@ void ControllerManager::fail_requests(ControllerHandle handle, ControllerError e
 }
 ControllerOperation ControllerManager::request(std::shared_ptr<Request> r)
 {
-    auto *e = find(r->handle);
-    auto reject = [&](ControllerError error) {
-        r->operation.finish(error);
-        return r->operation;
-    };
-    if (!e)
-        return reject(ControllerError::InvalidHandle);
-    if (r->kind == RequestKind::Bind)
-    {
-        auto result = validate_binding(*e, r->scene, *r->target);
-        if (!result)
-            return reject(result.error());
-    }
-    if (r->kind == RequestKind::Map)
-    {
-        auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
-        if (!local || !r->map.valid())
-            return reject(ControllerError::InvalidMap);
-        if (auto *ctx = context(e->bound_scene))
-            if (!ctx->_scene.local_players().accepts_keyboard_map(local->player(),
-                                                                  r->map.keyboard_controls()))
+    return dispatch(elysia::scene::SceneBoundary::Update, [&] {
+        auto *e = find(r->handle);
+        auto reject = [&](ControllerError error) {
+            r->operation.finish(error);
+            return r->operation;
+        };
+        if (!e)
+            return reject(ControllerError::InvalidHandle);
+        if (r->kind == RequestKind::Bind)
+        {
+            auto result = validate_binding(*e, r->scene, *r->target);
+            if (!result)
+                return reject(result.error());
+        }
+        if (r->kind == RequestKind::Map)
+        {
+            auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
+            if (!local || !r->map.valid())
                 return reject(ControllerError::InvalidMap);
-        r->scene = e->bound_scene;
-    }
-    else
-    {
-        if (r->kind == RequestKind::Unbind)
+            if (auto *ctx = context(e->bound_scene))
+                if (!ctx->_scene.local_players().accepts_keyboard_map(local->player(),
+                                                                      r->map.keyboard_controls()))
+                    return reject(ControllerError::InvalidMap);
             r->scene = e->bound_scene;
-        // Only accepted requests supersede older target operations.
-        for (const auto &old : _requests)
-            if (old->handle == r->handle && old->kind != RequestKind::Map && old->operation.pending())
-            {
-                old->operation.finish(ControllerError::Superseded);
-                release_reservation(*old);
-            }
-        e->reserved_target = r->target;
-        e->reserved_scene = r->scene;
-    }
-    _requests.push_back(r);
-    if (_depth)
+        }
+        else if (r->kind == RequestKind::Unbind)
+            r->scene = e->bound_scene;
+        // Prepare queue capacity before changing existing results or reservations.
+        _requests.reserve(_requests.size() + 1);
         _pending.push_back(r);
-    else
-    {
-        Boundary boundary(*this);
-        commit(r);
-    }
-    return r->operation;
+        if (r->kind != RequestKind::Map)
+        {
+            // Only accepted requests supersede older target operations.
+            for (const auto &old : _requests)
+                if (old->handle == r->handle && old->kind != RequestKind::Map && old->operation.pending())
+                {
+                    old->operation.finish(ControllerError::Superseded);
+                    release_reservation(*old);
+                }
+            e->reserved_target = r->target;
+            e->reserved_scene = r->scene;
+        }
+        _requests.push_back(r);
+        return r->operation;
+    });
 }
 void ControllerManager::commit(const std::shared_ptr<Request> &r)
 {
-    Boundary boundary(*this);
     auto fail = [&](ControllerError error) {
         r->operation.finish(error);
         release_reservation(*r);
@@ -375,7 +424,7 @@ void ControllerManager::commit(const std::shared_ptr<Request> &r)
 }
 void ControllerManager::ingest(Entry &e, ActionInputResult input)
 {
-    if (!e.target || !e.available || e.removed || e.cancelling ||
+    if (!_session || e.command.controller.runtime != _runtime || !e.target || !e.available || e.removed || e.cancelling ||
         (e.producing_generation && *e.producing_generation != e.cancel_generation))
         return;
     auto *ctx = context(e.bound_scene);
@@ -411,225 +460,256 @@ void ControllerManager::ingest(Entry &e, ActionInputResult input)
 }
 void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &input)
 {
-    Boundary boundary(*this);
-    std::vector<ControllerHandle> handles;
-    for (auto &[id, e] : _entries)
-        if (!e.removed && e.bound_scene == ctx.token())
-            handles.push_back(e.command.controller);
-    for (auto h : handles)
-    {
-        auto *e = find(h);
-        if (!e)
-            continue;
-        auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
-        if (!local)
-            continue;
-        const bool already_cancelled = std::exchange(e->source_cancelled, false);
-        auto &players = ctx._scene.local_players();
-        auto player = local->player();
-        bool available = ctx._active && !ctx._scene._paused && e->target && e->target->is_active() &&
-                         !e->target->is_destroyed() && players.contains(player);
-        if (!available || !e->available)
+    dispatch(elysia::scene::SceneBoundary::Input, [&] {
+        std::vector<ControllerHandle> handles;
+        for (auto &[id, e] : _entries)
+            if (!e.removed && e.bound_scene == ctx.token())
+                handles.push_back(e.command.controller);
+        for (auto h : handles)
         {
-            const bool became_unavailable = e->available && !available;
-            e->available = available;
-            if (became_unavailable && !ctx._scene._paused)
-                cancel(*e, InputCancelReason::Unavailable);
-            ctx._scene.input_router().suppress(player);
-            continue;
-        }
-        auto sources = players.sources(player);
-        if (sources != local->_sources || players.binding_version(player) != local->_binding_version)
-        {
-            bool added = sources == local->_sources || std::ranges::any_of(sources, [&](auto source) {
-                             return std::ranges::find(local->_sources, source) == local->_sources.end();
-                         });
-            local->_sources = sources;
-            local->_binding_version = players.binding_version(player);
-            if (!already_cancelled)
-                cancel(*e, InputCancelReason::SourceChanged);
-            if (added)
+            auto *e = find(h);
+            if (!e)
+                continue;
+            auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get());
+            if (!local)
+                continue;
+            const bool already_cancelled = std::exchange(e->source_cancelled, false);
+            auto &players = ctx._scene.local_players();
+            auto player = local->player();
+            bool available = ctx._active && !ctx._scene._paused && e->target && e->target->is_active() &&
+                             !e->target->is_destroyed() && players.contains(player);
+            if (!available || !e->available)
             {
+                const bool became_unavailable = e->available && !available;
+                e->available = available;
+                if (became_unavailable && !ctx._scene._paused)
+                    cancel(*e, InputCancelReason::Unavailable);
                 ctx._scene.input_router().suppress(player);
                 continue;
             }
-        }
-        // Consumption also discards matching deltas queued during earlier zero-tick frames.
-        // Do not discard unrelated buttons or wheel/motion actions from the same player.
-        std::erase_if(e->command.deltas, [&](const auto &pending) {
-            for (const auto &operation : ctx._scene.input_router().consumed_operations())
+            auto sources = players.sources(player);
+            if (sources != local->_sources || players.binding_version(player) != local->_binding_version)
             {
-                if (!players.owns(player, operation))
-                    continue;
-                for (const auto &binding : local->_map.bindings(pending.first))
+                bool added = sources == local->_sources || std::ranges::any_of(sources, [&](auto source) {
+                                 return std::ranges::find(local->_sources, source) == local->_sources.end();
+                             });
+                local->_sources = sources;
+                local->_binding_version = players.binding_version(player);
+                if (!already_cancelled)
+                    cancel(*e, InputCancelReason::SourceChanged);
+                if (added)
                 {
-                    const auto *delta = std::get_if<PointerDeltaBinding>(&binding.source);
-                    if (!delta)
+                    ctx._scene.input_router().suppress(player);
+                    continue;
+                }
+            }
+            // Consumption also discards matching deltas queued during earlier zero-tick frames.
+            // Do not discard unrelated buttons or wheel/motion actions from the same player.
+            std::erase_if(e->command.deltas, [&](const auto &pending) {
+                for (const auto &operation : ctx._scene.input_router().consumed_operations())
+                {
+                    if (!players.owns(player, operation))
                         continue;
-                    const bool motion =
-                        delta->axis == PointerDeltaAxis::MouseX || delta->axis == PointerDeltaAxis::MouseY;
-                    if ((motion && operation.type == RawInputEventType::MouseMoved) ||
-                        (!motion && operation.type == RawInputEventType::MouseWheel))
-                        return true;
+                    for (const auto &binding : local->_map.bindings(pending.first))
+                    {
+                        const auto *delta = std::get_if<PointerDeltaBinding>(&binding.source);
+                        if (!delta)
+                            continue;
+                        const bool motion =
+                            delta->axis == PointerDeltaAxis::MouseX || delta->axis == PointerDeltaAxis::MouseY;
+                        if ((motion && operation.type == RawInputEventType::MouseMoved) ||
+                            (!motion && operation.type == RawInputEventType::MouseWheel))
+                            return true;
+                    }
                 }
-            }
-            return false;
-        });
-        std::erase_if(e->command.events, [&](const auto &pending) {
-            for (const auto &operation : ctx._scene.input_router().consumed_operations())
-            {
-                if (!players.owns(player, operation))
-                    continue;
-                for (const auto &binding : local->_map.bindings(pending.action))
+                return false;
+            });
+            std::erase_if(e->command.events, [&](const auto &pending) {
+                for (const auto &operation : ctx._scene.input_router().consumed_operations())
                 {
-                    if (auto *button = std::get_if<ButtonInputBinding>(&binding.source);
-                        button && button->control == operation.control &&
-                        operation.control != RawInputControl::None)
-                        return true;
-                    if (auto *buttons = std::get_if<Button2DInputBinding>(&binding.source);
-                        buttons && operation.control != RawInputControl::None)
-                        for (auto key : {buttons->left, buttons->right, buttons->up, buttons->down})
-                            if (key == operation.control)
-                                return true;
-                    if (auto *axis = std::get_if<AxisInputBinding>(&binding.source);
-                        axis && axis->axis == operation.axis && operation.axis != RawInputAxis::None)
-                        return true;
-                    if (auto *axes = std::get_if<Axis2DInputBinding>(&binding.source);
-                        axes && operation.axis != RawInputAxis::None &&
-                        (axes->x_axis == operation.axis || axes->y_axis == operation.axis))
-                        return true;
+                    if (!players.owns(player, operation))
+                        continue;
+                    for (const auto &binding : local->_map.bindings(pending.action))
+                    {
+                        if (auto *button = std::get_if<ButtonInputBinding>(&binding.source);
+                            button && button->control == operation.control &&
+                            operation.control != RawInputControl::None)
+                            return true;
+                        if (auto *buttons = std::get_if<Button2DInputBinding>(&binding.source);
+                            buttons && operation.control != RawInputControl::None)
+                            for (auto key : {buttons->left, buttons->right, buttons->up, buttons->down})
+                                if (key == operation.control)
+                                    return true;
+                        if (auto *axis = std::get_if<AxisInputBinding>(&binding.source);
+                            axis && axis->axis == operation.axis && operation.axis != RawInputAxis::None)
+                            return true;
+                        if (auto *axes = std::get_if<Axis2DInputBinding>(&binding.source);
+                            axes && operation.axis != RawInputAxis::None &&
+                            (axes->x_axis == operation.axis || axes->y_axis == operation.axis))
+                            return true;
+                    }
                 }
-            }
-            return false;
-        });
-        auto filtered = players.for_player(player, input);
-        e->producing_generation = e->cancel_generation;
-        local->process_input(filtered);
-        e->producing_generation.reset();
-    }
+                return false;
+            });
+            auto filtered = players.for_player(player, input);
+            e->producing_generation = e->cancel_generation;
+            struct Guard
+            {
+                Entry& entry;
+                ~Guard() noexcept { entry.producing_generation.reset(); }
+            } guard{*e};
+            local->process_input(filtered);
+        }
+    });
 }
 void ControllerManager::cancel_local(SceneControlContext &ctx, LocalPlayerId player, InputCancelReason reason)
 {
-    Boundary boundary(*this);
-    for (auto &[id, e] : _entries)
-        if (!e.removed && e.bound_scene == ctx.token())
-            if (auto *local = dynamic_cast<LocalPlayerController *>(e.controller.get());
-                local && local->player() == player)
-            {
-                e.source_cancelled = true;
-                const auto &players = ctx._scene.local_players();
-                const auto effective_reason =
-                    reason == InputCancelReason::Suppressed &&
-                            (players.sources(player) != local->_sources ||
-                             players.binding_version(player) != local->_binding_version)
-                        ? InputCancelReason::SourceChanged
-                        : reason;
-                cancel(e, effective_reason);
-            }
+    dispatch(elysia::scene::SceneBoundary::Input, [&] {
+        elysia::scene::detail::SceneFailureCollector failures;
+        for (auto &[id, e] : _entries)
+            if (!e.removed && e.bound_scene == ctx.token())
+                if (auto *local = dynamic_cast<LocalPlayerController *>(e.controller.get());
+                    local && local->player() == player)
+                {
+                    e.source_cancelled = true;
+                    const auto &players = ctx._scene.local_players();
+                    const auto effective_reason =
+                        reason == InputCancelReason::Suppressed &&
+                                (players.sources(player) != local->_sources ||
+                                 players.binding_version(player) != local->_binding_version)
+                            ? InputCancelReason::SourceChanged
+                            : reason;
+                    failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Input,
+                        "Local controller cancellation", [&] { cancel(e, effective_reason); });
+                }
+        failures.rethrow_if_failed();
+    });
 }
 void ControllerManager::pause(SceneControlContext &ctx)
 {
-    Boundary boundary(*this);
-    for (auto &[id, e] : _entries)
-        if (!e.removed && e.bound_scene == ctx.token())
-            cancel(e, InputCancelReason::Paused);
+    dispatch(elysia::scene::SceneBoundary::Update, [&] {
+        elysia::scene::detail::SceneFailureCollector failures;
+        for (auto &[id, e] : _entries)
+            if (!e.removed && e.bound_scene == ctx.token())
+                failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Update,
+                    "Paused controller cancellation", [&] { cancel(e, InputCancelReason::Paused); });
+        failures.rethrow_if_failed();
+    });
 }
 void ControllerManager::leave(SceneControlContext &ctx, bool release)
 {
-    Boundary boundary(*this);
-    for (const auto &r : _requests)
-        if (r->scene == ctx.token() && r->operation.pending())
+    dispatch(elysia::scene::SceneBoundary::Detach, [&] {
+        std::vector<Entry*> retiring;
+        for (auto& [id, entry] : _entries)
+            if (!entry.removed && (entry.bound_scene == ctx.token() ||
+                (release && entry.scope == ControllerScope::Scene && entry.owner == ctx.token())))
+                retiring.push_back(&entry);
+        for (const auto &r : _requests)
+            if (r->scene == ctx.token() && r->operation.pending())
+            {
+                r->operation.finish(ControllerError::InvalidContext);
+                release_reservation(*r);
+            }
+        for (Entry* entry : retiring)
         {
-            r->operation.finish(ControllerError::InvalidContext);
-            release_reservation(*r);
+            Entry& e = *entry;
+            e.available = false;
+            if (release && e.scope == ControllerScope::Scene && e.owner == ctx.token())
+            {
+                fail_requests(e.command.controller, ControllerError::InvalidContext);
+                e.removed = true;
+            }
         }
-    for (auto &[id, e] : _entries)
-    {
-        if (e.removed)
-            continue;
-        if (release && e.scope == ControllerScope::Scene && e.owner == ctx.token())
-        {
-            fail_requests(e.command.controller, ControllerError::InvalidContext);
-            e.removed = true;
-            detach(e, InputCancelReason::Unbound);
-        }
-        else if (e.bound_scene == ctx.token())
-            detach(e, InputCancelReason::Unbound);
-    }
+        elysia::scene::detail::SceneFailureCollector failures;
+        for (Entry* entry : retiring)
+            failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::Detach,
+                "Leaving controller cancellation", [&] { detach(*entry, InputCancelReason::Unbound); });
+        failures.rethrow_if_failed();
+    });
 }
 void ControllerManager::object_removed(SceneControlContext &ctx, elysia::core::GameObject &target)
 {
-    Boundary boundary(*this);
-    for (const auto &r : _requests)
-        if (r->scene == ctx.token() && r->target == &target && r->operation.pending())
-        {
-            r->operation.finish(ControllerError::InvalidTarget);
-            release_reservation(*r);
-        }
-    for (auto &[id, e] : _entries)
-        if (!e.removed && e.bound_scene == ctx.token() && e.target == &target)
-            detach(e, InputCancelReason::Unbound);
+    dispatch(elysia::scene::SceneBoundary::ObjectRemoval, [&] {
+        elysia::scene::detail::SceneFailureCollector failures;
+        for (const auto &r : _requests)
+            if (r->scene == ctx.token() && r->target == &target && r->operation.pending())
+            {
+                r->operation.finish(ControllerError::InvalidTarget);
+                release_reservation(*r);
+            }
+        for (auto &[id, e] : _entries)
+            if (!e.removed && e.bound_scene == ctx.token() && e.target == &target)
+                failures.attempt(elysia::scene::SceneKeys::Invalid, elysia::scene::SceneBoundary::ObjectRemoval,
+                    "Removed control target", [&] { detach(e, InputCancelReason::Unbound); });
+        failures.rethrow_if_failed();
+    });
 }
 void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, double delta)
 {
-    if (!ctx._active || ctx._scene._paused)
+    if (!_session || !ctx._active || ctx._scene._paused)
         return;
-    Boundary boundary(*this);
-    ++_dispatch;
-    std::vector<ControllerHandle> handles;
-    for (auto &[id, e] : _entries)
-        if (!e.removed && e.bound_scene == ctx.token() && e.eligible_dispatch <= _dispatch)
-            handles.push_back(e.command.controller);
-    for (auto h : handles)
-    {
-        if (!ctx._active || ctx._scene._paused)
-            break;
-        auto *e = find(h);
-        if (!e)
-            continue;
-        if (!e->target || e->target->is_destroyed() || !e->target->is_active())
+    dispatch(elysia::scene::SceneBoundary::Update, [&] {
+        ++_dispatch;
+        std::vector<ControllerHandle> handles;
+        for (auto &[id, e] : _entries)
+            if (!e.removed && e.bound_scene == ctx.token() && e.eligible_dispatch <= _dispatch)
+                handles.push_back(e.command.controller);
+        for (auto h : handles)
         {
-            if (e->available)
-                cancel(*e, InputCancelReason::Unavailable);
-            e->available = false;
-            continue;
-        }
-        if (!e->available && dynamic_cast<LocalPlayerController *>(e->controller.get()))
-            continue;
-        if (auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get()))
-        {
-            auto &players = ctx._scene.local_players();
-            auto sources = players.sources(local->player());
-            if (!players.contains(local->player()) || sources != local->_sources ||
-                players.binding_version(local->player()) != local->_binding_version)
+            if (!_session || !ctx._active || ctx._scene._paused)
+                break;
+            auto *e = find(h);
+            if (!e)
+                continue;
+            if (!e->target || e->target->is_destroyed() || !e->target->is_active())
             {
-                if (!players.contains(local->player()))
-                    e->available = false;
-                local->_sources = std::move(sources);
-                local->_binding_version = players.binding_version(local->player());
-                cancel(*e, InputCancelReason::SourceChanged);
-                ctx._scene.input_router().suppress(local->player());
+                if (e->available)
+                    cancel(*e, InputCancelReason::Unavailable);
+                e->available = false;
                 continue;
             }
+            if (!e->available && dynamic_cast<LocalPlayerController *>(e->controller.get()))
+                continue;
+            if (auto *local = dynamic_cast<LocalPlayerController *>(e->controller.get()))
+            {
+                auto &players = ctx._scene.local_players();
+                auto sources = players.sources(local->player());
+                if (!players.contains(local->player()) || sources != local->_sources ||
+                    players.binding_version(local->player()) != local->_binding_version)
+                {
+                    if (!players.contains(local->player()))
+                        e->available = false;
+                    local->_sources = std::move(sources);
+                    local->_binding_version = players.binding_version(local->player());
+                    cancel(*e, InputCancelReason::SourceChanged);
+                    ctx._scene.input_router().suppress(local->player());
+                    continue;
+                }
+            }
+            e->available = true;
+            e->producing_generation = e->cancel_generation;
+            struct Guard
+            {
+                Entry& entry;
+                ~Guard() noexcept { entry.producing_generation.reset(); }
+            } guard{*e};
+            e->controller->produce_intent(tick, delta);
+            const bool cancelled_during_production = *e->producing_generation != e->cancel_generation;
+            e->producing_generation.reset();
+            if (cancelled_during_production)
+                continue;
+            if (!ctx._active || ctx._scene._paused || e->removed || !e->receiver || !e->target->is_active() ||
+                e->target->is_destroyed())
+                continue;
+            e->command.tick = tick;
+            ++e->command.sequence;
+            auto command = e->command;
+            e->command.events.clear();
+            e->command.deltas.clear();
+            e->command.state.clear_edges();
+            e->receiver->on_control_command(command, delta);
         }
-        e->available = true;
-        e->producing_generation = e->cancel_generation;
-        e->controller->produce_intent(tick, delta);
-        const bool cancelled_during_production = *e->producing_generation != e->cancel_generation;
-        e->producing_generation.reset();
-        if (cancelled_during_production)
-            continue;
-        if (!ctx._active || ctx._scene._paused || e->removed || !e->receiver || !e->target->is_active() ||
-            e->target->is_destroyed())
-            continue;
-        e->command.tick = tick;
-        ++e->command.sequence;
-        auto command = e->command;
-        e->command.events.clear();
-        e->command.deltas.clear();
-        e->command.state.clear_edges();
-        e->receiver->on_control_command(command, delta);
-    }
+    });
 }
 ControllerOperation ControllerManager::replace_map(ControllerHandle h, InputActionMap map)
 {
@@ -639,32 +719,51 @@ ControllerOperation ControllerManager::replace_map(ControllerHandle h, InputActi
     r->map = std::move(map);
     return request(std::move(r));
 }
-SceneControlContext::SceneControlContext(GameplayScene &scene) : _scene(scene)
+void ControllerManager::close_context_noexcept(SceneControlContext& ctx) noexcept
 {
-    static std::uint64_t next = 1;
-    _instance = next++;
-    ControllerManager::instance()->_contexts.emplace(_instance, this);
-}
-SceneControlContext::~SceneControlContext()
-{
-    reset();
-    ControllerManager::instance()->_contexts.erase(_instance);
-}
-void SceneControlContext::activate()
-{
-    _active = true;
-}
-void SceneControlContext::deactivate()
-{
-    _active = false;
-    ControllerManager::instance()->leave(*this, false);
-}
-void SceneControlContext::reset()
-{
-    _active = false;
-    _retiring = true;
-    ControllerManager::instance()->leave(*this, true);
-    ++_generation;
-    _retiring = false;
+    // Destructor fallback: sever references without invoking user callbacks or allocating.
+    Boundary boundary(*this);
+    for (const auto& request : _requests)
+        if (request->scene.instance == ctx._instance && request->operation.pending())
+        {
+            request->operation.finish(ControllerError::InvalidContext);
+            release_reservation(*request);
+        }
+    for (auto& [id, entry] : _entries)
+    {
+        if (entry.bound_scene.instance == ctx._instance)
+        {
+            if (auto* local = dynamic_cast<LocalPlayerController*>(entry.controller.get()))
+                ctx._scene.local_players().clear_keyboard_requirement(local->player());
+            entry.target = nullptr;
+            entry.receiver = nullptr;
+            entry.bound_scene = {};
+            entry.available = false;
+            ++entry.command.binding_generation;
+            ++entry.cancel_generation;
+            entry.command.state = {};
+            entry.command.events.clear();
+            entry.command.deltas.clear();
+            if (auto* local = dynamic_cast<LocalPlayerController*>(entry.controller.get()))
+                local->_map.reset_state();
+        }
+        if (entry.reserved_scene.instance == ctx._instance)
+        {
+            entry.reserved_target = nullptr;
+            entry.reserved_scene = {};
+        }
+        if (entry.scope == ControllerScope::Scene && entry.owner.instance == ctx._instance)
+        {
+            fail_requests(entry.command.controller, ControllerError::InvalidContext);
+            entry.removed = true;
+            entry.reserved_target = nullptr;
+            entry.reserved_scene = {};
+        }
+    }
+    if (_depth == 1 && !_flushing)
+    {
+        std::erase_if(_requests, [](const auto& request) { return !request->operation.pending(); });
+        std::erase_if(_entries, [](const auto& item) { return item.second.removed; });
+    }
 }
 } // namespace elysia::gameplay

@@ -12,6 +12,7 @@ SDL → InputSystem::snapshot()
 ```
 
 - [架构与生命周期](architecture.md)：Service、Manager、上下文和作用域。
+- [目录与依赖](architecture.md#目录与依赖)：基础输入、UI 输入、场景路由、引擎控制器和游戏控制代码的归属。
 - [动作映射](action-mapping.md)：状态、事件、鼠标增量与映射切换。
 - [控制器与命令](engine-gameplay.md)：游戏 API、自定义来源与角色契约。
 - [场景集成](gameplay-scene.md)：会话、显式绑定、固定步与示例。

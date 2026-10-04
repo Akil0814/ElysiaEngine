@@ -29,15 +29,12 @@ GameplayScene::GameplayScene(GameplaySceneFeatures features)
         _collision_runtime = std::make_unique<collision::GameplayCollisionRuntime>(physics_world());
 
     input_router().set_auto_claim_ui_gamepad(false);
-    set_ui_interaction_mode(elysia::input::UiInteractionMode::Pointer);
+    set_ui_interaction_mode(elysia::scene::UiInteractionMode::Pointer);
     input_router().set_cancel_handler([this](auto player, auto reason) {
         ControllerManager::instance()->cancel_local(_control_context, player, reason);
     });
 }
-GameplayScene::~GameplayScene()
-{
-    _control_context.reset();
-}
+GameplayScene::~GameplayScene() = default;
 
 collision::GameplayCollisionRuntime* GameplayScene::try_collision_runtime() noexcept
 {

@@ -1,4 +1,4 @@
-#include "game/input/command_view.h"
+#include "game/gameplay/control/command_view.h"
 #include "game/showcase/gameplay/runtime/block_actor.h"
 
 #include "engine/core/render/colors.h"
@@ -262,13 +262,13 @@ PlatformPlayerCharacter::PlatformPlayerCharacter(
 void PlatformPlayerCharacter::on_control_command(const elysia::gameplay::ControlCommand &input,
                                                 double fixed_delta)
 {
-    _move_axis = std::clamp(example::input::CommandView(input).move().x, -1.0f, 1.0f);
-    if (example::input::CommandView(input).jump_pressed())
+    _move_axis = std::clamp(example::gameplay::CommandView(input).move().x, -1.0f, 1.0f);
+    if (example::gameplay::CommandView(input).jump_pressed())
     {
         _jump_requested = true;
-        _drop_requested = example::input::CommandView(input).move().y > 0.5f;
+        _drop_requested = example::gameplay::CommandView(input).move().y > 0.5f;
     }
-    if (example::input::CommandView(input).primary_pressed())
+    if (example::gameplay::CommandView(input).primary_pressed())
         _primary_requested = true;
 }
 
@@ -308,10 +308,10 @@ TopDownPlayerCharacter::TopDownPlayerCharacter(
 void TopDownPlayerCharacter::on_control_command(const elysia::gameplay::ControlCommand &input,
                                                double fixed_delta)
 {
-    _move = example::input::CommandView(input).move();
+    _move = example::gameplay::CommandView(input).move();
     if (_move.length_squared() > 1.0f)
         _move.normalize_in_place();
-    if (example::input::CommandView(input).primary_pressed())
+    if (example::gameplay::CommandView(input).primary_pressed())
         _primary_requested = true;
 }
 

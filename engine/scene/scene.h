@@ -27,13 +27,12 @@
 #include "../input/local_player_registry.h"
 #include "../input/raw_input_frame.h"
 #include "../input/raw_input_types.h"
-#include "../input/scene_input_router.h"
+#include "input/scene_input_router.h"
 #include "../object_query/runtime/game_object_query_runtime.h"
 #include "../physics/physics_world.h"
 #include "../ui/core/ui_element.h"
 #include "../ui/input/contracts/ui_input_event_receiver.h"
 #include "../ui/input/contracts/ui_input_frame_receiver.h"
-#include "../ui/input/ui_input_router.h"
 
 namespace elysia::scene
 {
@@ -68,7 +67,7 @@ public:
 
     void set_ui_gamepad(elysia::input::InputSourceId source) { _input_router.set_ui_gamepad(source); }
     [[nodiscard]] elysia::input::InputSourceId ui_gamepad() const { return _input_router.ui_gamepad(); }
-    void set_ui_interaction_mode(elysia::input::UiInteractionMode mode)
+    void set_ui_interaction_mode(elysia::scene::UiInteractionMode mode)
     {
         _input_router.set_ui_interaction_mode(mode);
     }
@@ -191,7 +190,7 @@ protected:
     virtual void on_runtime_reset() {}
     [[nodiscard]] virtual double fixed_step_frame_delta(double delta) const { return delta; }
 
-    elysia::input::SceneInputRouter& input_router() noexcept { return _input_router; }
+    elysia::scene::SceneInputRouter& input_router() noexcept { return _input_router; }
     [[nodiscard]] bool owns_object(const elysia::core::SceneObject&) const;
     [[nodiscard]] bool contains_object_address(const elysia::core::SceneObject*) const;
     void clear_scene_objects();
@@ -236,7 +235,7 @@ protected:
     bool _paused = false;
 
 private:
-    friend class elysia::input::SceneInputRouter;
+    friend class elysia::scene::SceneInputRouter;
     friend class SceneFactory;
     friend class SceneManager;
     friend class SceneTestAccess;
@@ -254,7 +253,7 @@ private:
     void bind_runtime_context(const SceneRuntimeContext& context) noexcept;
     void clear_runtime_context() noexcept;
     void set_local_players(elysia::input::LocalPlayerRegistry& players) noexcept { _players = &players; }
-    void set_ui_device_access(elysia::input::UiDeviceAccess& access) noexcept
+    void set_ui_device_access(elysia::scene::UiDeviceAccess& access) noexcept
     {
         _input_router.set_ui_access(access);
     }
@@ -282,11 +281,13 @@ private:
     {
         elysia::core::SceneObject* object = nullptr;
         elysia::ui::UiInputFrameReceiver* receiver = nullptr;
+        std::uint64_t registration = 0;
     };
     struct UiInputEventReceiverEntry
     {
         elysia::core::SceneObject* object = nullptr;
         elysia::ui::UiInputEventReceiver* receiver = nullptr;
+        std::uint64_t registration = 0;
     };
     struct PhysicsRegistrationEntry
     {
@@ -306,11 +307,12 @@ private:
     std::vector<UpdatableEntry> _updatables;
     std::vector<UiInputFrameReceiverEntry> _ui_frame_receivers;
     std::vector<UiInputEventReceiverEntry> _ui_event_receivers;
+    std::uint64_t _next_input_registration = 1;
     std::vector<PhysicsRegistrationEntry> _physics_registrations;
 
     elysia::input::LocalPlayerRegistry _standalone_players;
     elysia::input::LocalPlayerRegistry* _players = &_standalone_players;
-    elysia::input::SceneInputRouter _input_router{*this};
+    elysia::scene::SceneInputRouter _input_router{*this};
     const SceneRuntimeContext* _runtime_context = nullptr;
     SceneLifecycleState _lifecycle_state = SceneLifecycleState::Inactive;
     bool _retiring_objects = false;

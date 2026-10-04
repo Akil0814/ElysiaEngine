@@ -4,7 +4,7 @@
 
 - [Gameplay UI](subsystems/gameplay-ui.md)：世界文字、数值条、被动气泡与游戏对象组合。
 - [UI](ui/README.md)：保留模式 UI、布局、焦点、窗口表面、样式和控件参考。
-- [Input](input/README.md)：Raw Input、Action Mapping、Gameplay Input 和场景分发。
+- [Input](subsystems/input/README.md)：物理输入、动作映射、玩家设备归属与固定步控制命令。
 - [资源加载与 JSON](resources/README.md)：内容注册表、manifest、实体资源、动画和特效配置。
 - [运行时配置](runtime-config.md)：AppConfig、UserConfigService 和 ConfigService。
 - [音频服务](audio.md)：资源查找、播放调度、并发、冷却和音量。

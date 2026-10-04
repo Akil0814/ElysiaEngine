@@ -455,12 +455,12 @@ void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
     if (auto* receiver = dynamic_cast<elysia::ui::UiInputFrameReceiver*>(object))
     {
         scene_input_order::insert_receiver_entry_sorted(
-            _ui_frame_receivers, UiInputFrameReceiverEntry{object, receiver});
+            _ui_frame_receivers, UiInputFrameReceiverEntry{object, receiver, _next_input_registration++});
     }
     if (auto* receiver = dynamic_cast<elysia::ui::UiInputEventReceiver*>(object))
     {
         scene_input_order::insert_receiver_entry_sorted(
-            _ui_event_receivers, UiInputEventReceiverEntry{object, receiver});
+            _ui_event_receivers, UiInputEventReceiverEntry{object, receiver, _next_input_registration++});
     }
     try
     {
@@ -493,8 +493,13 @@ void Scene::visit_game_objects(
 
 void Scene::dispatch_ui_frame(const elysia::ui::UiInputFrame& input)
 {
-    for (const auto& entry : _ui_frame_receivers)
+    const auto receivers = _ui_frame_receivers;
+    for (const auto& entry : receivers)
     {
+        if (!std::ranges::any_of(_ui_frame_receivers, [&](const auto& current) {
+                return current.registration == entry.registration;
+            }))
+            continue;
         auto* object = entry.object;
         if (!object || object->is_destroyed() || !object->is_active())
             continue;
@@ -507,10 +512,15 @@ void Scene::dispatch_ui_frame(const elysia::ui::UiInputFrame& input)
 bool Scene::dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent>& events)
 {
     bool consumed = false;
+    const auto receivers = _ui_event_receivers;
     for (const auto& event : events)
     {
-        for (const auto& entry : _ui_event_receivers)
+        for (const auto& entry : receivers)
         {
+            if (!std::ranges::any_of(_ui_event_receivers, [&](const auto& current) {
+                    return current.registration == entry.registration;
+                }))
+                continue;
             auto* object = entry.object;
             if (!object || object->is_destroyed() || !object->is_active())
                 continue;

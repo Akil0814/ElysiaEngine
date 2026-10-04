@@ -1,8 +1,9 @@
 #define SDL_MAIN_HANDLED
 #include "game/showcase/input/local_multiplayer_scene.h"
+#include "game/showcase/camera/camera_showcase_scene.h"
 #include "game/showcase/gameplay/gameplay_demo_scene_base.h"
 #include "game/navigation/showcase_scene_keys.h"
-#include "game/input/local_controls.h"
+#include "game/gameplay/control/local_controls.h"
 #include "engine/gameplay/control/controller_service.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene_manager.h"
@@ -80,10 +81,20 @@ int main()
                 && after.partitions == before.partitions && after.bindings == before.bindings
                 && scene.local_players().revision() == revision
                 && scene.local_players().binding_version(elysia::input::PrimaryLocalPlayer) == first_version
-                && !example::input::existing_session_player(elysia::input::PrimaryLocalPlayer),
+                && !example::gameplay::existing_session_player(elysia::input::PrimaryLocalPlayer),
             "failed multiplayer entry restores all player and device state");
     }
     elysia::gameplay::ControllerService::instance()->end_session();
+    {
+        example::scene::CameraShowcaseScene scene;
+        elysia::scene::SceneTestAccess::bind(scene,context);
+        bool caught=false;
+        try {elysia::scene::SceneTestAccess::enter(scene,example::scene::ShowcaseEnterPayload{{.target=example::scene_keys::MainMenu}});}
+        catch(const std::logic_error&){caught=true;}
+        require(caught && !scene.state().motion && !scene.state().blend && !scene.state().frozen,
+            "camera entry failure without controller session cleans playback and actor gates");
+        require(elysia::scene::SceneTestAccess::ui_root(scene,0)->is_destroyed(),"failed camera entry retires its controls");
+    }
     require(manager.shutdown(),"controller session shuts down after failed entry");
 
     for (const float invalid : {std::numeric_limits<float>::quiet_NaN(),

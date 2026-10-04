@@ -14,7 +14,7 @@ struct ShowcaseEntry
 inline constexpr std::array<ShowcaseEntry,8> kShowcaseEntries{{
     {"showcase.ui.title","showcase.ui.description",scene_keys::UiComponentGallery,elysia::scene::SceneReloadMode::Reuse},
     {"showcase.input.title","showcase.input.description",scene_keys::LocalMultiplayer,elysia::scene::SceneReloadMode::Recreate},
-    {"showcase.camera.title","showcase.camera.description",scene_keys::MultiTargetCamera,elysia::scene::SceneReloadMode::Reuse},
+    {"showcase.camera.title","showcase.camera.description",scene_keys::CameraShowcase,elysia::scene::SceneReloadMode::Reuse},
     {"showcase.animation.title","showcase.animation.description",scene_keys::AnimationPreview,elysia::scene::SceneReloadMode::Reuse},
     {"showcase.effects.title","showcase.effects.description",scene_keys::EffectsShowcase,elysia::scene::SceneReloadMode::Reuse},
     {"showcase.audio.title","showcase.audio.description",scene_keys::AudioShowcase,elysia::scene::SceneReloadMode::Recreate},

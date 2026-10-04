@@ -3,10 +3,16 @@
 #include "controller.h"
 #include "controller_types.h"
 #include "scene_control_context.h"
+#include "../../scene/detail/scene_failure_boundary.h"
 #include <deque>
 #include <expected>
 #include <map>
 #include <memory>
+#include <type_traits>
+namespace elysia::core
+{
+class GameObject;
+}
 namespace elysia::scene
 {
 class SceneManager;
@@ -32,7 +38,7 @@ class ControllerManager final : public elysia::tools::Singleton<ControllerManage
         elysia::core::GameObject *target = nullptr;
         ControlCommandReceiver *receiver = nullptr;
         ControlCommand command;
-        bool removed = false, available = false, cancelling = false;
+        bool removed = false, available = false, cancelling = false, session_retiring = false;
         elysia::core::GameObject *reserved_target = nullptr;
         SceneControlToken reserved_scene;
         std::uint64_t cancel_generation = 0;
@@ -47,12 +53,37 @@ class ControllerManager final : public elysia::tools::Singleton<ControllerManage
         {
             ++m._depth;
         }
-        ~Boundary()
+        ~Boundary() noexcept
         {
-            if (--m._depth == 0)
-                m.flush();
+            --m._depth;
         }
     };
+    // User callbacks and queued commits run explicitly, never from a destructor.
+    template<class Callable>
+    std::invoke_result_t<Callable> dispatch(elysia::scene::SceneBoundary boundary, Callable&& callable)
+    {
+        using Result = std::invoke_result_t<Callable>;
+        Boundary scope(*this);
+        elysia::scene::detail::SceneFailureCollector failures;
+        if constexpr (std::is_void_v<Result>)
+        {
+            failures.attempt(elysia::scene::SceneKeys::Invalid, boundary, "Controller dispatch",
+                std::forward<Callable>(callable));
+            if (_depth == 1)
+                failures.attempt(elysia::scene::SceneKeys::Invalid, boundary, "Controller commit", [this] { flush(); });
+            failures.rethrow_if_failed();
+        }
+        else
+        {
+            std::optional<Result> result;
+            failures.attempt(elysia::scene::SceneKeys::Invalid, boundary, "Controller dispatch",
+                [&] { result.emplace(std::forward<Callable>(callable)()); });
+            if (_depth == 1)
+                failures.attempt(elysia::scene::SceneKeys::Invalid, boundary, "Controller commit", [this] { flush(); });
+            failures.rethrow_if_failed();
+            return std::move(*result);
+        }
+    }
     void initialize();
     void shutdown();
     std::expected<void, ControllerError> begin_session();
@@ -95,7 +126,8 @@ class ControllerManager final : public elysia::tools::Singleton<ControllerManage
     void fail_requests(ControllerHandle, ControllerError);
     void release_reservation(const Request &);
     void flush();
-    bool _initialized = false, _session = false, _flushing = false;
+    void close_context_noexcept(SceneControlContext&) noexcept;
+    bool _initialized = false, _session = false, _ending_session = false, _flushing = false;
     std::uint64_t _runtime = 1, _next_id = 1, _dispatch = 0;
     unsigned _depth = 0;
     std::map<std::uint64_t, Entry> _entries;

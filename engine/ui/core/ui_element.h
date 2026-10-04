@@ -15,7 +15,7 @@
 #include <string>
 #include <string_view>
 
-namespace elysia::input { class SceneInputRouter; }
+namespace elysia::scene { class SceneInputRouter; }
 
 namespace elysia::ui
 {
@@ -188,7 +188,7 @@ protected:
 
 private:
     friend class UiChildHost;
-    friend class elysia::input::SceneInputRouter;
+    friend class elysia::scene::SceneInputRouter;
     // Created only for root cancellation snapshots; destruction invalidates all snapshots.
     struct CancellationLifetime { UiElement* element = nullptr; };
     std::shared_ptr<CancellationLifetime> _cancellation_lifetime;
