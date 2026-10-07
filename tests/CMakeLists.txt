@@ -1,5 +1,8 @@
 ﻿include(CMakeParseArguments)
 
+include(scene/compile_scene_documentation.cmake)
+elysia_add_scene_documentation_examples()
+
 function(add_elysia_test TARGET_NAME)
     set(options SDL)
     set(one_value_args LABEL)
@@ -246,6 +249,18 @@ add_elysia_test(scene_lifecycle_regression_tests
 add_elysia_test(scene_factory_failure_tests
     LABEL scene
     SOURCES scene/scene_factory_failure_tests.cpp
+)
+
+add_elysia_test(scene_mutation_tests
+    LABEL scene
+    SOURCES scene/scene_mutation_tests.cpp
+    SDL
+)
+
+add_elysia_test(scene_recovery_tests
+    LABEL scene
+    SOURCES scene/scene_recovery_tests.cpp
+    SDL
 )
 
 add_elysia_test(game_object_query_tests

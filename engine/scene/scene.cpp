@@ -82,6 +82,59 @@ Scene::~Scene()
     release_owned_objects_noexcept();
 }
 
+Scene::ObjectMutationScope::ObjectMutationScope(
+    const Scene& scene, const char* phase, bool block_additions) noexcept
+    : _scene(scene)
+    , _previous_addition_phase(scene._object_addition_phase)
+    , _previous_removal_phase(scene._object_removal_phase)
+    , _block_additions(block_additions)
+{
+    ++_scene._object_removal_block_depth;
+    _scene._object_removal_phase = phase;
+    if (_block_additions)
+    {
+        ++_scene._object_addition_block_depth;
+        _scene._object_addition_phase = phase;
+    }
+}
+
+Scene::ObjectMutationScope::~ObjectMutationScope()
+{
+    --_scene._object_removal_block_depth;
+    _scene._object_removal_phase = _previous_removal_phase;
+    if (_block_additions)
+    {
+        --_scene._object_addition_block_depth;
+        _scene._object_addition_phase = _previous_addition_phase;
+    }
+}
+
+void Scene::require_object_addition_allowed() const
+{
+    const char* phase = nullptr;
+    if (_retiring_objects)
+        phase = "object retirement";
+    else if (_lifecycle_state == SceneLifecycleState::PreparingDestruction ||
+             _lifecycle_state == SceneLifecycleState::PreparedForDestruction)
+        phase = "scene destruction";
+    else if (_object_addition_block_depth != 0)
+        phase = _object_addition_phase;
+    if (phase)
+        throw SceneBoundaryLogicError(SceneBoundary::ObjectRegistration,
+            std::string("Scene objects cannot be added during ") + phase +
+            ". Add objects from on_before_update(), on_after_update(), or on_fixed_update() before the physics step.");
+}
+
+void Scene::require_object_removal_allowed() const
+{
+    const char* phase = _retiring_objects ? "object retirement"
+        : _object_removal_block_depth != 0 ? _object_removal_phase : nullptr;
+    if (phase)
+        throw SceneBoundaryLogicError(SceneBoundary::ObjectRemoval,
+            std::string("Scene objects cannot be cleared or retired during ") + phase +
+            ". Mark objects with destroy(), or clear them from on_before_update(), on_after_update(), or on_fixed_update() before the physics step.");
+}
+
 bool Scene::owns_object(const elysia::core::SceneObject& object) const
 {
     return contains_object_address(&object);
@@ -170,7 +223,7 @@ void Scene::lifecycle_exit()
     }
     catch (...)
     {
-        failures.capture(SceneKeys::Invalid,SceneBoundary::Exit,"Exit object retirement");
+        failures.capture_cleanup(SceneKeys::Invalid,SceneBoundary::Exit,"Exit object retirement");
     }
 
     cancel_camera_activity();
@@ -205,7 +258,7 @@ void Scene::lifecycle_reset()
     }
     catch (...)
     {
-        failures.capture(SceneKeys::Invalid,SceneBoundary::Reset,"Reset object retirement");
+        failures.capture_cleanup(SceneKeys::Invalid,SceneBoundary::Reset,"Reset object retirement");
     }
 
     _lifecycle_state = SceneLifecycleState::Inactive;
@@ -233,23 +286,29 @@ void Scene::lifecycle_update(double delta)
 
         on_before_update(delta);
 
-        for (const UpdatableEntry& entry : _updatables)
         {
-            auto* object = entry.object;
-            if (!object || object->is_destroyed() || !object->is_active())
-                continue;
-            if (_paused && !object->update_when_paused())
-                continue;
-            entry.updatable->update(delta);
+            const ObjectMutationScope mutation_scope(*this, "object update");
+            for (const UpdatableEntry& entry : _updatables)
+            {
+                auto* object = entry.object;
+                if (!object || object->is_destroyed() || !object->is_active())
+                    continue;
+                if (_paused && !object->update_when_paused())
+                    continue;
+                entry.updatable->update(delta);
+            }
         }
 
-        for (const auto& ui_root : _ui_roots)
         {
-            if (!ui_root || ui_root->is_destroyed() || !ui_root->is_active())
-                continue;
-            if (_paused && !ui_root->update_when_paused())
-                continue;
-            ui_root->update_presentation_animations(delta);
+            const ObjectMutationScope mutation_scope(*this, "UI presentation update");
+            for (const auto& ui_root : _ui_roots)
+            {
+                if (!ui_root || ui_root->is_destroyed() || !ui_root->is_active())
+                    continue;
+                if (_paused && !ui_root->update_when_paused())
+                    continue;
+                ui_root->update_presentation_animations(delta);
+            }
         }
 
         const auto debug_capture = physics_debug_capture(*debug_draw);
@@ -261,7 +320,10 @@ void Scene::lifecycle_update(double delta)
             _fixed_step->advance(fixed_step_frame_delta(delta), [this](std::uint64_t tick, double step_delta) {
                 on_fixed_update(tick, step_delta);
                 if (_physics_world)
+                {
+                    const ObjectMutationScope mutation_scope(*this, "physics step");
                     _physics_world->step(step_delta);
+                }
             });
         }
         if (_physics_world)
@@ -292,7 +354,7 @@ void Scene::lifecycle_update(double delta)
     }
     catch (...)
     {
-        failures.capture(SceneKeys::Invalid,SceneBoundary::Update,"Update object retirement");
+        failures.capture_cleanup(SceneKeys::Invalid,SceneBoundary::Update,"Update object retirement");
     }
 
     failures.rethrow_if_failed();
@@ -310,20 +372,23 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
     projected_render_commands.reserve(256);
     ui_render_commands.reserve(256);
 
-    for (const auto& layer : _object_layers)
     {
-        render_commands.clear();
-        projected_render_commands.clear();
-        for (const auto& object : layer)
+        const ObjectMutationScope mutation_scope(*this, "world render");
+        for (const auto& layer : _object_layers)
         {
-            if (object && !object->is_destroyed() && object->is_visible())
-                object->submit_render_commands(render_commands);
+            render_commands.clear();
+            projected_render_commands.clear();
+            for (const auto& object : layer)
+            {
+                if (object && !object->is_destroyed() && object->is_visible())
+                    object->submit_render_commands(render_commands);
+            }
+            if (render_commands.empty())
+                continue;
+            elysia::core::project_render_commands_to_screen(
+                render_commands, camera(), projected_render_commands);
+            elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,projected_render_commands));
         }
-        if (render_commands.empty())
-            continue;
-        elysia::core::project_render_commands_to_screen(
-            render_commands, camera(), projected_render_commands);
-        elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,projected_render_commands));
     }
 
     auto* debug_draw = elysia::tools::DebugDraw::instance();
@@ -345,14 +410,17 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
         _runtime_context ? static_cast<float>(_runtime_context->logical_height()) : 0.0f);
     auto* effects = elysia::effects::EffectManager::instance();
     elysia::core::require_render_success(effects->render_screen_effects(renderer, elysia::effects::ScreenEffectLayer::BeforeUi, viewport));
-    for (const auto& ui_root : _ui_roots)
     {
-        if (!ui_root || ui_root->is_destroyed() || !ui_root->is_visible())
-            continue;
-        const std::size_t begin = ui_render_commands.size();
-        ui_root->submit_ui_render_commands(ui_render_commands);
-        elysia::ui::render_command_range_utils::apply_translation_to_range(
-            ui_render_commands, begin, ui_root->presentation_translation());
+        const ObjectMutationScope mutation_scope(*this, "UI render");
+        for (const auto& ui_root : _ui_roots)
+        {
+            if (!ui_root || ui_root->is_destroyed() || !ui_root->is_visible())
+                continue;
+            const std::size_t begin = ui_render_commands.size();
+            ui_root->submit_ui_render_commands(ui_render_commands);
+            elysia::ui::render_command_range_utils::apply_translation_to_range(
+                ui_render_commands, begin, ui_root->presentation_translation());
+        }
     }
     elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,ui_render_commands));
     elysia::core::require_render_success(effects->render_screen_effects(renderer, elysia::effects::ScreenEffectLayer::AfterUi, viewport));
@@ -368,7 +436,7 @@ void Scene::attach_runtime_services()
     {
         detail::SceneFailureCollector failures;
         failures.capture(SceneKeys::Invalid,SceneBoundary::Attach,"Runtime attach");
-        failures.attempt(SceneKeys::Invalid,SceneBoundary::Detach,"Runtime attach rollback",[&] { on_runtime_detach(); });
+        failures.attempt_cleanup(SceneKeys::Invalid,SceneBoundary::Detach,"Runtime attach rollback",[&] { on_runtime_detach(); });
         _runtime_services_attached = false;
         failures.rethrow_if_failed();
     }
@@ -470,8 +538,11 @@ void Scene::register_scene_object_interfaces(elysia::core::SceneObject* object)
     {
         detail::SceneFailureCollector failures;
         failures.capture(SceneKeys::Invalid,SceneBoundary::ObjectRegistration,"Object registration callback");
-        failures.attempt(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,"ObjectRegistration rollback callback",
-            [&] { on_scene_object_removing(*object); });
+        failures.attempt_cleanup(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,"ObjectRegistration rollback callback",
+            [&] {
+                const ObjectMutationScope mutation_scope(*this, "object registration rollback");
+                on_scene_object_removing(*object);
+            });
         failures.rethrow_if_failed();
     }
 }
@@ -480,6 +551,7 @@ void Scene::visit_game_objects(
     elysia::core::DepthLayerMask layers,
     const elysia::object_query::GameObjectVisitor& visitor) const
 {
+    const ObjectMutationScope mutation_scope(*this, "object query");
     for (std::size_t index = 0; index < _object_layers.size(); ++index)
     {
         const auto depth_layer = static_cast<elysia::core::DepthLayer>(index);
@@ -538,8 +610,7 @@ bool Scene::dispatch_ui_events(const std::vector<elysia::ui::UiInputEvent>& even
 
 void Scene::remove_destroyed_objects()
 {
-    if (_retiring_objects)
-        throw std::logic_error("Scene object retirement cannot be reentered.");
+    require_object_removal_allowed();
     _retiring_objects = true;
     struct Guard
     {
@@ -634,6 +705,7 @@ std::span<const elysia::physics::ColliderId> Scene::registered_physics_colliders
 
 void Scene::clear_scene_objects()
 {
+    require_object_removal_allowed();
     for (auto& layer : _object_layers)
         for (auto& object : layer)
             if (object)
@@ -648,6 +720,7 @@ void Scene::rollback_owned_object(elysia::core::SceneObject* object) noexcept
 {
     if (!object)
         return;
+    const ObjectMutationScope mutation_scope(*this, "object registration rollback");
     const auto registration = std::ranges::find_if(
         _physics_registrations,
         [object](const PhysicsRegistrationEntry& entry) { return entry.object == object; });
@@ -669,6 +742,7 @@ void Scene::rollback_owned_object(elysia::core::SceneObject* object) noexcept
 
 void Scene::release_owned_objects_noexcept() noexcept
 {
+    _retiring_objects = true;
     for (const auto& registration : _physics_registrations)
     {
         if (_physics_world)

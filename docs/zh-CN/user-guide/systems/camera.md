@@ -4,21 +4,36 @@
 
 ## 配置跟随
 
-以下辅助函数放在游戏代码中，在场景进入时调用。视口尺寸由 `SceneManager` 按应用逻辑画布统一同步，场景不单独改写。
+以下完整场景类型显式启用相机，在每次进入时配置跟随。视口尺寸由 `SceneManager` 按应用逻辑画布统一同步，场景不单独改写。示例焦点是固定矩形；游戏中可替换为目标对象的 `render_rect()`。
 
 ```cpp
+#include "engine/scene/scene.h"
 #include "engine/camera/follow_strategy.h"
 #include <memory>
 
-void MyScene::configure_camera() {
-    using namespace elysia::camera;
-    auto& cameras = camera_runtime();
-    cameras.set_zoom(CameraSlot::Main, 1.0f);
-    cameras.set_world_bounds(CameraSlot::Main,
-        elysia::core::Rect{0, 0, 3000, 2000});
-    cameras.set_follow_strategy(CameraSlot::Main,
-        std::make_unique<SmoothFollowStrategy>(300.0));
-}
+class FollowScene final : public elysia::scene::Scene {
+public:
+    FollowScene() : Scene(elysia::scene::SceneRuntimeFeatures{
+        .camera = elysia::scene::CameraSceneConfig{
+            .focus_mode = elysia::scene::CameraFocusMode::ResolveEachFrame}}) {}
+protected:
+    void on_enter(const elysia::scene::ScenePayload&) override {
+        using namespace elysia::camera;
+        auto& cameras = camera_runtime();
+        cameras.set_zoom(CameraSlot::Main, 1.0f);
+        cameras.set_world_bounds(CameraSlot::Main,
+            elysia::core::Rect{0, 0, 3000, 2000});
+        cameras.set_follow_strategy(CameraSlot::Main,
+            std::make_unique<SmoothFollowStrategy>(300.0));
+    }
+    void on_exit() override {}
+    void on_reset() override {}
+    std::optional<elysia::camera::CameraFocus> resolve_camera_focus(
+        elysia::camera::CameraSlot) const override {
+        const elysia::core::Rect target{100, 100, 32, 32};
+        return elysia::camera::CameraFocus{target, target};
+    }
+};
 ```
 
 在场景类中重写 `resolve_camera_focus(CameraSlot)`，将目标的 `render_rect()` 作为 `CameraFocus` 的两个矩形；没有有效目标时返回 `std::nullopt`。构造场景时把所用槽写入 `CameraSceneConfig::owned_slots`，并选择 `CameraFocusMode::ResolveEachFrame`。引擎会分别解析并推进每个 owned slot；场景持有的目标指针仍须在对象移除时清空。
@@ -63,6 +78,8 @@ setter 直接设置配置，震屏请求在下一次相机更新处理。姿态�
 ## 场景切换与常见误用
 
 切换到不同场景或 Reset／Recreate 当前场景时，只重置目标场景声明的 owned slots，保留视口并清除焦点、边界、策略、运动和效果。Reuse 当前实例仍执行退出/进入并取消未完成播放，但保留槽的静态姿态和配置。应用关闭时重置全部槽。
+
+Recreate 先构造候选，再退出当前场景、销毁目标旧缓存，最后激活候选。相机配置应放在 `on_enter`，不要在候选构造时改写共享槽；退出流程取消运动与混合，不产生自然完成事件。`on_after_update` 已位于本帧相机推进之后，在其中修改相机姿态可影响本帧渲染，但新运动到下一次推进才消耗时间。
 
 没有配置相机的场景仍可更新和渲染 UI，但提交世界绘制命令或可见世界 DebugDraw 会触发 Render 边界契约错误。手动控制与跟随策略同时启用可能相互影响；选择好该阶段的控制方式。所有请求按主线程使用，不跨线程操作相机队列。
 

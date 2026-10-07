@@ -1,6 +1,6 @@
 # 物理对象、碰撞与查询
 
-Scene 自带 PhysicsWorld。通常让 GameObject 实现 PhysicsParticipant，加入场景时自动注册，移除时自动注销。业务不直接持有 Box2D 对象，不重复调用场景物理世界的 advance。需要理解基础对象生命周期时先读[场景](../scene/scene.md)。
+Scene 按需创建 PhysicsWorld：在运行时特性中同时启用 fixed_step 和 physics，GameplayScene 默认已有 fixed_step，但仍须启用 physics。通常让 GameObject 实现 PhysicsParticipant，加入场景时自动注册，移除时自动注销。业务不直接持有 Box2D 对象，也不重复调用场景物理世界的 step / finalize_frame。需要理解基础对象生命周期时先读[场景](../scene/scene.md)。
 
 ## 最小物理对象
 

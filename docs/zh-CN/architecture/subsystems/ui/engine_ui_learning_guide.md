@@ -38,7 +38,7 @@ flowchart TB
 
 ### 2.1 输入、更新和渲染并不是同一件事
 
-`Scene::on_input` 先将 `RawInputFrame` 交给 `UiInputRouter::route_frame`，再将离散的原始事件转换为 `UiInputEvent`；必要时还会合成连续动作事件。随后场景按 UI 输入顺序分发 frame 和 event。`UiInputFrame` 适合查询“当前是否按住”，`UiInputEvent` 适合处理一次按下、滚轮、指针移动和文本输入等离散行为。
+Scene 的内部生命周期输入入口委托 `SceneInputRouter`，先将 `RawInputFrame` 交给 `UiInputRouter::route_frame`，再将离散的原始事件转换为 `UiInputEvent`；必要时还会合成连续动作事件。随后场景按 UI 输入顺序分发 frame 和 event。`UiInputFrame` 适合查询“当前是否按住”，`UiInputEvent` 适合处理一次按下、滚轮、指针移动和文本输入等离散行为。
 
 ```mermaid
 sequenceDiagram
@@ -67,7 +67,7 @@ sequenceDiagram
 
 严格说，布局并不只发生在 `update`：`UiChildHost` 在输入和提交渲染命令之前也会调用 `update_layout_if_dirty()`。这样可以避免“刚改完内容就点击/渲染，但还没有等到下一次 update”的陈旧几何问题。它是一种按需、延迟的布局策略。
 
-`Scene::on_update` 还会在普通更新后单独递归调用 `update_presentation_animations(delta)`。这解释了为什么平移动画不应改布局 rect：动画是展示层变化，而布局与命中测试仍有可预测的基础几何。
+Scene 的内部生命周期更新入口在普通更新后单独递归调用 `update_presentation_animations(delta)`，这一遍历期间不能增删场景对象。游戏在 `on_before_update` / `on_after_update` 扩展，无需调用基类调度。这解释了为什么平移动画不应改布局 rect：动画是展示层变化，而布局与命中测试仍有可预测的基础几何。
 
 ## 3. 所有容器共享的地基
 

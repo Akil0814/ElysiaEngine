@@ -36,8 +36,10 @@ static_assert(!HasCancelHandlerMutation<elysia::scene::SceneInputRouter>);
 struct Actor final : elysia::core::GameObject, ControlCommandReceiver
 {
     Actor() : GameObject(elysia::core::DepthLayer::Character) {}
+    ~Actor() override { if (destruction_count) ++*destruction_count; }
     std::function<void()> command_callback, cancel_callback;
     int commands = 0, cancellations = 0;
+    int* destruction_count = nullptr;
     void on_control_command(const ControlCommand&, double) override
     {
         ++commands;
@@ -52,7 +54,9 @@ struct Actor final : elysia::core::GameObject, ControlCommandReceiver
 
 struct Driver final : Controller
 {
+    ~Driver() override { if (destruction_count) ++*destruction_count; }
     std::function<void()> cancel_callback;
+    int* destruction_count = nullptr;
     void produce_intent(std::uint64_t, double) override
     {
         ActionInputResult intention;
@@ -73,6 +77,8 @@ struct LocalDriver final : LocalPlayerController
 struct World final : GameplayScene
 {
     explicit World(World** output) { *output = this; }
+    ~World() override { if (destruction_count) ++*destruction_count; }
+    int* destruction_count = nullptr;
     RawInputFrame shortcuts;
     std::vector<RawInputEvent> shortcut_events;
     void on_enter(const elysia::scene::ScenePayload&) override {}
@@ -311,20 +317,54 @@ void test_destructor_fallback()
 void test_scene_failure_and_backend_priority()
 {
     {
+        struct LifetimeState
+        {
+            int first_commands = 0, target_commands = 0;
+            int first_cancellations = 0, target_cancellations = 0, driver_cancellations = 0;
+            int actor_destructions = 0, driver_destructions = 0, scene_destructions = 0;
+        } state;
         Fixture fixture;
         auto* first = fixture.world->create_and_add_object<Actor>();
         auto* target = fixture.world->create_and_add_object<Actor>();
         const auto handle = fixture.driver(*first);
         std::optional<ControllerOperation> operation;
-        fixture.service->get<Driver>(handle)->cancel_callback = [] { throw std::runtime_error("scene deferred fault"); };
+        fixture.world->destruction_count = &state.scene_destructions;
+        first->destruction_count = target->destruction_count = &state.actor_destructions;
+        auto* driver = fixture.service->get<Driver>(handle);
+        driver->destruction_count = &state.driver_destructions;
+        driver->cancel_callback = [&] {
+            ++state.driver_cancellations;
+            throw std::runtime_error("scene deferred fault");
+        };
+        first->cancel_callback = [&] { ++state.first_cancellations; };
+        target->cancel_callback = [&] { ++state.target_cancellations; };
+        target->command_callback = [&] { ++state.target_commands; };
         first->command_callback = [&] {
+            ++state.first_commands;
             operation = fixture.service->bind_target(handle, fixture.world->control_context(), *target);
         };
         fixture.manager.on_update(1.0 / 60.0);
         require(fixture.manager.state() == elysia::scene::SceneManagerState::Faulted &&
             operation && operation->error() == ControllerError::CallbackFailed,
             "Deferred callback exceptions reach the actual SceneManager failure boundary");
-        fixture.service->get<Driver>(handle)->cancel_callback = {};
+        require(fixture.manager.current_scene_key() == elysia::scene::SceneKeys::Invalid
+                && !fixture.service->get(handle) && !fixture.service->describe(handle),
+            "Fault cleanup must release the current scene and invalidate its controller handle");
+        require(state.first_commands == 1 && state.target_commands == 0
+                && state.first_cancellations == 1 && state.target_cancellations == 0
+                && state.driver_cancellations == 1,
+            "Failed deferred binding must cancel only the old target without replaying callbacks during cleanup");
+        require(state.actor_destructions == 2 && state.driver_destructions == 1
+                && state.scene_destructions == 1,
+            "Fault cleanup must destroy scene objects, its controller, and the failed scene exactly once");
+        fixture.manager.on_update(1.0 / 60.0);
+        fixture.manager.on_input({});
+        require(fixture.manager.shutdown(), "Shutdown after completed fault cleanup must succeed");
+        require(state.first_commands == 1 && state.target_commands == 0
+                && state.first_cancellations == 1 && state.target_cancellations == 0
+                && state.driver_cancellations == 1 && state.actor_destructions == 2
+                && state.driver_destructions == 1 && state.scene_destructions == 1,
+            "Stopped dispatch and shutdown must not revisit released callbacks or destroy their owners twice");
     }
     {
         Fixture fixture;

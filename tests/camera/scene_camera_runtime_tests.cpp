@@ -125,6 +125,47 @@ void test_reset_preserves_viewport_and_restores_initial_slot()
     require(runtime.slot_camera(CameraSlot::Main).viewport_size() == Vector2(100.0f, 100.0f),
         "runtime reset must preserve the synchronized viewport");
 }
+
+void test_lifecycle_cancellation_is_scoped_to_motion_handles()
+{
+    reset_cameras();
+    SceneCameraRuntime old_runtime(CameraSceneConfig{
+        .owned_slots = CameraSlot::Main | CameraSlot::Cinematic});
+    SceneCameraRuntime next_runtime(CameraSceneConfig{});
+    const auto old_motion = old_runtime.move_to(
+        CameraSlot::Main, {.center = Vector2(50.0f, 0.0f)}, 1.0);
+    const auto old_blend = old_runtime.blend_to(CameraSlot::Cinematic);
+    const auto next_motion = next_runtime.move_to(
+        CameraSlot::Main, {.center = Vector2(100.0f, 0.0f)}, 1.0, CameraEasing::Linear,
+        elysia::camera::CameraMotionEndBehavior::Hold);
+    require(!old_runtime.motion_state(old_motion), "new playback replaces the old slot motion");
+
+    old_runtime.cancel_activity();
+    old_runtime.cancel_activity();
+    require(old_blend && !old_runtime.blend_state(*old_blend)
+            && next_runtime.motion_state(next_motion) == CameraMotionState::Playing,
+        "repeated old-runtime cancellation must clear its blend without cancelling newer same-slot playback");
+    const auto completed = next_runtime.advance(1.0);
+    require(completed.motions.size() == 1
+            && next_runtime.presented_camera().center() == Vector2(100.0f, 0.0f)
+            && next_runtime.motion_state(next_motion) == CameraMotionState::Holding,
+        "new playback must still complete normally after old-runtime cleanup");
+    old_runtime.cancel_activity();
+    require(next_runtime.motion_state(next_motion) == CameraMotionState::Holding,
+        "an empty old runtime must not cancel another runtime's terminal Hold");
+    next_runtime.cancel_activity();
+    require(!next_runtime.motion_state(next_motion), "owner cleanup must release its own terminal Hold");
+
+    const auto own_motion = old_runtime.move_to(
+        CameraSlot::Cinematic, {.center = Vector2(40.0f, 0.0f)}, 1.0);
+    const auto foreign_motion = CameraManager::instance()->move_camera_to(
+        CameraSlot::Main, {.center = Vector2(200.0f, 0.0f)}, 1.0);
+    old_runtime.cancel_activity();
+    require(!old_runtime.motion_state(own_motion)
+            && CameraManager::instance()->camera_motion_state(foreign_motion) == CameraMotionState::Playing,
+        "cleanup cancels an owned handle but leaves foreign playback in another owned slot untouched");
+    (void)CameraManager::instance()->cancel_camera_motion(foreign_motion);
+}
 } // namespace
 
 int main()
@@ -132,5 +173,6 @@ int main()
     test_configuration_and_slot_boundary();
     test_blend_motion_and_handle_ownership();
     test_reset_preserves_viewport_and_restores_initial_slot();
+    test_lifecycle_cancellation_is_scoped_to_motion_handles();
     return EXIT_SUCCESS;
 }

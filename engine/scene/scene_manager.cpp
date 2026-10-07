@@ -140,7 +140,7 @@ void SceneManager::on_scene_request(const SceneRequest& request)
 {
     if (_state != SceneManagerState::Running)
         throw std::logic_error("Scene requests require a running SceneManager.");
-    if (_is_processing_request)
+    if (_is_processing_request || _recovering_failure)
         throw std::logic_error("SceneManager received a reentrant scene request.");
     if (_has_pending_request)
         throw std::logic_error("SceneManager received multiple scene requests in one processing cycle.");
@@ -245,8 +245,8 @@ void SceneManager::leave_current_scene(detail::SceneFailureCollector& failures)
     if (!_current_scene) return;
     Scene* leaving = _current_scene;
     const SceneKey key = _current_scene_key;
-    failures.attempt(key,SceneBoundary::Detach,"Scene detach",[&] { detach_from_scene(*leaving,key); });
-    failures.attempt(key,SceneBoundary::Exit,"Scene exit",[&] { leaving->lifecycle_exit(); });
+    failures.attempt_cleanup(key,SceneBoundary::Detach,"Scene detach",[&] { detach_from_scene(*leaving,key); });
+    failures.attempt_cleanup(key,SceneBoundary::Exit,"Scene exit",[&] { leaving->lifecycle_exit(); });
     _current_scene = nullptr;
     _current_scene_key = SceneKeys::Invalid;
 }
@@ -266,10 +266,10 @@ std::expected<void, SceneBoundaryFailure> SceneManager::switch_to_scene(
     leave_current_scene(leave_failures);
     if (!leave_failures.empty())
     {
-        leave_failures.attempt(old_key,SceneBoundary::ObjectRemoval,"Discard previous scene",
+        leave_failures.attempt_cleanup(old_key,SceneBoundary::ObjectRemoval,"Discard previous scene",
             [&] { discard_scene(old_key,old_scene); });
         if (staged_scene)
-            leave_failures.attempt(route.target,SceneBoundary::ObjectRemoval,"Discard staged scene after leave failure",
+            leave_failures.attempt_cleanup(route.target,SceneBoundary::ObjectRemoval,"Discard staged scene after leave failure",
                 [&] { staged_scene->prepare_for_destruction(); });
         return leave_failures.finish();
     }
@@ -289,7 +289,7 @@ std::expected<void, SceneBoundaryFailure> SceneManager::switch_to_scene(
             detail::SceneFailureCollector failures;
             failures.capture(route.target,SceneBoundary::ObjectRemoval,"Recreate previous scene");
             if (staged_scene)
-                failures.attempt(route.target,SceneBoundary::ObjectRemoval,"Discard staged scene after recreate failure",
+                failures.attempt_cleanup(route.target,SceneBoundary::ObjectRemoval,"Discard staged scene after recreate failure",
                     [&] { staged_scene->prepare_for_destruction(); });
             return failures.finish();
         }
@@ -303,11 +303,11 @@ std::expected<void, SceneBoundaryFailure> SceneManager::switch_to_scene(
     auto fail_candidate = [&](SceneBoundary boundary) -> std::expected<void, SceneBoundaryFailure> {
         detail::SceneFailureCollector failures;
         failures.capture(route.target,boundary,"Candidate operation");
-        failures.attempt(route.target,SceneBoundary::Detach,"Candidate detach",
+        failures.attempt_cleanup(route.target,SceneBoundary::Detach,"Candidate detach",
             [&] { detach_from_scene(*next_scene,route.target); });
         if (next_scene->lifecycle_state() == SceneLifecycleState::Active)
-            failures.attempt(route.target,SceneBoundary::Exit,"Candidate exit",[&] { next_scene->lifecycle_exit(); });
-        failures.attempt(route.target,SceneBoundary::ObjectRemoval,"Candidate destruction",[&] {
+            failures.attempt_cleanup(route.target,SceneBoundary::Exit,"Candidate exit",[&] { next_scene->lifecycle_exit(); });
+        failures.attempt_cleanup(route.target,SceneBoundary::ObjectRemoval,"Candidate destruction",[&] {
             if (staged_scene) staged_scene->prepare_for_destruction();
             else discard_scene(route.target,next_scene);
         });
@@ -379,14 +379,14 @@ void SceneManager::attach_to_scene(Scene& scene,SceneKey key)
         detail::SceneFailureCollector failures;
         failures.capture(key,SceneBoundary::Attach,"Runtime attach");
         if (observer_bound)
-            failures.attempt(key,SceneBoundary::Detach,"Attach rollback observer detach",[&] { scene.detach(this); });
+            failures.attempt_cleanup(key,SceneBoundary::Detach,"Attach rollback observer detach",[&] { scene.detach(this); });
         if (runtime_bound)
-            failures.attempt(key,SceneBoundary::Detach,"Attach rollback runtime detach",[&] { scene.detach_runtime_services(); });
+            failures.attempt_cleanup(key,SceneBoundary::Detach,"Attach rollback runtime detach",[&] { scene.detach_runtime_services(); });
         if (query_bound)
-            failures.attempt(key,SceneBoundary::Detach,"Attach rollback query unbind",
+            failures.attempt_cleanup(key,SceneBoundary::Detach,"Attach rollback query unbind",
                 [&] { elysia::object_query::GameObjectQueryManager::instance()->unbind_active_runtime(scene); });
         if (effect_bound)
-            failures.attempt(key,SceneBoundary::Detach,"Attach rollback effect unbind",
+            failures.attempt_cleanup(key,SceneBoundary::Detach,"Attach rollback effect unbind",
                 [&] { elysia::effects::EffectManager::instance()->unbind_active_scene(scene); });
         failures.rethrow_if_failed();
     }
@@ -395,12 +395,12 @@ void SceneManager::attach_to_scene(Scene& scene,SceneKey key)
 void SceneManager::detach_from_scene(Scene& scene,SceneKey key)
 {
     detail::SceneFailureCollector failures;
-    failures.attempt(key,SceneBoundary::Detach,"Observer detach",[&] { scene.detach(this); });
-    failures.attempt(key,SceneBoundary::Detach,"Input routing reset",[&] { scene.reset_input_routing(); });
-    failures.attempt(key,SceneBoundary::Detach,"Runtime detach",[&] { scene.detach_runtime_services(); });
-    failures.attempt(key,SceneBoundary::Detach,"Query unbind",
+    failures.attempt_cleanup(key,SceneBoundary::Detach,"Observer detach",[&] { scene.detach(this); });
+    failures.attempt_cleanup(key,SceneBoundary::Detach,"Input routing reset",[&] { scene.reset_input_routing(); });
+    failures.attempt_cleanup(key,SceneBoundary::Detach,"Runtime detach",[&] { scene.detach_runtime_services(); });
+    failures.attempt_cleanup(key,SceneBoundary::Detach,"Query unbind",
         [&] { elysia::object_query::GameObjectQueryManager::instance()->unbind_active_runtime(scene); });
-    failures.attempt(key,SceneBoundary::Detach,"Effect unbind",
+    failures.attempt_cleanup(key,SceneBoundary::Detach,"Effect unbind",
         [&] { elysia::effects::EffectManager::instance()->unbind_active_scene(scene); });
     failures.rethrow_if_failed();
 }
@@ -423,12 +423,11 @@ SceneBoundaryFailure SceneManager::make_failure(SceneKey key,SceneBoundary bound
 
 void SceneManager::recover_from_failure(const SceneBoundaryFailure& failure)
 {
-    elysia::effects::EffectManager::instance()->clear_screen_effects();
-    detail::log_scene_failure(failure);
     _pending_request = {};
     _has_pending_request = false;
-    if (_recovering_failure || !_failure_route_factory)
+    if (_recovering_failure)
     {
+        detail::log_scene_failure(failure);
         notify_fault(failure);
         return;
     }
@@ -439,9 +438,52 @@ void SceneManager::recover_from_failure(const SceneBoundaryFailure& failure)
         bool& flag;
         ~Guard() { flag = false; }
     } guard{_recovering_failure};
+
+    // No recovery callback may observe or bind services alongside a failed scene.
+    // A healthy source can still be current when the requested target's builder fails.
+    Scene* previous_scene = _current_scene;
+    const SceneKey previous_key = _current_scene_key;
+    detail::SceneFailureCollector cleanup_failures;
+    leave_current_scene(cleanup_failures);
+    if (!cleanup_failures.empty() && previous_key != failure.scene)
+        cleanup_failures.attempt_cleanup(previous_key,SceneBoundary::ObjectRemoval,"Discard previous scene during recovery",
+            [&] { discard_scene(previous_key,previous_scene); });
+    cleanup_failures.attempt_cleanup(failure.scene,SceneBoundary::ObjectRemoval,"Discard failed scene before recovery",
+        [&] { discard_scene(failure.scene,nullptr); });
+    elysia::effects::EffectManager::instance()->clear_screen_effects();
+    elysia::tools::DebugDraw::instance()->clear();
+
+    try
+    {
+        if (auto result = cleanup_failures.finish(); !result)
+        {
+            auto cleanup_failure = failure;
+            cleanup_failure.cleanup_failed = true;
+            detail::append_scene_failure_context(cleanup_failure.diagnostic,result.error(),"Recovery cleanup");
+            detail::log_scene_failure(cleanup_failure);
+            notify_fault(cleanup_failure);
+            return;
+        }
+    }
+    catch (const elysia::core::RenderBackendError& error)
+    {
+        auto backend = error.failure();
+        detail::append_scene_failure_context(backend.diagnostic,failure,"Recovery trigger");
+        throw elysia::core::RenderBackendError(std::move(backend));
+    }
+
+    detail::log_scene_failure(failure);
+    if (failure.cleanup_failed || !_failure_route_factory || _state == SceneManagerState::Faulted)
+    {
+        notify_fault(failure);
+        return;
+    }
+
+    SceneKey recovery_key = failure.scene;
     try
     {
         SceneRoute route = _failure_route_factory(failure);
+        recovery_key = route.target;
         if (route.target == failure.scene)
         {
             notify_fault(failure);
@@ -450,17 +492,17 @@ void SceneManager::recover_from_failure(const SceneBoundaryFailure& failure)
         route.reload_mode = SceneReloadMode::Recreate;
         if (auto result = switch_to_registered_scene(route); !result)
         {
+            detail::append_scene_failure_context(result.error().diagnostic,failure,"Recovery trigger");
             detail::log_scene_failure(result.error());
             notify_fault(result.error());
         }
-        else
-            discard_scene(failure.scene, nullptr);
     }
     catch (...)
     {
         try
         {
-            const auto recovery_failure = make_failure(failure.scene,SceneBoundary::Enter);
+            auto recovery_failure = make_failure(recovery_key,SceneBoundary::Enter);
+            detail::append_scene_failure_context(recovery_failure.diagnostic,failure,"Recovery trigger");
             detail::log_scene_failure(recovery_failure);
             notify_fault(recovery_failure);
         }

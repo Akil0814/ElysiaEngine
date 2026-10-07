@@ -98,6 +98,7 @@ void GameplayDemoSceneBase::on_enter(
 
 void GameplayDemoSceneBase::on_exit()
 {
+    _combat.clear_pending_effects();
     unregister_physics_inspector();
     if (_tile_map && physics_world().tile_world() == _tile_map)
         (void)physics_world().clear_tile_world(*_tile_map);
@@ -109,6 +110,7 @@ void GameplayDemoSceneBase::on_exit()
 
 void GameplayDemoSceneBase::on_reset()
 {
+    _combat.clear_pending_effects();
     unregister_physics_inspector();
     _restart_remaining = -1.0;
     _restart_requested = false;
@@ -127,6 +129,7 @@ void GameplayDemoSceneBase::on_after_update(double delta)
 {
     (void)delta;
     if(_demo_paused)pause();
+    _combat.flush_effects();
     _combat.flush_deaths();
     update_hud();
 

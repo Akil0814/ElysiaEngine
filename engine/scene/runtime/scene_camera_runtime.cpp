@@ -303,9 +303,12 @@ void SceneCameraRuntime::advance(
 void SceneCameraRuntime::cancel_activity() noexcept
 {
     _blend.reset();
-    elysia::camera::CameraManager::instance()->cancel_camera_motions(_config.owned_slots);
     for (auto& motion : _motions)
+    {
+        if (motion)
+            (void)elysia::camera::CameraManager::instance()->cancel_camera_motion(*motion);
         motion.reset();
+    }
 }
 
 void SceneCameraRuntime::reset() noexcept

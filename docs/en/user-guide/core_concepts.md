@@ -171,9 +171,9 @@ Calling `destroy()` on any `SceneObject` only marks it for destruction. It does 
 potion->destroy();
 ```
 
-Objects owned directly by a scene are removed and freed when the cleanup point at the end of `Scene::on_update()` actually runs after they are marked. Child nodes in UI containers are cleaned up by their respective containers.
+Objects owned directly by a scene are removed and freed at cleanup after `on_after_update`, `on_exit`, or `on_reset`. Child nodes in UI containers are cleaned up by their respective containers.
 
-If an object is marked for destruction in `on_exit()` and the old scene no longer updates, its regular cleanup also stops. Objects still owned by that scene will be released when the scene is entered again and cleanup runs, or when the entire scene is destroyed. Updates to other scenes do not perform cleanup on its behalf.
+An object marked in `on_exit()` is retired during that exit, without waiting for another update or entry. Unmarked objects may remain in a cached scene for Reuse. Reset calls the scene's `on_reset()` hook; it does not automatically clear or reset all gameplay objects.
 
 Once an object is marked, treat it as about to leave service. Do not rely on the fact that it temporarily remains in memory to schedule new gameplay operations on it.
 

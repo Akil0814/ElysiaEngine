@@ -106,6 +106,7 @@ public:
         static_assert(std::is_base_of_v<elysia::core::GameObject, T> ||
                           std::is_base_of_v<elysia::ui::UiElement, T>,
                       "T must derive from GameObject or UiElement.");
+        require_object_addition_allowed();
         return add_object(std::make_unique<T>(std::forward<Args>(args)...));
     }
 
@@ -118,11 +119,10 @@ public:
 
         if (!object)
             return nullptr;
-        if (_retiring_objects || _lifecycle_state == SceneLifecycleState::PreparingDestruction ||
-            _lifecycle_state == SceneLifecycleState::PreparedForDestruction)
-        {
-            throw std::logic_error("Scene objects cannot be added while the scene is tearing down.");
-        }
+        require_object_addition_allowed();
+        // Registration callbacks may add other objects, but cannot retire the
+        // object whose interfaces are still being registered or rolled back.
+        const ObjectMutationScope registration_scope(*this, "object registration", false);
 
         T* raw_object = object.get();
         bool added = false;
@@ -261,6 +261,25 @@ private:
     void cancel_camera_activity() noexcept;
     void reset_camera_runtime() noexcept;
 
+    class ObjectMutationScope final
+    {
+    public:
+        ObjectMutationScope(const Scene& scene, const char* phase,
+                            bool block_additions = true) noexcept;
+        ~ObjectMutationScope();
+        ObjectMutationScope(const ObjectMutationScope&) = delete;
+        ObjectMutationScope& operator=(const ObjectMutationScope&) = delete;
+
+    private:
+        const Scene& _scene;
+        const char* _previous_addition_phase;
+        const char* _previous_removal_phase;
+        bool _block_additions;
+    };
+
+    void require_object_addition_allowed() const;
+    void require_object_removal_allowed() const;
+
     void visit_game_objects(elysia::core::DepthLayerMask layers,
                             const elysia::object_query::GameObjectVisitor& visitor) const override;
     void dispatch_ui_frame(const elysia::ui::UiInputFrame& input);
@@ -317,5 +336,9 @@ private:
     SceneLifecycleState _lifecycle_state = SceneLifecycleState::Inactive;
     bool _retiring_objects = false;
     bool _runtime_services_attached = false;
+    mutable std::uint32_t _object_addition_block_depth = 0;
+    mutable std::uint32_t _object_removal_block_depth = 0;
+    mutable const char* _object_addition_phase = nullptr;
+    mutable const char* _object_removal_phase = nullptr;
 };
 } // namespace elysia::scene

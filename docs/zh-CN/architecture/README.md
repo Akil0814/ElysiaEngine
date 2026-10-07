@@ -2,6 +2,7 @@
 
 ## 当前实现参考
 
+- [场景生命周期](subsystems/scene-lifecycle.md)：缓存、进入 / 退出 / 重置、安全修改阶段、异常恢复与应用关闭顺序。
 - [Gameplay UI](subsystems/gameplay-ui.md)：世界文字、数值条、被动气泡与游戏对象组合。
 - [UI](ui/README.md)：保留模式 UI、布局、焦点、窗口表面、样式和控件参考。
 - [Input](subsystems/input/README.md)：物理输入、动作映射、玩家设备归属与固定步控制命令。

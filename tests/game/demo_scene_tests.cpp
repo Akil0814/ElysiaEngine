@@ -23,6 +23,7 @@
 #include "engine/input/input_system.h"
 #include "game/showcase/shared/showcase_enter_payload.h"
 #include "game/showcase/effects/effects_showcase_scene.h"
+#include "game/showcase/gameplay/gameplay_demo_scene_base.h"
 #include "game/showcase/ui/ui_component_gallery_scene.h"
 #include "engine/ui/widgets/ui_action_button.h"
 #include "engine/ui/composites/ui_tab_container.h"
@@ -50,6 +51,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <variant>
 
 namespace
@@ -198,6 +200,133 @@ public:
 
 using FirstReturnScene = ReturnScene<1>;
 using SecondReturnScene = ReturnScene<2>;
+
+class DamageOnStepActor final : public example::showcase::gameplay::BlockCombatActor
+{
+public:
+    explicit DamageOnStepActor(std::function<void()> hit)
+        : BlockCombatActor({.rect = {0, 0, 24, 24},
+                            .team = elysia::gameplay::collision::teams::Enemy,
+                            .maximum_health = 200,
+                            .gravity_enabled = false})
+        , _hit(std::move(hit))
+    {}
+
+    void fixed_update(double delta) override
+    {
+        BlockCombatActor::fixed_update(delta);
+        if (std::exchange(_hit_on_next_step, false))
+            _hit();
+    }
+
+private:
+    std::function<void()> _hit;
+    bool _hit_on_next_step = true;
+};
+
+class CombatEffectsScene final : public example::scene::GameplayDemoSceneBase
+{
+public:
+    explicit CombatEffectsScene(CombatEffectsScene*& instance)
+        : GameplayDemoSceneBase(1, "CombatEffectsScene", {})
+    {
+        instance = this;
+    }
+
+    void queue_hit()
+    {
+        elysia::gameplay::collision::HitOverlapEvent event;
+        event.hit_box.attack_definition = example::showcase::gameplay::PlayerAttack;
+        event.hurt_box.owner = _actor->actor_id();
+        combat().on_hit_overlap(event);
+    }
+    [[nodiscard]] int health() const { return _actor->health().current(); }
+    int hits_during_step = 0;
+
+private:
+    void build_demo() override
+    {
+        _actor = add_actor<DamageOnStepActor>([this] {
+            const auto before = ELYSIA_OBJECT_QUERY->find_objects<elysia::effects::FloatingNumberEffect>().size();
+            queue_hit();
+            ++hits_during_step;
+            require(health() == 175, "combat damage must apply immediately inside the physics step");
+            require(ELYSIA_OBJECT_QUERY->find_objects<elysia::effects::FloatingNumberEffect>().size() == before,
+                "combat damage must defer scene-owned effects until the physics step has finished");
+        });
+        require(_actor != nullptr, "combat effect test actor must register with physics and combat");
+    }
+    DamageOnStepActor* _actor = nullptr;
+};
+
+void test_combat_effects(const elysia::scene::SceneRuntimeContext& context)
+{
+    using namespace elysia;
+    scene::SceneManager manager;
+    CombatEffectsScene* combat_scene = nullptr;
+    manager.initialize(context);
+    manager.register_game_scene<CombatEffectsScene>(1, std::ref(combat_scene));
+    manager.register_game_scene<FirstReturnScene>(2);
+    const auto combat_route = [](scene::SceneReloadMode mode) {
+        return scene::SceneRoute{.target = 1,
+            .payload = example::scene::ShowcaseEnterPayload{{.target = 2,
+                .payload = ReturnPayload{.marker = 57}}},
+            .reload_mode = mode};
+    };
+    const scene::SceneRoute return_route{.target = 2, .payload = ReturnPayload{.marker = 57}};
+    const auto effect_count = [] {
+        return ELYSIA_OBJECT_QUERY->find_objects<effects::FloatingNumberEffect>().size();
+    };
+    const auto switch_during_input = [&](const scene::SceneRoute& route) {
+        manager.on_scene_request({.type = scene::SceneRequestType::Switch, .route = route});
+        // Process the switch before another update can flush the queued effect.
+        manager.on_input({});
+        require(manager.state() == scene::SceneManagerState::Running
+                && manager.current_scene_key() == route.target,
+            "combat effect lifecycle test must complete its requested transition");
+    };
+
+    manager.start(combat_route(scene::SceneReloadMode::Reuse));
+    require(combat_scene && effect_count() == 0, "combat scene must start without damage effects");
+    manager.on_update(1.0 / 60.0);
+    require(manager.state() == scene::SceneManagerState::Running
+            && combat_scene->hits_during_step == 1 && combat_scene->health() == 175
+            && effect_count() == 1,
+        "on_after_update must create the damage effect after the guarded physics step");
+    auto* effect = ELYSIA_OBJECT_QUERY->find_object<effects::FloatingNumberEffect>();
+    std::vector<core::RenderCommand> commands;
+    effect->submit_render_commands(commands);
+    require(commands.size() == 3, "the deferred damage effect must render all three glyphs in -25");
+    manager.on_update(0);
+    require(effect_count() == 1 && combat_scene->health() == 175,
+        "flushed damage requests must not replay on later frames");
+
+    combat_scene->queue_hit();
+    require(combat_scene->health() == 150 && effect_count() == 1,
+        "a new damage request must remain queued before the next update");
+    switch_during_input(return_route);
+    require(effect_count() == 0, "queued combat effects must not migrate into the next scene");
+    auto* cached = combat_scene;
+    switch_during_input(combat_route(scene::SceneReloadMode::Reuse));
+    manager.on_update(0);
+    require(combat_scene == cached && effect_count() == 1,
+        "exit must discard pending effects while Reuse preserves already-created effects");
+
+    switch_during_input(return_route);
+    // Queue after exit to isolate on_reset from the separate on_exit cleanup.
+    cached->queue_hit();
+    require(cached->health() == 125, "inactive cached combat scene must contain a fresh pending request");
+    switch_during_input(combat_route(scene::SceneReloadMode::Reset));
+    manager.on_update(0);
+    require(combat_scene == cached && effect_count() == 1,
+        "Reset must independently discard pending effects without replaying them");
+
+    combat_scene->queue_hit();
+    manager.on_update(0);
+    require(combat_scene->health() == 100 && effect_count() == 2,
+        "combat effects must still work after pending-effect cleanup and reentry");
+    require(manager.shutdown(), "combat effect test must release all scene services");
+}
 
 bool throws_logic_error_containing(
     const std::function<void()>& operation,
@@ -462,6 +591,7 @@ void test_escape_returns_the_full_caller_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(
         fixture.renderer(),registry,1280,720,&font_resolver);
+    test_combat_effects(context);
     elysia::scene::SceneManager scene_manager;
     scene_manager.initialize(context);
     scene_manager.register_game_scene<example::scene::ShowcaseGalleryScene>(

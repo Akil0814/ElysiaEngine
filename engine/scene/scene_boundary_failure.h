@@ -65,6 +65,8 @@ struct SceneBoundaryFailure
     SceneKey scene = SceneKeys::Invalid;
     SceneBoundary boundary = SceneBoundary::Update;
     elysia::core::FailureDiagnostic diagnostic;
+    // A cleanup attempted after the primary failure also failed.
+    bool cleanup_failed = false;
 };
 
 [[nodiscard]] inline std::string_view scene_boundary_name(SceneBoundary boundary) noexcept

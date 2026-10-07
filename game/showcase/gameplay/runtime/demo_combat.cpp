@@ -165,6 +165,14 @@ void DemoCombatSession::flush_deaths()
     }
 }
 
+void DemoCombatSession::flush_effects()
+{
+    auto effects = std::move(_pending_effects);
+    _pending_effects.clear();
+    for (const auto& effect : effects)
+        (void)ELYSIA_EFFECTS->request_floating_number_effect(effect);
+}
+
 void DemoCombatSession::on_hit_overlap(
     const elysia::gameplay::collision::HitOverlapEvent& event)
 {
@@ -198,7 +206,7 @@ void DemoCombatSession::on_hit_overlap(
     effect.alignment = elysia::effects::FloatingNumberAlignment::Center;
     effect.effects.motion = elysia::effects::FloatingNumberLinearMotion{{0, -42}};
     effect.effects.fade = elysia::effects::FloatingNumberFade{};
-    (void)ELYSIA_EFFECTS->request_floating_number_effect(effect);
+    _pending_effects.push_back(std::move(effect));
     if (_damage_callback)
         _damage_callback(actor, result);
     if (result.killed)
