@@ -3,6 +3,7 @@
 #include "engine/gameplay/collision/gameplay_collision_listener.h"
 #include "engine/gameplay/collision/gameplay_collision_runtime.h"
 #include "engine/physics/physics_world.h"
+#include "engine/effects/effect_types.h"
 
 #include <functional>
 #include <unordered_map>
@@ -90,6 +91,8 @@ public:
     [[nodiscard]] bool request_drop_through(const BlockCombatActor& actor);
     void update(double delta);
     void flush_deaths();
+    void flush_effects();
+    void clear_pending_effects() noexcept { _pending_effects.clear(); }
     void set_death_callback(DeathCallback callback) { _death_callback = std::move(callback); }
     void set_damage_callback(DamageCallback callback) { _damage_callback = std::move(callback); }
 
@@ -112,6 +115,7 @@ private:
     std::unordered_map<elysia::gameplay::collision::AttackDefinitionId, DamageDefinition> _definitions;
     std::unordered_map<elysia::gameplay::collision::ActorId, double> _hazard_cooldowns;
     std::vector<BlockCombatActor*> _pending_deaths;
+    std::vector<elysia::effects::FloatingNumberEffectSpawnRequest> _pending_effects;
     DeathCallback _death_callback;
     DamageCallback _damage_callback;
     elysia::gameplay::collision::ActorId _next_actor = 1;

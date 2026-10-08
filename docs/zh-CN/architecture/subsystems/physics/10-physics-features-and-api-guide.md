@@ -2,7 +2,7 @@
 
 本项目的物理系统以 `elysia::physics::PhysicsWorld` 为唯一的场景内物理世界，底层使用 Box2D 3.1.1。游戏代码只依赖 Elysia 的定义、句柄、查询和事件类型，不直接保存 Box2D 对象或包含 Box2D 头文件。
 
-`elysia::scene::Scene` 自带一个 `PhysicsWorld`：对象加入场景时，如果同时实现 `PhysicsParticipant`，场景会自动注册它；每帧 `Scene::on_update(double)` 在普通对象更新后调用 `PhysicsWorld::advance(delta)`；对象销毁时会自动注销。因此，通常无需自行管理对象注册的时机。
+`elysia::scene::Scene` 通过运行时特性按需创建 `FixedStepRuntime` 和 `PhysicsWorld`，物理必须同时启用固定步。实现 `PhysicsParticipant` 的对象加入场景时自动注册，回收前自动注销。内部生命周期更新入口在普通对象与 UI 呈现动画之后推进固定步：先执行场景固定步钩子，再调用 `PhysicsWorld::step`，帧末调用 `finalize_frame` 更新插值。游戏扩展使用 `on_before_update` / `on_after_update`，不重写或手动调用基础调度。
 
 ## 能力清单
 
@@ -188,6 +188,6 @@ collision->bind_hit_box({
 
 调试时用 `set_debug_capture(PhysicsDebugCapture::Shapes | PhysicsDebugCapture::Contacts)` 选择捕获项，再用 `debug_snapshot()` 读取。`PhysicsDebugCapture` 支持 `Shapes`、`BroadPhase`、`Contacts`、`Velocities`、`Joints` 和 `All`；`submit_physics_debug_snapshot(snapshot, debug_draw)` 可提交至引擎调试绘制。`PhysicsDebugShape` 同时保存前一/当前姿态和 `native_bounds`：后者是物理步的轴对齐原生包围盒，不是旋转 Collider 轮廓或 CCD 轨迹。
 
-`last_step_stats()` 提供已注册对象/Collider、醒着的刚体、关节数、接触数、步进耗时和丢弃固定步数；`accumulator_seconds()` 可查看未消费的帧时间；`reset()` 清空整个世界。
+`last_step_stats()` 提供物理对象、Collider、刚体、关节、接触和步进统计；固定步累计、tick、插值和丢弃步数属于独立的 `FixedStepRuntime`，通过场景 `fixed_step_stats()` 查询。`PhysicsWorld::reset()` 清空世界；场景 Reset 路由重置固定步运行时，再执行游戏 `on_reset()`，不会自动清空全部业务对象。
 
 最后的实践边界：一个 `Scene` 只应使用它自身的 `PhysicsWorld`；不要缓存原生 Box2D ID；地图绑定和监听器都要先于世界销毁；普通位置直接改写后必须用 `teleport_object` 或 `set_transform` 同步物理；渲染读 `render_pose`，判定读 `body_state`。这样可以避免渲染、碰撞和游戏规则各自使用不同的位置来源。

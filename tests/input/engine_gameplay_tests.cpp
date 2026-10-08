@@ -1,4 +1,4 @@
-﻿#include "game/input/command_view.h"
+﻿#include "game/gameplay/control/command_view.h"
 #include "tests/support/input_snapshot_builder.h"
 #define SDL_MAIN_HANDLED
 
@@ -28,9 +28,9 @@ int main()
     raw.press(RawInputControl::KeyT, true);
     auto result = map.resolve(raw.take());
     ControlCommand gameplay{.state = std::move(result.frame), .events = std::move(result.events)};
-    require(example::input::CommandView(gameplay).move() == elysia::core::Vector2(1.0f, -1.0f),
+    require(example::gameplay::CommandView(gameplay).move() == elysia::core::Vector2(1.0f, -1.0f),
         "Standard gameplay movement bindings must resolve");
-    require(example::input::CommandView(gameplay).jump_pressed(), "Gameplay semantic accessors must expose standard actions");
+    require(example::gameplay::CommandView(gameplay).jump_pressed(), "Gameplay semantic accessors must expose standard actions");
     require(gameplay.state.is_just_pressed(custom),
         "Gameplay frames must retain custom action lookup");
 

@@ -10,13 +10,16 @@ namespace elysia::audio
 {
 bool AudioService::initialize(const AudioSettings& settings)
 {
-    if (_initialized) shutdown();
+    if (_initialized)
+        shutdown();
+
     _music_controller.reset();
     _settings.master_volume = clamp_volume(settings.master_volume);
     _settings.music_volume = clamp_volume(settings.music_volume);
     _settings.sound_volume = clamp_volume(settings.sound_volume);
 
-    if (!detail::mixer_backend().initialize()) return false;
+    if (!detail::mixer_backend().initialize())
+        return false;
 
     _sound_scheduler.reset();
     _sound_group_volumes.fill(100);

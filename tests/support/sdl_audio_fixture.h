@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/audio/mixer_backend.h"
+#include "builtin_music_player_test_access.h"
 namespace elysia::tests
 {
 inline bool open_test_mixer()
@@ -8,12 +9,18 @@ inline bool open_test_mixer()
 }
 inline void close_test_mixer()
 {
+    builtin::BuiltinMusicPlayer::instance()->shutdown();
     audio::detail::mixer_backend().shutdown();
     MIX_Quit();
 }
 inline bool music_playing()
 {
     auto* track = audio::detail::mixer_backend().music;
+    return track && MIX_TrackPlaying(track);
+}
+inline bool builtin_music_playing()
+{
+    auto* track = builtin::BuiltinMusicPlayerTestAccess::track();
     return track && MIX_TrackPlaying(track);
 }
 inline bool sound_playing(int channel)

@@ -97,14 +97,16 @@ std::optional<CameraMotionState> CameraController::motion_state(CameraMotionId i
 {
     if (!_motion || _motion->id != id)
         return std::nullopt;
+    if (_motion->paused)
+        return CameraMotionState::Paused;
     if (_motion->holding)
         return CameraMotionState::Holding;
-    return _motion->paused ? CameraMotionState::Paused : CameraMotionState::Playing;
+    return CameraMotionState::Playing;
 }
 
 bool CameraController::pause_motion(CameraMotionId id) noexcept
 {
-    if (!_motion || _motion->id != id || _motion->holding)
+    if (!_motion || _motion->id != id)
         return false;
     _motion->paused = true;
     return true;
@@ -112,7 +114,7 @@ bool CameraController::pause_motion(CameraMotionId id) noexcept
 
 bool CameraController::resume_motion(CameraMotionId id) noexcept
 {
-    if (!_motion || _motion->id != id || _motion->holding)
+    if (!_motion || _motion->id != id)
         return false;
     _motion->paused = false;
     return true;
@@ -152,6 +154,9 @@ void CameraController::reset_scene_state() noexcept
 
 std::optional<CameraMotionId> CameraController::update(double delta_seconds)
 {
+    // A paused pose also freezes its shake, including a terminal Hold pose.
+    if (_motion && _motion->paused)
+        return std::nullopt;
     std::optional<CameraMotionId> completion;
     const bool motion_controls_pose = update_motion(delta_seconds, completion);
 

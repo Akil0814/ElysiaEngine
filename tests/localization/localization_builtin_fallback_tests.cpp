@@ -96,8 +96,7 @@ int main()
     require(builtin_resources.initialize(
         fixture.renderer(),
         elysia::builtin::BuiltinAssetCatalog(source_root),
-        std::array{20},
-        {}).has_value(),
+        std::array{20}).has_value(),
         "localization fallback tests must initialize built-in asset cache");
 
     auto* localization_manager = elysia::localization::LocalizationManager::instance();

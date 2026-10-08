@@ -18,6 +18,7 @@
 #include "engine/scene/scene_manager.h"
 #include "tests/support/sdl_audio_fixture.h"
 #include "tests/support/test_assertions.h"
+#include "tests/support/input_snapshot_builder.h"
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <chrono>
@@ -34,7 +35,7 @@ int main()
     auto registry=elysia::io::ContentRegistryLoader{}.load(paths->content_registry());require(registry.has_value(),"project registry loads");
     auto settings=elysia::typography::resolve_font_settings({});require(settings.has_value(),"font settings resolve");
     auto* builtin=elysia::builtin::BuiltinResources::instance();
-    require(builtin->initialize(renderer,elysia::builtin::BuiltinAssetCatalog(ELYSIA_SOURCE_DIR),settings->engine_point_sizes(),{}).has_value(),"built-in assets initialize");
+    require(builtin->initialize(renderer,elysia::builtin::BuiltinAssetCatalog(ELYSIA_SOURCE_DIR),settings->engine_point_sizes()).has_value(),"built-in assets initialize");
     {
         elysia::loading::GameContentLoader loader;const std::array sizes{10,20,30,40,50,60,70};
         require(loader.start(renderer,*registry,sizes).has_value(),"project assets start loading");
@@ -79,6 +80,24 @@ int main()
             manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route=gallery});manager.on_update(0);capture("gallery_"+language);
             for(const auto& entry:example::showcase::kShowcaseEntries){
                 manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route={.target=entry.key,.payload=example::scene::ShowcaseEnterPayload{gallery},.reload_mode=entry.reload}});manager.on_update(0);capture("module_"+std::to_string(entry.key)+"_"+language);
+                if(entry.key==example::scene_keys::CameraShowcase) {
+                    elysia::tests::InputSnapshotBuilder keys;
+                    for(const auto key:{elysia::input::RawInputControl::KeyF2,elysia::input::RawInputControl::KeyF3}) {
+                        keys.press(key,true);manager.on_input(keys.take());keys.press(key,false);manager.on_input(keys.take());manager.on_update(0);
+                        capture(std::string(key==elysia::input::RawInputControl::KeyF2?"camera_motion_":"camera_cinematic_")+language);
+                        if(key==elysia::input::RawInputControl::KeyF3) {
+                            const auto click=[&](int x,int y){
+                                for(const auto type:{elysia::input::RawInputEventType::ControlPressed,elysia::input::RawInputEventType::ControlReleased})
+                                    manager.on_input(elysia::tests::events_snapshot({{.control=elysia::input::RawInputControl::MouseLeft,.type=type,.device=elysia::input::InputDevice::Mouse,.mouse_x=x,.mouse_y=y}}));
+                            };
+                            click(880,154);manager.on_update(.3);capture("camera_blend_"+language);
+                            click(1116,154);manager.on_update(.5);capture("camera_paused_"+language);
+                            click(145,202);manager.on_update(.4);manager.on_update(.5);capture("camera_tour_"+language);
+                        }
+
+                    }
+                }
+
             }
         }
         require(manager.shutdown(),"showcase shutdown succeeds");

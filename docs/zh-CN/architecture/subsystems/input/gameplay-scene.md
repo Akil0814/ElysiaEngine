@@ -28,13 +28,15 @@ if (result) {
 
 SceneManager 激活、退出、Reset 和 Recreate 时协调上下文。离开清理命令并解绑，Reuse 保留配置，Reset 释放 Scene 作用域；Session 作用域保留到 end_session。仅 reset_input_routing() 是 UI 路由重置，不能替代世界生命周期操作；游戏重启应请求 SceneReloadMode::Reset／Recreate。
 
+Reset 先重置上下文和代次，再执行游戏的 `on_reset()`，不会自动清空业务对象。退出先解除控制和玩法碰撞服务，再调用 `on_exit()` 并回收标记对象。Recreate 先构造候选，退出当前场景并销毁目标旧缓存后才激活候选；`on_enter` 失败不补调 `on_exit`，外部关联需局部回滚或 RAII。完整顺序见[场景生命周期](../scene-lifecycle.md)。
+
 对象释放前 Manager 解绑。GameplayScene 的输入、移除和固定步接入为 final，游戏无需也不能手动调用基类调度。游戏扩展使用 `on_game_fixed_update(tick, delta)`、`on_control_target_removing(object)`。每次实际固定步先交付命令，再执行游戏扩展，最后物理参与者和物理推进。
 
 辅助工具通过游戏控制器显式处理；场景没有按玩家命令广播或转发钩子。多目标相机示例直接绑定实际可见 CameraActor，切换主目标显式换绑。
 
 ## UI 与暂停
 
-Scene::on_input 仍是统一输入阶段，委托 SceneInputRouter。on_shortcuts 只获取已声明设备类别中未被 UI 消费的操作，处理后 consume_input(event)。on_unassigned_input 返回 true 消费加入操作。
+SceneManager 的输入阶段经 Scene 的内部生命周期入口委托 SceneInputRouter。on_shortcuts 的帧状态与事件均只包含已声明设备类别中允许的输入，处理后 consume_input(event)。on_unassigned_input 返回 true 消费加入操作。
 
 set_ui_gamepad 独立指定 UI 手柄，不修改玩家归属。普通 Scene 默认 Navigation，GameplayScene 默认 Pointer；打开菜单时启用 Navigation，关闭恢复 Pointer。set_all_gameplay_input_blocked 只屏蔽本地玩家玩法；pause 停止世界全部控制器并取消缓存。取消不是正常释放，恢复时按键和摇杆须满足释放／回中规则。
 

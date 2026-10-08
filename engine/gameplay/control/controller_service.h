@@ -4,6 +4,10 @@
 #include "controller_types.h"
 #include <expected>
 #include <optional>
+namespace elysia::core
+{
+class GameObject;
+}
 namespace elysia::gameplay
 {
 class ControllerService final : public elysia::tools::Singleton<ControllerService>

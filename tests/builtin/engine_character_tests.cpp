@@ -231,8 +231,7 @@ int main()
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(
                     std::filesystem::path{ELYSIA_SOURCE_DIR}),
-                std::array{10, 20, 30, 40, 50, 60, 70},
-                {})
+                std::array{10, 20, 30, 40, 50, 60, 70})
                 .has_value(),
         "EngineCharacter tests must initialize built-in resources");
 

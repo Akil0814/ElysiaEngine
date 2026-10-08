@@ -17,7 +17,7 @@ std::vector<elysia::core::GameObject*> nearby_items(
         return {};
     return query->find_objects_in_radius<elysia::core::GameObject>(
         origin, radius, elysia::core::DepthLayerMask{elysia::core::DepthLayer::Item},
-        [](../const elysia::core::GameObject& object) {
+        [](const elysia::core::GameObject& object) {
             return object.is_active();
         });
 }
@@ -43,6 +43,8 @@ std::vector<elysia::core::GameObject*> nearby_items(
 结果中的指针由场景拥有，保存 vector 不会延长对象生命。查询结束后发生场景切换、重建或对象清理，都可能使其失效。单个结果是遍历中符合条件的对象，不应把它解释为稳定的角色 ID 或业务优先级。
 
 谓词接收只读对象引用。求值期间不要添加、移除或销毁场景对象，也不要通过其他捕获引用绕过这一限制。需要批量修改时先完成查询，再在对象仍有效的同一业务阶段处理结果；不要把查询中的场景容器当成可安全修改的列表。
+
+对象查询 visitor / 谓词内的同步 `add_object` 或 `clear_scene_objects` 会被场景拒绝。物理查询的 `noexcept` 回调同样必须只读，不能把异常当成退出查询的方式。先返回查询结果，再在允许修改场景的阶段执行变更。
 
 ## 参考
 

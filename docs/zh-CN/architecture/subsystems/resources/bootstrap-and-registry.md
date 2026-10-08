@@ -71,3 +71,13 @@
 Application 负责单例的运行期生命周期：先关闭 SceneManager、本地化、字体等使用者，再显式调用 `BuiltinResources::shutdown()`，最后销毁 renderer 并关闭 TTF 和 mixer。`shutdown()` 可重复调用，清理后可以重新初始化；正常释放不依赖进程退出时的静态析构。运行期只支持一个活动 Application。
 
 `BootstrapTextureCache` 仅持有项目 preload manifest 中的启动纹理。`find_preload_texture()` 返回可空的借用指针且查询本身不记录日志；其有效期截止到 `StartupLoadingScene::on_exit()`，Application shutdown 仍保留幂等兜底释放。
+
+## 内置音乐播放
+
+`BuiltinResources` 只负责内置资源的持有与查询，不提供播放或音量接口。内置音乐由独立单例 `BuiltinMusicPlayer` 播放；调用方显式包含 `engine/builtin/audio/builtin_music_player.h` 后访问。首次访问不创建 SDL 资源，Application 在内置资源加载后初始化播放器。
+
+播放器与项目音频共用 mixer 设备，但拥有独立 track，只按 `BuiltinMusicId` 查询内置池，不通过公用资源池查找或回退。`play(id, loops, fade_in)` 使用 SDL_mixer 原生渐入，默认循环播放，未指定或非正时长立即播放；Intro 使用 1500 毫秒渐入，交接给 Realm 时保留当前播放。`stop()` 立即停止并解绑，不支持渐出或播放队列。
+
+主音量和音乐音量由 Application 从统一用户设置同步给播放器；修改音量立即生效，并保留渐入进度。无效 ID 或未初始化的播放请求返回失败且不影响当前播放；有效请求（包括相同音乐）重新开始播放，底层播放失败则停止并解绑。
+
+Application 先关闭场景，再停止并销毁内置播放器的 track，随后释放内置资源，最后关闭 mixer。内置资源显式重初始化前及 shutdown 时也会停止并解绑内置播放；项目内容清理不影响内置音乐。

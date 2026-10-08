@@ -27,6 +27,7 @@ struct CapturedSceneFailure
     std::string_view stage;
     std::source_location origin;
     std::exception_ptr exception;
+    bool cleanup = false;
 };
 inline constexpr std::size_t kMaxCapturedSceneFailures = 16;
 using CapturedSceneFailures = std::array<CapturedSceneFailure,kMaxCapturedSceneFailures>;
@@ -35,22 +36,25 @@ using CapturedSceneFailures = std::array<CapturedSceneFailure,kMaxCapturedSceneF
 class SceneFailureTransport
 {
 public:
-    SceneFailureTransport(CapturedSceneFailures failures,std::size_t count,std::size_t overflow)
-        : failures(std::move(failures)), count(count), overflow(overflow) {}
+    SceneFailureTransport(CapturedSceneFailures failures,std::size_t count,std::size_t overflow,
+        bool cleanup_overflow)
+        : failures(std::move(failures)), count(count), overflow(overflow), cleanup_overflow(cleanup_overflow) {}
     virtual ~SceneFailureTransport() = default;
     CapturedSceneFailures failures;
     std::size_t count = 0;
     std::size_t overflow = 0;
+    bool cleanup_overflow = false;
 };
 
 template<typename Error>
 class SceneFailureException final : public Error,public SceneBoundaryTagged,public SceneFailureTransport
 {
 public:
-    SceneFailureException(CapturedSceneFailures failures,std::size_t count,std::size_t overflow)
+    SceneFailureException(CapturedSceneFailures failures,std::size_t count,std::size_t overflow,
+        bool cleanup_overflow)
         : Error(primary_message(failures.front().exception)),
           SceneBoundaryTagged(primary_boundary(failures.front()),primary_origin(failures.front())),
-          SceneFailureTransport(std::move(failures),count,overflow) {}
+          SceneFailureTransport(std::move(failures),count,overflow,cleanup_overflow) {}
 private:
     static std::string primary_message(const std::exception_ptr& exception)
     {
@@ -77,7 +81,7 @@ class SceneFailureCollector
 public:
     void capture(SceneKey scene,SceneBoundary boundary,std::string_view stage,
         std::exception_ptr exception = std::current_exception(),
-        std::source_location origin = std::source_location::current())
+        std::source_location origin = std::source_location::current(),bool cleanup = false)
     {
         try { if (exception) std::rethrow_exception(exception); }
         catch (const SceneFailureTransport& error)
@@ -86,13 +90,22 @@ public:
             {
                 auto captured = error.failures[index];
                 if (captured.scene == SceneKeys::Invalid) captured.scene = scene;
+                captured.cleanup = captured.cleanup || cleanup;
                 record(std::move(captured));
             }
             _overflow += error.overflow;
+            _cleanup_overflow = _cleanup_overflow || error.cleanup_overflow || (cleanup && error.overflow > 0);
             return;
         }
         catch (...) {}
-        if (exception) record({scene,boundary,stage,origin,std::move(exception)});
+        if (exception) record({scene,boundary,stage,origin,std::move(exception),cleanup});
+    }
+
+    void capture_cleanup(SceneKey scene,SceneBoundary boundary,std::string_view stage,
+        std::exception_ptr exception = std::current_exception(),
+        std::source_location origin = std::source_location::current())
+    {
+        capture(scene,boundary,stage,std::move(exception),origin,true);
     }
 
     template<typename Callable>
@@ -101,6 +114,14 @@ public:
     {
         try { std::forward<Callable>(callable)(); }
         catch (...) { capture(scene,boundary,stage,std::current_exception(),origin); }
+    }
+
+    template<typename Callable>
+    void attempt_cleanup(SceneKey scene,SceneBoundary boundary,std::string_view stage,Callable&& callable,
+        std::source_location origin = std::source_location::current())
+    {
+        try { std::forward<Callable>(callable)(); }
+        catch (...) { capture_cleanup(scene,boundary,stage,std::current_exception(),origin); }
     }
 
     [[nodiscard]] bool empty() const noexcept { return _count == 0; }
@@ -112,12 +133,12 @@ public:
         try { std::rethrow_exception(primary); }
         catch (const std::logic_error&)
         {
-            try { throw SceneFailureException<std::logic_error>(std::move(_failures),_count,_overflow); }
+            try { throw SceneFailureException<std::logic_error>(std::move(_failures),_count,_overflow,_cleanup_overflow); }
             catch (const std::bad_alloc&) { std::rethrow_exception(primary); }
         }
         catch (...)
         {
-            try { throw SceneFailureException<std::runtime_error>(std::move(_failures),_count,_overflow); }
+            try { throw SceneFailureException<std::runtime_error>(std::move(_failures),_count,_overflow,_cleanup_overflow); }
             catch (const std::bad_alloc&) { std::rethrow_exception(primary); }
         }
     }
@@ -143,8 +164,14 @@ public:
             catch (...) {}
         }
         auto primary = describe(_failures.front());
+        primary.cleanup_failed = _cleanup_overflow;
+        // A primary Exit/Detach/ObjectRemoval failure can still be isolated.
+        // Only additional cleanup failures make recovery unsafe.
         for (std::size_t index = 1; index < _count; ++index)
+        {
+            primary.cleanup_failed = primary.cleanup_failed || _failures[index].cleanup;
             append(primary.diagnostic,_failures[index]);
+        }
         append_overflow(primary.diagnostic);
         return std::unexpected(std::move(primary));
         }
@@ -197,10 +224,14 @@ private:
         if (_count < _failures.size())
             _failures[_count++] = std::move(failure);
         else
+        {
             ++_overflow;
+            _cleanup_overflow = _cleanup_overflow || failure.cleanup;
+        }
     }
     CapturedSceneFailures _failures{};
     std::size_t _count = 0;
     std::size_t _overflow = 0;
+    bool _cleanup_overflow = false;
 };
 }

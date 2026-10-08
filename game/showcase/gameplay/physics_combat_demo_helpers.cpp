@@ -1,4 +1,4 @@
-#include "game/input/command_view.h"
+#include "game/gameplay/control/command_view.h"
 #include "game/showcase/gameplay/physics_combat_demo_helpers.h"
 
 #include "game/showcase/gameplay/runtime/demo_collision_layers.h"

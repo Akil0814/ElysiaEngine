@@ -2,6 +2,8 @@
 
 控制器把本地输入或自定义意图转换为固定步消费的 `ControlCommand`。游戏层使用 `ControllerService::instance()`；`ControllerManager` 是调度实现，不是游戏侧操作入口。这里的会话是游戏会话，不代表网络连接。
 
+引擎控制代码位于 `engine/gameplay/control/`，上下文生命周期实现在独立的 `scene_control_context.cpp`。演示的控制接入辅助函数和语义命令视图位于 `game/gameplay/control/`，使用 `example::gameplay` 命名空间；动作 ID 和默认映射位于 `game/input/`，使用 `example::input`。
+
 ## 接入顺序
 
 1. 由游戏流程的唯一负责人调用 `begin_session()`，处理返回的 `std::expected`；不要每进入一个子场景都重复开始会话。
@@ -88,6 +90,8 @@ private:
 目标实现 `on_control_command(const ControlCommand&, double fixed_delta)` 和 `on_control_cancelled(InputCancelReason)`。命令包含持续状态、一次性事件、累计增量以及 tick/sequence。控制器在实际固定步交付命令；事件和增量交付后清空，不能假设每个渲染帧都收到一条命令。
 
 取消回调应清除移动、蓄力等持续意图，避免暂停、设备变化或解绑后沿用旧输入。物理目标可在命令回调中记录意图，再在自己的物理阶段消费；不要同时在逐帧更新中重复推进同一运动。
+
+取消回调中的异常会在必要清理完成后传播到场景异常边界。控制器取消失败不阻止目标收到通知，也不阻止其他控制器清理。延迟配置提交异常使操作终结为 `CallbackFailed` 并解除受影响绑定；游戏应处理场景故障，不继续使用旧绑定。结束会话时全部句柄先失效，取消回调内重新开始会话返回 `SessionEnding`。
 
 自定义 AI 等来源继承 `Controller`，在 `produce_intent(tick, fixed_delta)` 中通过受保护的 `submit(ActionInputResult)` 提交结果。无需伪造设备事件；这也不意味着引擎已提供网络同步。
 

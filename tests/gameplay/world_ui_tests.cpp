@@ -273,7 +273,7 @@ int main()
     require(settings.has_value(), "resolve font settings");
     auto* builtin = elysia::builtin::BuiltinResources::instance();
     require(builtin->initialize(renderer, elysia::builtin::BuiltinAssetCatalog(*paths),
-        settings->engine_point_sizes(), {}), "load builtin fonts");
+        settings->engine_point_sizes()), "load builtin fonts");
     elysia::typography::FontResolver resolver;
     auto* manager = elysia::localization::LocalizationManager::instance();
     require(manager->initialize(renderer, paths->configs() / "manifests/i18n_manifest.json", "en", &resolver),

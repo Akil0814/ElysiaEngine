@@ -1,4 +1,4 @@
-#include "game/input/local_controls.h"
+#include "game/gameplay/control/local_controls.h"
 #include "engine/gameplay/control/controller_service.h"
 #include "tests/support/input_snapshot_builder.h"
 #include "tests/support/sdl_audio_fixture.h"
@@ -19,11 +19,12 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/runtime/scene_runtime_context.h"
 #include "game/showcase/shared/showcase_gallery_scene.h"
-#include "game/showcase/camera/multi_target_camera_scene.h"
+#include "game/showcase/camera/camera_showcase_scene.h"
 #include "game/showcase/input/local_multiplayer_scene.h"
 #include "engine/input/input_system.h"
 #include "game/showcase/shared/showcase_enter_payload.h"
 #include "game/showcase/effects/effects_showcase_scene.h"
+#include "game/showcase/gameplay/gameplay_demo_scene_base.h"
 #include "game/showcase/ui/ui_component_gallery_scene.h"
 #include "engine/ui/widgets/ui_action_button.h"
 #include "engine/ui/composites/ui_tab_container.h"
@@ -51,6 +52,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <variant>
 
 namespace
@@ -200,6 +202,133 @@ public:
 using FirstReturnScene = ReturnScene<1>;
 using SecondReturnScene = ReturnScene<2>;
 
+class DamageOnStepActor final : public example::showcase::gameplay::BlockCombatActor
+{
+public:
+    explicit DamageOnStepActor(std::function<void()> hit)
+        : BlockCombatActor({.rect = {0, 0, 24, 24},
+                            .team = elysia::gameplay::collision::teams::Enemy,
+                            .maximum_health = 200,
+                            .gravity_enabled = false})
+        , _hit(std::move(hit))
+    {}
+
+    void fixed_update(double delta) override
+    {
+        BlockCombatActor::fixed_update(delta);
+        if (std::exchange(_hit_on_next_step, false))
+            _hit();
+    }
+
+private:
+    std::function<void()> _hit;
+    bool _hit_on_next_step = true;
+};
+
+class CombatEffectsScene final : public example::scene::GameplayDemoSceneBase
+{
+public:
+    explicit CombatEffectsScene(CombatEffectsScene*& instance)
+        : GameplayDemoSceneBase(1, "CombatEffectsScene", {})
+    {
+        instance = this;
+    }
+
+    void queue_hit()
+    {
+        elysia::gameplay::collision::HitOverlapEvent event;
+        event.hit_box.attack_definition = example::showcase::gameplay::PlayerAttack;
+        event.hurt_box.owner = _actor->actor_id();
+        combat().on_hit_overlap(event);
+    }
+    [[nodiscard]] int health() const { return _actor->health().current(); }
+    int hits_during_step = 0;
+
+private:
+    void build_demo() override
+    {
+        _actor = add_actor<DamageOnStepActor>([this] {
+            const auto before = ELYSIA_OBJECT_QUERY->find_objects<elysia::effects::FloatingNumberEffect>().size();
+            queue_hit();
+            ++hits_during_step;
+            require(health() == 175, "combat damage must apply immediately inside the physics step");
+            require(ELYSIA_OBJECT_QUERY->find_objects<elysia::effects::FloatingNumberEffect>().size() == before,
+                "combat damage must defer scene-owned effects until the physics step has finished");
+        });
+        require(_actor != nullptr, "combat effect test actor must register with physics and combat");
+    }
+    DamageOnStepActor* _actor = nullptr;
+};
+
+void test_combat_effects(const elysia::scene::SceneRuntimeContext& context)
+{
+    using namespace elysia;
+    scene::SceneManager manager;
+    CombatEffectsScene* combat_scene = nullptr;
+    manager.initialize(context);
+    manager.register_game_scene<CombatEffectsScene>(1, std::ref(combat_scene));
+    manager.register_game_scene<FirstReturnScene>(2);
+    const auto combat_route = [](scene::SceneReloadMode mode) {
+        return scene::SceneRoute{.target = 1,
+            .payload = example::scene::ShowcaseEnterPayload{{.target = 2,
+                .payload = ReturnPayload{.marker = 57}}},
+            .reload_mode = mode};
+    };
+    const scene::SceneRoute return_route{.target = 2, .payload = ReturnPayload{.marker = 57}};
+    const auto effect_count = [] {
+        return ELYSIA_OBJECT_QUERY->find_objects<effects::FloatingNumberEffect>().size();
+    };
+    const auto switch_during_input = [&](const scene::SceneRoute& route) {
+        manager.on_scene_request({.type = scene::SceneRequestType::Switch, .route = route});
+        // Process the switch before another update can flush the queued effect.
+        manager.on_input({});
+        require(manager.state() == scene::SceneManagerState::Running
+                && manager.current_scene_key() == route.target,
+            "combat effect lifecycle test must complete its requested transition");
+    };
+
+    manager.start(combat_route(scene::SceneReloadMode::Reuse));
+    require(combat_scene && effect_count() == 0, "combat scene must start without damage effects");
+    manager.on_update(1.0 / 60.0);
+    require(manager.state() == scene::SceneManagerState::Running
+            && combat_scene->hits_during_step == 1 && combat_scene->health() == 175
+            && effect_count() == 1,
+        "on_after_update must create the damage effect after the guarded physics step");
+    auto* effect = ELYSIA_OBJECT_QUERY->find_object<effects::FloatingNumberEffect>();
+    std::vector<core::RenderCommand> commands;
+    effect->submit_render_commands(commands);
+    require(commands.size() == 3, "the deferred damage effect must render all three glyphs in -25");
+    manager.on_update(0);
+    require(effect_count() == 1 && combat_scene->health() == 175,
+        "flushed damage requests must not replay on later frames");
+
+    combat_scene->queue_hit();
+    require(combat_scene->health() == 150 && effect_count() == 1,
+        "a new damage request must remain queued before the next update");
+    switch_during_input(return_route);
+    require(effect_count() == 0, "queued combat effects must not migrate into the next scene");
+    auto* cached = combat_scene;
+    switch_during_input(combat_route(scene::SceneReloadMode::Reuse));
+    manager.on_update(0);
+    require(combat_scene == cached && effect_count() == 1,
+        "exit must discard pending effects while Reuse preserves already-created effects");
+
+    switch_during_input(return_route);
+    // Queue after exit to isolate on_reset from the separate on_exit cleanup.
+    cached->queue_hit();
+    require(cached->health() == 125, "inactive cached combat scene must contain a fresh pending request");
+    switch_during_input(combat_route(scene::SceneReloadMode::Reset));
+    manager.on_update(0);
+    require(combat_scene == cached && effect_count() == 1,
+        "Reset must independently discard pending effects without replaying them");
+
+    combat_scene->queue_hit();
+    manager.on_update(0);
+    require(combat_scene->health() == 100 && effect_count() == 2,
+        "combat effects must still work after pending-effect cleanup and reentry");
+    require(manager.shutdown(), "combat effect test must release all scene services");
+}
+
 bool throws_logic_error_containing(
     const std::function<void()>& operation,
     std::string_view expected)
@@ -310,6 +439,119 @@ void test_payload_contract_names_each_scene()
         "EffectsShowcaseScene must name itself when the return route is invalid");
 }
 
+void test_camera_showcase_controls()
+{
+    using namespace example::showcase::camera;
+    using namespace elysia::camera;
+    using Access=elysia::scene::SceneTestAccess;
+    SdlFixture fixture;
+    auto settings=elysia::typography::resolve_font_settings({});
+    auto* builtin=elysia::builtin::BuiltinResources::instance();
+    require(builtin->initialize(fixture.renderer(),elysia::builtin::BuiltinAssetCatalog(ELYSIA_SOURCE_DIR),settings->engine_point_sizes()).has_value(),"camera assets initialize");
+    elysia::typography::FontResolver fonts;
+    const std::array<std::string,1> languages{"en"};
+    require(fonts.configure(*settings,*ELYSIA_RESOURCES,languages).has_value(),"camera fonts configure");
+    require(elysia::io::PathManager::instance()->initialize(ELYSIA_SOURCE_DIR),"camera paths initialize");
+    auto* localization=elysia::localization::LocalizationManager::instance();
+    require(localization->initialize(fixture.renderer(),std::filesystem::path(ELYSIA_SOURCE_DIR)/"assets/configs/manifests/i18n_manifest.json","en",&fonts).has_value(),"camera text initializes");
+    elysia::io::ContentRegistry registry;
+    elysia::scene::SceneRuntimeContext context(fixture.renderer(),registry,1280,720,&fonts);
+    elysia::scene::SceneManager service_owner;service_owner.initialize(context);
+    (void)elysia::gameplay::ControllerService::instance()->begin_session();
+    {
+        example::scene::CameraShowcaseScene scene;
+        Access::bind(scene,context);Access::attach(scene);
+        CameraManager::instance()->set_center(CameraSlot::Auxiliary1,{321,456});
+        Access::enter(scene,example::scene::ShowcaseEnterPayload{{.target=1}});
+        auto& runtime=Access::camera_runtime(scene);
+        const auto step=[&](double seconds){Access::update(scene,seconds);};
+        const auto run=[&](double seconds){for(int i=0;i<int(seconds*60);++i)step(1.0/60);};
+        const auto capture=[&](const std::string& name) {
+            if(const char* directory=SDL_getenv("ELYSIA_CAMERA_QA_DIR")) {
+                SDL_SetRenderDrawColor(fixture.renderer(),20,24,32,255);SDL_RenderClear(fixture.renderer());Access::render(scene,fixture.renderer());
+                std::filesystem::create_directories(directory);auto* pixels=SDL_RenderReadPixels(fixture.renderer(),nullptr);
+                require(pixels!=nullptr,"camera phase capture has pixels");require(IMG_SavePNG(pixels,(std::filesystem::path(directory)/(name+".png")).string().c_str()),"camera phase capture saves");SDL_DestroySurface(pixels);
+            }
+        };
+
+        for(const auto mode:{FollowMode::Hard,FollowMode::Smooth,FollowMode::DeadZone,FollowMode::MultiTarget}) {
+            scene.perform(CameraAction::Strategy);require(scene.state().strategy==mode,"all four follow modes cycle in order");
+            step(0);require(runtime.slot_camera(CameraSlot::Main).zoom()==1,"strategy changes reset zoom");
+        }
+        scene.perform(CameraAction::Edge);run(1);
+        require(scene.state().bounds,"edge preset enables real world bounds");
+        const auto view=runtime.slot_camera(CameraSlot::Main).view_rect();
+        require(view.right()<=900.01f && view.bottom()<=700.01f,"camera remains inside the configured world boundary");
+        scene.select_page(CameraPage::Motion);
+        const auto key=[&](elysia::input::RawInputControl control) {
+            elysia::tests::InputSnapshotBuilder input;
+            input.press(control,true);Access::input(scene,input.take());
+            input.press(control,false);Access::input(scene,input.take());
+        };
+        key(elysia::input::RawInputControl::KeyDown);key(elysia::input::RawInputControl::KeyEnter);
+        require(scene.state().motion.has_value(),"keyboard focus navigation and confirm invoke the same Move action");
+        scene.perform(CameraAction::Reset);
+        scene.perform(CameraAction::Teleport); // Hidden page action.
+        require(Access::game_object(scene,1)->center()==elysia::core::Vector2{120,0},"hidden follow actions cannot mutate targets");
+        for(int easing=0;easing<3;++easing) {
+            scene.perform(CameraAction::Reset);for(int i=0;i<easing;++i)scene.perform(CameraAction::Easing);
+            scene.perform(CameraAction::EndBehavior);scene.perform(CameraAction::Move);const auto start=scene.camera().center();
+            step(.25);const auto pose=scene.camera().center();
+            const auto fraction=static_cast<float>(apply_camera_easing(scene.state().easing,.25));
+            require(std::abs(pose.x-(start.x+400*fraction))<.01f,"move uses selected easing");
+            scene.perform(CameraAction::Pause);step(.5);require(scene.camera().center()==pose,"paused move preserves its pose");
+            scene.perform(CameraAction::Resume);step(.75);
+            require(runtime.motion_state(*scene.state().motion)==CameraMotionState::Holding,"move ends in an owned Hold");
+            scene.perform(CameraAction::Cancel);require(!scene.state().motion,"cancel releases held movement");
+        }
+        scene.perform(CameraAction::Reset);scene.perform(CameraAction::EndBehavior);scene.perform(CameraAction::Path);
+        const auto origin=scene.camera().center();step(1);require(scene.camera().center()==origin+elysia::core::Vector2{400,0},"path reaches first waypoint");
+        step(1);require(scene.camera().center()==origin+elysia::core::Vector2{400,240},"path reaches second waypoint");
+        step(1);require(scene.camera().center()==origin,"path returns to its origin");
+        capture("motion_path_hold");
+        scene.perform(CameraAction::Follow);require(!scene.state().motion,"restore follow releases held path");
+        scene.perform(CameraAction::EndBehavior);scene.perform(CameraAction::Move);step(1);require(!scene.state().motion,"ResumeFollow releases completed motion");
+        step(.1);require(scene.camera().center().x<400,"normal following resumes after movement completion");
+        scene.select_page(CameraPage::Follow);scene.perform(CameraAction::Automatic);
+        scene.select_page(CameraPage::Cinematic);scene.perform(CameraAction::Play);
+        require(scene.state().saved_automatic && !scene.state().automatic,"cinematic saves and freezes automatic movement");
+        run(6);require(scene.state().automatic && !scene.state().frozen,"return restores the previous automatic movement setting");
+        for(const auto phase:{CinematicPhase::Entering,CinematicPhase::Touring,CinematicPhase::Holding,CinematicPhase::Returning}) {
+            scene.perform(CameraAction::Reset);scene.perform(CameraAction::Play);
+            for(int i=0;i<400 && scene.state().phase!=phase;++i)step(1.0/60);
+            require(scene.state().phase==phase,"cinematic reaches each phase via completion events");
+            capture("cinematic_phase_"+std::to_string(static_cast<int>(phase)));
+            scene.perform(CameraAction::Pause);const auto pose=scene.camera().center();const auto zoom=scene.camera().zoom();
+            const auto actor=Access::game_object(scene,0)->center();
+            elysia::tests::InputSnapshotBuilder input;input.press(elysia::input::RawInputControl::KeyD,true);input.press(elysia::input::RawInputControl::KeyE,true);
+            Access::input(scene,input.take());run(.5);
+            require(scene.state().phase==phase && scene.camera().center()==pose && scene.camera().zoom()==zoom,"pause freezes blend, path, hold and return presentation");
+            require(Access::game_object(scene,0)->center()==actor,"cinematic gates actor commands while preserving bindings");
+            input.press(elysia::input::RawInputControl::KeyD,false);input.press(elysia::input::RawInputControl::KeyE,false);Access::input(scene,input.take());
+            scene.perform(CameraAction::Resume);scene.perform(CameraAction::Skip);run(1);
+            require(scene.state().phase==CinematicPhase::Idle && !scene.state().frozen && runtime.presented_slot()==CameraSlot::Main,"skip from any phase returns to Main and restores actors");
+        }
+        scene.perform(CameraAction::Play);run(6);require(scene.state().phase==CinematicPhase::Idle,"full show automatically returns after its hold");
+        const auto restored=Access::game_object(scene,0)->center();
+        elysia::tests::InputSnapshotBuilder movement;movement.press(elysia::input::RawInputControl::KeyD,true);Access::input(scene,movement.take());run(.5);
+        require(Access::game_object(scene,0)->center().x>restored.x+100,"original control binding resumes after cinematic completion");
+        movement.press(elysia::input::RawInputControl::KeyD,false);Access::input(scene,movement.take());
+
+        scene.perform(CameraAction::Cut);require(runtime.presented_slot()==CameraSlot::Cinematic && scene.state().frozen,"manual cut freezes actors and presents Cinematic");
+        scene.perform(CameraAction::Return);run(1);scene.perform(CameraAction::Blend);run(1);
+        require(scene.state().phase==CinematicPhase::Manual,"manual blend stops at the Cinematic view");
+        scene.perform(CameraAction::Replay);run(1);require(scene.state().phase==CinematicPhase::Touring,"replay replaces manual view with a fresh show");
+        scene.select_page(CameraPage::Follow);require(!scene.state().motion && !scene.state().blend && !scene.state().frozen,"switching pages cancels all cinematic activity");
+        scene.select_page(CameraPage::Cinematic);scene.perform(CameraAction::Play);step(.2);
+        Access::exit(scene);require(!scene.state().motion && !scene.state().blend && !scene.state().frozen,"exit cleans up running show");
+        Access::detach(scene);Access::attach(scene);Access::enter(scene,example::scene::ShowcaseEnterPayload{{.target=1}});
+        require(scene.state().page==CameraPage::Follow && scene.camera().zoom()==1,"reentry restores the default page and pose");
+        require(CameraManager::instance()->camera(CameraSlot::Auxiliary1).center()==elysia::core::Vector2{321,456},"showcase does not alter unowned auxiliary slots");
+        Access::exit(scene);Access::detach(scene);Access::reset(scene);
+    }
+    require(service_owner.shutdown(),"camera test services shut down");localization->shutdown();fonts.shutdown();builtin->shutdown();
+}
+
 void test_escape_returns_the_full_caller_route()
 {
     SdlFixture fixture;
@@ -321,8 +563,7 @@ void test_escape_returns_the_full_caller_route()
     require(builtin_resources.initialize(
                 fixture.renderer(),
                 elysia::builtin::BuiltinAssetCatalog(std::filesystem::path{ ELYSIA_SOURCE_DIR }),
-                resolved_font_settings->engine_point_sizes(),
-                {})
+                resolved_font_settings->engine_point_sizes())
                 .has_value(),
         "Engine test scene tests must initialize built-in resources");
 
@@ -367,6 +608,7 @@ void test_escape_returns_the_full_caller_route()
     elysia::io::ContentRegistry registry;
     elysia::scene::SceneRuntimeContext context(
         fixture.renderer(),registry,1280,720,&font_resolver);
+    test_combat_effects(context);
     elysia::scene::SceneManager scene_manager;
     scene_manager.initialize(context);
     scene_manager.register_game_scene<example::scene::ShowcaseGalleryScene>(
@@ -375,8 +617,8 @@ void test_escape_returns_the_full_caller_route()
         example::scene_keys::UiComponentGallery);
     scene_manager.register_game_scene<example::scene::EffectsShowcaseScene>(
         example::scene_keys::EffectsShowcase);
-    scene_manager.register_game_scene<example::scene::MultiTargetCameraScene>(
-        example::scene_keys::MultiTargetCamera);
+    scene_manager.register_game_scene<example::scene::CameraShowcaseScene>(
+        example::scene_keys::CameraShowcase);
     scene_manager.register_game_scene<example::scene::LocalMultiplayerScene>(
         example::scene_keys::LocalMultiplayer);
     scene_manager.register_game_scene<FirstReturnScene>(1);
@@ -629,7 +871,7 @@ void test_escape_returns_the_full_caller_route()
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyDown);
         press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyEnter);
-        require(scene_manager.current_scene_key() == example::scene_keys::MultiTargetCamera,
+        require(scene_manager.current_scene_key() == example::scene_keys::CameraShowcase,
             "Down after returning to Gallery must open the next menu entry");
         send_escape(scene_manager);
         require(scene_manager.current_scene_key() == example::scene_keys::ShowcaseGallery,
@@ -691,7 +933,7 @@ void test_escape_returns_the_full_caller_route()
     auto enter_camera = [&] {
         scene_manager.on_scene_request(elysia::scene::SceneRequest{
             .type = elysia::scene::SceneRequestType::Switch,
-            .route = {.target = example::scene_keys::MultiTargetCamera,
+            .route = {.target = example::scene_keys::CameraShowcase,
                 .payload = example::scene::ShowcaseEnterPayload{.return_route = original_caller},
                 .reload_mode = elysia::scene::SceneReloadMode::Reuse}});
         scene_manager.on_update(0);
@@ -717,7 +959,7 @@ void test_escape_returns_the_full_caller_route()
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() > 1.9f,
         "demo close targets must zoom in after the settle delay");
     render_camera("01b_zoomed_in");
-    click_mouse(scene_manager, 1130, 110);
+    click_mouse(scene_manager, 995, 678);
     elysia::input::RawInputFrame movement;
     movement.state.set_pressed(elysia::input::RawInputControl::KeyD, true);
     scene_manager.on_input(elysia::tests::events_snapshot({{.control=elysia::input::RawInputControl::KeyD,.type=elysia::input::RawInputEventType::ControlPressed}}));
@@ -725,8 +967,8 @@ void test_escape_returns_the_full_caller_route()
     require(cameras->camera(elysia::camera::CameraSlot::Main).center().x > 100,
         "WASD movement must move the tracked primary and its camera");
     scene_manager.on_input(elysia::tests::events_snapshot({}));
-    click_mouse(scene_manager, 1130, 110);
-    click_mouse(scene_manager, 614, 110); // Teleport the secondary target.
+    click_mouse(scene_manager, 995, 678);
+    click_mouse(scene_manager, 1116, 154); // Teleport the secondary target.
     scene_manager.on_update(0.1);
     const float first_zoom = cameras->camera(elysia::camera::CameraSlot::Main).zoom();
     require(first_zoom > 0.5f && first_zoom < 1,
@@ -736,21 +978,21 @@ void test_escape_returns_the_full_caller_route()
     require(std::abs(cameras->camera(elysia::camera::CameraSlot::Main).zoom() - 0.5f) < 0.001f,
         "demo must settle at minimum zoom when targets separate too far");
     render_camera("03_primary_only");
-    click_mouse(scene_manager, 1130, 110); // Reset.
+    click_mouse(scene_manager, 995, 678); // Reset.
     scene_manager.on_update(0);
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1,
         "demo reset must restore initial zoom");
-    click_mouse(scene_manager, 786, 110); // Manual zoom.
+    click_mouse(scene_manager, 145, 202); // Manual zoom.
     scene_manager.on_update(1);
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1.5f,
         "demo manual zoom must own its completion frame");
-    click_mouse(scene_manager, 98, 110); // DeadZone off.
-    click_mouse(scene_manager, 270, 110); // Swap primary.
-    click_mouse(scene_manager, 958, 110); // Bounds on.
+    click_mouse(scene_manager, 390, 154); // DeadZone off.
+    click_mouse(scene_manager, 632, 154); // Swap primary.
+    click_mouse(scene_manager, 390, 202); // Bounds on.
     scene_manager.on_update(0.1);
     render_camera("04_controls");
-    click_mouse(scene_manager, 1130, 110);
-    click_mouse(scene_manager, 442, 110); // Automatic separation and reunion.
+    click_mouse(scene_manager, 995, 678);
+    click_mouse(scene_manager, 874, 154); // Automatic separation and reunion.
     for (int frame = 0; frame < 900; ++frame) scene_manager.on_update(1.0 / 60.0);
     render_camera("05_reunion");
     send_escape(scene_manager);
@@ -760,6 +1002,19 @@ void test_escape_returns_the_full_caller_route()
     require(cameras->camera(elysia::camera::CameraSlot::Main).zoom() == 1,
         "camera demo re-entry must reset camera state");
     render_camera("06_reentry");
+    for(const auto reload:{elysia::scene::SceneReloadMode::Reset,elysia::scene::SceneReloadMode::Recreate}) {
+        press_and_release_key(scene_manager,elysia::input::RawInputControl::KeyF3);
+        click_mouse(scene_manager,880,154); // Start cinematic through the view callback.
+        scene_manager.on_update(.2);
+        send_escape(scene_manager);
+        require(scene_manager.current_scene_key()==1 && FirstReturnScene::marker==41,"Escape during a blend preserves return payload");
+        scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,
+            .route={.target=example::scene_keys::CameraShowcase,.payload=example::scene::ShowcaseEnterPayload{original_caller},.reload_mode=reload}});
+        scene_manager.on_update(0);
+        require(cameras->camera(elysia::camera::CameraSlot::Main).zoom()==1 && cameras->camera(elysia::camera::CameraSlot::Cinematic).zoom()==1,
+            "Reset and Recreate clear both camera slots after interrupted cinematic");
+    }
+
     scene_manager.on_scene_request(elysia::scene::SceneRequest{
         .type = elysia::scene::SceneRequestType::Switch,
         .route = {.target = example::scene_keys::LocalMultiplayer,
@@ -833,8 +1088,8 @@ void test_escape_returns_the_full_caller_route()
             "Mouse ownership can be transferred from the shared UI");
 
     auto* controls=elysia::gameplay::ControllerService::instance();
-    auto first_controller=example::input::session_player(elysia::input::PrimaryLocalPlayer);
-    auto second_controller=example::input::session_player(owner);
+    auto first_controller=example::gameplay::session_player(elysia::input::PrimaryLocalPlayer);
+    auto second_controller=example::gameplay::session_player(owner);
     scene_manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route=original_caller});
     scene_manager.on_update(0);
     require(controls->get(first_controller) && !controls->describe(first_controller)->bound &&
@@ -935,6 +1190,7 @@ int main()
 #endif
     test_engine_feature_overlay_cycle();
     test_payload_contract_names_each_scene();
+    test_camera_showcase_controls();
     test_escape_returns_the_full_caller_route();
     test_runtime_demo_sources_do_not_retain_legacy_names();
     return EXIT_SUCCESS;

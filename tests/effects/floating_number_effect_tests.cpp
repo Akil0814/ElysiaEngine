@@ -113,8 +113,7 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*path_manager),
-        resolved_font_settings->engine_point_sizes(),
-        {}).has_value(),
+        resolved_font_settings->engine_point_sizes()).has_value(),
         "floating number tests must initialize built-in fonts");
     typography::FontResolver font_resolver;
     require(localization_manager->initialize(

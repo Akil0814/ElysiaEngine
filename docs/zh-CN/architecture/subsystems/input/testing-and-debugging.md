@@ -3,6 +3,7 @@
 ## 自动化验证
 
 - `input_regression_tests`：小幅轴捕获、const 门控查询、浮点滚轮、映射校验、单次取消、安全换绑、操作覆盖、延迟映射与请求终结。
+- `input_safety_tests`：UI 分发中新增与移除接收器、对象地址复用、延迟提交回调异常、操作终态、批量会话/暂停/上下文清理、多玩家和 UI 取消失败、路由失败后的待提交取消、析构资源关闭、渲染后端错误优先级、批量配置后的分区 ID 分配及快捷帧设备范围。
 - `controller_runtime_tests`：显式会话、作用域、上下文代次、回调内修改、自定义来源、映射替换及鼠标增量；键盘分区冲突、配置版本、映射权限和鼠标转移。
 - `input_system_controller_lifecycle_tests`：多个手柄按钮、摇杆、扳机独立；键鼠并行；移除与失焦通知。
 - `gameplay_scene_input_tests`：玩家绑定、目标排他性、快速点按、零／多 tick、屏蔽恢复、重绑、销毁、队列溢出与物理步前回调。
@@ -11,7 +12,7 @@
 - 原有指针坐标、UI、场景、物理及角色测试继续覆盖迁移后的调用关系。
 
 ```powershell
-ctest --test-dir out/build/physics-scenarios-msvc -C Debug -L input --output-on-failure
+ctest --test-dir out/build/sdl3-Debug -L input --output-on-failure
 ```
 
 自动测试通过可控 SDL 输入事件复现多设备，不需要真实手柄。真实双手柄验收需要另行在硬件上确认，不能用合成输入测试替代实机结论。

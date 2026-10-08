@@ -27,13 +27,12 @@
 #include "../input/local_player_registry.h"
 #include "../input/raw_input_frame.h"
 #include "../input/raw_input_types.h"
-#include "../input/scene_input_router.h"
+#include "input/scene_input_router.h"
 #include "../object_query/runtime/game_object_query_runtime.h"
 #include "../physics/physics_world.h"
 #include "../ui/core/ui_element.h"
 #include "../ui/input/contracts/ui_input_event_receiver.h"
 #include "../ui/input/contracts/ui_input_frame_receiver.h"
-#include "../ui/input/ui_input_router.h"
 
 namespace elysia::scene
 {
@@ -68,7 +67,7 @@ public:
 
     void set_ui_gamepad(elysia::input::InputSourceId source) { _input_router.set_ui_gamepad(source); }
     [[nodiscard]] elysia::input::InputSourceId ui_gamepad() const { return _input_router.ui_gamepad(); }
-    void set_ui_interaction_mode(elysia::input::UiInteractionMode mode)
+    void set_ui_interaction_mode(elysia::scene::UiInteractionMode mode)
     {
         _input_router.set_ui_interaction_mode(mode);
     }
@@ -107,6 +106,7 @@ public:
         static_assert(std::is_base_of_v<elysia::core::GameObject, T> ||
                           std::is_base_of_v<elysia::ui::UiElement, T>,
                       "T must derive from GameObject or UiElement.");
+        require_object_addition_allowed();
         return add_object(std::make_unique<T>(std::forward<Args>(args)...));
     }
 
@@ -119,11 +119,10 @@ public:
 
         if (!object)
             return nullptr;
-        if (_retiring_objects || _lifecycle_state == SceneLifecycleState::PreparingDestruction ||
-            _lifecycle_state == SceneLifecycleState::PreparedForDestruction)
-        {
-            throw std::logic_error("Scene objects cannot be added while the scene is tearing down.");
-        }
+        require_object_addition_allowed();
+        // Registration callbacks may add other objects, but cannot retire the
+        // object whose interfaces are still being registered or rolled back.
+        const ObjectMutationScope registration_scope(*this, "object registration", false);
 
         T* raw_object = object.get();
         bool added = false;
@@ -191,7 +190,7 @@ protected:
     virtual void on_runtime_reset() {}
     [[nodiscard]] virtual double fixed_step_frame_delta(double delta) const { return delta; }
 
-    elysia::input::SceneInputRouter& input_router() noexcept { return _input_router; }
+    elysia::scene::SceneInputRouter& input_router() noexcept { return _input_router; }
     [[nodiscard]] bool owns_object(const elysia::core::SceneObject&) const;
     [[nodiscard]] bool contains_object_address(const elysia::core::SceneObject*) const;
     void clear_scene_objects();
@@ -236,7 +235,7 @@ protected:
     bool _paused = false;
 
 private:
-    friend class elysia::input::SceneInputRouter;
+    friend class elysia::scene::SceneInputRouter;
     friend class SceneFactory;
     friend class SceneManager;
     friend class SceneTestAccess;
@@ -254,13 +253,32 @@ private:
     void bind_runtime_context(const SceneRuntimeContext& context) noexcept;
     void clear_runtime_context() noexcept;
     void set_local_players(elysia::input::LocalPlayerRegistry& players) noexcept { _players = &players; }
-    void set_ui_device_access(elysia::input::UiDeviceAccess& access) noexcept
+    void set_ui_device_access(elysia::scene::UiDeviceAccess& access) noexcept
     {
         _input_router.set_ui_access(access);
     }
     void reset_input_routing();
     void cancel_camera_activity() noexcept;
     void reset_camera_runtime() noexcept;
+
+    class ObjectMutationScope final
+    {
+    public:
+        ObjectMutationScope(const Scene& scene, const char* phase,
+                            bool block_additions = true) noexcept;
+        ~ObjectMutationScope();
+        ObjectMutationScope(const ObjectMutationScope&) = delete;
+        ObjectMutationScope& operator=(const ObjectMutationScope&) = delete;
+
+    private:
+        const Scene& _scene;
+        const char* _previous_addition_phase;
+        const char* _previous_removal_phase;
+        bool _block_additions;
+    };
+
+    void require_object_addition_allowed() const;
+    void require_object_removal_allowed() const;
 
     void visit_game_objects(elysia::core::DepthLayerMask layers,
                             const elysia::object_query::GameObjectVisitor& visitor) const override;
@@ -282,11 +300,13 @@ private:
     {
         elysia::core::SceneObject* object = nullptr;
         elysia::ui::UiInputFrameReceiver* receiver = nullptr;
+        std::uint64_t registration = 0;
     };
     struct UiInputEventReceiverEntry
     {
         elysia::core::SceneObject* object = nullptr;
         elysia::ui::UiInputEventReceiver* receiver = nullptr;
+        std::uint64_t registration = 0;
     };
     struct PhysicsRegistrationEntry
     {
@@ -306,14 +326,19 @@ private:
     std::vector<UpdatableEntry> _updatables;
     std::vector<UiInputFrameReceiverEntry> _ui_frame_receivers;
     std::vector<UiInputEventReceiverEntry> _ui_event_receivers;
+    std::uint64_t _next_input_registration = 1;
     std::vector<PhysicsRegistrationEntry> _physics_registrations;
 
     elysia::input::LocalPlayerRegistry _standalone_players;
     elysia::input::LocalPlayerRegistry* _players = &_standalone_players;
-    elysia::input::SceneInputRouter _input_router{*this};
+    elysia::scene::SceneInputRouter _input_router{*this};
     const SceneRuntimeContext* _runtime_context = nullptr;
     SceneLifecycleState _lifecycle_state = SceneLifecycleState::Inactive;
     bool _retiring_objects = false;
     bool _runtime_services_attached = false;
+    mutable std::uint32_t _object_addition_block_depth = 0;
+    mutable std::uint32_t _object_removal_block_depth = 0;
+    mutable const char* _object_addition_phase = nullptr;
+    mutable const char* _object_removal_phase = nullptr;
 };
 } // namespace elysia::scene

@@ -22,24 +22,6 @@ public:
         _axes.fill(0.0f);
     }
 
-    void clear_keyboard()
-    {
-        clear_control_range(RawInputControl::KeyA, RawInputControl::KeyF12);
-    }
-
-    void clear_pointer()
-    {
-        clear_control_range(RawInputControl::MouseLeft, RawInputControl::MouseX2);
-    }
-
-    void clear_gamepad()
-    {
-        clear_control_range(
-            RawInputControl::GamepadSouth,
-            RawInputControl::GamepadTouchpad);
-        _axes.fill(0.0f);
-    }
-
     void clear_control(RawInputControl control)
     {
         if (!is_trackable_control(control)) return;
@@ -110,19 +92,6 @@ public:
     }
 
 private:
-    void clear_control_range(
-        RawInputControl first,
-        RawInputControl last)
-    {
-        const std::size_t begin = index(first);
-        const std::size_t end = index(last);
-        for (std::size_t i = begin; i <= end; ++i)
-        {
-            _current[i] = false;
-            _previous[i] = false;
-        }
-    }
-
     static constexpr bool is_trackable_control(RawInputControl control)
     {
         return is_keyboard_control(control)

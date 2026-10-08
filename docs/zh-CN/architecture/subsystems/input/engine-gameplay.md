@@ -2,7 +2,7 @@
 
 ## 游戏 API
 
-[ControllerService](../../../engine/gameplay/control/controller_service.h) 是游戏侧单例入口。Manager 是唯一所有者；Service 不另存实例或自行调度。
+[ControllerService](../../../../../engine/gameplay/control/controller_service.h) 是游戏侧单例入口。Manager 是唯一所有者；Service 不另存实例或自行调度。
 
 | 接口 | 用途 |
 | --- | --- |
@@ -23,7 +23,7 @@ ControllerCreateInfo 显式给出 Scene 或 Session 作用域；Scene 还需 con
 
 角色实现 `ControlCommandReceiver::on_control_command(command, fixed_delta)` 和 `on_control_cancelled(reason)`。取消用于清除移动、蓄力等意图，不当作正常松键释放攻击。
 
-引擎没有固定 Move／Jump／Attack 访问器。演示使用游戏层 [CommandView](../../../game/input/command_view.h) 提供便捷读取。内置 EngineCharacter 的构造函数显式接收移动动作 ID，不依赖演示动作集合。
+引擎没有固定 Move／Jump／Attack 访问器。演示使用游戏层 [CommandView](../../../../../game/gameplay/control/command_view.h) 提供便捷读取。内置 EngineCharacter 的构造函数显式接收移动动作 ID，不依赖演示动作集合。
 
 物理角色在命令入口写入意图，在物理参与者 fixed_update 中施力；非物理角色可在命令入口按固定 delta 移动。动画等 Updatable 保持变步长，不重复移动。
 
@@ -69,5 +69,7 @@ if (pending_binding && !pending_binding->pending()) {
 ```
 
 同一控制器的有效换绑／解绑请求覆盖尚未提交的旧目标请求，旧请求以 Superseded 失败；被拒绝的新请求不覆盖旧请求。映射替换按 FIFO 提交。目标和玩家排他性在排队期间同样保留。等待期间控制器被移除时，请求以 InvalidHandle 失败；上下文失效返回 InvalidContext，目标移除返回 InvalidTarget，会话结束返回 NoSession；所有待执行请求均会终结。
+
+提交回调抛异常时，操作以 CallbackFailed 失败并解除受影响绑定；同一控制器的其他待提交操作也失败，其他控制器的请求继续提交。原始异常和后续清理异常随后进入场景失败边界，保留渲染后端失败的优先级。end_session 完成全部失效与清理后才传播通知异常；回调内重开会话返回 SessionEnding。
 
 结果对象只共享小型状态，不持有控制器或场景；丢弃结果不撤销操作，已完成结果可跨会话继续查询。无全局历史表或完成回调。取消期间拒绝 submit；观察映射或生产意图期间若发生取消，该次旧输入不会重新写入命令缓存。

@@ -70,8 +70,7 @@ void test_text_input_uses_private_editing_texture()
     require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*path_manager),
-        resolved_font_settings->engine_point_sizes(),
-        {}).has_value(),
+        resolved_font_settings->engine_point_sizes()).has_value(),
         "text input texture test must initialize built-in fonts");
     typography::FontResolver font_resolver;
 

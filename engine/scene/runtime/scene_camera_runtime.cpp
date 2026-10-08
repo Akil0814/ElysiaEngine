@@ -240,7 +240,8 @@ SceneCameraUpdateResult SceneCameraRuntime::advance(double delta_seconds)
     for (const auto& completion : result.motions)
     {
         const auto index = slot_index(completion.slot);
-        if (_motions[index] && *_motions[index] == completion.id)
+        if (_motions[index] && *_motions[index] == completion.id
+            && !manager->camera_motion_state(completion.id))
             _motions[index].reset();
     }
     for (auto& motion : _motions)
@@ -302,9 +303,12 @@ void SceneCameraRuntime::advance(
 void SceneCameraRuntime::cancel_activity() noexcept
 {
     _blend.reset();
-    elysia::camera::CameraManager::instance()->cancel_camera_motions(_config.owned_slots);
     for (auto& motion : _motions)
+    {
+        if (motion)
+            (void)elysia::camera::CameraManager::instance()->cancel_camera_motion(*motion);
         motion.reset();
+    }
 }
 
 void SceneCameraRuntime::reset() noexcept

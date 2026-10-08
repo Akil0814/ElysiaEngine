@@ -1,6 +1,6 @@
 #include "engine/localization/localization_service.h"
-#include "game/input/local_controls.h"
-#include "game/input/command_view.h"
+#include "game/gameplay/control/local_controls.h"
+#include "game/gameplay/control/command_view.h"
 #include "game/showcase/input/local_multiplayer_scene.h"
 #include "game/showcase/shared/showcase_enter_payload.h"
 #include <stdexcept>
@@ -28,7 +28,7 @@ class PlayerBlock final : public example::showcase::ColoredBlockObject,
     }
     void on_control_command(const elysia::gameplay::ControlCommand &command, double dt) override
     {
-        auto move = example::input::CommandView(command).move();
+        auto move = example::gameplay::CommandView(command).move();
         if (move.length_squared() > 1)
             move.normalize_in_place();
         auto p = position() + move * static_cast<float>(220 * dt);
@@ -71,11 +71,11 @@ void LocalMultiplayerScene::on_enter(const elysia::scene::ScenePayload &payload)
         if (!_second_player.value)
             _second_player = local_players().create_player();
     }
-    previous_first_controller = example::input::existing_session_player(PrimaryLocalPlayer);
-    previous_second_controller = example::input::existing_session_player(_second_player);
-    _first_controller = example::input::session_player(PrimaryLocalPlayer);
+    previous_first_controller = example::gameplay::existing_session_player(PrimaryLocalPlayer);
+    previous_second_controller = example::gameplay::existing_session_player(_second_player);
+    _first_controller = example::gameplay::session_player(PrimaryLocalPlayer);
     acquired_first_controller = true;
-    _second_controller = example::input::session_player(_second_player);
+    _second_controller = example::gameplay::session_player(_second_player);
     acquired_second_controller = true;
     if (!_saved_devices)
     {
@@ -213,7 +213,7 @@ void LocalMultiplayerScene::on_exit()
 }
 void LocalMultiplayerScene::open_menu()
 {
-    set_ui_interaction_mode(UiInteractionMode::Navigation);
+    set_ui_interaction_mode(elysia::scene::UiInteractionMode::Navigation);
     _window->open_overlay(*_view.menu);
     set_all_gameplay_input_blocked(true);
 }
@@ -222,7 +222,7 @@ void LocalMultiplayerScene::close_menu()
     if (_window && _view.menu)
         _window->close_overlay(*_view.menu);
     set_all_gameplay_input_blocked(false);
-    set_ui_interaction_mode(UiInteractionMode::Pointer);
+    set_ui_interaction_mode(elysia::scene::UiInteractionMode::Pointer);
 }
 bool LocalMultiplayerScene::on_unassigned_input(const RawInputEvent &event)
 {
@@ -258,7 +258,7 @@ void LocalMultiplayerScene::on_before_update(double dt)
     if (_view.menu && !_window->is_overlay_open(*_view.menu))
     {
         set_all_gameplay_input_blocked(false);
-        set_ui_interaction_mode(UiInteractionMode::Pointer);
+        set_ui_interaction_mode(elysia::scene::UiInteractionMode::Pointer);
     }
 }
 

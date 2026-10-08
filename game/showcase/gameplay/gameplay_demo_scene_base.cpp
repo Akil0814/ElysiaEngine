@@ -1,4 +1,4 @@
-#include "game/input/local_controls.h"
+#include "game/gameplay/control/local_controls.h"
 #include "game/showcase/gameplay/gameplay_demo_scene_base.h"
 #include "game/showcase/shared/showcase_layout.h"
 #include "game/navigation/showcase_scene_keys.h"
@@ -98,6 +98,7 @@ void GameplayDemoSceneBase::on_enter(
 
 void GameplayDemoSceneBase::on_exit()
 {
+    _combat.clear_pending_effects();
     unregister_physics_inspector();
     if (_tile_map && physics_world().tile_world() == _tile_map)
         (void)physics_world().clear_tile_world(*_tile_map);
@@ -109,6 +110,7 @@ void GameplayDemoSceneBase::on_exit()
 
 void GameplayDemoSceneBase::on_reset()
 {
+    _combat.clear_pending_effects();
     unregister_physics_inspector();
     _restart_remaining = -1.0;
     _restart_requested = false;
@@ -127,6 +129,7 @@ void GameplayDemoSceneBase::on_after_update(double delta)
 {
     (void)delta;
     if(_demo_paused)pause();
+    _combat.flush_effects();
     _combat.flush_deaths();
     update_hud();
 
@@ -212,7 +215,7 @@ GameplayDemoSceneBase::resolve_camera_focus(elysia::camera::CameraSlot slot) con
 
 
 void GameplayDemoSceneBase::configure_player_controller(example::showcase::gameplay::BlockCombatActor& player) {
-    if(dynamic_cast<elysia::gameplay::ControlCommandReceiver*>(&player)) example::input::configure_scene_player(*this,_controller,player);
+    if(dynamic_cast<elysia::gameplay::ControlCommandReceiver*>(&player)) example::gameplay::configure_scene_player(*this,_controller,player);
 }
 void GameplayDemoSceneBase::set_player(
     example::showcase::gameplay::BlockCombatActor& player) noexcept

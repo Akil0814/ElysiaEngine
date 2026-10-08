@@ -1,5 +1,8 @@
 ﻿include(CMakeParseArguments)
 
+include(scene/compile_scene_documentation.cmake)
+elysia_add_scene_documentation_examples()
+
 function(add_elysia_test TARGET_NAME)
     set(options SDL)
     set(one_value_args LABEL)
@@ -129,6 +132,15 @@ target_compile_definitions(builtin_asset_cache_tests
     PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
 
+add_elysia_test(builtin_music_player_tests
+    LABEL builtin
+    SOURCES builtin/builtin_music_player_tests.cpp
+    SDL
+)
+target_compile_definitions(builtin_music_player_tests
+    PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
+
 add_elysia_test(engine_character_tests
     LABEL builtin
     SOURCES builtin/engine_character_tests.cpp
@@ -142,6 +154,7 @@ target_compile_definitions(engine_character_tests
 foreach(INPUT_TEST_TARGET IN ITEMS
     controller_runtime_tests
     input_regression_tests
+    input_safety_tests
     development_input_capture_tests
     input_action_mapping_tests
     input_system_controller_lifecycle_tests
@@ -236,6 +249,18 @@ add_elysia_test(scene_lifecycle_regression_tests
 add_elysia_test(scene_factory_failure_tests
     LABEL scene
     SOURCES scene/scene_factory_failure_tests.cpp
+)
+
+add_elysia_test(scene_mutation_tests
+    LABEL scene
+    SOURCES scene/scene_mutation_tests.cpp
+    SDL
+)
+
+add_elysia_test(scene_recovery_tests
+    LABEL scene
+    SOURCES scene/scene_recovery_tests.cpp
+    SDL
 )
 
 add_elysia_test(game_object_query_tests

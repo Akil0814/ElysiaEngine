@@ -61,9 +61,11 @@ void on_shortcuts(const elysia::input::RawInputFrame&,
 }
 ```
 
-UI 优先处理输入，消费与捕获影响后续玩法路由。`consume_input` 使用当前事件，不伪造 routing id。`set_shortcut_devices(InputCapture)` 设置快捷键设备范围；`set_ui_gamepad` 选择公共 UI 手柄；`set_ui_interaction_mode` 设置 UI 模式。`set_all_gameplay_input_blocked(true)` 可临时阻断玩法输入，恢复时显式设回 false。
+UI 优先处理输入，消费与捕获影响后续玩法路由。`consume_input` 使用当前事件，不伪造 routing id。`set_shortcut_devices(InputCapture)` 同时限制快捷帧状态和事件的设备范围；`set_ui_gamepad` 选择公共 UI 手柄；`set_ui_interaction_mode` 设置 UI 模式。`set_all_gameplay_input_blocked(true)` 可临时阻断玩法输入，恢复时显式设回 false。UI 输入回调新增接收器从下一次分发开始参与，当前登记快照不会因对象新增或销毁而失效。
 
 UI 焦点、模态窗口和详细控件用法见 [UI](../ui/README.md)。不要绕过路由从全局原始输入再次执行已被 UI 消费的攻击。输入系统将窗口指针坐标转换为逻辑渲染坐标；世界瞄准仍需[相机转换](camera.md)。
+
+场景 UI 模式枚举位于 `elysia::scene`，例如 `set_ui_interaction_mode(elysia::scene::UiInteractionMode::Navigation)`。场景输入协调实现位于 `engine/scene/input/`，基础输入和动作映射继续位于 `engine/input/`。
 
 ## 本地玩家与设备归属
 

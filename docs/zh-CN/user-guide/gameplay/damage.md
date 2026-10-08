@@ -91,6 +91,10 @@ namespace damage_example {
 class DamageScene final : public elysia::gameplay::GameplayScene,
                           private gc::GameplayCollisionListener {
 public:
+    DamageScene() : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+        .physics = ph::PhysicsWorldConfig{},
+        .gameplay_collision = true,
+        .camera = elysia::scene::CameraSceneConfig{}}) {}
     ~DamageScene() override { teardown(); }
     void on_enter(const elysia::scene::ScenePayload&) override {
         if (!attacker_) attacker_ = create_and_add_object<Fighter>(
@@ -114,15 +118,14 @@ public:
         queued_ = true;
     }
     void on_exit() override { teardown(); }
-    void reset() override {
+    void on_reset() override {
         teardown();
         if (attacker_) attacker_->reset();
         if (defender_) defender_->reset();
     }
     void queue_attack() { if (listening_) queued_ = true; }
-    void on_update(double delta) override {
-        Scene::on_update(delta);
-        // 此时物理回调与对象清理已完成；只使用队列中的值，不保存受击者指针。
+    void on_after_update(double) override {
+        // 此时物理回调已完成，标记对象尚待末尾回收；仅保存反馈值，不保存受击者指针。
         for (const auto& feedback : feedback_) {
             ELYSIA_LOG_INFO("combat", "Actor " << feedback.target
                 << " took " << feedback.damage << ", hp=" << feedback.remaining_hp);

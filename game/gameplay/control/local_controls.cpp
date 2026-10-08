@@ -1,17 +1,27 @@
-#pragma once
-#include "game/input/gameplay_input_map.h"
-#include "game/input/gameplay_actions.h"
+#include "local_controls.h"
 #include "engine/gameplay/scene/gameplay_scene.h"
 #include <map>
-#include <optional>
 #include <stdexcept>
-namespace example::input
+#include <utility>
+
+namespace example::gameplay
 {
-inline void configure_scene_player(elysia::gameplay::GameplayScene &scene,
-                                   elysia::gameplay::ControllerHandle &handle,
-                                   elysia::core::GameObject &target,
-                                   elysia::input::LocalPlayerId player = elysia::input::PrimaryLocalPlayer,
-                                   elysia::input::InputActionMap map = make_gameplay_input_map())
+namespace
+{
+// Game-owned session choices survive scene recreation; expired engine handles are replaced.
+std::map<elysia::input::LocalPlayerId, elysia::gameplay::ControllerHandle>&
+session_player_handles()
+{
+    static std::map<elysia::input::LocalPlayerId, elysia::gameplay::ControllerHandle> players;
+    return players;
+}
+} // namespace
+
+void configure_scene_player(elysia::gameplay::GameplayScene &scene,
+                            elysia::gameplay::ControllerHandle &handle,
+                            elysia::core::GameObject &target,
+                            elysia::input::LocalPlayerId player,
+                            elysia::input::InputActionMap map)
 {
     using namespace elysia::gameplay;
     auto *service = ControllerService::instance();
@@ -26,14 +36,7 @@ inline void configure_scene_player(elysia::gameplay::GameplayScene &scene,
     if (!service->bind_target(handle, scene.control_context(), target).succeeded())
         throw std::logic_error("Demo controller target binding failed.");
 }
-// Game-owned session choices survive scene recreation; expired engine handles are replaced.
-inline std::map<elysia::input::LocalPlayerId, elysia::gameplay::ControllerHandle>&
-session_player_handles()
-{
-    static std::map<elysia::input::LocalPlayerId, elysia::gameplay::ControllerHandle> players;
-    return players;
-}
-inline std::optional<elysia::gameplay::ControllerHandle>
+std::optional<elysia::gameplay::ControllerHandle>
 existing_session_player(elysia::input::LocalPlayerId player)
 {
     const auto& players = session_player_handles();
@@ -42,7 +45,7 @@ existing_session_player(elysia::input::LocalPlayerId player)
         return {};
     return found->second;
 }
-inline elysia::gameplay::ControllerHandle session_player(elysia::input::LocalPlayerId player)
+elysia::gameplay::ControllerHandle session_player(elysia::input::LocalPlayerId player)
 {
     using namespace elysia::gameplay;
     auto *service = ControllerService::instance();
@@ -50,11 +53,11 @@ inline elysia::gameplay::ControllerHandle session_player(elysia::input::LocalPla
     if (!service->get(handle))
     {
         auto result = service->create<LocalPlayerController>({ControllerScope::Session, {}}, player,
-                                                             make_gameplay_input_map());
+                                                             example::input::make_gameplay_input_map());
         if (!result)
             throw std::logic_error("Session player creation failed.");
         handle = *result;
     }
     return handle;
 }
-} // namespace example::input
+} // namespace example::gameplay

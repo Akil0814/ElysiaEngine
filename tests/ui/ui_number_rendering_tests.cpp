@@ -65,8 +65,7 @@ void test_ui_number_uses_shared_localized_glyphs()
     require(builtin_resources.initialize(
         renderer,
         builtin::BuiltinAssetCatalog(*paths),
-        resolved_font_settings->engine_point_sizes(),
-        {}).has_value(),
+        resolved_font_settings->engine_point_sizes()).has_value(),
         "UI number tests must initialize built-in fonts");
     typography::FontResolver font_resolver;
     localization_manager->shutdown();
