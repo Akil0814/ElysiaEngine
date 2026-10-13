@@ -4,7 +4,8 @@
 #include "engine/localization/localization_service.h"
 namespace example::showcase::effects {
 void EffectsControlsView::build(elysia::ui::UiWindow& window,std::array<std::function<void()>,6> actions,
-                               std::array<std::function<void()>,9> screen_actions,std::function<void()> back)
+                               std::array<std::function<void()>,9> screen_actions,std::function<void()> back,
+                               std::array<std::function<void()>,8> animation_actions)
 {
     clear();
     using namespace elysia::ui;
@@ -43,7 +44,32 @@ void EffectsControlsView::build(elysia::ui::UiWindow& window,std::array<std::fun
     auto status=std::make_unique<UiLabel>(elysia::core::Rect{0,0,width-48,24});
     status->set_text_fit_mode(UiLabelTextFitMode::ShrinkToFit);_screen_status=status.get();
     window.add_child(std::move(status),ShowcaseFrame::at({24,214,width-48,24}));
+    const char* animation_keys[]={"showcase.effects.screen.animation_play", "showcase.effects.screen.loop_off",
+        "showcase.effects.screen.end_animation", "showcase.effects.screen.fit_contain", "showcase.effects.screen.anchor_center",
+        "showcase.effects.screen.offset_zero", "showcase.effects.screen.scale_one", "showcase.effects.screen.layout_image"};
+    for(std::size_t start:{std::size_t{0},std::size_t{5}}){
+        auto row=std::make_unique<UiListContainer>(elysia::core::Rect{0,0,width-48,40});
+        row->set_direction(UiListDirection::Horizontal);row->set_item_spacing(8);
+        const auto end=start==0?5:animation_actions.size();
+        for(std::size_t i=start;i<end;++i){
+            auto button=std::make_unique<UiButton>(elysia::core::Rect{0,0,button_width,40});
+            button->set_text_content(ui_text_key(animation_keys[i]));
+            button->set_on_click(std::move(animation_actions[i]));
+            _animation_buttons[i]=button.get();row->add_back(std::move(button));
+        }
+        auto* scope=row.get();
+        window.add_child(std::move(row),ShowcaseFrame::at({24,start==0?246.0f:294.0f,width-48,40}));
+        window.register_focus_scope(*scope);
+    }
     window.focus_first_available_scope();
+}
+void EffectsControlsView::update_animation(const AnimationControlsData& data)
+{
+    const char* keys[]={"showcase.effects.screen.animation_play",
+        data.loop?"showcase.effects.screen.loop_on":"showcase.effects.screen.loop_off",
+        data.end_key,data.fit_key,data.anchor_key,data.offset_key,data.scale_key,"showcase.effects.screen.layout_image"};
+    for(std::size_t i=0;i<_animation_buttons.size();++i)
+        if(_animation_buttons[i])_animation_buttons[i]->set_text_content(elysia::ui::ui_text_key(keys[i]));
 }
 void EffectsControlsView::update_screen(const ScreenControlsData& data)
 {

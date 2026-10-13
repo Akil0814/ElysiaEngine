@@ -27,6 +27,7 @@ namespace example::scene
 class EffectsShowcaseScene final : public elysia::gameplay::GameplayScene
 {
     enum class ScreenAction { Flash, FadeBlack, HoldBlack, Stop, Cancel, Stretch, Cover, Contain, ToggleLayer };
+    enum class AnimationAction { Play, Loop, End, Fit, Anchor, Offset, Scale, Image };
     enum class FloatingNumberPreset
     {
         Damage,
@@ -57,6 +58,7 @@ private:
     void build_feature_controls();
     void cancel_screen_effect() noexcept;
     void trigger_screen_action(ScreenAction action);
+    void trigger_animation_action(AnimationAction action);
     void refresh_screen_status();
     void clear_screen_effect_or_return();
     void destroy_feature_controls() noexcept;
@@ -74,6 +76,7 @@ private:
     example::showcase::effects::EffectsControlsView _view;
     std::optional<elysia::effects::ScreenEffectHandle> _screen_effect;
     elysia::effects::ScreenEffectLayer _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
+    elysia::effects::ScreenAnimationEffectRequest _animation_request;
     const char* _screen_action_key = "showcase.effects.screen.ready";
     std::size_t _color_overlay_index = 2;
     bool _debug_draw_state_captured = false;
