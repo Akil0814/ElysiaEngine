@@ -64,6 +64,7 @@
         "back": "返回"
       },
       "window_modes": {
+        "windowed": "視窗",
         "borderless_fullscreen": "無邊框全螢幕"
       },
       "hints": {

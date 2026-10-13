@@ -2,7 +2,7 @@
 
 头文件：`engine/ui/presets/settings_panel.h`。可复用的设置表单，组合窗口模式、分辨率、帧率上限、VSync、三路音量、语言、状态消息及 Save/Back 动作。
 
-面板由固定标题、单个纵向滚动内容区、固定状态消息和 Save/Back 组成。字段按 Display、Audio、General 的固定顺序排列；标题、状态和操作按钮不随内容滚动。输入映射不属于当前预设，未来应由设置场景作为独立二级页面管理。
+面板由左对齐的固定标题、单个纵向滚动内容区、固定状态消息和底部右对齐的 Back/Save 组成。字段按 Display、Audio、General 的固定顺序分组，每组使用现有主题的 Panel 底色，不覆盖主题颜色；音量百分比位于滑条右侧。标题、状态和操作按钮不随内容滚动。输入映射不属于当前预设，未来应由设置场景作为独立二级页面管理。
 
 ## 组件可见性
 
@@ -20,8 +20,9 @@ auto panel = std::make_unique<elysia::ui::SettingsPanel>(
 
 - 隐藏字段不创建控件，不参与布局、焦点导航或 Dropdown popup 注册。
 - VSync 重启提示只在 VSync 字段可见时创建。
+- `window_mode` 同时控制窗口模式和窗口尺寸两个字段的创建。无边框全屏时禁用窗口尺寸，保留上一次的窗口尺寸，切回窗口模式即可继续编辑。
 - 只有一个非空区段时省略区段标题；有两个或以上非空区段时，每个非空区段都显示标题。
-- 所有字段都隐藏时，滚动内容为空，Save/Back 仍可用，默认焦点从 Save 开始。
+- 所有字段都隐藏时，滚动内容为空，Back/Save 仍可用，默认焦点从 Back 开始。
 - 可见性只决定是否创建编辑控件，不会从 `SettingsPanelDraft` 删除字段。隐藏字段保留宿主写入的基线值，Save 仍一次提交完整草稿。
 
 `SettingsScenePayload::visibility` 使项目可在进入内置设置场景时选择组件。仅设置 `return_route` 的旧调用保持全量显示；缓存场景再次进入且可见性变化时，场景会重建 UI。
@@ -50,6 +51,6 @@ window.add_child(std::move(panel));
 panel_ptr->register_with_window(window);
 ```
 
-已创建的窗口模式、帧率和语言 Dropdown 需要窗口级 popup 注册，因此必须在面板已由对应 `UiWindow` 拥有后调用 `register_with_window`；换窗口或提前移除时调用 `unregister_from_window`。隐藏的 Dropdown 不会注册。析构与 `reset` 会自动解除现有窗口注册。
+已创建的窗口模式、窗口尺寸、帧率和语言 Dropdown 需要窗口级 popup 注册，因此必须在面板已由对应 `UiWindow` 拥有后调用 `register_with_window`；换窗口或提前移除时调用 `unregister_from_window`。隐藏的 Dropdown 不会注册。析构与 `reset` 会自动解除现有窗口注册。
 
 `set_status_message(message, is_error)` 显示宿主提供的状态文本，`clear_status_message` 隐藏它。`set_on_back` 注册返回动作；和其他 `set_on_*` API 一样，后一次调用替换前一次回调。

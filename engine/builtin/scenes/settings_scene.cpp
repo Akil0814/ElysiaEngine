@@ -160,7 +160,7 @@ void SettingsScene::build_ui()
     if (!_window)
         throw std::runtime_error("SettingsScene could not create its UiWindow.");
 
-    const float panel_width = std::min(700.0f,static_cast<float>(logical_width) - 32.0f);
+    const float panel_width = std::min(732.0f,static_cast<float>(logical_width) - 32.0f);
     const float panel_height = std::min(680.0f,static_cast<float>(logical_height) - 32.0f);
 
     auto panel = std::make_unique<elysia::ui::SettingsPanel>(

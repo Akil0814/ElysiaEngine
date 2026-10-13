@@ -64,6 +64,7 @@
         "back": "Back"
       },
       "window_modes": {
+        "windowed": "Windowed",
         "borderless_fullscreen": "Borderless fullscreen"
       },
       "hints": {

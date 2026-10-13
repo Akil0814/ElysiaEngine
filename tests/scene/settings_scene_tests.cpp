@@ -287,7 +287,7 @@ void test_save_failure_shows_short_localized_status_and_logs_details()
     require(panel,"settings scene owns panel");
     auto* status = dynamic_cast<ui::UiLabel*>(panel->child_at(2));
     auto* actions = dynamic_cast<ui::UiListContainer*>(panel->child_at(3));
-    auto* save = actions ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
+    auto* save = actions ? dynamic_cast<ui::UiButton*>(actions->child_at(1)) : nullptr;
     require(status && save,"fixed status and save controls exist");
     auto draft = panel->draft();
     draft.target_fps = 120.0;
@@ -365,6 +365,7 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
     send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
     activate_focused_control(scene_manager);
     send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyRight);
     activate_focused_control(scene_manager);
 
     require(config_service->user_config().target_fps() == 120.0
@@ -382,6 +383,7 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
     send_control(scene_manager,elysia::input::RawInputControl::KeyUp);
     activate_focused_control(scene_manager);
     send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyRight);
     activate_focused_control(scene_manager);
 
     require(config_service->user_config().vsync()
@@ -405,6 +407,7 @@ void test_save_applies_fps_and_tracks_vsync_restart_state()
 
     activate_focused_control(scene_manager);
     send_control(scene_manager,elysia::input::RawInputControl::KeyDown);
+    send_control(scene_manager,elysia::input::RawInputControl::KeyRight);
     activate_focused_control(scene_manager);
     require(config_service->user_config().target_fps() == 120.0
             && !config_service->user_config().vsync()

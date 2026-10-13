@@ -7,6 +7,8 @@
 #include "engine/ui/containers/ui_button_group.h"
 #include "engine/ui/containers/ui_radio_group.h"
 #include "engine/ui/containers/ui_scroll_container.h"
+#include "engine/ui/containers/ui_panel.h"
+#include "engine/ui/style/ui_theme_manager.h"
 #include "engine/ui/presets/settings_panel.h"
 #include "engine/ui/widgets/ui_button.h"
 #include "engine/ui/widgets/ui_radio_button.h"
@@ -52,7 +54,7 @@ std::string content_key_at(
         return label->text_content().value;
 
     const auto* row = dynamic_cast<const elysia::ui::UiListContainer*>(element);
-    if (!row)
+    if (!row || row->direction() != elysia::ui::UiListDirection::Horizontal)
         return {};
     for (std::size_t child_index = 0;
          child_index < row->child_count(); ++child_index)
@@ -65,30 +67,53 @@ std::string content_key_at(
     return {};
 }
 
+void collect_content_keys(const elysia::ui::UiChildHost& content,
+    std::vector<std::string>& keys)
+{
+    for (std::size_t index = 0; index < content.child_count(); ++index)
+    {
+        const auto* element = content.child_at(index);
+        if (const auto* list = dynamic_cast<const elysia::ui::UiListContainer*>(&content))
+        {
+            const auto key = content_key_at(*list,index);
+            if (!key.empty())
+            {
+                keys.push_back(key);
+                continue;
+            }
+        }
+        if (const auto* host = dynamic_cast<const elysia::ui::UiChildHost*>(element))
+            collect_content_keys(*host,keys);
+    }
+}
+
 void require_content_keys(
     const elysia::ui::UiListContainer& content,
     const std::vector<std::string>& expected)
 {
-    require(content.child_count() == expected.size(),
-        "settings content must contain exactly the expected visible items");
-    for (std::size_t index = 0; index < expected.size(); ++index)
-        require(content_key_at(content,index) == expected[index],
-            "settings content must preserve its fixed built-in order");
+    std::vector<std::string> keys;
+    collect_content_keys(content,keys);
+    require(keys == expected,
+        "settings sections must contain only visible fields in their built-in order");
 }
 
 elysia::ui::UiListContainer* find_field_row(
-    elysia::ui::UiListContainer& content,
+    elysia::ui::UiChildHost& content,
     std::string_view key)
 {
     for (std::size_t index = 0; index < content.child_count(); ++index)
     {
         auto* row = dynamic_cast<elysia::ui::UiListContainer*>(
             content.child_at(index));
-        if (!row || row->child_count() == 0)
-            continue;
-        auto* label = dynamic_cast<elysia::ui::UiLabel*>(row->child_at(0));
-        if (label && label->text_content().value == key)
-            return row;
+        if (row && row->child_count() > 0)
+        {
+            auto* label = dynamic_cast<elysia::ui::UiLabel*>(row->child_at(0));
+            if (label && label->text_content().value == key)
+                return row;
+        }
+        if (auto* host = dynamic_cast<elysia::ui::UiChildHost*>(content.child_at(index)))
+            if (auto* found = find_field_row(*host,key))
+                return found;
     }
     return nullptr;
 }
@@ -281,6 +306,7 @@ void test_settings_panel_single_page_draft_and_actions()
     require_content_keys(*content,{
         "engine.settings.sections.display",
         "engine.settings.fields.window_mode",
+        "engine.settings.fields.window_size",
         "engine.settings.fields.target_fps",
         "engine.settings.fields.vsync",
         "engine.settings.hints.vsync_restart",
@@ -319,6 +345,8 @@ void test_settings_panel_single_page_draft_and_actions()
 
     auto* window_dropdown = field_control<ui::UiDropdown>(
         *content,"engine.settings.fields.window_mode");
+    auto* size_dropdown = field_control<ui::UiDropdown>(
+        *content,"engine.settings.fields.window_size");
     auto* fps_dropdown = field_control<ui::UiDropdown>(
         *content,"engine.settings.fields.target_fps");
     auto* vsync = field_control<ui::UiLabeledCheckbox>(
@@ -327,16 +355,31 @@ void test_settings_panel_single_page_draft_and_actions()
         *content,"engine.settings.fields.language");
     auto* master_volume = field_control<ui::UiSlider>(
         *content,"engine.settings.fields.master_volume");
-    require(window_dropdown && fps_dropdown && vsync && language_dropdown
+    require(window_dropdown && size_dropdown && fps_dropdown && vsync && language_dropdown
             && master_volume,
         "all-visible settings must construct every interactive field");
-    require(window_dropdown->options().size() == 4
+    require(window_dropdown->options().size() == 2
+            && size_dropdown->options().size() == 3
             && fps_dropdown->options().size() == 3
             && language_dropdown->options().size() == 2
             && !vsync->is_checked(),
         "control state must mirror normalized options and the complete draft");
     require(master_volume->value_target_height() == 20.0f,
         "settings volume sliders must use a compact percentage readout");
+    require(window_dropdown->set_selected_index(1)
+            && panel.draft().window_mode == ui::SettingsWindowMode::BorderlessFullscreen
+            && panel.draft().window_size == draft.window_size
+            && !size_dropdown->is_enabled(),
+        "fullscreen must disable window size while retaining the windowed draft");
+    require(window_dropdown->set_selected_index(0)
+            && panel.draft().window_mode == ui::SettingsWindowMode::Windowed
+            && size_dropdown->is_enabled()
+            && size_dropdown->selected_index() == 1,
+        "returning to windowed mode must restore the previous size selection");
+    require(size_dropdown->set_selected_index(2)
+            && panel.draft().window_size == ui::SettingsWindowSize{1920,1080}
+            && panel.draft().window_mode == ui::SettingsWindowMode::Windowed,
+        "window size must be editable independently of the mode");
 
     ui::UiWindow popup_window(core::Rect{ 0,0,800,600 });
     panel.register_with_window(popup_window);
@@ -344,6 +387,10 @@ void test_settings_panel_single_page_draft_and_actions()
     require(fps_dropdown->is_open(),
         "visible FPS dropdown must participate in window popup registration");
     fps_dropdown->close();
+    size_dropdown->open();
+    require(size_dropdown->is_open(),
+        "the separate window-size dropdown must be registered with the window");
+    size_dropdown->close();
     panel.unregister_from_window();
     fps_dropdown->open();
     require(!fps_dropdown->is_open(),
@@ -359,9 +406,9 @@ void test_settings_panel_single_page_draft_and_actions()
     auto* status = dynamic_cast<ui::UiLabel*>(panel.child_at(2));
     auto* actions = dynamic_cast<ui::UiListContainer*>(panel.child_at(3));
     auto* save = actions
-        ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
-    auto* back = actions
         ? dynamic_cast<ui::UiButton*>(actions->child_at(1)) : nullptr;
+    auto* back = actions
+        ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
     require(status && save && back,
         "status and Save/Back must remain fixed outside the scroll viewport");
 
@@ -391,10 +438,10 @@ void test_settings_panel_single_page_draft_and_actions()
         require(panel.focus_first_available(),
             "settings focus must begin at the first visible field");
         std::vector<ui::UiControl*> expected_targets{
-            window_dropdown,fps_dropdown,vsync,master_volume,
+            window_dropdown,size_dropdown,fps_dropdown,vsync,master_volume,
             field_control<ui::UiSlider>(*content,"engine.settings.fields.music_volume"),
             field_control<ui::UiSlider>(*content,"engine.settings.fields.sound_volume"),
-            language_dropdown,save
+            language_dropdown,back
         };
         require(panel.focused_target() == expected_targets.front(),
             "settings navigation must start at the first field");
@@ -430,7 +477,8 @@ void test_settings_panel_visibility_and_single_section_headings()
         std::vector<std::string> keys;
     };
     const std::vector<VisibilityCase> cases{
-        { "window_mode",{ "engine.settings.fields.window_mode" } },
+        { "window_mode",{ "engine.settings.fields.window_mode",
+            "engine.settings.fields.window_size" } },
         { "target_fps",{ "engine.settings.fields.target_fps" } },
         { "vsync",{
             "engine.settings.fields.vsync",
@@ -472,14 +520,14 @@ void test_settings_panel_visibility_and_single_section_headings()
     ui::SettingsPanel empty_panel(core::Rect{ 0,0,700,680 },none);
     auto* empty_content = settings_content(empty_panel);
     auto* actions = dynamic_cast<ui::UiListContainer*>(empty_panel.child_at(3));
-    auto* save = actions
+    auto* back = actions
         ? dynamic_cast<ui::UiButton*>(actions->child_at(0)) : nullptr;
-    require(empty_content && empty_content->child_count() == 0 && save,
+    require(empty_content && empty_content->child_count() == 0 && back,
         "an all-hidden profile must keep an empty scroll and fixed actions");
     empty_panel.set_scope_focused(true);
     require(empty_panel.focus_first_available()
-            && empty_panel.focused_target() == save,
-        "an all-hidden profile must focus Save first");
+            && empty_panel.focused_target() == back,
+        "an all-hidden profile must focus Back first");
 
     ui::UiWindow window(core::Rect{ 0,0,800,600 });
     empty_panel.register_with_window(window);
@@ -507,6 +555,46 @@ void test_compact_single_page_scroll_keeps_chrome_fixed()
     require(scroll->scroll_offset().y == 0.0f,
         "fresh settings navigation must reset the shared scroll to the top");
 }
+
+void test_settings_sections_follow_theme_and_fit_narrow_panel()
+{
+    using namespace elysia;
+    ui::SettingsPanel panel(core::Rect{0,0,320,360});
+    ui::UiThemeManager themes;
+    auto registration = themes.register_root(panel);
+    auto* content = settings_content(panel);
+    require(content && content->child_count() == 3,
+        "all-visible settings must have three bounded sections");
+    for (const auto theme : {ui::UiBuiltinTheme::BlueGlassMoon,
+            ui::UiBuiltinTheme::ElysiaLight,ui::UiBuiltinTheme::ElysiaDark})
+    {
+        themes.set_theme(theme);
+        panel.update_layout_if_dirty();
+        for (std::size_t i = 0; i < content->child_count(); ++i)
+        {
+            auto* section = dynamic_cast<ui::UiListContainer*>(content->child_at(i));
+            auto* surface = section ? dynamic_cast<ui::UiPanel*>(section->child_at(1)) : nullptr;
+            require(surface && surface->style().background == themes.current_theme().panel().background
+                    && !surface->style_overrides().background
+                    && !surface->style_overrides().border,
+                "settings section colors must follow the existing theme without overrides");
+            auto* fields = dynamic_cast<ui::UiListContainer*>(surface->child_at(0));
+            require(fields && fields->size() == surface->size(),
+                "section fields must fill their surface for layout and pointer navigation");
+            for (std::size_t j = 0; j < fields->child_count(); ++j)
+            {
+                const auto* row = fields->child_at(j);
+                require(row->screen_rect().x() >= surface->screen_rect().x()
+                        && row->screen_rect().right() <= surface->screen_rect().right(),
+                    "narrow settings rows must stay within their section surface");
+            }
+        }
+        const auto* actions = panel.child_at(3);
+        require(actions->screen_rect().right() <= panel.screen_rect().right()
+                && actions->screen_rect().bottom() <= panel.screen_rect().bottom(),
+            "fixed actions must fit inside a narrow settings panel");
+    }
+}
 }
 
 int main()
@@ -518,6 +606,7 @@ int main()
     test_settings_panel_single_page_draft_and_actions();
     test_settings_panel_visibility_and_single_section_headings();
     test_compact_single_page_scroll_keeps_chrome_fixed();
+    test_settings_sections_follow_theme_and_fit_narrow_panel();
     std::cout << "ui selection control tests passed\n";
     return EXIT_SUCCESS;
 }
