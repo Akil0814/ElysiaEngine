@@ -39,3 +39,13 @@ platform integrations that the default CMake configuration disables. Those
 components are not enumerated above as default runtime dependencies. Their
 original license and notice files remain in their respective source directories
 and continue to govern redistribution of those files.
+
+## Vendored source trimming
+
+Unused upstream tests, examples, and ordinary documentation have been removed
+from the SDL3 family, SDL3_gfx, and HarfBuzz snapshots. License, copyright, and
+attribution files remain at their original paths, including notices embedded in
+README files. FreeType documentation, dependency implementation sources, and
+build support files required by this project's CMake configuration are retained.
+These snapshots support the project's dependency configuration with upstream
+tests and examples disabled; they are not complete upstream development trees.
