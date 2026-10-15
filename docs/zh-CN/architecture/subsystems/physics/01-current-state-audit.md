@@ -1,20 +1,27 @@
-# Current behavior and limitations
-Implemented: static/kinematic/dynamic bodies, rotating boxes and circles, mass policies, force and impulse APIs, sleeping, CCD, distance springs, revolute limits/motors, shape queries, tile geometry and gameplay event translation.
+# 物理生命周期与当前限制
 
-## Lifecycle
-Handles are monotonic and not reused within a world, including across reset. Removal immediately rejects new commands and state queries. Previously accepted commands commit in order before destruction. Body removal also invalidates its joints.
+本文说明当前 Box2D 适配层的生命周期与使用边界。已提供静态、运动学和动态刚体、旋转矩形和圆形、质量策略、力与冲量、休眠、连续碰撞检测（CCD）、距离弹簧、旋转关节限位与马达、形状查询、地图几何及玩法事件转换。
 
-The adapter maps complete Box2D shape IDs, including generation, to engine targets. On destruction, mapping records become tombstones through the following completed event extraction. Gameplay events contain values, not pointers into Box2D or destroyed objects.
+## 句柄何时失效
 
-Contact invalidation produces exactly one logical End. A rebuilt contact produces End before Begin for the same engine pair. Reset clears silently. Listener storage is borrowed; listeners must remain alive through the current dispatch batch even if they request removal.
+句柄在一个物理世界中单调分配，重置也不复用。移除请求立即拒绝新的命令和状态查询；此前已接受的命令按顺序提交，再执行销毁。刚体移除同时使其关节失效。
 
-## Native behavior
-Sensors detect end-of-step overlap; they do not guarantee detection of objects that pass completely through within one step. Use an explicit shape cast for fast gameplay hits and respect the first blocking hit. Bullet bodies improve physical CCD; this is distinct from Sensor events.
+适配层将包含代次的完整 Box2D 形状标识映射为引擎目标。销毁后，映射保留为失效记录，直到随后一轮事件提取完成。Gameplay 事件保存值，不借用 Box2D 或已销毁对象的内存。
 
-One-way decisions use immutable pre-step geometry and velocity. Box2D pre-solve has limitations for high-speed continuous contacts; one-way platforms should be validated at intended gameplay speeds.
+## 接触与监听
 
-Only boxes and circles are exposed. Rotation is supported, but capsules, arbitrary convex polygons and ragdolls are outside this migration. Existing character controllers lock rotation.
+接触失效只产生一次逻辑 `End`。同一引擎对象对的接触重建时，先产生 `End` 再产生 `Begin`；重置静默清空接触。监听器是借用对象，即使请求移除，也必须活过当前事件分发批次。
 
-Tile Block out-of-bounds builds perimeter barriers around a finite map; it is not an infinite solid plane available at arbitrary remote coordinates. The map adapter currently limits installation to one million cells.
+## 离散检测与连续检测
 
-Box2D tolerances still require sensible physical sizes after conversion. A configurable EU scale is not a guarantee of numerical stability at arbitrary magnitudes.
+传感器检测步末重叠，不保证发现一个固定步内完全穿过的对象。高速攻击应使用显式形状投射，并在第一个阻挡命中处停止。子弹刚体改善物理 CCD，但不会把传感器事件变成连续检测。
+
+单向平台使用模拟前冻结的几何与速度作出决策。Box2D 的预求解回调对高速连续接触存在限制，应按游戏实际速度验证平台行为。
+
+## 形状、地图与尺度
+
+当前只公开矩形和圆形，支持旋转；胶囊、任意凸多边形和布娃娃不在此实现范围。已有角色控制器锁定旋转。
+
+地图的 `Block` 越界策略在有限地图周围建立边界墙，不表示任意远处都存在无限实心平面。地图安装上限为一百万个单元格。
+
+可配置的世界单位比例用于单位换算，不能保证任意尺度都稳定。转换后的物理尺寸仍须符合 Box2D 的数值精度要求。

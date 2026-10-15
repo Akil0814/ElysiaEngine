@@ -1,10 +1,12 @@
 # 动画与特效
 
-先在[资源配置](../content/resources.md)中声明图集、动画和特效，再等待内容加载成功。AnimationService 创建独立播放器；EffectService 把特效对象加入当前活动场景。游戏无需初始化或关闭这两个服务。
+本文说明已加载的动画如何播放，以及特效如何使用注册定义提交绘制。资源配置、播放状态与游戏规则分别维护，避免在绘制阶段推进动画或发放效果。
+
+先在[资源配置](../content/resources.md)中声明图集、动画和特效，再等待内容加载成功。`AnimationService` 创建独立播放器；`EffectService` 把特效对象加入当前活动场景。游戏无需初始化或关闭这两个服务。
 
 ## 播放对象动画
 
-以下类可放入游戏头文件，在场景进入、资源加载成功后创建。test.animation 对应下文示例清单，图片需由项目提供。
+以下类可放入游戏头文件，在场景进入、资源加载成功后创建。test.动画对应下文示例清单，图片需由项目提供。
 
 ```cpp
 #include "engine/animation/animation_service.h"
@@ -39,15 +41,15 @@ private:
 };
 ```
 
-播放器归调用方所有，但内部 Atlas 和帧纹理为借用。资源重载前销毁或停用依赖旧资源的播放器；暂停播放器并不能让借用资源跨重载有效。
+播放器归调用方所有，但内部 `Atlas` 和帧纹理为借用。资源重载前销毁或停用依赖旧资源的播放器；暂停播放器并不能让借用资源跨重载有效。
 
-`set_loop` 设置循环，`set_interval_seconds` 设置帧间隔，`pause`/`resume` 暂停或继续，`reset` 从首帧重新开始并恢复计时。非循环播放结束时 is_finished 为 true，停留最后一帧；resume 不替代 reset。`set_on_finished` 接收无参数回调，回调中不要立即释放正在执行 update 的播放器。
+`set_loop` 设置循环，`set_interval_seconds` 设置帧间隔，`pause`/`resume` 暂停或继续，`reset` 从首帧重新开始并恢复计时。非循环播放结束时 is_finished 为 true，停留最后一帧；resume 不替代 reset。`set_on_finished` 接收无参数回调，回调中不要立即释放正在执行更新的播放器。
 
 `current_frame` 和服务的 `find_definition` 都返回可空借用。`append_render_commands` 可附加颜色覆盖；返回 false 时不假设生成了命令，覆盖需要相应帧的 coverage mask。通常使用上面的 build_render_command 即可。
 
 ## 请求场景特效
 
-以下辅助函数在活动场景的安全阶段调用，例如在 `on_enter`、`on_before_update` 或 `on_after_update` 中处理本帧积累的表现请求。特效对象通过同步 `add_object` 加入场景；不要在对象更新、UI 呈现动画、渲染、查询、物理 step 的碰撞监听或对象特效完成回调中直接插入新特效，应先保存值请求。`on_after_update` 在物理和相机之后、标记对象回收之前执行。完整规则见[场景阶段表](../scene/scene.md#常用操作与扩展点)。
+以下辅助函数在活动场景的安全阶段调用，例如在 `on_enter`、`on_before_update` 或 `on_after_update` 中处理本帧积累的表现请求。特效对象通过同步 `add_object` 加入场景；不要在对象更新、UI 呈现动画、渲染、查询、物理模拟步的碰撞监听或对象特效完成回调中直接插入新特效，应先保存值请求。`on_after_update` 在物理和相机之后、标记对象回收之前执行。完整规则见[场景阶段表](../scene/scene.md#常用操作与扩展点)。
 
 ```cpp
 #include "engine/effects/effect_service.h"
@@ -73,11 +75,11 @@ void show_hit(elysia::core::Vector2 position) {
 
 动画特效 position 是选定 anchor 的世界位置；可覆盖 size、angle_degrees、flip，设置 start_delay_seconds。缺少活动场景、定义或创建失败返回 false。该接口立即加入对象，true 不表示已经播放结束。
 
-特效非循环动画完成后调用 on_finished 并标记销毁；循环动画不会自然结束。服务不返回可取消句柄。需要主动管理的长期表现优先由自己的对象持有 Animation；不要假设退出场景会触发完成回调。场景缓存复用时，特效可能仍保留在原场景中。
+特效非循环动画完成后调用 on_finished 并标记销毁；循环动画不会自然结束。服务不返回可取消句柄。需要主动管理的长期表现优先由自己的对象持有 `Animation`；不要假设退出场景会触发完成回调。场景缓存复用时，特效可能仍保留在原场景中。
 
-on_started、on_finished 和 scheduled_callbacks 的回调参数是 AnimationEffect&；scheduled_callbacks 的 delay_seconds 相对于播放时间。回调捕获的数据必须覆盖实际执行期，不能把完成回调作为释放外部资源的唯一途径。
+on_started、on_finished 和 scheduled_callbacks 的回调参数是 `AnimationEffect`&；scheduled_callbacks 的 delay_seconds 相对于播放时间。回调捕获的数据必须覆盖实际执行期，不能把完成回调作为释放外部资源的唯一途径。
 
-浮动数字不需要配置动画清单，但需要有效字体与渲染依赖。text 支持 `0–9`、`-`、`.`、`/`、`%`，不支持加号或普通文字；普通文字使用 UI 文本。position、字号高度、时间必须合法，lifetime_seconds 和 target_height 为正，time_scale 非负。effects 可组合线性/弧线 motion、scale、fade，其 time_range 使用 0–1 生命周期进度。没有设置这些效果时仍按寿命结束并销毁。其 on_finished 参数为 FloatingNumberEffect&。
+浮动数字不需要配置动画清单，但需要有效字体与渲染依赖。text 支持 `0–9`、`-`、`.`、`/`、`%`，不支持加号或普通文字；普通文字使用 UI 文本。position、字号高度、时间必须合法，lifetime_seconds 和 target_height 为正，time_scale 非负。effects 可组合线性/弧线 motion、scale、fade，其 time_range 使用 0–1 生命周期进度。没有设置这些效果时仍按寿命结束并销毁。其 on_finished 参数为 `FloatingNumberEffect`&。
 
 ## 全屏特效
 
@@ -120,7 +122,7 @@ std::optional<elysia::effects::ScreenEffectHandle> show_screen_image() {
 
 ### 屏幕动画与共享布局
 
-`request_screen_animation_effect` 使用与世界动画特效相同的 `effect_key`，共享已加载的动画、Atlas 和纹理，每次请求有独立播放实例。默认 `loop=false`、`fit=Contain`、`end=AnimationFinished`、保持时长 0。资源定义中的循环设置不覆盖屏幕请求；角度默认沿用 effect 定义，也可以通过 `angle_degrees` 覆盖，`flip` 默认 None。
+`request_screen_animation_effect` 使用与世界动画特效相同的 `effect_key`，共享已加载的动画、`Atlas` 和纹理，每次请求有独立播放实例。默认 `loop=false`、`fit=Contain`、`end=AnimationFinished`、保持时长 0。资源定义中的循环设置不覆盖屏幕请求；角度默认沿用特效定义，也可以通过 `angle_degrees` 覆盖，`flip` 默认 None。
 
 ```cpp
 // 单次居中演出：完整显示动画，播放完后淡出。
@@ -155,9 +157,9 @@ auto image_handle = ELYSIA_EFFECTS->request_screen_image_effect(image);
 
 动画与淡入从下一帧同步推进。`AnimationFinished` 等动画和淡入均完成后淡出，忽略保持时长；循环动画不能使用此策略。非循环动画在 `Timed`/`Manual` 中完成后保持最后一帧；stop 淡出期间动画继续推进。每帧持续一个完整帧间隔，单次时长为帧数 / FPS，大 delta 的剩余时间会推进淡出。
 
-图片和动画共享 `ScreenEffectPlacement`：默认居中、偏移 `{0,0}`、缩放 `{1,1}`。先计算适配尺寸、应用缩放，再将内容锚点与视口同名锚点对齐并添加偏移；九宫格锚点控制摆放及 Cover 裁切方向。全部模式裁切到逻辑视口。`Natural` 使用图片原始尺寸，动画优先使用 effect 默认尺寸，否则使用首帧尺寸；其余模式按首帧宽高比适配。动画尺寸不随帧变化。旋转中心是目标矩形中心，与定位锚点独立。
+图片和动画共享 `ScreenEffectPlacement`：默认居中、偏移 `{0,0}`、缩放 `{1,1}`。先计算适配尺寸、应用缩放，再将内容锚点与视口同名锚点对齐并添加偏移；九宫格锚点控制摆放及 Cover 裁切方向。全部模式裁切到逻辑视口。`Natural` 使用图片原始尺寸，动画优先使用特效默认尺寸，否则使用首帧尺寸；其余模式按首帧宽高比适配。动画尺寸不随帧变化。旋转中心是目标矩形中心，与定位锚点独立。
 
-偏移和角度必须有限，缩放必须有限且为正。缺失 effect、动画或有效帧资源，以及无效结束策略组合，都会拒绝创建。纯色和图片不接受 `AnimationFinished`。
+偏移和角度必须有限，缩放必须有限且为正。缺失特效、动画或有效帧资源，以及无效结束策略组合，都会拒绝创建。纯色和图片不接受 `AnimationFinished`。
 
 ### 两个场景分别完成黑幕转场
 
@@ -198,11 +200,11 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 
 面板显示播放中、已完成或请求失败状态，文案支持项目五种语言。每次选择效果会替换上一次预览。黑屏遮住按钮时仍可用快捷键；Esc 和返回按钮优先清除正在播放的效果，没有活动效果时才返回调用方。图片使用已加载的 `demo.screen_effect` 测试纹理；其 3:2 网格、四角标记和圆环用于观察拉伸、裁切、等比显示和透明叠加。
 
-新增两行动画控制：播放动画、循环开关、结束策略、四种适配、九宫格锚点、偏移（0 或 -24）、缩放（1 / 0.5 / 1.5 倍），以及按当前布局播放图片。参数变更用于下一次播放；F4/F5 同样控制动画。开启循环会将动画完成策略切换为 Manual，选择动画完成策略会关闭循环。动画使用已加载的 `effect.test`，同时在角色位置创建同 key 的世界特效作为对照，世界对照在 3 秒后销毁。
+新增两行动画控制：播放动画、循环开关、结束策略、四种适配、九宫格锚点、偏移（0 或 -24）、缩放（1 / 0.5 / 1.5 倍），以及按当前布局播放图片。参数变更用于下一次播放；F4/F5 同样控制动画。开启循环会将动画完成策略切换为 Manual，选择动画完成策略会关闭循环。动画使用已加载的 `effect.test`，同时在角色位置创建同资源键的世界特效作为对照，世界对照在 3 秒后销毁。
 
 ## 资源配置
 
-下文是项目需提供的 JSON 格式；核心 manifest 路径由 content_registry 的 required 项指定。实体资源包的模板、布局与 key 规则见本目录[资源指南](../content/resources.md)。
+下文是项目需提供的 JSON 格式；核心资源清单路径由 content_registry 的 required 项指定。实体资源包的模板、布局与资源键规则见本目录[资源指南](../content/resources.md)。
 ## 核心动画
 
 `assets/configs/manifests/animations_manifest.json`：
@@ -227,7 +229,7 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 - 目录帧：`path` 必须是目录，且必须提供非空 `frame_prefix`。
 - 横向序列图：`path` 必须是普通图片，不能出现 `frame_prefix`。
 
-## Entity Animation capability
+## 实体 Animation 能力声明
 
 ```json
 {
@@ -242,11 +244,11 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 }
 ```
 
-`texture_root`、`config_template` 和非空 `layouts` 必填。每个实体用 `animation_layout` 选择 layout，再由自己的 animation config 描述帧数和播放参数。模板及路径规则见 [实体内容资源包](../content/resources.md)。
+`texture_root`、`config_template` 和非空 `layouts` 必填。每个实体用 `animation_layout` 选择布局，再由自己的动画配置描述帧数和播放参数。模板及路径规则见 [实体内容资源包](../content/resources.md)。
 
-## Animation layout 与 config
+## Animation 布局与配置
 
-layout 只描述相对于实体纹理根目录的路径：
+布局只描述相对于实体纹理根目录的路径：
 
 ```json
 {
@@ -257,9 +259,9 @@ layout 只描述相对于实体纹理根目录的路径：
 }
 ```
 
-一个条目只能有 `path` 或 `segment_path`。`segment_path` 中的 `{segment}` 会替换为两位文件系统编号；没有该 token 时也会自动追加对应两位目录。
+一个条目只能有 `path` 或 `segment_path`。`segment_path` 中的 `{segment}` 会替换为两位文件系统编号；没有该标记时也会自动追加对应两位目录。
 
-每个实体 animation config 只允许 `defaults`、`animations`：
+每个实体动画配置只允许 `defaults`、`animations`：
 
 ```json
 {
@@ -276,9 +278,9 @@ layout 只描述相对于实体纹理根目录的路径：
 }
 ```
 
-`source_type` 必填，只能是 `frame_directory` 或 `horizontal_strip`，并作用于整个 config；不支持单项覆盖。普通动画和每个 segment 都必须提供正数 `frame_count`、正数 `fps` 与 boolean `loop`。动画逻辑名必须存在于选中的 layout。
+`source_type` 必填，只能是 `frame_directory` 或 `horizontal_strip`，并作用于整个配置；不支持单项覆盖。普通动画和每个分段都必须提供正数 `frame_count`、正数 `fps` 与 boolean `loop`。动画逻辑名必须存在于选中的布局。
 
-## 帧来源与 segment
+## 帧来源与分段
 
 目录帧严格由配置生成，不扫描 PNG：
 
@@ -298,7 +300,7 @@ source_rect = { index * frame_width, 0, frame_width, image_height }
 
 横向图只解码一份 texture。图片宽度必须能被 `frame_count` 整除，帧宽和图片高度都必须大于零。
 
-segment 的运行时 key 不补位，文件系统编号补两位：
+分段的运行时资源键不补位，文件系统编号补两位：
 
 ```text
 segment index            0                         1
@@ -308,11 +310,11 @@ segment suffix           _00                        _01
 first frame              ..._00_000.png             ..._01_000.png
 ```
 
-segment index 范围是 `0–99`；帧索引从 0 开始，文件名使用至少三位数字。
+分段索引范围是 `0–99`；帧索引从 0 开始，文件名使用至少三位数字。
 
 ## 特效
 
-核心 `effects_manifest.json` 将已有 Animation key 映射为 EffectDefinition：
+核心 `effects_manifest.json` 将已有 `Animation` 资源键映射为 EffectDefinition：
 
 ```json
 {
@@ -328,7 +330,7 @@ segment index 范围是 `0–99`；帧索引从 0 开始，文件名使用至少
 }
 ```
 
-Entity module 的 `effects` capability 只提供每实体配置路径：
+实体模块的 `effects` 能力声明只提供每实体配置路径：
 
 ```json
 {
@@ -353,16 +355,16 @@ Entity module 的 `effects` capability 只提供每实体配置路径：
 }
 ```
 
-effect 名可与 animation 名不同。映射分段动画时，会为已配置的每个 segment 生成一个 EffectDefinition；若目标 animation 不存在则配置失败。宽高必须同时为零/省略，或同时为正数；零表示播放时使用动画单帧自然尺寸。
+特效名可与动画名不同。映射分段动画时，会为已配置的每个分段生成一个 EffectDefinition；若目标动画不存在则配置失败。宽高必须同时为零/省略，或同时为正数；零表示播放时使用动画单帧自然尺寸。
 
 
-## key 冲突
+## 资源键冲突
 
-核心与所有 module 的请求会按 Atlas、Animation、Effect、Texture、Font、Sound、Music registry 分别去重。同一字符串可出现在不同 registry；同一 registry 冲突会在提交前失败，并在诊断中提供 first/second 的项目相对路径、JSON pointer、scope、module、capability、entity、逻辑名和 segment。
+核心与所有模块的请求会按 `Atlas`、`Animation`、`Effect`、Texture、Font、Sound、Music 注册表分别去重。同一字符串可出现在不同注册表；同一注册表冲突会在提交前失败，并在诊断中提供首次与重复声明的项目相对路径、JSON 路径指针、焦点区域、模块、能力声明、实体、逻辑名和分段。
 
 ## 常见误用与参考
 
-动画不会因为创建就自动更新；由所属 Updatable 每帧驱动一次。特效已经是场景对象，不再手动 update。不要在绘制时推进动画，不在资源失效后继续使用旧 Atlas，也不要用动画完成回调决定必须发生的游戏规则结果。
+动画不会因为创建就自动更新；由所属 `Updatable` 每帧驱动一次。特效已经是场景对象，不再手动更新。不要在绘制时推进动画，不在资源失效后继续使用旧 `Atlas`，也不要用动画完成回调决定必须发生的游戏规则结果。
 
 - [动画接口](../../../../engine/animation/animation.h)、[特效请求参数](../../../../engine/effects/effect_types.h)
 - [场景生命周期](../scene/scene.md)、[时间](time-and-timers.md)、[返回使用指南](../README.md)

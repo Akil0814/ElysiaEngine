@@ -1,8 +1,10 @@
-# 实体内容 module
+# 实体内容模块
 
-`manifests.additional` 的每项都是一个任意命名的实体资源包。所有包由同一个 loader 处理；`characters`、`character_effects` 和 `enemies` 只是当前配置的名称，不是代码白名单。
+本文说明附加内容模块如何声明实体资源。模块名用于组织内容，不选择不同加载器；所有模块采用相同格式，资源最终进入相应的统一注册表。
 
-## Module manifest
+`manifests.additional` 的每项都是一个任意命名的实体资源包。所有包由同一个加载器处理；`characters`、`character_effects` 和 `enemies` 只是当前配置的名称，不是代码白名单。
+
+## 模块资源清单
 
 ```json
 {
@@ -24,9 +26,9 @@
 }
 ```
 
-根对象只能包含 `entities`、`key_namespace`、`capabilities`。三项都必填；`key_namespace` 可以是空字符串，`capabilities` 可以为空对象。允许的 capability 固定为可选的 `animations`、`effects`、`textures`、`audio`；未知字段或 capability 会失败。`effects` 存在时，同一 module 必须同时提供 `animations`。
+根对象只能包含 `entities`、`key_namespace`、`capabilities`。三项都必填；`key_namespace` 可以是空字符串，`capabilities` 可以为空对象。允许的能力声明固定为可选的 `animations`、`effects`、`textures`、`audio`；未知字段或能力声明会失败。`effects` 存在时，同一模块必须同时提供 `animations`。
 
-## Capability
+## 能力声明
 
 `animations` 必须包含 `texture_root`、`config_template` 和非空 `layouts`。`config_template` 必须含 `{id}`。若该实体动画配置的 `source_type` 是 `frame_directory`，还必须提供 `frame_prefix_template`；横向序列图不使用此前缀。
 
@@ -45,15 +47,15 @@
 }
 ```
 
-Texture 和 Audio capability 都要求根目录和 layout。Texture layout 可指向文件或非递归目录；目录中的直接文件按路径排序，文件 stem 参与资源 key。Audio layout 的目标必须是普通文件，当前只生成 Sound。
+Texture 和 Audio 能力声明都要求根目录和布局。Texture 布局可指向文件或非递归目录；目录中的直接文件按路径排序，不含扩展名的文件名参与资源键。Audio 布局的目标必须是普通文件，当前只生成 Sound。
 
 ## `{id}` 与路径解析
 
-`texture_root` 与 `audio_root` 中出现 `{id}` 时，会替换全部标记；未出现时自动在末尾追加实体 id。只允许此 token，实体化后的根目录必须存在。
+`texture_root` 与 `audio_root` 中出现 `{id}` 时，会替换全部标记；未出现时自动在末尾追加实体 id。只允许此标记，实体化后的根目录必须存在。
 
-所有 `config_template` 必须显式包含 `{id}`，替换后必须是存在的普通配置文件。Animation 的 `layouts` 与 Texture/Audio 的 `layout` 都相对于 `assets/` 解析；layout 内的资源路径则相对于实体化后的对应根目录解析。
+所有 `config_template` 必须显式包含 `{id}`，替换后必须是存在的普通配置文件。`Animation` 的 `layouts` 与 Texture/Audio 的 `layout` 都相对于 `assets/` 解析；布局内的资源路径则相对于实体化后的对应根目录解析。
 
-## Entity manifest
+## 实体资源清单
 
 ```json
 {
@@ -69,15 +71,15 @@ Texture 和 Audio capability 都要求根目录和 layout。Texture layout 可�
 
 | 字段 | 规则 |
 | --- | --- |
-| `id` | 必填、唯一、合法 key component；同时是资源目录标识、模板参数和运行时资源 key 的首段。当前实体采用 PascalCase 约定。 |
+| `id` | 必填、唯一、合法资源键组成部分；同时是资源目录标识、模板参数和运行时资源键的首段。当前实体采用 PascalCase 约定。 |
 | `enabled` | 可选，默认 `true`；为 `false` 时跳过该实体。 |
-| `animation_layout` | 使用 Animation capability 时必填，且必须匹配该 capability 的 `layouts` 键；若提供也必须是合法 component。 |
+| `animation_layout` | 使用 `Animation` 能力声明时必填，且必须匹配该能力声明的 `layouts` 键；若提供也必须是合法组成部分。 |
 
-Entity 条目只能包含上述字段。`id` 的语法仍是通用的 `[A-Za-z0-9_]+`，PascalCase 是仓库实体命名约定而非额外语法限制。角色显示名继续由独立的 i18n `display_name_key` 控制，不随实体 id 改写。
+实体条目只能包含上述字段。`id` 的语法仍是通用的 `[A-Za-z0-9_]+`，PascalCase 是仓库实体命名约定而非额外语法限制。角色显示名继续由独立的 i18n `display_name_key` 控制，不随实体 id 改写。
 
-## 资源 key
+## 资源键
 
-所有 capability 使用同一个 key builder：
+所有能力声明使用同一个资源键构造器：
 
 ```text
 base      = <entity id>[.<key_namespace>]
@@ -94,23 +96,23 @@ characters / namespace ""      -> RyougiShiki.idle
 character_effects / "effect"   -> RyougiShiki.effect.attack_normal.0
 ```
 
-每个 component 使用 `[A-Za-z0-9_]+`；点仅用于连接 component。空 component、横线、空格、非 ASCII 字符和连续/首尾点都非法。segment key 永不补位；补两位只属于文件系统的目录与文件名前缀。
+每个组成部分使用 `[A-Za-z0-9_]+`；点仅用于连接组成部分。空组成部分、横线、空格、非 ASCII 字符和连续/首尾点都非法。分段资源键永不补位；补两位只属于文件系统的目录与文件名前缀。
 
-## 当前 module 划分
+## 当前模块划分
 
-| module | namespace | capability |
+| 模块 | 命名空间 | 能力声明 |
 | --- | --- | --- |
 | `characters` | `""` | `animations`、`textures`、`audio` |
 | `character_effects` | `effect` | `animations`、`effects` |
 | `enemies` | `""` | `animations` |
 
-同一个 entity manifest 可以被多个 module 复用。角色特效 module 只在 `effect` namespace 下加载自身动画，并把已有动画注册为 EffectDefinition；它不加载角色本体动画。
+同一个实体资源清单可以被多个模块复用。角色特效模块只在 `effect` 命名空间下加载自身动画，并把已有动画注册为 EffectDefinition；它不加载角色本体动画。
 
 ## 常见失败
 
-- entity 缺少 id、id 重复、含未知字段或 component 非法；
-- 模板缺少 `{id}`、使用未知 token，或解析后的路径不存在；
-- `effects` 没有同 module 的 `animations`；
-- entity 的 `animation_layout` 不在 capability 的 `layouts` 中；
-- Texture/Audio layout 或目录纹理 stem 非法；
-- 核心和 module 在同一资源 registry 生成重复 key。错误会列出 first/second 两个完整 `ResourceOrigin`。
+- 实体缺少 id、id 重复、含未知字段或组成部分非法；
+- 模板缺少 `{id}`、使用未知标记，或解析后的路径不存在；
+- `effects` 没有同模块的 `animations`；
+- 实体的 `animation_layout` 不在能力声明的 `layouts` 中；
+- Texture/Audio 布局或目录纹理不含扩展名的文件名非法；
+- 核心和模块在同一资源注册表生成重复资源键。错误会列出首次与重复声明两个完整 `ResourceOrigin`。

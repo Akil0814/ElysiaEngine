@@ -1,22 +1,33 @@
 # 应用错误场景
 
+本文说明错误界面的适用条件、诊断传递和退出流程。先确认必要的渲染与内置资源仍可用，再使用错误场景；底层渲染故障由应用直接退出处理。
+
 `ApplicationFailure` 用于展示启动资源失败或运行时致命错误的诊断，并提供退出流程。它不是通用重试、回档或恢复游戏的机制；可恢复的业务失败应由游戏自己的流程处理。
 
 ## 在场景中请求错误展示
 
-以下方法体放在派生 `Scene` 中，在允许发出路由请求的输入或更新阶段调用。引擎及内置 UI 资源必须已经可用。
+下面是一个不含业务状态的派生场景类型。仅从正常输入或更新阶段调用 `show_fatal_error()`；引擎及内置 UI 资源必须已可用。路由接收 `FailureDiagnostic`，字符串需显式转换为诊断。
 
 ```cpp
+#include "engine/scene/scene.h"
 #include "engine/builtin/scenes/application_failure_scene_payload.h"
 
-// 派生 Scene 的成员方法：
-void show_fatal_error()
+class FailureExampleScene final : public elysia::scene::Scene
 {
-    request_scene_switch(elysia::builtin::make_application_failure_route(
-        elysia::builtin::ApplicationFailurePresentation::RuntimeFatal,
-        "gameplay",
-        "Required game state could not be restored."));
-}
+public:
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+
+    void show_fatal_error()
+    {
+        request_scene_switch(elysia::builtin::make_application_failure_route(
+            elysia::builtin::ApplicationFailurePresentation::RuntimeFatal,
+            "gameplay",
+            elysia::core::make_failure_diagnostic(
+                "Required game state could not be restored.")));
+    }
+};
 ```
 
 通过 `ContentLoadFailure` 的辅助函数重载可生成启动加载失败路由，保留错误类别、代码和诊断。不要直接传字符串代替 `ApplicationFailureScenePayload`。
@@ -51,6 +62,6 @@ Payload 包含 `presentation`、`reason`、`error_code`、`category` 和 `diagno
 
 确认退出前写入完整诊断日志；有界终止记录保留诊断来源，并在截断时指引查看原始日志。Release 界面仍遵循隐藏原始诊断的现有呈现规则。
 
-渲染执行器的单条和批量 `execute_render_command(s)` 返回 `[[nodiscard]] expected<void, RenderFailure>`，批量在首个失败后停止。`RenderFailure` 保存操作名及统一诊断；Scene 使用 `RenderBackendError` 传播到应用边界。执行器在绘制失败后仍尝试恢复已读取且已修改的状态，恢复错误附加到首个失败。清屏与帧提交走同一故障退出路径，失败后不再提交后续帧或等待帧节奏。
+渲染执行器的单条和批量 `execute_render_command(s)` 返回 `[[nodiscard]] expected<void, RenderFailure>`，批量在首个失败后停止。`RenderFailure` 保存操作名及统一诊断；场景使用 `RenderBackendError` 传播到应用边界。执行器在绘制失败后仍尝试恢复已读取且已修改的状态，恢复错误附加到首个失败。清屏与帧提交走同一故障退出路径，失败后不再提交后续帧或等待帧节奏。
 
 场景清理期间也遵循后端错误优先规则：完成必要回收后，传播首个 `RenderBackendError`，将原始普通异常和后续清理失败保留为诊断上下文。恢复场景及缓存场景销毁同样适用；最终关闭边界只记录并返回关闭结果，不再次抛出。

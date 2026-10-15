@@ -49,3 +49,10 @@ README files. FreeType documentation, dependency implementation sources, and
 build support files required by this project's CMake configuration are retained.
 These snapshots support the project's dependency configuration with upstream
 tests and examples disabled; they are not complete upstream development trees.
+
+A second cleanup removes unused upstream release and maintenance scripts,
+dependency download scripts, CMake package tests, FreeType tests, HarfBuzz
+benchmarks, and libpng/zlib tests and examples. Notices remain at their original
+paths, including the libpng examples README. The SDL family retains its
+`wikiheaders.pl` tools, and libpng configuration-generation scripts, FreeType
+platform build support, and HarfBuzz configuration and source lists are retained.

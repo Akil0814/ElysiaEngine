@@ -1,10 +1,10 @@
-# UiChildHost
+# UiChildHost：子元素容器
 
-头文件：`engine/ui/core/ui_child_host.h`。拥有并更新 child 的基础容器。
+头文件：`engine/ui/core/ui_child_host.h`。持有子元素并向它们分发更新的基础容器。
 
 特有公开 API：`add_child`、`create_child`、`extract_child`、`clear_children`、`child_count`、`child_at`、`move_child`、`set_child_layout_options`、`set_padding`、`set_clip_children`、`mark_layout_dirty`、`update_layout_if_dirty`。调用规则见[子项与布局](../concepts/child_layout.md)。
 
-`add_child` 与 `create_child` 的返回值均为借用指针；生命周期仍属于 host。
+`add_child` 与 `create_child` 的返回值均为借用指针；对象仍由容器持有，返回指针不负责释放。
 
 ## 常用调用
 
@@ -17,4 +17,4 @@ if (!adopted) {
 }
 ```
 
-`set_child_layout_options(index, options)` 仅对现有 index 生效；越界调用不修改树。`update_layout_if_dirty` 可以在读取 child rect 前主动调用，避免等待下一帧渲染。
+`set_child_layout_options(index, options)` 仅对现有索引生效；越界调用不修改树。`update_layout_if_dirty` 可以在读取子元素矩形前主动调用，避免等待下一帧渲染。

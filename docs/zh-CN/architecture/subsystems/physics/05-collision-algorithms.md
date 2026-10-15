@@ -1,12 +1,17 @@
-# Collision and queries
-Box2D owns broad phase, narrow phase, continuous collision and constraint solving. Elysia contains no duplicate solver.
+# 碰撞处理与空间查询
 
-Collision filtering maps engine category/mask/group rules to native shapes. Overlap shapes become sensors; Ignore shapes have no native collision shape. Material uses friction and restitution.
+Box2D 负责宽阶段候选筛选、精确碰撞、连续碰撞和约束求解。Elysia 不维护第二套求解器，而是在其上提供引擎过滤、查询结果和玩法接入。
 
-Ray and segment casts return nearest or all hits. AABB/circle overlap uses exact shape overlap rather than accepting broad-phase bounds alone. AABB sweep can hit circles and rotated boxes. Initial overlap is included explicitly with fraction zero and no unique impact normal.
+## 过滤与形状响应
 
-Results use engine IDs and EU distances. All-hits are ordered by fraction and engine target, with duplicate shape hits removed. The query filter can exclude the casting object's collision category. Overlap results identify shapes; they do not synthesize a penetration manifold.
+引擎的类别、掩码和组过滤映射到原生形状。重叠形状作为传感器，忽略形状不创建原生碰撞形状；材质提供摩擦与恢复系数。
 
-For high-speed attacks, cast the attack shape, process hits in travel order and stop at a blocking obstacle. Do not substitute a Sensor Begin event for this query.
+## 查询返回什么
 
-See the [Box2D simulation documentation](https://box2d.org/documentation/md_simulation.html) for native CCD and contact semantics.
+射线与线段投射可以返回最近命中或全部命中。AABB 与圆形重叠查询使用精确形状重叠，不只接受宽阶段包围盒。AABB 扫掠支持圆形和旋转矩形；起始重叠以零命中比例显式返回，此时没有唯一碰撞法线。
+
+结果使用引擎标识和世界单位（EU）。全部命中按比例与引擎目标排序，并移除重复形状命中。过滤器可排除发起对象的碰撞类别。重叠结果只标识形状，不额外生成穿透流形。
+
+## 高速攻击如何使用
+
+投射攻击形状后，按行进顺序处理命中，并在阻挡物处停止。传感器的 `Begin` 事件只表示离散采样接触，不能代替高速投射查询。Box2D 的原生 CCD 与接触语义见[模拟文档](https://box2d.org/documentation/md_simulation.html)。

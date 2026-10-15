@@ -1,10 +1,12 @@
 # AudioService 模块说明
 
+本文解释项目音频服务的资源查找、请求调度与播放生命周期。游戏层负责何时播放，服务负责请求与实际音频状态的协调；资源清理和播放结束也需要按各自的边界处理。
+
 `elysia::audio::AudioService` 是 Elysia Engine 的运行时音频播放服务。它负责把已经加载好的音频资源播放为音效或音乐，并管理音效的并发、冷却、延迟、停止和运行时音量、渐入渐出与音乐顺序切换。
 
 本文面向两类读者：
 
-- gameplay/UI 调用者：需要知道如何请求播放、配置组规则、停止指定声音与调整音量。
+- 游戏玩法与 UI 调用者：需要知道如何请求播放、配置组规则、停止指定声音与调整音量。
 - 模块维护者：需要理解 `AudioService`、`SoundPlaybackScheduler`、`ResourceManager` 与 SDL_mixer 的职责边界。
 
 ## 1. 模块边界
@@ -24,26 +26,28 @@ AudioService
         │
         ▼
 SDL_mixer
-  Mix_PlayChannel / Mix_PlayMusic / Mix_HaltChannel
+  MIX_Track / MIX_PlayTrack / MIX_StopTrack
 ```
 
-- `ResourceManager` 负责通过资源 key 查找已加载的 `MIX_Audio`（音效预解码、音乐按需解码），不负责播放策略。
-- `AudioService` 是 gameplay 与 UI 的公开播放入口；它不依赖 `Scene`，也不持有场景对象。
+- `ResourceManager` 负责通过资源键查找已加载的 `MIX_Audio`（音效预解码、音乐按需解码），不负责播放策略。
+- `AudioService` 是游戏玩法与 UI 的公开播放入口；它不依赖 `Scene`，也不持有场景对象。
 - `SoundPlaybackScheduler` 是 `AudioService` 的内部调度器，维护音效的待播放/活跃状态、`SoundHandle`、并发组、冷却和溢出策略。
-- SDL_mixer 负责实际 channel 和音乐播放。SDL 资源查找、停止 channel、设置 channel 音量仍由 `AudioService` 处理。
+- SDL3_mixer 使用轨道完成实际播放。调度器中的逻辑通道是引擎逻辑通道索引，资源查找与轨道操作由服务及其后端适配完成，不是 SDL2_mixer 的通道 API。
 
 ## 2. 生命周期与更新顺序
 
 应用初始化 SDL_mixer 音频设备后调用：
 
 ```cpp
-audio->initialize(runtime_settings.audio);
+if (!audio->initialize(runtime_settings.audio)) {
+    return; // 放在应用初始化流程中，停止依赖音频的后续操作。
+}
 ```
 
-`init()` 会：
+`initialize()` 会：
 
 1. 将 master/music/sound 音量钳制到 `0..100`。
-2. 显式分配 24 个 SDL_mixer 音效 channel。
+2. 初始化由 SDL3_mixer 轨道组成的播放后端，保留 24 个逻辑音效通道和独立音乐轨道。
 3. 清空调度器运行时状态。
 4. 将四个组的运行时音量重置为 `100`。
 5. 应用音乐和当前活跃音效的有效音量。
@@ -69,7 +73,7 @@ audio->shutdown();
 ### `play_sound`
 
 ```cpp
-bool play_sound(std::string_view key, int loops = 0);
+bool play_sound(const std::string_view& key, int loops = 0);
 ```
 
 这是兼容性的简化入口：立即请求播放，默认归入 `SoundGroup::Extra`，只返回是否已经实际开始播放。
@@ -78,17 +82,17 @@ bool play_sound(std::string_view key, int loops = 0);
 - `loops > 0`：额外循环次数，实际播放次数为 `loops + 1`。
 - `loops = -1`：SDL_mixer 的无限循环语义。
 
-它不返回 handle，因此不适合需要稍后精确停止的持续音效。
+它不返回句柄，因此不适合需要稍后精确停止的持续音效。
 
 ### `request_sound`
 
 ```cpp
 SoundRequestResult request_sound(
-    std::string_view key,
+    const std::string_view& key,
     const SoundPlayOptions& options = {});
 ```
 
-这是推荐的音效播放入口。它先验证资源 key，再按 `options` 决定立即播放或创建延迟请求。
+这是推荐的音效播放入口。它先验证资源键，再按 `options` 决定立即播放或创建延迟请求。
 
 ```cpp
 struct SoundPlayOptions
@@ -112,9 +116,9 @@ struct SoundRequestResult
 };
 ```
 
-- `Started`：channel 已经开始播放，`handle` 指向活跃实例。
+- `Started`：逻辑通道已经开始播放，`handle` 指向活跃实例。
 - `Scheduled`：请求已进入延迟队列，`handle` 指向待播放实例；到期时仍会检查冷却和并发限制。
-- `Rejected`：服务未初始化、资源不存在，或即时请求触发冷却/并发限制；没有 handle。
+- `Rejected`：服务未初始化、资源不存在，或即时请求触发冷却/并发限制；没有句柄。
 
 延迟请求到期时若并发已满、正在冷却或底层播放失败，会被丢弃，不排队、不重试。
 
@@ -126,10 +130,10 @@ bool stop_sound(SoundHandle handle, std::chrono::milliseconds fade_out = {});
 
 统一停止或取消一个请求：
 
-- handle 仍处于延迟状态：取消待播放请求，返回 `true`。
-- handle 已处于播放状态：接受停止请求，返回 `true`。正时长从当前增益渐出，到零后停止 channel 并移除活跃记录；期间 handle 有效且仍占并发名额。
+- 句柄仍处于延迟状态：取消待播放请求，返回 `true`。
+- 句柄已处于播放状态：接受停止请求，返回 `true`。正时长从当前增益渐出，到零后停止逻辑通道并移除活跃记录；期间句柄有效且仍占并发名额。
 - 渐入中停止会从当前增益渐出；重复渐出请求不重启计时，非正时长立即停止。自然结束会提前清理。
-- handle 已自然结束、已被 `ReplaceOldest` 替换、无效，或服务未初始化：返回 `false`。
+- 句柄已自然结束、已被 `ReplaceOldest` 替换、无效，或服务未初始化：返回 `false`。
 
 ### `cancel_all_scheduled_sounds`
 
@@ -156,7 +160,7 @@ void stop_all_sounds(std::chrono::milliseconds fade_out = {});
 | `Ambient` | 4 | 环境与场景持续音 |
 | `Extra` | 4 | 暂未分类或通用音效 |
 
-所有组共享 24 个物理 SDL_mixer 音效 channel；音乐不使用这 24 个 channel。四组固定硬上限合计也为 24，因此一个组即使看到其他组空闲，也不能超过自身硬上限。
+所有组共享 24 个物理 SDL_mixer 音效逻辑通道；音乐不使用这 24 个逻辑通道。四组固定硬上限合计也为 24，因此一个组即使看到其他组空闲，也不能超过自身硬上限。
 
 组规则通过以下类型配置：
 
@@ -181,10 +185,10 @@ enum class SoundOverflowPolicy
 
 - `max_simultaneous = std::nullopt`：使用上表固定硬上限。
 - 设置具体上限时只能下调，不能超过该组硬上限；`0` 表示该组不接受新音效。
-- `cooldown` 按**音效资源 key**计算。同组不同 key 不共享冷却；只有成功开始播放才会刷新该 key 的冷却时间。
+- `cooldown` 按**音效资源键**计算。同组不同资源键不共享冷却；只有成功开始播放才会刷新该资源键的冷却时间。
 - `IgnoreNew`：组已满时拒绝新请求，默认策略，适用于 UI 与环境音。
 - `ReplaceOldest`：组已满时停止本组最早开始的活跃声音，再启动新声音；被替换声音的 `SoundHandle` 会失效。它不会停止其他组的声音。
-- 若目标组未满但全局 24 channel 已满，仍直接拒绝；当前没有跨组优先级或抢占。
+- 若目标组未满但全局 24 逻辑通道已满，仍直接拒绝；当前没有跨组优先级或抢占。
 
 公开配置 API：
 
@@ -237,11 +241,11 @@ int sound_group_volume(SoundGroup group) const;
 ```
 
 - 输入值同样钳制到 `0..100`。
-- 新启动的 channel 会立即使用该组有效音量。
-- 修改 master、sound 或任一组音量时，该组所有仍活跃的 channel 会立即更新。
-- 组音量不进入 `AudioSettings`、用户配置或资源 manifest；下一次 `init()` 会恢复四组为 `100`。
+- 新启动的逻辑通道会立即使用该组有效音量。
+- 修改 master、sound 或任一组音量时，该组所有仍活跃的逻辑通道会立即更新。
+- 组音量不进入 `AudioSettings`、用户配置或资源资源清单；下一次 `initialize()` 会恢复四组为 `100`。
 
-音效 channel 的有效音量为：
+音效逻辑通道的有效音量为：
 
 ```text
 master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_fade_gain × MIX_MAX_VOLUME
@@ -254,7 +258,7 @@ master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_fade
 ## 6. 音乐 API
 
 ```cpp
-bool play_music(std::string_view key, int loops = -1,
+bool play_music(const std::string_view& key, int loops = -1,
     std::chrono::milliseconds fade_in = {});
 void stop_music(std::chrono::milliseconds fade_out = {});
 
@@ -264,18 +268,18 @@ struct MusicTransitionOptions
     std::chrono::milliseconds fade_out{0};
     std::chrono::milliseconds fade_in{0};
 };
-bool transition_music(std::string_view key,
+bool transition_music(const std::string_view& key,
     const MusicTransitionOptions& options = {});
 ```
 
-- `play_music()` 校验资源后立即替换当前音乐、清除待切换目标，并让新音乐按指定时长渐入；同一 key 也从头播放。
+- `play_music()` 校验资源后立即替换当前音乐、清除待切换目标，并让新音乐按指定时长渐入；同一资源键也从头播放。
 - `transition_music()` 执行“旧音乐渐出 → 启动新音乐 → 新音乐渐入”。无音乐时直接启动新音乐；旧音乐自然结束时，在下一次更新启动目标。
-- 仅保存一个待播放目标。渐出期间收到新目标，更新 key、loops 和渐入时长，保留旧音乐渐出进度与结束时间。
-- 请求当前仍在播放的同一 key 时，取消待切换目标、保持播放位置与 loops，并按本次渐入时长恢复增益到 1；满音量时继续播放。
+- 仅保存一个待播放目标。渐出期间收到新目标，更新资源键、loops 和渐入时长，保留旧音乐渐出进度与结束时间。
+- 请求当前仍在播放的同一资源键时，取消待切换目标、保持播放位置与 loops，并按本次渐入时长恢复增益到 1；满音量时继续播放。
 - `stop_music()` 清除待切换目标，再从当前增益渐出。重复渐出不重启计时；非正时长立即停止。
-- 音乐 key 必须已加载。服务未初始化或资源无效时返回 `false`，不改变当前播放或已接受的切换。默认 `loops = -1` 为持续循环。
-- `transition_music()` 返回 `true` 表示请求已接受，不保证未来启动成功。待播放目标持有 key，启动时再次查询资源；资源消失或 SDL 启动失败时记录日志、清空目标并进入空闲，不自动重试。同步启动失败返回 `false`。
-- 音乐不参与音效组、冷却、延迟请求、handle 或 24 个音效 channel 的调度。本功能是单路顺序切换，不是两首音乐同时播放的交叉淡化。
+- 音乐资源键必须已加载。服务未初始化或资源无效时返回 `false`，不改变当前播放或已接受的切换。默认 `loops = -1` 为持续循环。
+- `transition_music()` 返回 `true` 表示请求已接受，不保证未来启动成功。待播放目标持有资源键，启动时再次查询资源；资源消失或 SDL 启动失败时记录日志、清空目标并进入空闲，不自动重试。同步启动失败返回 `false`。
+- 音乐不参与音效组、冷却、延迟请求、句柄或 24 个音效逻辑通道的调度。本功能是单路顺序切换，不是两首音乐同时播放的交叉淡化。
 - `shutdown()` 立即停止所有播放并清空延迟、切换与渐变状态，不等待渐出；重复初始化先清理上一轮播放状态。
 
 ## 7. 常用调用示例
@@ -348,27 +352,27 @@ if (rain.handle)
 
 ## 8. 内部调度器职责
 
-`SoundPlaybackScheduler` 不作为 gameplay/UI 的直接入口。它完成以下工作：
+`SoundPlaybackScheduler` 不作为游戏玩法与 UI 的直接入口。它完成以下工作：
 
-- 生成并维护 `SoundHandle`；同一 handle 会从 Pending 延续到 Playing。
-- 维护待播放项的到期时间与活跃 channel 记录。
-- 每次请求和更新前清理 SDL 已结束的 channel，避免并发计数残留。
-- 判定冷却、组上限、全局 channel 上限与溢出策略。
-- 在 `ReplaceOldest` 时选择同组最早活跃项并通过回调停止其 channel。
-- 保存每个活跃实例的渐变与停止状态，按组枚举 channel 及增益，供 `AudioService` 更新实际音量。
+- 生成并维护 `SoundHandle`；同一句柄会从 Pending 延续到 Playing。
+- 维护待播放项的到期时间与活跃逻辑通道记录。
+- 每次请求和更新前清理 SDL 已结束的逻辑通道，避免并发计数残留。
+- 判定冷却、组上限、全局逻辑通道上限与溢出策略。
+- 在 `ReplaceOldest` 时选择同组最早活跃项并通过回调停止其逻辑通道。
+- 保存每个活跃实例的渐变与停止状态，按组枚举逻辑通道及增益，供 `AudioService` 更新实际音量。
 
-`AudioService` 向调度器传入“启动声音、检查 channel 是否仍播放、停止 channel”的回调。启动回调接收初始增益，更新回调应用增益。内部 `MusicPlaybackController` 同样通过播放、停止、播放状态和音量回调管理音乐，不缓存资源指针。共享 `AudioFade` 提供线性插值。这样调度器不依赖 `Scene`、`ResourceManager` 或 SDL_mixer 的资源查找；SDL 细节仍集中在服务层。
+`AudioService` 向调度器传入“启动声音、检查逻辑通道是否仍播放、停止逻辑通道”的回调。启动回调接收初始增益，更新回调应用增益。内部 `MusicPlaybackController` 同样通过播放、停止、播放状态和音量回调管理音乐，不缓存资源指针。共享 `AudioFade` 提供线性插值。这样调度器不依赖 `Scene`、`ResourceManager` 或 SDL_mixer 的资源查找；SDL 细节仍集中在服务层。
 
 ## 9. 当前能力边界
 
 当前模块**不提供**：
 
 - 满槽后等待、自动重试或顺序播放队列。
-- 跨组优先级与跨组 channel 抢占。
+- 跨组优先级与跨组逻辑通道抢占。
 - 自定义动态音效组。
 - 单实例暂停/恢复、声像、音高或随机变体。
 - 多路音乐交叉淡化、音乐排队、组音量渐变，以及内置启动画面播放器的渐变扩展。
 - 组音量的用户设置持久化。
-- 自动按 Scene、实体或技能批量取消延迟请求。
+- 自动按场景、实体或技能批量取消延迟请求。
 
 这些能力应在出现明确玩法或产品需求时单独设计，避免把资源加载、场景生命周期和运行时播放调度重新耦合。

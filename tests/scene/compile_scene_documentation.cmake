@@ -55,6 +55,16 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/object_query.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/damage.md"
         "${generated_directory}/damage.cpp" 2 damage_example::Fighter damage_example::DamageScene)
+    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/zh-CN/architecture/subsystems/save.md"
+        "${generated_directory}/save.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/application-failure.md"
+        "${generated_directory}/application_failure.cpp" 1 FailureExampleScene)
+    elysia_extract_documentation_cpp("${documentation_root}/content/configuration.md"
+        "${generated_directory}/configuration.cpp" 2)
+    elysia_extract_documentation_cpp("${documentation_root}/systems/physics.md"
+        "${generated_directory}/physics.cpp" 4 FallingBox ConfiguredPhysicsScene)
+    elysia_extract_documentation_cpp("${documentation_root}/gameplay/collision.md"
+        "${generated_directory}/collision.cpp" 3 CollisionExampleScene)
     add_library(scene_documentation_examples OBJECT
         "${generated_directory}/scene.cpp"
         "${generated_directory}/gameplay_scene.cpp"
@@ -62,6 +72,11 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/animation_effects.cpp"
         "${generated_directory}/camera.cpp"
         "${generated_directory}/object_query.cpp"
-        "${generated_directory}/damage.cpp")
+        "${generated_directory}/damage.cpp"
+        "${generated_directory}/save.cpp"
+        "${generated_directory}/application_failure.cpp"
+        "${generated_directory}/configuration.cpp"
+        "${generated_directory}/physics.cpp"
+        "${generated_directory}/collision.cpp")
     target_link_libraries(scene_documentation_examples PRIVATE engine_lib)
 endfunction()

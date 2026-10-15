@@ -1,5 +1,7 @@
 # 游戏对象与绘制
 
+本文说明如何为世界对象接入更新和绘制，以及如何在场景中管理它。创建对象、让对象每帧运行和让对象可见是三个不同步骤，下面逐项解释。
+
 `GameObject` 表示世界中的对象。它提供位置、尺寸、状态和绘制扩展点，不自动加载图片、响应输入或参与物理。需要持续行为时实现 `Updatable`，需要碰撞时接入[物理](../systems/physics.md)，角色输入通过[控制器](../gameplay/control.md)。UI 使用独立的 [UiElement 体系](../ui/README.md)。
 
 ## 创建一个会移动的可见对象
@@ -36,7 +38,7 @@ public:
 
 对象加入场景时才注册更新接口；不要又从场景手动调用它的 `update()`。对象自身时间缩放需要显式使用 `scaled_delta()`，引擎不会自动替你乘一次。该示例没有物理刚体，直接改位置即可。
 
-`add_object` 同步注册；不要在对象 `update()`、UI 呈现动画、渲染、查询或物理 step 回调中增删场景对象。在对象中记录生成请求，由场景 `on_before_update` / `on_after_update` 处理。场景固定步钩子和输入快照回调也允许同步添加；注册回调允许嵌套添加，但不能清空场景。完整规则见[阶段表](scene.md#常用操作与扩展点)。
+`add_object` 同步注册；不要在对象 `update()`、UI 呈现动画、渲染、查询或物理模拟步回调中增删场景对象。在对象中记录生成请求，由场景 `on_before_update` / `on_after_update` 处理。场景固定步钩子和输入快照回调也允许同步添加；注册回调允许嵌套添加，但不能清空场景。完整规则见[阶段表](scene.md#常用操作与扩展点)。
 
 ## 位置、绘制与资源
 
@@ -57,13 +59,13 @@ public:
 | `set_update_when_paused(true)` | 允许普通更新在场景暂停时继续；不会恢复整个物理世界步进 |
 | `set_receive_input_when_paused(true)` | 输入接收策略的一部分，不会自动给对象增加输入接口 |
 | `destroy()` | 标记销毁，停止继续使用其引用；实际释放由所属流程完成 |
-| `reset()` | 恢复基础状态；GameObject 还恢复时间缩放与显示偏移，业务字段由派生类负责 |
+| `reset()` | 恢复基础状态；`GameObject` 还恢复时间缩放与显示偏移，业务字段由派生类负责 |
 
 绘制层从后向前依次为 Background、Terrain、EffectBack、Item、Character、EffectFront、Foreground；同层较大的构造参数 `order` 后绘制。层与顺序在构造时指定，`Count` 是边界标记。UI 在世界之后绘制。排序不代表输入优先级或物理碰撞层。
 
 `GameObject::reset()` 不会替你恢复出生位置、生命值、订阅关系或动画状态。派生类重写时调用基类，再恢复自己的字段。场景持有对象；成员中保存的其他对象指针只是借用，需要在目标移除时清空，不能在对象销毁后用裸指针检查“它还活着吗”。
 
-对象的 `reset()` 与场景的 `on_reset()` 是不同接口。场景重置不会自动重置所有对象；业务按需逐个恢复或清空重建。场景在更新末尾、退出回调后和重置回调后回收已标记对象；`on_scene_object_removing`（GameplayScene 使用 `on_control_target_removing`）执行时对象仍有效，应在此解除借用引用。
+对象的 `reset()` 与场景的 `on_reset()` 是不同接口。场景重置不会自动重置所有对象；业务按需逐个恢复或清空重建。场景在更新末尾、退出回调后和重置回调后回收已标记对象；`on_scene_object_removing`（`GameplayScene` 使用 `on_control_target_removing`）执行时对象仍有效，应在此解除借用引用。
 
 ## 参考
 

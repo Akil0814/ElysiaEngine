@@ -1,10 +1,19 @@
-# Architecture and ownership
-`PhysicsWorld` is the Elysia boundary. Its private implementation owns the Box2D world, bodies, shapes, joints, engine-handle indexes, deferred commands and event mappings. Queries and gameplay never receive Box2D IDs.
+# 物理架构与所有权
 
-Scene owns GameObjects and unregisters them before destruction. Registered owners are borrowed and must remain alive until removal commits. Definitions are copied; there is no second writable velocity/transform structure.
+本文解释当前 Box2D 集成的职责边界。文件名沿用早期规划命名，正文描述已实现的架构。
 
-The core is split into world/lifecycle, queries, tiles, joints, debug capture and an internal unit-conversion type. The same conversion is used throughout.
+## 谁持有模拟状态
 
-Box2D 3.1.1 is pinned as a minimal source checkout under `thirdparty/box2d`; its release archive checksum is recorded beside the vendored source. Elysia builds the library directly without network access. Box2D samples, standalone tests, benchmarks and documentation are not included.
+`PhysicsWorld` 是 Elysia 对外的物理入口。它的私有实现持有 Box2D 世界、刚体、形状、关节、引擎句柄索引、延迟命令和事件映射。查询与 Gameplay 不接收 Box2D 标识。
 
-Fixed steps default to 1/60 second with four Box2D substeps. The accumulator and render interpolation belong to Elysia. Simulation state belongs to Box2D.
+场景持有游戏对象，并在对象销毁前解除物理注册。物理世界借用注册对象，对象必须活到移除提交完成。创建定义会被复制，游戏层不维护第二套可写的模拟速度或变换状态。
+
+## 模块如何分工
+
+内部实现按世界生命周期、查询、地图、关节和调试捕获划分。统一的内部单位转换类型贯穿这些模块，避免各功能使用不同空间比例。
+
+固定步默认是 1/60 秒，每步使用四个 Box2D 子步。固定步累积和渲染插值由 Elysia 组织，模拟状态归 Box2D 所有。场景级执行顺序见[输入架构](../input/architecture.md#一帧与一个固定步)。
+
+## 第三方依赖
+
+Box2D 3.1.1 固定存放在 `thirdparty/box2d`，来源归档校验和记录在依赖目录。工程直接构建仓库源码，不在构建时下载依赖。第三方示例、独立测试、基准程序和文档不包含在该最小源码副本中。

@@ -1,5 +1,7 @@
 # 存档读写与恢复
 
+本文说明游戏如何将业务数据转换为类型化存档，并处理提交和恢复结果。存档服务负责可靠写入，数据含义、业务版本迁移和保存时机仍由游戏决定。
+
 应用负责在 `player_data/saves/` 初始化 `ELYSIA_SAVE`。游戏负责字段、业务校验、版本迁移和保存时机，不自行初始化或关闭服务。
 
 ## 写入已有存档
@@ -65,7 +67,7 @@ bool save_level() {
 
 服务可同时缓存多个文档。同一槽位由一个明确负责人管理，避免一个组件 close 掉另一个组件正在编辑的文档。退出场景不会自动保存；应在退出前明确 commit 或丢弃，而不是依赖应用析构。
 
-字段 key 必须非空；示例中的点是游戏命名约定，存档按完整字符串保存字段，并不自动建立嵌套对象。不要把配置服务的递归展开规则套用到存档上。
+字段数据键必须非空；示例中的点是游戏命名约定，存档按完整字符串保存字段，并不自动建立嵌套对象。不要把配置服务的递归展开规则套用到存档上。
 ## 数据类型
 
 `SaveData` 只接受以下精确类型，不执行数值或字符串隐式转换：
@@ -73,7 +75,7 @@ bool save_level() {
 - `bool`、`std::int64_t`、`double`、`std::string`
 - `std::vector<bool>`、`std::vector<std::int64_t>`、`std::vector<double>`、`std::vector<std::string>`
 
-所有 `double` 必须有限。复杂 Gameplay 对象应由 Gameplay codec 展开为稳定 key；运行时指针、Scene 或 Entity 实例不能直接写入。
+所有 `double` 必须有限。复杂 Gameplay 对象应由 Gameplay codec 展开为稳定数据键；运行时指针、场景或实体实例不能直接写入。
 
 ## 文件格式
 
@@ -93,7 +95,7 @@ JSON format version 1 使用独立类型表，因此空数组也能在重启后�
 }
 ```
 
-根对象只允许 `format_version`、`types`、`values`，两个 key 集合必须完全一致。Gameplay schema version 应作为普通值保存，例如 `gameplay.schema_version`。
+根对象只允许 `format_version`、`types`、`values`，两个数据键集合必须完全一致。游戏业务数据版本 应作为普通值保存，例如 `gameplay.schema_version`。
 
 ## 名称与恢复
 
@@ -111,7 +113,7 @@ player_data/saves/slot_01.json.bak
 
 ## 兼容性与常见误用
 
-引擎的 format_version 是容器格式，不是游戏数据版本。游戏保存自己的 schema version，先读版本再校验、迁移字段；遇到未知未来版本应保留文件并拒绝按旧规则覆盖。恢复成功仍检查 recovered 与 warning，必要时告知玩家使用了备用副本。
+引擎的 format_version 是容器格式，不是游戏数据版本。游戏保存自己的结构约定 version，先读版本再校验、迁移字段；遇到未知未来版本应保留文件并拒绝按旧规则覆盖。恢复成功仍检查 recovered 与 warning，必要时告知玩家使用了备用副本。
 
 不要保存原始指针、场景实例或临时运行句柄；保存稳定业务标识和纯数据，在载入后重建对象关联。不要每帧 commit 同步 IO，也不要把“内存修改成功”当作“磁盘保存成功”。
 
@@ -120,7 +122,7 @@ player_data/saves/slot_01.json.bak
 
 ## 消费失败与恢复警告
 
-所有返回结果都必须检查。可预期的文件访问、写入、校验和恢复失败通过 `expected` 返回，不因保存失败自动退出应用。调用方依据 `error` 和可选的 `persistence` 决定提示或重试；保存失败后内存修改仍为 dirty，不要显示“已保存”。
+所有返回结果都必须检查。可预期的文件访问、写入、校验和恢复失败通过 `expected` 返回，不因保存失败自动退出应用。调用方依据 `error` 和可选的 `persistence` 决定提示或重试；保存失败后内存修改仍为未保存（dirty），不要显示“已保存”。
 
 `SaveFailure::diagnostic` 是唯一报告来源，可通过 `format_failure_diagnostic` 写入日志或展示。`SaveOpenResult::warning` 为可选的 `SaveFailure`，恢复成功后仍应检查。旧的 `SaveFailure::message` 和字符串 warning 已删除。
 

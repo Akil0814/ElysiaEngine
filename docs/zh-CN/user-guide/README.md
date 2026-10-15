@@ -18,7 +18,7 @@
 
 如果只是为已有游戏添加角色、武器、UI 或其他功能，可以跳过本节，直接查阅对应的开发任务文档。
 
-## Gameplay 相关功能
+## 游戏玩法相关功能
 
 Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景、角色控制及游戏碰撞逻辑。
 
@@ -26,7 +26,7 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | --- | --- | --- |
 | Gameplay Collision | 游戏玩法碰撞、碰撞事件与关系处理 | [游戏玩法碰撞](gameplay/collision.md) |
 | Gameplay Control | 控制器管理、控制命令与场景控制上下文 | [控制器与控制命令](gameplay/control.md) |
-| GameplayScene | 游戏玩法场景 | [GameplayScene 使用指南](gameplay/scene.md) |
+| `GameplayScene` | 游戏玩法场景 | [GameplayScene 使用指南](gameplay/scene.md) |
 | 攻击与伤害流程 | 攻击窗口、命中扣血、死亡与清理 | [从攻击命中到接收伤害](gameplay/damage.md) |
 
 ## 按开发任务查阅
@@ -122,7 +122,7 @@ Elysia Engine 提供内置应用错误场景，用于处理无法在当前场景
 | `Rect` | 矩形范围、包含与相交等几何判断 | [rect.h](../../../engine/core/geometry/rect.h) |
 | `Color` / `colors` | RGBA 颜色值与预定义颜色 | [color.h](../../../engine/core/render/color.h)、[colors.h](../../../engine/core/render/colors.h) |
 
-向量、矩形、颜色以及随机数的用法与边界见[常用基础工具](tools/utilities.md)；Timer 的驱动与生命周期见[时间与计时器](systems/time-and-timers.md)。
+向量、矩形、颜色以及随机数的用法与边界见[常用基础工具](tools/utilities.md)；`Timer` 的驱动与生命周期见[时间与计时器](systems/time-and-timers.md)。
 
 ## 引擎内置场景
 

@@ -1,5 +1,7 @@
 # 控制器与控制命令
 
+本文按会话、创建、绑定和命令消费的顺序介绍角色控制。读完后应能区分控制器句柄、绑定操作结果和目标对象的生命周期。
+
 控制器把本地输入或自定义意图转换为固定步消费的 `ControlCommand`。游戏层使用 `ControllerService::instance()`；`ControllerManager` 是调度实现，不是游戏侧操作入口。这里的会话是游戏会话，不代表网络连接。
 
 引擎控制代码位于 `engine/gameplay/control/`，上下文生命周期实现在独立的 `scene_control_context.cpp`。演示的控制接入辅助函数和语义命令视图位于 `game/gameplay/control/`，使用 `example::gameplay` 命名空间；动作 ID 和默认映射位于 `game/input/`，使用 `example::input`。
@@ -64,7 +66,7 @@ if (operation.failed()) {
 
 ## 命令消费与取消
 
-以下目标类与[输入指南](../systems/input.md)中的 `game.move` 映射配套。先加入 GameplayScene，再使用 bind_target 绑定。它没有物理刚体，命令直接推进世界位置；绘制可按[游戏对象](../scene/game-objects.md)添加。
+以下目标类与[输入指南](../systems/input.md)中的 `game.move` 映射配套。先加入 `GameplayScene`，再使用 bind_target 绑定。它没有物理刚体，命令直接推进世界位置；绘制可按[游戏对象](../scene/game-objects.md)添加。
 
 ```cpp
 #include "engine/core/game_object.h"
@@ -99,7 +101,7 @@ private:
 
 会话创建失败时停止创建控制器，例如重复开始会话应由游戏流程解决。`unbind_target(handle)` 只解除目标关联，`remove(handle)` 释放控制器；两者不要混用。get 返回的控制器指针只是临时借用，remove、上下文销毁或 end_session 后不可继续保存使用。
 
-Scene 作用域绑定创建时的上下文 token；上下文重置、场景销毁或会话结束会使相关控制器失效。Session 作用域可跨场景保留控制器，但离开旧场景仍会解绑目标，需要在新场景显式重新绑定。
+场景作用域绑定创建时的上下文标记；上下文重置、场景销毁或会话结束会使相关控制器失效。Session 作用域可跨场景保留控制器，但离开旧场景仍会解绑目标，需要在新场景显式重新绑定。
 
 仅离开缓存场景不等于重置上下文。不要在每次 `on_enter()` 中重复创建未清理的控制器。对象移除、场景离开和暂停有引擎侧取消流程；游戏侧仍需停止使用失效句柄及 `get()` 返回的借用指针。`remove()` 返回错误时应区分已经失效与其他接入问题。
 

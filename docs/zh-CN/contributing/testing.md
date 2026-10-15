@@ -1,55 +1,63 @@
-# Elysia Engine 测试指南
+# 测试与文档示例验证
 
-Elysia Engine 使用 CTest 管理自动化测试。测试由根 CMake 工程注册，测试源码位于 `tests/`。
+本文面向修改引擎和测试的开发者，说明如何验证当前变更。自动化测试由 CTest 管理，源码位于 `tests/`；文档中的完整场景示例另有编译目标。
 
-各测试目标直接链接 `engine_lib`。在 Windows 上，部分依赖 SDL 的测试目标会在构建后复制所需的运行时 DLL。
+## 1. 配置与构建
 
-## 运行测试
-
-运行测试前，请先按照[构建、运行与测试](../user-guide/build-and-run.md)完成项目配置。
-
-### 完整测试
-
-构建项目并运行全部已注册测试：
+先按照[构建指南](../user-guide/build-and-run.md)配置工程，并保持 `BUILD_TESTING=ON`。下面以 `out/build/sdl3-Debug` 为例；已有目录使用其他生成器时，应沿用其配置，不要直接切换生成器。
 
 ```powershell
-cmake --build build --config Debug
-ctest --test-dir build -C Debug --output-on-failure
+cmake --build out/build/sdl3-Debug --config Debug --parallel
+ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
 ```
 
-`--output-on-failure` 会在测试失败时输出相关信息，方便定位问题。
+测试目标通过 `add_elysia_test` 链接 `engine_lib`，部分集成测试还链接 `game_lib`。Windows 构建会为这些目标复制 SDL 运行时 DLL。`--output-on-failure` 显示失败测试的输出，便于定位问题。
 
-### 按子系统运行
+## 2. 按标签选择测试
 
-测试使用以下 CTest Label 分类：
+普通测试使用 `application`、`audio`、`bootstrap`、`builtin`、`camera`、`config`、`core`、`effects`、`elysia`、`gameplay_ui`、`gpu`、`input`、`loading`、`localization`、`object_query`、`persistence`、`physics`、`save`、`scene`、`tools`、`typography` 和 `ui` 标签。
 
-`application`、`audio`、`bootstrap`、`camera`、`config`、`core`、`effects`、`elysia`、`input`、`loading`、`localization`、`physics`、`save`、`scene`、`tools`、`typography` 和 `ui`。
-
-例如，仅运行物理系统测试：
+物理场景和可选压力案例另有 `physics_scenario`、`physics_stress` 标签。
 
 ```powershell
-ctest --test-dir build -C Debug -L physics --output-on-failure
+# 查看当前配置实际注册的测试和标签
+ctest --test-dir out/build/sdl3-Debug -C Debug -N
+ctest --test-dir out/build/sdl3-Debug -C Debug --print-labels
+
+# -L 使用正则表达式；加边界可以只匹配指定标签
+ctest --test-dir out/build/sdl3-Debug -C Debug -L '^physics$' --output-on-failure
+ctest --test-dir out/build/sdl3-Debug -C Debug -L '^ui$' --output-on-failure
 ```
 
-仅运行 UI 测试：
+`gpu` 测试需要实际图形设备与可用驱动，不能用 dummy 视频驱动替代。无显示环境可以用 `-LE '^gpu$'` 排除这些测试，但报告中必须说明排除范围。软件渲染测试检查像素和布局规则，不等于实际 GPU 或窗口交互验收。
+
+## 3. 编译文档示例
 
 ```powershell
-ctest --test-dir build -C Debug -L ui --output-on-failure
+cmake --build out/build/sdl3-Debug --config Debug --target scene_documentation_examples
 ```
 
-`-L` 使用正则表达式匹配测试标签。如需严格匹配某个标签，可以使用 `-L "^physics$"`。
+该目标由 [Markdown 提取脚本](../../../tests/scene/compile_scene_documentation.cmake)从十二份文档提取十九个 C++ 代码块，检查完整场景、对象和服务调用示例是否仍符合公开接口。它是编译目标，不是 CTest 测试；不能只运行 `ctest` 就认为示例已验证。
 
-### 查看已注册测试
+修改被提取的文档时，应保留脚本指定的代码块顺序和示例类型。若确实要调整提取方式，需要同步脚本；新增局部片段不要插到被提取的代码块之前。概念片段应注明上下文和省略部分，不能标为可独立运行程序。
+
+## 4. 可选物理验证
+
+`ELYSIA_ENABLE_FULL_PHYSICS_STRESS_TESTS=ON` 额外注册中、高档压力测试。这些案例使用 `physics_stress` 标签，串行运行且允许更长的超时；日常默认配置不注册它们。
+
+`ELYSIA_BUILD_PHYSICS_BENCHMARK=ON` 构建独立的 `physics_benchmark`。性能测量应使用 Release，并记录工具链、环境和测量范围。具体历史结果见[物理验证与性能](../architecture/subsystems/physics/08-implementation-roadmap-and-tests.md)。
+
+## 5. 变更后的检查
+
+代码变更先运行受影响子系统的测试；涉及多个子系统的运行契约时，再运行完整测试集。Development Demo 用于实际观察和操作，不代替自动化回归。
+
+文档变更应运行链接检查；涉及完整示例时还要编译示例。语言特性盘点使用统计脚本验证：
 
 ```powershell
-ctest --test-dir build -C Debug -N
+python scripts/check_documentation_links.py
+pwsh -File scripts/audit_cpp_language_features.ps1 -SelfTest
+pwsh -File scripts/audit_cpp_language_features.ps1 -Check
+git diff --check
 ```
 
-## 测试维护约定
-
-- 新增功能或修改现有行为时，应在对应子系统目录增加或扩展自动化测试。
-- Development Demo 可用于人工观察和调试，但不应替代可自动验证的测试。
-- 修改公开 API 契约、失败语义或对象生命周期时，应同步更新相关测试与文档。
-- 涉及 SDL 的测试应使用现有的 `add_elysia_test(... SDL)` 模式，保持运行时依赖处理方式一致。
-- 提交代码前，应运行与改动相关的测试。对于影响多个子系统的改动，建议运行完整测试集。
-- 测试结果仅能证明已覆盖环境下的行为。文档中的平台兼容性声明应以实际验证结果为准。
+`python` 需要 Python 3，统计脚本需要 PowerShell 7。检查报告应区分编译结果、运行测试、截图检查和人工体验。历史验收数字不能替代当前变更的验证结果。

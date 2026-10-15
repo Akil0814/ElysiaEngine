@@ -1,22 +1,37 @@
 # 通用存档服务
 
-`engine/save/` 提供与具体 Gameplay 数据无关的类型化存档能力。引擎负责名称校验、内存文档、JSON 编码、可靠写入和恢复；Gameplay 负责 key、业务校验、数据迁移以及保存时机。
+本文面向维护存档模块或设计游戏存档格式的开发者。它解释内存数据、文件替换与失败诊断如何分工；调用示例先处理每一步结果，再继续依赖该结果的操作。
+
+`engine/save/` 提供与具体 Gameplay 数据无关的类型化存档能力。引擎负责名称校验、内存文档、JSON 编码、可靠写入和恢复；Gameplay 负责数据键、业务校验、数据迁移以及保存时机。
 
 ## 基本使用
 
 `Application` 会使用 `PathManager::saves()` 初始化 `SaveService`。调用方只提供逻辑存档名，引擎自动在固定目录补充 `.json`：
 
 ```cpp
-ELYSIA_SAVE->create("slot_01");
-ELYSIA_SAVE->set("slot_01","player.level",std::int64_t{12});
-ELYSIA_SAVE->set(
-    "slot_01",
-    "progress.unlocked_stages",
-    std::vector<std::string>{"forest_01","forest_02"});
-ELYSIA_SAVE->commit("slot_01");
+#include "engine/save/save_service.h"
+#include <cstdint>
+#include <expected>
+#include <string>
+#include <vector>
+
+// 服务已由 Application 初始化；本函数创建一个新存档。
+// 名称已存在等失败由调用方处理，不把创建失败当作覆盖许可。
+std::expected<void, elysia::save::SaveFailure> save_progress()
+{
+    auto* saves = ELYSIA_SAVE;
+    auto created = saves->create("slot_01");
+    if (!created) return std::unexpected(created.error());
+    auto level = saves->set("slot_01", "player.level", std::int64_t{12});
+    if (!level) return std::unexpected(level.error());
+    auto stages = saves->set("slot_01", "progress.unlocked_stages",
+        std::vector<std::string>{"forest_01", "forest_02"});
+    if (!stages) return std::unexpected(stages.error());
+    return saves->commit("slot_01");
+}
 ```
 
-读取已有存档前必须显式打开：
+该函数完整展示结果传播，不是独立程序。调用方检查最终结果并记录诊断；中间失败可能留下已打开的内存存档，需要按业务选择重试或显式丢弃。读取已有存档前必须显式打开：
 
 ```cpp
 auto opened = ELYSIA_SAVE->open("slot_01");
@@ -27,7 +42,7 @@ auto level = ELYSIA_SAVE->get<std::int64_t>(
     "player.level");
 ```
 
-服务可以同时缓存多个打开的存档。修改会更新对应文档的 dirty 状态和 revision；设置相同值不会产生新 revision。`close()` 默认拒绝丢弃脏文档，必须先 `commit()`，或者显式使用 `SaveClosePolicy::DiscardChanges`。
+服务可以同时缓存多个打开的存档。修改会更新对应文档的未保存（dirty）状态和 revision；设置相同值不会产生新 revision。`close()` 默认拒绝丢弃脏文档，必须先 `commit()`，或者显式使用 `SaveClosePolicy::DiscardChanges`。
 
 ## 数据类型
 
@@ -36,7 +51,7 @@ auto level = ELYSIA_SAVE->get<std::int64_t>(
 - `bool`、`std::int64_t`、`double`、`std::string`
 - `std::vector<bool>`、`std::vector<std::int64_t>`、`std::vector<double>`、`std::vector<std::string>`
 
-所有 `double` 必须有限。复杂 Gameplay 对象应由 Gameplay codec 展开为稳定 key；运行时指针、Scene 或 Entity 实例不能直接写入。
+所有 `double` 必须有限。复杂 Gameplay 对象应由 Gameplay codec 展开为稳定数据键；运行时指针、场景或实体实例不能直接写入。
 
 ## 文件格式
 
@@ -56,7 +71,7 @@ JSON format version 1 使用独立类型表，因此空数组也能在重启后�
 }
 ```
 
-根对象只允许 `format_version`、`types`、`values`，两个 key 集合必须完全一致。Gameplay schema version 应作为普通值保存，例如 `gameplay.schema_version`。
+根对象只允许 `format_version`、`types`、`values`，两个数据键集合必须完全一致。游戏业务数据版本 应作为普通值保存，例如 `gameplay.schema_version`。
 
 ## 名称与恢复
 
@@ -84,7 +99,7 @@ player_data/saves/slot_01.json.bak
 
 可预期 I/O 和数据失败返回 `expected`；内存分配及内部契约异常继续传播。异常发生在主文件已移至备份之后时，先受保护地尝试恢复，再传播原异常；恢复失败由清理边界记录。Store 不为普通返回失败重复记录日志，由消费结果的调用边界负责记录和决定重试、提示或退出。
 
-提交失败保留内存 dirty 状态和 revision。上述替换流程不提供断电持久性、跨进程互斥或并发写入保证。
+提交失败保留内存未保存（dirty）状态和 revision。上述替换流程不提供断电持久性、跨进程互斥或并发写入保证。
 
 ### 保存前的临时副本保护
 

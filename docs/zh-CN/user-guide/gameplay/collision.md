@@ -1,12 +1,33 @@
 # 游戏玩法碰撞
 
+本文说明如何把物理接触关联到游戏中的角色和攻击。它重点解释绑定顺序、命中去重与监听器寿命，不替游戏决定伤害或背包规则。
+
 物理系统负责刚体、几何碰撞和接触；玩法碰撞把实际 ColliderId 关联到角色、阵营与 Body/PushBox/HurtBox/HitBox/Sensor 语义，并发布玩法事件。它不自动扣血、播放动画或实现背包逻辑。
 
 要把这些接口组合成完整玩法，请阅读[从攻击命中到接收伤害](damage.md)，其中包含攻击窗口、生命值修改、死亡及清理的配套示例。
 
 ## 前提与接入流程
 
-使用 `GameplayScene` 时，场景管理器负责激活其碰撞运行时。游戏操作通过 `elysia::gameplay::collision::GameplayCollisionService::instance()` 访问当前活动运行时，或在派生场景内通过 `collision_runtime()` 操作自己的运行时。
+必须在 `GameplaySceneFeatures` 中同时提供 `physics` 并将 `gameplay_collision` 设为 `true`。默认 GameplayScene 没有玩法碰撞运行时；只开启物理也不会自动创建它。开启玩法碰撞但没有物理配置会在构造时抛出 `std::invalid_argument`。
+
+仅用于说明接入条件的完整场景类型如下：
+
+```cpp
+#include "engine/gameplay/scene/gameplay_scene.h"
+
+class CollisionExampleScene final : public elysia::gameplay::GameplayScene
+{
+public:
+    CollisionExampleScene() : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+        .physics = elysia::physics::PhysicsWorldConfig{},
+        .gameplay_collision = true}) {}
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+};
+```
+
+场景管理器只在运行时已创建时激活它。未启用时 `has_collision_runtime()` 为 false，派生场景可用 `try_collision_runtime()` 查询；强制访问 `collision_runtime()` 会抛出 `std::logic_error`。游戏操作通过 `elysia::gameplay::collision::GameplayCollisionService::instance()` 访问当前活动运行时，或在派生场景内通过 `collision_runtime()` 操作自己的运行时。
 
 先按[物理接口指南](../systems/physics.md)创建并注册物理对象，取得真实 ColliderId。随后分配非零 ActorId、TeamId，将碰撞体绑定到玩法角色。仅绑定玩法语义不会创建物理形状，也不会替代物理层与掩码过滤。
 
@@ -38,7 +59,7 @@ bool bind_player(elysia::gameplay::collision::ActorId actor,
 
 ## 攻击与去重
 
-下面函数在攻击开始时调用，hit 是已经注册的 Overlap 碰撞体，owner 和实例、定义标识均由游戏提供。物理 filter 必须允许它与目标 HurtBox 接触。
+下面函数在攻击开始时调用，hit 是已经注册的 Overlap 碰撞体，所有者和实例、定义标识均由游戏提供。物理 filter 必须允许它与目标 HurtBox 接触。
 
 ```cpp
 #include "engine/gameplay/collision/gameplay_collision_service.h"
@@ -61,11 +82,11 @@ bool begin_hit(elysia::physics::ColliderId hit,
 
 失败时不把攻击标记为已绑定；成功后记录 instance，在攻击结束或取消时 end_attack_instance。HitBox 的一次命中只在 Begin 阶段对敌对 HurtBox 路由；游戏仍负责判断目标是否存活并计算伤害。
 
-攻击碰撞体使用 `bind_hit_box(HitBoxBinding)`，其中 `collider.role` 为 `ColliderRole::HitBox`，并提供有效的 owner、team、instigator、attack_instance 和 attack_definition。攻击实例表示这一次攻击，攻击定义表示攻击种类，不应把所有攻击永久共用一个实例号。
+攻击碰撞体使用 `bind_hit_box(HitBoxBinding)`，其中 `collider.role` 为 `ColliderRole::HitBox`，并提供有效的所有者、team、instigator、attack_instance 和 attack_definition。攻击实例表示这一次攻击，攻击定义表示攻击种类，不应把所有攻击永久共用一个实例号。
 
 HitBox 与 HurtBox 的命中按“攻击实例 + 受击角色”去重，同一实例不会因为多个受击碰撞体而重复发放命中事件。一次攻击结束后调用 `end_attack_instance(id)`，清除去重记录及该实例的 HitBox 玩法绑定；它不会替你销毁物理碰撞体。下一次攻击使用新的实例标识。
 
-默认阵营关系：同一有效阵营为 Friendly；涉及 Neutral 或无效阵营为 Neutral；其他不同有效阵营为 Hostile。命中流程检查敌对关系。需要自定义关系时，在派生场景中对 `collision_runtime()` 设置 `TeamRelationResolver`；resolver 是借用指针，必须比使用它的运行时关联活得更久，解除关联后才能释放。
+默认阵营关系按顺序判断：同一有效阵营为 Friendly（包含双方都是 `teams::Neutral`）；其余情况中任一方为 Neutral 或无效阵营时为 Neutral；其他不同有效阵营为 Hostile。命中时会查找已通过 `bind_actor` 登记的 instigator，并使用其队伍判定敌对关系；仅有非零 instigator 标识或 HitBox 自身的 team，并不足以产生伤害命中事件。命中流程检查敌对关系。需要自定义关系时，在派生场景中对 `collision_runtime()` 设置 `TeamRelationResolver`；resolver 是借用指针，必须比使用它的运行时关联活得更久，解除关联后才能释放。
 
 ## 监听与释放
 

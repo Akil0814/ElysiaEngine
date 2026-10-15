@@ -1,5 +1,7 @@
 # 启动加载场景
 
+本文说明如何配置启动加载路线、项目标志与完成确认，并解释加载失败后的处理方式。展示完成与资源准备完成是独立条件，应按项目需要配置等待策略。
+
 `StartupLoading` 负责进入游戏内容前的加载展示、项目 Logo 和完成确认。应用启动装配及内置资源准备仍由应用完成；它不是替代 `IGameModule` 的入口。项目资源清单格式见[资源加载文档](../content/resources.md)。
 
 ## 配置初始路由
@@ -34,11 +36,11 @@ elysia::scene::SceneRoute make_startup_route(
 | --- | --- |
 | `success_route` | 加载完成后进入的目标及其 Payload |
 | `failure_route` | 可选的自定义失败路由；未提供时使用内置失败展示 |
-| `project_logo` | 可选 `StartupLogoSlot`，包含纹理 key 及淡入、停留、淡出秒数 |
+| `project_logo` | 可选 `StartupLogoSlot`，包含纹理资源键及淡入、停留、淡出秒数 |
 | `wait_for_logo_sequence` | 默认 `true`；设为 `false` 时资源加载完成后不再等待 Logo 序列结束 |
 | `wait_for_confirmation` | 默认 `true`；完成加载后仍需用户确认，不能把“加载成功”当成已经切换 |
 
-项目 Logo 使用预加载纹理的资源 key，而非直接传入纹理文件路径；场景通过 Bootstrapper 查找预加载纹理，不能只把 Logo 放到后续内容加载清单。key 为空或纹理不可用时会记录警告并跳过这个可选 Logo。
+项目 Logo 使用预加载纹理的资源键，而非直接传入纹理文件路径；场景通过 `Bootstrapper` 查找预加载纹理，不能只把 Logo 放到后续内容加载清单。资源键为空或纹理不可用时会记录警告并跳过这个可选 Logo。
 
 默认情况下，Logo 展示流程和内容加载都完成后才进入确认或成功切换阶段。将 `wait_for_logo_sequence` 设为 `false` 后，资源加载成功即可进入下一阶段：若 `wait_for_confirmation` 为 `true`，场景立即显示确认提示，Logo 动画可在后台继续播放；若两项都为 `false`，场景立即切换到 `success_route`。提前跳转不会绕过资源失败处理或项目字体激活。
 

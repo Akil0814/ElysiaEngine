@@ -1,12 +1,14 @@
 # 配置读取与用户设置
 
+本文区分启动默认值、玩家设置和只读游戏配置。根据数据用途选择服务，再处理加载、应用或保存结果，避免将界面草稿视为已经生效的配置。
+
 | 配置 | 谁提供、何时使用 |
 | --- | --- |
-| AppConfig | 项目启动默认值，启动前编辑 JSON |
-| UserConfig | 玩家设置，通过 `ELYSIA_USER_CONFIG` 应用与保存 |
+| `AppConfig` | 项目启动默认值，启动前编辑 JSON |
+| `UserConfig` | 玩家设置，通过 `ELYSIA_USER_CONFIG` 应用与保存 |
 | 游戏配置 | 内容加载后通过 `ELYSIA_CONFIG` 只读查询 |
 
-应用负责初始化用户设置及运行时回调，内容加载流程发布游戏配置；游戏对象不自行 initialize、publish 或 shutdown。加载与文件入口见[资源](resources.md)。
+应用负责初始化用户设置及运行时回调，内容加载流程发布游戏配置；游戏对象不自行 initialize、publish 或关闭流程。加载与文件入口见[资源](resources.md)。
 
 ## 读取游戏配置
 
@@ -32,7 +34,7 @@ std::optional<double> enemy_health_scale() {
 
 公开 getter 为 get_int、get_double、get_bool、get_string、get_vector2、get_rect 及对应的 `_array` 版本。失败包括 NotInitialized、MissingKey、TypeMismatch、InvalidValue；返回值拥有自身数据，不是对配置 JSON 的借用。
 
-get_int 要求 int64 范围内的整数；get_double 接受有限数值，包括整数。布尔和字符串不作隐式转换。Vector2 必须是恰好包含 x、y 的对象；Rect 必须恰好包含 x、y、width、height，尺寸非负，分量须能表示为有限 float。数组 getter 对每项应用相同规则，不混入其他类型或 null。
+get_int 要求 int64 范围内的整数；get_double 接受有限数值，包括整数。布尔和字符串不作隐式转换。`Vector2` 必须是恰好包含 x、y 的对象；`Rect` 必须恰好包含 x、y、width、height，尺寸非负，分量须能表示为有限 float。数组 getter 对每项应用相同规则，不混入其他类型或 null。
 
 ## 修改并保存玩家设置
 
@@ -46,9 +48,13 @@ bool save_settings(const elysia::config::UserConfigData& draft,
                    const elysia::config::UserConfigRuntimeState& baseline) {
     auto result = ELYSIA_USER_CONFIG->apply_and_save_user_config(draft, baseline);
     if (!result) {
-        ELYSIA_LOG_ERROR("settings", result.error().cause.message);
-        if (result.error().rollback_failure)
-            ELYSIA_LOG_ERROR("settings", result.error().rollback_failure->message);
+        const auto diagnostic = elysia::config::to_failure_diagnostic(result.error());
+        elysia::tools::Logger::instance()->log_stream(
+            elysia::tools::LogLevel::Error, "settings",
+            [&](std::ostream& output) {
+                output << elysia::core::format_failure_diagnostic(
+                    diagnostic, "SETTINGS", "settings");
+            }, diagnostic.origin);
         return false; // 页面重新读取实际状态，不假设回滚必然成功。
     }
     if (*result == elysia::config::UserConfigApplyStatus::PendingRestart)
@@ -62,7 +68,7 @@ bool save_settings(const elysia::config::UserConfigData& draft,
 `snapshot()` 返回设置副本，`runtime_state()` 还包含重启状态，`is_dirty()` 查询未保存变化，`restart_required()` 查询待重启要求。批量事务的无基线重载使用调用时的状态作回滚基线。更完整的页面流程见[内置设置场景](../builtin-scenes/settings.md)。
 ## AppConfig 与 UserConfig
 
-`assets/configs/global/app_config.json` 使用严格 version 2 schema，提供窗口标题和窗口、渲染、音频、本地化的默认值。逻辑分辨率不属于用户配置，只由 `ApplicationDescriptor` 提供：
+`assets/configs/global/app_config.json` 使用严格的第 2 版结构约定，提供窗口标题和窗口、渲染、音频、本地化的默认值。逻辑分辨率不属于用户配置，只由 `ApplicationDescriptor` 提供：
 
 ```json
 {
@@ -78,22 +84,17 @@ bool save_settings(const elysia::config::UserConfigData& draft,
 }
 ```
 
-未知、缺失、重复或非法字段会使启动失败。窗口宽高和 FPS 必须为正，音量范围为 `0..100`，标题和语言不能为空。
-`render.fps` 是最大呈现帧率；VSync 等待和本帧更新、渲染耗时都会计入同一帧预算，只有剩余预算会由软件限帧器等待。
+未知、缺失、重复或非法字段会使启动失败。窗口宽高和 FPS 必须为正，音量范围为 `0..100`，标题和语言不能为空。`render.fps` 是最大呈现帧率；VSync 等待和本帧更新、渲染耗时都会计入同一帧预算，只有剩余预算会由软件限帧器等待。
 
-`player_data/user_config.json` 保存完整的 window、render、audio 与 localization 快照，但不保存窗口标题。AppConfig 和 UserConfig 都只接受严格 v2；旧 v0/v1 UserConfig 会作为无效配置归档，并以 AppConfig 默认值重建。`.tmp`/`.bak` 恢复、损坏主文件归档和未来版本保护继续保留。
+`player_data/user_config.json` 保存完整的 window、render、audio 与 localization 快照，但不保存窗口标题。`AppConfig` 和 `UserConfig` 都只接受严格 v2；旧 v0/v1 `UserConfig` 会作为无效配置归档，并以 `AppConfig` 默认值重建。`.tmp`/`.bak` 恢复、损坏主文件归档和未来版本保护继续保留。
 
 窗口模式只接受 `windowed` 和 `borderless_fullscreen`。`windowed_size` 始终记录窗口模式使用的大小；进入无边框桌面全屏不会覆盖它。
 
-内建 `SettingsScene` 使用草稿式提交：控件编辑不会立即修改运行时；Save 通过
-`UserConfigService::apply_and_save_user_config()` 批量应用并持久化。事务显式携带进入页面（或上次保存成功）时的
-`UserConfigRuntimeState` 作为回滚基线，因此应用失败或持久化失败不会回滚到点击 Save 前偶然变化的状态。
-回滚失败会作为独立错误返回，页面随后以 `UserConfig` 的实际运行时状态刷新。FPS 上限会立即应用到软件限帧器，
-VSync 会保存为下一次启动使用的值并显示重启提示。
-如果 VSync 又切回本次启动实际采用的值，待重启状态会自动取消。设置表单按显示、音频和通用分页，每页内容
-独立滚动，标题、状态消息及 Save/Back 操作保持固定。
+内建 `SettingsScene` 使用草稿式提交：控件编辑不会立即修改运行时；Save 通过`UserConfigService::apply_and_save_user_config()` 批量应用并持久化。事务显式携带进入页面（或上次保存成功）时的`UserConfigRuntimeState` 作为回滚基线，因此应用失败或持久化失败不会回滚到点击 Save 前偶然变化的状态。回滚失败会作为独立错误返回，页面随后以 `UserConfig` 的实际运行时状态刷新。
 
-## 通用 gameplay 配置
+FPS 上限会立即应用到软件限帧器，VSync 会保存为下一次启动使用的值并显示重启提示。如果 VSync 又切回本次启动实际采用的值，待重启状态会自动取消。设置表单按显示、音频和通用分页，每页内容独立滚动，标题、状态消息及 Save/Back 操作保持固定。
+
+## 通用游戏玩法配置
 
 入口是 `manifests.required.configs` 指向的 `assets/configs/manifests/config_manifest.json`：
 
@@ -104,9 +105,9 @@ VSync 会保存为下一次启动使用的值并显示重启提示。
 }
 ```
 
-`configs` 是 namespace 到文档路径的映射。当前映射为空；未来角色、技能、关卡等 gameplay 文档在这里注册，由内容加载阶段统一读取。manifest 自身是严格 schema；被引用的文档根节点可为 object、array、string、boolean 或 number，但不能为 `null`。
+`configs` 是命名空间到文档路径的映射。当前映射为空；未来角色、技能、关卡等游戏玩法文档在这里注册，由内容加载阶段统一读取。资源清单自身是严格结构约定；被引用的文档根节点可为 object、array、string、boolean 或 number，但不能为 `null`。
 
-根值使用 namespace key 注册；对象字段递归展开；数组下标使用无补位 `.0/.1/...` component。例如：
+根值使用命名空间配置键注册；对象字段递归展开；数组下标使用无补位 `.0/.1/...` 组成部分。例如：
 
 ```json
 {
@@ -115,9 +116,9 @@ VSync 会保存为下一次启动使用的值并显示重启提示。
 }
 ```
 
-若 namespace 为 `game`，可访问 `game.difficulty.enemy_health_scale` 与 `game.spawn_points.0.x`。namespace 和对象字段 component 必须符合 `[A-Za-z0-9_]+`。重复 JSON 属性、任意层级的 `null`、非法 component 和完整 key 冲突都会在快照发布前失败，并保留配置路径、JSON pointer 与 first/second 来源。
+若命名空间为 `game`，可访问 `game.difficulty.enemy_health_scale` 与 `game.spawn_points.0.x`。命名空间和对象字段组成部分必须符合 `[A-Za-z0-9_]+`。重复 JSON 属性、任意层级的 `null`、非法组成部分和完整配置键冲突都会在快照发布前失败，并保留配置路径、JSON 路径指针与首次与重复声明来源。
 
-游戏代码通过 `ConfigService` 的 `contains`、标量/几何 getter 及数组 getter 读取配置。`publish` 与关闭操作由引擎加载流程负责。访问失败会返回 `expected` 并按错误类型去重记录日志；不暴露原始 JSON，也不提供 optional、隐式 fallback、热重载或业务专用接口。
+游戏代码通过 `ConfigService` 的 `contains`、标量/几何 getter 及数组 getter 读取配置。`publish` 与关闭操作由引擎加载流程负责。访问失败会返回 `expected` 并按错误类型去重记录日志；不暴露原始 JSON，也不提供 optional、隐式回退值、热重载或业务专用接口。
 
 ## 常见误用与参考
 

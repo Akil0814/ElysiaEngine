@@ -1,8 +1,10 @@
 # GameplayScene 使用指南
 
+本文帮助你判断何时使用 `GameplayScene`，并说明它相对普通场景增加的能力。先理解场景生命周期，再接入角色控制或碰撞，避免重复调用框架已经负责的调度流程。
+
 `GameplayScene` 适用于需要角色控制与玩法碰撞的关卡。普通 `Scene` 提供对象管理、输入路由和 UI，并可按需启用固定步、相机和物理；`GameplayScene` 默认启用固定步与控制上下文，物理、玩法碰撞和相机仍须显式配置。菜单或纯展示场景不必为使用物理而改成 `GameplayScene`。
 
-普通场景的生命周期、对象管理和切换规则见[场景系统](../scene/scene.md)。本页介绍 GameplayScene 增加的能力与扩展约束。
+普通场景的生命周期、对象管理和切换规则见[场景系统](../scene/scene.md)。本页介绍 `GameplayScene` 增加的能力与扩展约束。
 
 ## 最小场景
 
@@ -32,9 +34,9 @@ protected:
 
 ## 运行时与扩展点
 
-场景管理器在进入前激活控制上下文，并把本场景的玩法碰撞运行时接到服务上；退出时先解除这些活动关联，再调用 `on_exit()`。所以退出回调中不要依赖全局玩法碰撞服务仍指向自己。可通过受保护的 `collision_runtime()` 清理本场景持有的玩法绑定。
+场景管理器在进入前激活控制上下文；只有显式启用了玩法碰撞时，才把本场景的碰撞运行时接到服务上；退出时先解除这些活动关联，再调用 `on_exit()`。所以退出回调中不要依赖全局玩法碰撞服务仍指向自己。可通过受保护的 `collision_runtime()` 清理本场景持有的玩法绑定。
 
-`control_context()` 是本场景的控制上下文，其 token 用于创建 Scene 作用域控制器。上下文由场景拥有，不自行创建、删除或伪造 token。
+`control_context()` 是本场景的控制上下文，其标记用于创建场景作用域控制器。上下文由场景拥有，不自行创建、删除或伪造标记。
 
 | 扩展点 | 用途 |
 | --- | --- |
@@ -43,17 +45,19 @@ protected:
 | `on_control_target_removing` | 场景对象移除时处理业务引用；控制器清理已先执行 |
 | `on_before_update` / `on_after_update` | 对象更新前 / 物理和相机推进后的逐帧逻辑；框架负责基础调度，末尾回收在 `on_after_update` 之后 |
 
-不要重写 `on_routed_input`、`on_fixed_update`、`on_pause_changed`、`on_scene_object_removing` 及 `on_runtime_attach` / `on_runtime_detach` / `on_runtime_reset`，它们在 `GameplayScene` 中是 `final`。固定步先推进控制器，再调用 `on_game_fixed_update`，随后物理世界继续该步的参与者更新与模拟。场景固定步钩子可以同步添加对象；进入物理 step 后，参与者和碰撞回调中不能增删场景对象，应暂存请求到 `on_after_update`。
+不要重写 `on_routed_input`、`on_fixed_update`、`on_pause_changed`、`on_scene_object_removing` 及 `on_runtime_attach` / `on_runtime_detach` / `on_runtime_reset`，它们在 `GameplayScene` 中是 `final`。固定步先推进控制器，再调用 `on_game_fixed_update`，随后物理世界继续该步的参与者更新与模拟。
+
+场景固定步钩子可以同步添加对象；进入物理模拟步后，参与者和碰撞回调中不能增删场景对象，应暂存请求到 `on_after_update`。
 
 ## 生命周期与暂停
 
 - 暂停会取消控制输入并停止场景物理固定步；不是停止整个应用或所有 UI。
-- 离开场景会解绑控制目标，但不等于销毁缓存场景。Scene 作用域控制器在上下文重置或销毁时释放；再次进入时需要按业务恢复绑定，避免无条件重复创建。
+- 离开场景会解绑控制目标，但不等于销毁缓存场景。场景作用域控制器在上下文重置或销毁时释放；再次进入时需要按业务恢复绑定，避免无条件重复创建。
 - Reset 路由会先重置控制上下文，再执行场景的 `on_reset()`；不会自动清空业务对象。Recreate 先构造候选，退出当前场景、销毁目标旧缓存后再激活候选。Session 控制器仍受游戏会话约束，不能把保留句柄等同于保留有效目标。
 - 普通对象在更新末尾及退出 / 重置回调后回收。在 `on_exit()` 里调用 `destroy()` 不在调用处释放，但会在该次退出流程内回收。
 - `on_enter` 失败不补调 `on_exit`；游戏外部订阅和回调应使用 RAII 或局部回滚。完整顺序和允许增删对象的阶段见[场景生命周期](../scene/scene.md)。
 
-先建立游戏会话，再创建与绑定控制器；碰撞体实际注册后再关联玩法角色。具体操作分别见[控制器与命令](control.md)、[玩法碰撞](collision.md)。服务绑定失败、无效 token 或错误路由应处理为接入错误，不能绕过状态检查继续使用。
+先建立游戏会话，再创建与绑定控制器；碰撞体实际注册后再关联玩法角色。具体操作分别见[控制器与命令](control.md)、[玩法碰撞](collision.md)。服务绑定失败、无效标记或错误路由应处理为接入错误，不能绕过状态检查继续使用。
 
 ## 参考
 
