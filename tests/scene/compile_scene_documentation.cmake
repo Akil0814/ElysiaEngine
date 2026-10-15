@@ -41,6 +41,9 @@ function(elysia_add_scene_documentation_examples)
     set(documentation_root "${PROJECT_SOURCE_DIR}/docs/zh-CN/user-guide")
     set(generated_directory "${CMAKE_CURRENT_BINARY_DIR}/scene_documentation_examples")
     file(MAKE_DIRECTORY "${generated_directory}")
+    elysia_extract_documentation_cpp("${documentation_root}/game-initialization.md"
+        "${generated_directory}/game_initialization.cpp" 3
+        initialization_example::EntryScene initialization_example::GameModule)
     elysia_extract_documentation_cpp("${documentation_root}/scene/scene.md"
         "${generated_directory}/scene.cpp" 1 RoomScene)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/scene.md"
@@ -66,6 +69,7 @@ function(elysia_add_scene_documentation_examples)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/collision.md"
         "${generated_directory}/collision.cpp" 3 CollisionExampleScene)
     add_library(scene_documentation_examples OBJECT
+        "${generated_directory}/game_initialization.cpp"
         "${generated_directory}/scene.cpp"
         "${generated_directory}/gameplay_scene.cpp"
         "${generated_directory}/game_objects.cpp"

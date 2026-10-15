@@ -56,3 +56,12 @@ benchmarks, and libpng/zlib tests and examples. Notices remain at their original
 paths, including the libpng examples README. The SDL family retains its
 `wikiheaders.pl` tools, and libpng configuration-generation scripts, FreeType
 platform build support, and HarfBuzz configuration and source lists are retained.
+
+A third cleanup removes unused upstream VisualC, VisualC-GDK, and Xcode project
+material, bundled prebuilt libraries and framework copies, SDL3_gfx screenshots,
+and the unbuilt Dear ImGui demo source. License, attribution, and README files
+in those directories remain at their original paths. Dependency builds use this
+project's CMake configuration; the bundled native project entry points are no
+longer provided. Platform implementation sources, Android Java and ProGuard
+files, CMake modules and templates, and resources required by the CMake platform
+branches are retained, including support for CMake-generated IDE projects.

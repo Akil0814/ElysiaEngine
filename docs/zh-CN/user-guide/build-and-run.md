@@ -1,63 +1,107 @@
 # 构建、运行与测试
 
-本文说明如何配置、构建和运行仓库中的示例程序，以及如何选择测试环境。命令从仓库根目录执行；构建目录、生成器和配置必须保持一致。
+本文说明如何构建和运行仓库中的示例程序，以及如何运行测试。以下命令均从仓库根目录执行。
 
-## Windows MSVC x64
+## 环境要求
 
-要求 CMake 3.24+、支持 C++23 的 MSVC，以及支持 SDL3 GPU 渲染器的图形驱动。所有 SDL 依赖与选定编解码器均使用仓库固定源码；正常配置和构建不需要网络。版本与补丁见[依赖来源](../../../thirdparty/SDL3-DEPENDENCIES.md)。
+- CMake 3.24 或更高版本。
+- 支持 C++23 的编译器；Windows 推荐 MSVC x64。
+- 对应生成器的构建工具，例如 Ninja 或 Visual Studio 的 MSBuild。
+- 运行示例程序和 GPU 测试时，需要支持 SDL3 GPU renderer 的图形设备与驱动。
 
-使用独立目录，不复用旧 SDL2 缓存。以下命令使用 Visual Studio 多配置生成器：
+第三方依赖源码随仓库提供，正常配置和构建无需下载依赖。SDL3 使用共享库，SDL3_image、SDL3_ttf、SDL3_mixer、SDL3_gfx 及选定编解码器静态链接。具体版本和本地补丁见[依赖来源](../../../thirdparty/SDL3-DEPENDENCIES.md)。
 
-```powershell
-cmake -S . -B out/build/sdl3-Debug -A x64 -DELYSIA_ENABLE_IMGUI=ON
-cmake --build out/build/sdl3-Debug --config Debug --parallel
-ctest --test-dir out/build/sdl3-Debug -C Debug --output-on-failure
-cmake -S . -B out/build/sdl3-Release -A x64 -DELYSIA_ENABLE_IMGUI=OFF
-cmake --build out/build/sdl3-Release --config Release --parallel
-ctest --test-dir out/build/sdl3-Release -C Release --output-on-failure
+## Windows 构建与运行
+
+### MSVC + Ninja
+
+安装 Visual Studio 的“使用 C++ 的桌面开发”工作负载，并准备 CMake 与 Ninja。打开 **x64 Native Tools Command Prompt**，切换到仓库根目录后执行：
+
+```bat
+cmake -S . -B out/build/msvc-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build out/build/msvc-debug --parallel
+.\out\build\msvc-debug\ElysiaEngine.exe
 ```
 
-若目录已经使用 Ninja，请保留原生成器，或选择新的目录。在 x64 Native Tools 命令行中使用 `-G Ninja -DCMAKE_BUILD_TYPE=Debug` 或 `Release`，省略 `-A x64`。Ninja 的可执行文件位于构建目录下，无 `Debug/` 子目录。
+Release 使用单独的构建目录：
 
-从仓库根目录运行：
-
-```powershell
-.\out\build\sdl3-Debug\Debug\ElysiaEngine.exe
+```bat
+cmake -S . -B out/build/msvc-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build out/build/msvc-release --parallel
+.\out\build\msvc-release\ElysiaEngine.exe
 ```
 
-SDL3 为共享库，CMake 将实际生成的 SDL3 DLL 复制到程序和测试目录。image、ttf、mixer、gfx 与编解码器静态链接，不需要旧 SDL2 DLL。MSVC 运行库默认使用动态 CRT，Debug 与 Release 必须各自保持一致。
+Ninja 在配置时通过 `CMAKE_BUILD_TYPE` 选择构建类型，可执行文件直接位于构建目录内。MSVC 的 x64 架构由开发者命令行环境确定。
 
-## Dear ImGui
+### Visual Studio 生成器
 
-默认 `ELYSIA_ENABLE_IMGUI=ON`，使用 Dear ImGui 1.92.9 的 SDL3 与 SDLRenderer3 后端。关闭时使用独立目录并传入 `-DELYSIA_ENABLE_IMGUI=OFF`。接口说明见 [Development Overlay](../architecture/subsystems/development-overlay.md)。
-
-## GPU 与测试
+以下示例使用 Visual Studio 2026 及其随附的 CMake；其他版本请通过 `cmake --help` 查看可用生成器，并替换 `-G` 后的名称。
 
 ```powershell
-ctest --test-dir out/build/sdl3-Debug -C Debug -L gpu --output-on-failure
-ctest --test-dir out/build/sdl3-Debug -C Debug -L input --output-on-failure
-ctest --test-dir out/build/sdl3-Debug -C Debug -L ui --output-on-failure
+cmake -S . -B out/build/msvc-vs -G "Visual Studio 18 2026" -A x64
+cmake --build out/build/msvc-vs --config Debug --parallel
+.\out\build\msvc-vs\Debug\ElysiaEngine.exe
 ```
 
-GPU 测试需要真实图形设备，不能使用 dummy video 驱动。`sdl3_gpu_integration_tests` 会验证无效 GPU 后端的失败路径、实际 GPU 绘制和读回，并在测试工作目录写入 `sdl3-gpu-verification.png`。示例应用 smoke test 会运行数秒后注入正常退出事件。软件渲染器测试用于精确检查 UI 像素规则，不能代替 GPU 测试。
+Visual Studio 是多配置生成器，同一构建目录可以构建 Debug 和 Release。构建时使用 `--config Release`，运行时使用对应的 `Release/` 子目录。
 
-无显示环境可用 `ctest -LE gpu` 运行其余测试，但这不满足完整迁移验收。SDL3 的驱动环境变量名是 `SDL_VIDEO_DRIVER` 和 `SDL_AUDIO_DRIVER`。
+### 运行时文件
 
-## Linux、macOS 与 MinGW
+从仓库根目录启动，并保留完整的 `assets/` 目录，包括项目标记 `assets/.elysia_root` 和内容注册表 `assets/content_registry.json`。CMake 会在 Windows 构建后将 SDL3 DLL 复制到程序和测试可执行文件所在目录。
 
-各平台使用相同的 vendored 源码，不再查找系统 SDL2 开发包。需要 C++23 工具链、CMake、平台图形/音频开发库及可用 GPU 驱动。SDL 副本已精简，部分平台说明不再随仓库提供。依赖来源与构建约定见[依赖说明](../../../thirdparty/SDL3-DEPENDENCIES.md)，SDL 的通用入口见[第三方 README](../../../thirdparty/SDL3/README.md)。配置其他平台时仍需准备相应系统开发库。
+## 常用构建选项
+
+| 选项 | 默认值 | 用途 |
+| --- | --- | --- |
+| `ELYSIA_ENABLE_IMGUI` | `ON` | 构建 Dear ImGui 开发覆盖层，运行时按 F2 显示或隐藏。 |
+| `BUILD_TESTING` | `ON` | 构建并注册测试；只构建示例程序时可关闭。 |
+
+在配置命令末尾添加 `-DELYSIA_ENABLE_IMGUI=OFF` 或 `-DBUILD_TESTING=OFF` 即可关闭对应功能。Debug 和 Release 都可以启用或关闭开发覆盖层。接口说明见[开发覆盖层](../architecture/subsystems/development-overlay.md)。
+
+## 运行测试
+
+默认构建包含测试。在完成构建后，使用对应构建目录运行：
+
+```powershell
+ctest --test-dir out/build/msvc-debug --output-on-failure
+```
+
+Visual Studio 生成器还需要指定配置：
+
+```powershell
+ctest --test-dir out/build/msvc-vs -C Debug --output-on-failure
+```
+
+可按标签或测试名称筛选；以下命令使用 Ninja 的 Debug 构建目录：
+
+```powershell
+ctest --test-dir out/build/msvc-debug -L gpu --output-on-failure
+ctest --test-dir out/build/msvc-debug -L input --output-on-failure
+ctest --test-dir out/build/msvc-debug -L ui --output-on-failure
+ctest --test-dir out/build/msvc-debug -R "^scene_lifecycle_regression_tests$" --output-on-failure
+```
+
+GPU 测试需要真实图形设备，不能使用 dummy video 驱动。`sdl3_gpu_integration_tests` 会在测试工作目录生成 `sdl3-gpu-verification.png`；示例应用 smoke test 会自动注入退出事件。
+
+`-LE gpu` 仅跳过标记为 `gpu` 的测试，部分 `application` 标签下的生命周期测试也需要 GPU。无显示环境应按具体测试的设备要求选择用例。
+
+## 其他平台
+
+Linux、macOS 和 MinGW 使用相同的仓库内依赖源码，还需准备对应的 C++23 工具链、构建工具及系统图形和音频开发库。Linux 的 Ninja 配置入口如下：
 
 ```bash
-cmake -S . -B out/build/sdl3-linux -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build out/build/sdl3-linux --parallel
-ctest --test-dir out/build/sdl3-linux --output-on-failure
+cmake -S . -B out/build/linux-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build out/build/linux-debug --parallel
+./out/build/linux-debug/ElysiaEngine
+ctest --test-dir out/build/linux-debug --output-on-failure
 ```
 
-macOS 或 MinGW 使用各自的新目录与工具链运行同样的配置入口。当前这些平台尚未实机验证；不能将 Windows 构建结果视为其他平台的验收结果。
+macOS 或 MinGW 请使用各自的构建目录和工具链。其他平台的构建与运行仍需分别验证；系统依赖要求可参考仓库内的 [SDL README](../../../thirdparty/SDL3/README.md)。
 
 ## 常见问题
 
+- 找不到 `cmake`、`ninja` 或 MSVC 标准库头文件：检查工具安装与 PATH，并在 x64 开发者命令行中运行 MSVC + Ninja 构建。
+- 生成器或架构不匹配：切换生成器、工具链或架构时使用新的构建目录。
 - GPU 创建失败：检查系统图形驱动与 SDL GPU 后端支持。应用会报告错误并清理资源，不自动退回软件渲染器。
-- 找不到资源：从仓库根目录启动，保留 `assets/` 的目录结构。
-- Debug 并行构建遇到 MSVC PDB 冲突：使用新的构建目录，可在 Ninja 配置时设置 `-DCMAKE_C_FLAGS_DEBUG="/Od /Z7 /RTC1" -DCMAKE_CXX_FLAGS_DEBUG="/Od /Z7 /RTC1"`。
-- 不同生成器或架构不能共用缓存，切换时使用独立构建目录。
+- 找不到资源或项目根目录：检查启动工作目录、`assets/.elysia_root` 和资源目录是否完整。
+- 找不到 SDL3 DLL：确认程序已完成构建，并保留可执行文件旁的 DLL；Debug 和 Release 文件应使用各自的构建输出。
