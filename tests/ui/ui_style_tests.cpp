@@ -239,7 +239,7 @@ void require_character_theme_contrast(
                 theme.chrome_container_style.header_background,3.0)
             && meets_contrast(
                 theme.scroll_container_style.border_color,
-                theme.scroll_container_style.background_color,3.0),
+                theme.window_style.background,3.0),
         "character window and container borders must meet 3:1");
 
     constexpr std::array bar_roles{
@@ -816,14 +816,14 @@ void test_elysia_light_palette_and_contrast()
                 == elysia::core::colors::elysia_muted_mauve,
         "ElysiaLight labels must use the character-specific readable text roles");
     require(theme.window_style.background
-            == elysia::core::colors::elysia_pearl_white
+            == elysia::core::colors::elysia_chiffon_pink
             && theme.panel(UiPanelVisualRole::Screen).background
                 == elysia::core::colors::elysia_chiffon_pink
             && theme.panel(UiPanelVisualRole::Dialog).background
                 == elysia::core::colors::elysia_silk_white
             && theme.chrome_container_style.header_background
-                == elysia::core::colors::elysia_opal_lilac,
-        "ElysiaLight containers must use pearl, chiffon, silk, and opal surfaces");
+                == elysia::core::colors::elysia_chiffon_pink,
+        "ElysiaLight containers must separate chiffon pages from pearl sections and silk dialogs");
 
     require(default_button.chrome.background.idle
             == elysia::core::colors::elysia_chiffon_pink
@@ -929,7 +929,7 @@ void test_elysia_light_palette_and_contrast()
                 theme.chrome_container_style.header_background,3.0)
             && meets_contrast(
                 theme.scroll_container_style.border_color,
-                theme.scroll_container_style.background_color,3.0),
+                theme.window_style.background,3.0),
         "ElysiaLight standard container borders must meet 3:1");
     require(meets_contrast(
             theme.bar(UiBarVisualRole::Default).fill,
@@ -1021,7 +1021,7 @@ void test_elysia_dark_palette_and_contrast()
             && theme.panel(UiPanelVisualRole::List).border
                 == elysia::core::colors::elysia_dream_rose
             && theme.chrome_container_style.header_background
-                == elysia::core::colors::elysia_phantom_sea,
+                == elysia::core::colors::elysia_starsea_navy,
         "ElysiaDark containers must preserve the starsea and crystal identity");
 
     require(default_button.chrome.background.idle
@@ -1127,7 +1127,7 @@ void test_elysia_dark_palette_and_contrast()
                 theme.chrome_container_style.header_background,3.0)
             && meets_contrast(
                 theme.scroll_container_style.border_color,
-                theme.scroll_container_style.background_color,3.0),
+                theme.window_style.background,3.0),
         "ElysiaDark standard container borders must meet 3:1");
     require(theme.bar(UiBarVisualRole::Default).fill
             == elysia::core::colors::elysia_glow_pink
@@ -1328,8 +1328,8 @@ void test_evangelion_unit01_palette_and_contrast()
             && theme.panel(UiPanelVisualRole::Default).background
                 == elysia::core::colors::eva_unit01_deep_purple
             && theme.panel(UiPanelVisualRole::List).background
-                == elysia::core::colors::eva_unit01_royal_purple,
-        "Unit-01 containers must preserve the void-to-royal purple hierarchy");
+                == elysia::core::colors::eva_unit01_deep_purple,
+        "Unit-01 containers must separate void pages from deep-purple sections");
     require(default_button.chrome.background.idle
             == elysia::core::colors::eva_unit01_deep_purple
             && default_button.chrome.background.focused
@@ -1423,11 +1423,11 @@ void test_evangelion_unit02_palette_and_contrast()
                 == elysia::core::colors::eva_unit02_warm_mist,
         "Unit-02 text roles must preserve bone-white, yellow, and warm highlights");
     require(theme.window_style.background
-            == elysia::core::colors::eva_unit02_deep_maroon
+            == elysia::core::colors::eva_unit02_pressed_maroon
             && theme.panel(UiPanelVisualRole::Default).background
-                == elysia::core::colors::eva_unit02_crimson
+                == elysia::core::colors::eva_unit02_deep_maroon
             && theme.chrome_container_style.header_background
-                == elysia::core::colors::eva_unit02_deep_maroon,
+                == elysia::core::colors::eva_unit02_pressed_maroon,
         "Unit-02 containers must stay within the deep-red armor hierarchy");
     require(default_button.chrome.background.idle
             == elysia::core::colors::eva_unit02_deep_maroon

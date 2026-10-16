@@ -40,8 +40,18 @@ template<class Enum>
     return UiChromeThemeColors{ background,border };
 }
 
-[[nodiscard]] UiTheme finalize_dialog_theme(UiTheme theme) noexcept
+[[nodiscard]] UiTheme finalize_theme(
+    UiTheme theme,elysia::core::Color page,elysia::core::Color section) noexcept
 {
+    // Containers describe their purpose; each theme supplies its own surface family.
+    theme.window_style.background = page;
+    theme.panel_styles[to_index(UiPanelVisualRole::Screen)].background = page;
+    theme.panel_styles[to_index(UiPanelVisualRole::Default)].background = section;
+    theme.panel_styles[to_index(UiPanelVisualRole::List)].background = section;
+    theme.chrome_container_style.background = section;
+    theme.chrome_container_style.header_background = page;
+    // Scrolling does not introduce a surface over its window, panel, or popup.
+    theme.scroll_container_style.background_color = elysia::core::colors::transparent;
     // Keep the initial action appearance familiar while reserving a distinct semantic slot.
     theme.dialog_style.action_button = theme.button(UiButtonVisualRole::Default);
     return theme;
@@ -226,7 +236,7 @@ template<class Enum>
         UiPalette::border_default
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),UiPalette::surface_base,UiPalette::surface_elevated);
 }
 
 [[nodiscard]] UiTheme make_elysia_light_theme() noexcept
@@ -403,7 +413,8 @@ template<class Enum>
         elysia::core::colors::elysia_velvet_rose
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),
+        elysia::core::colors::elysia_chiffon_pink,elysia::core::colors::elysia_pearl_white);
 }
 
 [[nodiscard]] UiTheme make_elysia_dark_theme() noexcept
@@ -593,7 +604,8 @@ template<class Enum>
         elysia::core::colors::elysia_starlight_lilac
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),
+        elysia::core::colors::elysia_starsea_navy,elysia::core::colors::elysia_twilight_mist);
 }
 
 [[nodiscard]] UiTheme make_evangelion_unit00_theme() noexcept
@@ -758,7 +770,8 @@ template<class Enum>
         elysia::core::colors::eva_unit00_soft_graphite
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),
+        elysia::core::colors::eva_unit00_frost_blue,elysia::core::colors::eva_unit00_rei_white);
 }
 
 [[nodiscard]] UiTheme make_evangelion_unit01_theme() noexcept
@@ -923,7 +936,8 @@ template<class Enum>
         elysia::core::colors::eva_unit01_toxic_green
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),
+        elysia::core::colors::eva_unit01_void_purple,elysia::core::colors::eva_unit01_deep_purple);
 }
 
 [[nodiscard]] UiTheme make_evangelion_unit02_theme() noexcept
@@ -1088,7 +1102,8 @@ template<class Enum>
         elysia::core::colors::eva_unit02_sun_yellow
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),
+        elysia::core::colors::eva_unit02_pressed_maroon,elysia::core::colors::eva_unit02_deep_maroon);
 }
 
 [[nodiscard]] UiTheme make_quiet_slate_theme() noexcept
@@ -1261,7 +1276,8 @@ template<class Enum>
         elysia::core::colors::quiet_slate_gray
     };
 
-    return finalize_dialog_theme(std::move(theme));
+    return finalize_theme(std::move(theme),
+        elysia::core::colors::quiet_slate_ink,elysia::core::colors::quiet_slate_charcoal);
 }
 }
 

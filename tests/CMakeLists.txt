@@ -466,6 +466,7 @@ foreach(UI_TEST_TARGET IN ITEMS
     ui_layout_tests
     ui_style_tests
     ui_theme_defaults_tests
+    ui_theme_surface_render_tests
     ui_popup_lifecycle_tests
     ui_tooltip_visibility_tests
     ui_selection_controls_tests
@@ -485,6 +486,8 @@ foreach(UI_TEST_TARGET IN ITEMS
         SDL
     )
 endforeach()
+
+target_compile_definitions(ui_theme_surface_render_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 add_elysia_test(logging_tests
     LABEL tools
