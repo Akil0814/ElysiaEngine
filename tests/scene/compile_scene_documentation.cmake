@@ -68,6 +68,30 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/physics.cpp" 4 FallingBox ConfiguredPhysicsScene)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/collision.md"
         "${generated_directory}/collision.cpp" 3 CollisionExampleScene)
+    elysia_extract_documentation_cpp("${documentation_root}/content/resources.md"
+        "${generated_directory}/resources.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/content/save.md"
+        "${generated_directory}/user_save.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/startup-loading.md"
+        "${generated_directory}/startup_loading.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/settings.md"
+        "${generated_directory}/settings.cpp" 1 SettingsExampleScene)
+    elysia_extract_documentation_cpp("${documentation_root}/systems/audio.md"
+        "${generated_directory}/audio.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/systems/localization.md"
+        "${generated_directory}/localization.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/tools/debug-draw.md"
+        "${generated_directory}/debug_draw.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/systems/time-and-timers.md"
+        "${generated_directory}/time_and_timers.cpp" 2)
+    elysia_extract_documentation_cpp("${documentation_root}/tools/utilities.md"
+        "${generated_directory}/utilities.cpp" 2)
+    elysia_extract_documentation_cpp("${documentation_root}/gameplay/control.md"
+        "${generated_directory}/control.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/systems/input.md"
+        "${generated_directory}/input.cpp" 2 ShortcutScene)
+    elysia_extract_documentation_cpp("${documentation_root}/ui/README.md"
+        "${generated_directory}/ui.cpp" 2 ExitMenuScene)
     add_library(scene_documentation_examples OBJECT
         "${generated_directory}/game_initialization.cpp"
         "${generated_directory}/scene.cpp"
@@ -81,6 +105,18 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/application_failure.cpp"
         "${generated_directory}/configuration.cpp"
         "${generated_directory}/physics.cpp"
-        "${generated_directory}/collision.cpp")
+        "${generated_directory}/collision.cpp"
+        "${generated_directory}/resources.cpp"
+        "${generated_directory}/user_save.cpp"
+        "${generated_directory}/startup_loading.cpp"
+        "${generated_directory}/settings.cpp"
+        "${generated_directory}/audio.cpp"
+        "${generated_directory}/localization.cpp"
+        "${generated_directory}/debug_draw.cpp"
+        "${generated_directory}/time_and_timers.cpp"
+        "${generated_directory}/utilities.cpp"
+        "${generated_directory}/control.cpp"
+        "${generated_directory}/input.cpp"
+        "${generated_directory}/ui.cpp")
     target_link_libraries(scene_documentation_examples PRIVATE engine_lib)
 endfunction()

@@ -2,7 +2,7 @@
 
 本文介绍向量、矩形、颜色、随机数、日志和 JSON 读取等常用工具。示例均为局部调用片段，调用方仍需负责输入校验、对象寿命和失败处理。
 
-本页介绍游戏代码可直接使用的向量、矩形、颜色、随机数与日志接口。计时器的推进、回调与暂停规则见[时间与计时器](../systems/time-and-timers.md)。这些值类型与工具不会自行注册到场景。
+这些值类型与工具不会自行注册到场景。计时器的推进、回调与暂停规则见[时间与计时器](../systems/time-and-timers.md)。
 
 ## Vector2：方向与距离
 
@@ -97,11 +97,16 @@ ELYSIA_LOG_WARN("inventory", "Reward skipped because inventory is full.");
 
 打印 Error 不会自动恢复操作、切换场景或终止应用。调用方仍要检查服务返回值并决定停止操作、提示用户或进入[应用错误流程](../builtin-scenes/application-failure.md)。日志也不替代 `std::expected` 等接口的错误处理。
 
+## JSON 文件与字段检查
+
+项目资源和游戏配置优先使用已有[加载流程](../content/resources.md)与[配置服务](../content/configuration.md)。需要读取游戏自行管理的 JSON 文件时，才直接使用 `JsonLoader`。
+
+`open_file(path)` 返回 `expected<void, JsonFileFailure>`；成功后通过 `root()` 获取只读 JSON，`is_loaded()` 查询状态，`reset()` 清除当前文档。`root()` 的引用随加载器持有的文档有效，重新加载或重置后不继续使用旧引用。
+
+严格 JSON 解析负责语法和重复属性检查，字段是否必填、类型是否正确、数值是否符合游戏规则仍由调用方检查。`JsonLoader` 不会替业务补默认值，也不会把任意 JSON 自动转换成游戏对象。需要新增领域加载器时，可参考[资源清单加载器](../../../../engine/io/loaders/content_registry_loader.h)的结构化失败接口。
+
 ## 参考
 
 - [随机数接口](../../../../engine/tools/random_generator.h)、[日志接口](../../../../engine/tools/logger.h)
+- [JSON 加载接口](../../../../engine/io/json/json_loader.h)
 - [返回使用指南](../README.md)
-
-## JSON 文件与字段检查
-
-`JsonLoader::open_file()` 返回 `expected<void, JsonFileFailure>`，其余查询接口为 `root()` 和 `is_loaded()`，`reset()` 清除加载状态。字段由领域加载器显式检查 JSON 节点并返回领域失败；不再提供输出参数读取、默认值读取或对象字段读取包装。i18n 资源清单使用 `ManifestLoadFailure` 区分缺失、类型错误、非法空值，并为每个失败保留准确 JSON 路径指针。

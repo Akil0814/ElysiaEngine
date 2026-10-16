@@ -2,11 +2,17 @@
 
 本文说明已加载的动画如何播放，以及特效如何使用注册定义提交绘制。资源配置、播放状态与游戏规则分别维护，避免在绘制阶段推进动画或发放效果。
 
-先在[资源配置](../content/resources.md)中声明图集、动画和特效，再等待内容加载成功。`AnimationService` 创建独立播放器；`EffectService` 把特效对象加入当前活动场景。游戏无需初始化或关闭这两个服务。
+先在[资源配置](../content/resources.md)中声明图集、动画和特效，再等待内容加载成功。游戏无需初始化或关闭动画、特效服务；根据表现的归属选择入口：
+
+| 需求 | 入口与归属 |
+| --- | --- |
+| 对象自己播放动画 | `AnimationService::create_animation()` 返回由调用方持有、更新的播放器 |
+| 世界中的命中特效或飘字 | `EffectService` 将特效对象同步加入活动场景，由场景更新与回收 |
+| 闪白、黑幕或屏幕动画 | `EffectService` 返回屏幕特效句柄，退出所属场景时清除 |
 
 ## 播放对象动画
 
-以下类可放入游戏头文件，在场景进入、资源加载成功后创建。test.动画对应下文示例清单，图片需由项目提供。
+以下类可放入游戏头文件，在场景进入、资源加载成功后创建。`test.animation` 对应下文示例清单，图片需由项目提供。所属场景还须启用相机并将镜头对准对象，见[相机接入](camera.md#配置跟随)。
 
 ```cpp
 #include "engine/animation/animation_service.h"
@@ -83,7 +89,7 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 `AnimationEf
 
 ## 全屏特效
 
-`EffectService` 支持纯色和静态图片遮罩。它们使用游戏逻辑视口的屏幕坐标，不受相机移动或缩放影响，也不覆盖窗口的留黑区域。它们全部属于当前活动场景：退出场景（包括缓存复用）、故障恢复、关闭或内容清理时移除，句柄失效；不支持跨场景保留。
+`EffectService` 支持纯色、静态图片和动画屏幕特效。它们使用游戏逻辑视口的屏幕坐标，不受相机移动或缩放影响，也不覆盖窗口的留黑区域。它们全部属于当前活动场景：退出场景（包括缓存复用）、故障恢复、关闭或内容清理时移除，句柄失效；不支持跨场景保留。
 
 ```cpp
 #include "engine/effects/effect_service.h"
@@ -123,6 +129,8 @@ std::optional<elysia::effects::ScreenEffectHandle> show_screen_image() {
 ### 屏幕动画与共享布局
 
 `request_screen_animation_effect` 使用与世界动画特效相同的 `effect_key`，共享已加载的动画、`Atlas` 和纹理，每次请求有独立播放实例。默认 `loop=false`、`fit=Contain`、`end=AnimationFinished`、保持时长 0。资源定义中的循环设置不覆盖屏幕请求；角度默认沿用特效定义，也可以通过 `angle_degrees` 覆盖，`flip` 默认 None。
+
+下面是活动场景函数中的局部片段，需包含 `effect_service.h`。各次请求独立，实际调用后都应检查返回的 optional 句柄；片段中的图片键需由项目预先加载。
 
 ```cpp
 // 单次居中演出：完整显示动画，播放完后淡出。
@@ -200,12 +208,15 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 
 面板显示播放中、已完成或请求失败状态，文案支持项目五种语言。每次选择效果会替换上一次预览。黑屏遮住按钮时仍可用快捷键；Esc 和返回按钮优先清除正在播放的效果，没有活动效果时才返回调用方。图片使用已加载的 `demo.screen_effect` 测试纹理；其 3:2 网格、四角标记和圆环用于观察拉伸、裁切、等比显示和透明叠加。
 
-新增两行动画控制：播放动画、循环开关、结束策略、四种适配、九宫格锚点、偏移（0 或 -24）、缩放（1 / 0.5 / 1.5 倍），以及按当前布局播放图片。参数变更用于下一次播放；F4/F5 同样控制动画。开启循环会将动画完成策略切换为 Manual，选择动画完成策略会关闭循环。动画使用已加载的 `effect.test`，同时在角色位置创建同资源键的世界特效作为对照，世界对照在 3 秒后销毁。
+动画控制区提供播放、循环、结束策略、适配、锚点、偏移和缩放选项，以及按当前布局播放图片的操作。参数变更用于下一次播放；F4/F5 同样控制动画。开启循环会将动画完成策略切换为 Manual，选择动画完成策略会关闭循环。动画使用已加载的 `effect.test`，同时创建同资源键的世界特效作为对照。
+
+这些操作用于人工观察，不是自动化测试结果。启用开发覆盖层时，F2 也用于覆盖层开关；发生快捷键占用时使用页面按钮。实现见[特效展示场景](../../../../game/showcase/effects/effects_showcase_scene.cpp)。
 
 ## 资源配置
 
 下文是项目需提供的 JSON 格式；核心资源清单路径由 content_registry 的 required 项指定。实体资源包的模板、布局与资源键规则见本目录[资源指南](../content/resources.md)。
-## 核心动画
+
+### 核心动画
 
 `assets/configs/manifests/animations_manifest.json`：
 
@@ -229,7 +240,7 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 - 目录帧：`path` 必须是目录，且必须提供非空 `frame_prefix`。
 - 横向序列图：`path` 必须是普通图片，不能出现 `frame_prefix`。
 
-## 实体 Animation 能力声明
+### 实体动画能力声明
 
 ```json
 {
@@ -246,7 +257,7 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 
 `texture_root`、`config_template` 和非空 `layouts` 必填。每个实体用 `animation_layout` 选择布局，再由自己的动画配置描述帧数和播放参数。模板及路径规则见 [实体内容资源包](../content/resources.md)。
 
-## Animation 布局与配置
+### 动画布局与配置
 
 布局只描述相对于实体纹理根目录的路径：
 
@@ -280,7 +291,7 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
 
 `source_type` 必填，只能是 `frame_directory` 或 `horizontal_strip`，并作用于整个配置；不支持单项覆盖。普通动画和每个分段都必须提供正数 `frame_count`、正数 `fps` 与 boolean `loop`。动画逻辑名必须存在于选中的布局。
 
-## 帧来源与分段
+### 帧来源与分段
 
 目录帧严格由配置生成，不扫描 PNG：
 
@@ -312,7 +323,7 @@ first frame              ..._00_000.png             ..._01_000.png
 
 分段索引范围是 `0–99`；帧索引从 0 开始，文件名使用至少三位数字。
 
-## 特效
+### 特效定义
 
 核心 `effects_manifest.json` 将已有 `Animation` 资源键映射为 EffectDefinition：
 
@@ -358,7 +369,7 @@ first frame              ..._00_000.png             ..._01_000.png
 特效名可与动画名不同。映射分段动画时，会为已配置的每个分段生成一个 EffectDefinition；若目标动画不存在则配置失败。宽高必须同时为零/省略，或同时为正数；零表示播放时使用动画单帧自然尺寸。
 
 
-## 资源键冲突
+### 资源键冲突
 
 核心与所有模块的请求会按 `Atlas`、`Animation`、`Effect`、Texture、Font、Sound、Music 注册表分别去重。同一字符串可出现在不同注册表；同一注册表冲突会在提交前失败，并在诊断中提供首次与重复声明的项目相对路径、JSON 路径指针、焦点区域、模块、能力声明、实体、逻辑名和分段。
 

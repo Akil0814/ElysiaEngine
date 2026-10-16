@@ -37,7 +37,7 @@ ctest --test-dir out/build/sdl3-Debug -C Debug -L '^ui$' --output-on-failure
 cmake --build out/build/sdl3-Debug --config Debug --target scene_documentation_examples
 ```
 
-该目标由 [Markdown 提取脚本](../../../tests/scene/compile_scene_documentation.cmake)从十二份文档提取十九个 C++ 代码块，检查完整场景、对象和服务调用示例是否仍符合公开接口。它是编译目标，不是 CTest 测试；不能只运行 `ctest` 就认为示例已验证。
+该目标由 [Markdown 提取脚本](../../../tests/scene/compile_scene_documentation.cmake)直接提取文档中指定的 C++ 代码块，检查场景、对象、服务调用和 UI 示例是否仍符合公开接口。覆盖文件与代码块数量以脚本中的列表为准，概念片段和需要调用方上下文的局部片段不全部纳入。它是编译目标，不是 CTest 测试；不能只运行 `ctest` 就认为示例已验证。
 
 修改被提取的文档时，应保留脚本指定的代码块顺序和示例类型。若确实要调整提取方式，需要同步脚本；新增局部片段不要插到被提取的代码块之前。概念片段应注明上下文和省略部分，不能标为可独立运行程序。
 

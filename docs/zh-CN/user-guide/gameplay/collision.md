@@ -8,7 +8,7 @@
 
 ## 前提与接入流程
 
-必须在 `GameplaySceneFeatures` 中同时提供 `physics` 并将 `gameplay_collision` 设为 `true`。默认 GameplayScene 没有玩法碰撞运行时；只开启物理也不会自动创建它。开启玩法碰撞但没有物理配置会在构造时抛出 `std::invalid_argument`。
+使用标准场景接入时，在 `GameplaySceneFeatures` 中同时提供 `physics` 并将 `gameplay_collision` 设为 `true`。默认 `GameplayScene` 没有玩法碰撞运行时；只开启物理也不会自动创建它。开启玩法碰撞但没有物理配置会在构造时抛出 `std::invalid_argument`。
 
 仅用于说明接入条件的完整场景类型如下：
 
@@ -55,7 +55,7 @@ bool bind_player(elysia::gameplay::collision::ActorId actor,
 }
 ```
 
-返回 `false` 时停止后续依赖这次绑定的操作，检查标识、碰撞体所属世界及绑定条件。单个角色也可包含 PushBox 和 Sensor；独立碰撞体使用 `bind_collider(ColliderBinding)`。
+返回 `false` 时停止后续依赖这次绑定的操作，检查标识、碰撞体所属世界及绑定条件。`body` 与 `hurt` 应是承担不同角色的独立碰撞体；同一个 ColliderId 不能同时表示 Body 与 HurtBox。单个角色也可包含 PushBox 和 Sensor；独立碰撞体使用 `bind_collider(ColliderBinding)`。
 
 ## 攻击与去重
 
@@ -86,7 +86,13 @@ bool begin_hit(elysia::physics::ColliderId hit,
 
 HitBox 与 HurtBox 的命中按“攻击实例 + 受击角色”去重，同一实例不会因为多个受击碰撞体而重复发放命中事件。一次攻击结束后调用 `end_attack_instance(id)`，清除去重记录及该实例的 HitBox 玩法绑定；它不会替你销毁物理碰撞体。下一次攻击使用新的实例标识。
 
-默认阵营关系按顺序判断：同一有效阵营为 Friendly（包含双方都是 `teams::Neutral`）；其余情况中任一方为 Neutral 或无效阵营时为 Neutral；其他不同有效阵营为 Hostile。命中时会查找已通过 `bind_actor` 登记的 instigator，并使用其队伍判定敌对关系；仅有非零 instigator 标识或 HitBox 自身的 team，并不足以产生伤害命中事件。命中流程检查敌对关系。需要自定义关系时，在派生场景中对 `collision_runtime()` 设置 `TeamRelationResolver`；resolver 是借用指针，必须比使用它的运行时关联活得更久，解除关联后才能释放。
+### 阵营关系与攻击来源
+
+默认关系按顺序判断：同一有效阵营为 `Friendly`（包括双方都是 `teams::Neutral`）；其余情况中任一方为 Neutral 或无效阵营时为 `Neutral`；其他不同有效阵营为 `Hostile`。
+
+命中时会查找已通过 `bind_actor` 登记的 `instigator`，使用其阵营判断是否敌对。仅有非零来源标识或 HitBox 自身的 team，不足以产生攻击命中事件。
+
+需要自定义关系时，在派生场景中调用 `collision_runtime().set_team_relation_resolver(...)`，查询使用 `team_relation(...)`。这两个接口属于 `GameplayCollisionRuntime`，全局服务不直接提供。resolver 是借用指针，必须活过使用它的关联期；释放前先传入 `nullptr` 解除关联。
 
 ## 监听与释放
 

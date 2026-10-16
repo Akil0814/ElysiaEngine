@@ -46,21 +46,29 @@ std::optional<elysia::input::InputActionMap> make_move_map() {
 
 ## 场景快捷键与 UI 消费
 
-在包含 `engine/scene/scene.h` 的派生场景类体中加入以下回调；KeyEscape 仅为本示例自行选择的操作，不是引擎统一快捷键。
+下面是只处理退出快捷键的完整场景类型。将 `on_shortcuts()` 移入自己的场景即可复用；`KeyEscape` 仅为本示例选择的操作，不是引擎统一快捷键。
 
 ```cpp
-void on_shortcuts(const elysia::input::RawInputFrame&,
-    const std::vector<elysia::input::RawInputEvent>& events) override {
-    using namespace elysia::input;
-    for (const auto& event : events) {
-        if (event.type == RawInputEventType::ControlPressed &&
-            event.control == RawInputControl::KeyEscape) {
-            consume_input(event);
-            request_quit();
-            return;
+#include "engine/scene/scene.h"
+
+class ShortcutScene final : public elysia::scene::Scene {
+protected:
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+    void on_shortcuts(const elysia::input::RawInputFrame&,
+        const std::vector<elysia::input::RawInputEvent>& events) override {
+        using namespace elysia::input;
+        for (const auto& event : events) {
+            if (event.type == RawInputEventType::ControlPressed &&
+                event.control == RawInputControl::KeyEscape) {
+                consume_input(event);
+                request_quit();
+                return;
+            }
         }
     }
-}
+};
 ```
 
 UI 优先处理输入，消费与捕获影响后续玩法路由。`consume_input` 使用当前事件，不伪造 routing id。`set_shortcut_devices(InputCapture)` 同时限制快捷帧状态和事件的设备范围；`set_ui_gamepad` 选择公共 UI 手柄；`set_ui_interaction_mode` 设置 UI 模式。

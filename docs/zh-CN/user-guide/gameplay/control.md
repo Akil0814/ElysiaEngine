@@ -4,7 +4,7 @@
 
 控制器把本地输入或自定义意图转换为固定步消费的 `ControlCommand`。游戏层使用 `ControllerService::instance()`；`ControllerManager` 是调度实现，不是游戏侧操作入口。这里的会话是游戏会话，不代表网络连接。
 
-引擎控制代码位于 `engine/gameplay/control/`，上下文生命周期实现在独立的 `scene_control_context.cpp`。演示的控制接入辅助函数和语义命令视图位于 `game/gameplay/control/`，使用 `example::gameplay` 命名空间；动作 ID 和默认映射位于 `game/input/`，使用 `example::input`。
+先用[输入指南](../systems/input.md)定义动作和设备映射，再按本页接入目标对象。仓库的游戏侧封装位于 `game/gameplay/control/` 和 `game/input/`，使用 `example` 命名空间；这些辅助函数与动作 ID 不是引擎内置游戏协议。
 
 ## 接入顺序
 

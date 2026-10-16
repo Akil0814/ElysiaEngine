@@ -7,8 +7,8 @@
 ## 最小使用流程
 
 1. 在下文对应资源清单中声明资源，将文件放在规定的资源根目录。
-2. 确保 `assets/content_registry.json` 引用这些资源清单；重新开始内容加载后才会读取修改。
-3. 加载成功后按资源键查询并处理空结果。纹理交给[游戏对象](../scene/game-objects.md)绘制，音频交给[音频服务](../systems/audio.md)播放。
+2. 确保 `assets/content_registry.json` 引用这些资源清单。修改注册表、启动配置或预加载声明后重启应用；注册表在启动时解析，内容加载不会重新读取它。
+3. 加载成功后按资源键查询并处理空结果。纹理交给[游戏对象](../scene/game-objects.md)绘制，音频交给[音频服务](../systems/audio.md)播放。修改正式内容清单也不会自动热重载；开发时重启应用是最直接的验证方式。
 
 下面的辅助函数放在游戏代码中，在内容加载成功后调用；调用方决定缺少图片时跳过显示还是进入错误流程。
 
@@ -83,7 +83,7 @@ SDL_Texture* find_icon() {
 | `animations` | 核心 `Animation` 资源清单。 |
 | `effects` | 核心 EffectDefinition 资源清单。 |
 
-每个值必须是 string，按 `assets/` 解析后必须为普通文件。`ContentManifestPipeline` 读取这些声明；`GameContentLoader` 只在 `Atlas`、纹理、字体、音频、`Animation` 与 EffectDefinition 全部成功注册后发布 `configs` 生成的 `ConfigSnapshot`。
+每个值必须是 string，按 `assets/` 解析后必须为普通文件。国际化清单由应用初始化本地化时读取，其余正式内容清单进入内容加载流程。加载器只在图集、纹理、字体、音频、动画与特效全部成功注册后发布游戏配置快照；读取 `ELYSIA_CONFIG` 应等到内容加载完成。
 
 ### `manifests.additional`
 
@@ -199,7 +199,7 @@ Sound 与 Music 是不同注册表，因此二者使用相同字符串资源键�
 
 每个语言目录依次加载 `file` 中的 JSON 并合并翻译表。文件不存在、JSON 无效或翻译数据结构不受支持都会使该语言加载失败。i18n 不进入 Atlas/Animation/Effect/Texture/Font/Sound/Music 的资源键注册表。
 
-### Registry 查重摘要
+### 资源键的查重范围
 
 | 核心配置 | 注册表 | 与模块合并查重 |
 | --- | --- | --- |
@@ -276,9 +276,9 @@ Texture 和 Audio 能力声明都要求根目录和布局。Texture 布局可指
 {
   "entities": [
     {
-      "id": "FlyingDemon",
+      "id": "RyougiShiki",
       "enabled": true,
-      "animation_layout": "normal"
+      "animation_layout": "fighter"
     }
   ]
 }
@@ -286,11 +286,11 @@ Texture 和 Audio 能力声明都要求根目录和布局。Texture 布局可指
 
 | 字段 | 规则 |
 | --- | --- |
-| `id` | 必填、唯一、合法资源键组成部分；同时是资源目录标识、模板参数和运行时资源键的首段。当前实体采用 PascalCase 约定。 |
+| `id` | 必填、唯一、合法资源键组成部分；用于目录模板和运行时资源键的首段。当前实体采用 PascalCase 约定。 |
 | `enabled` | 可选，默认 `true`；为 `false` 时跳过该实体。 |
 | `animation_layout` | 使用 `Animation` 能力声明时必填，且必须匹配该能力声明的 `layouts` 键；若提供也必须是合法组成部分。 |
 
-实体条目只能包含上述字段。`id` 的语法仍是通用的 `[A-Za-z0-9_]+`，PascalCase 是仓库实体命名约定而非额外语法限制。角色显示名继续由独立的 i18n `display_name_key` 控制，不随实体 id 改写。
+本例与上面的模块声明配套，选择 `fighter` 布局；相应目录、配置和图片仍须由项目提供。实体条目只能包含上述字段。`id` 的语法是 `[A-Za-z0-9_]+`，PascalCase 是仓库命名约定。显示名属于游戏自己的本地化数据，不是这里可增加的实体字段。
 
 ### 资源键
 

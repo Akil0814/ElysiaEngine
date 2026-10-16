@@ -8,6 +8,8 @@
 
 将下列类型放在游戏头文件中；在场景 `on_enter()` 中调用 `create_and_add_object<MovingBlock>()` 并检查返回值。重复进入时保留已有实例或明确清理，不能反复创建。
 
+所属场景必须在 `SceneRuntimeFeatures` 或 `GameplaySceneFeatures` 中配置 `.camera = elysia::scene::CameraSceneConfig{}`，并把镜头中心设置到对象附近。默认场景没有世界相机；仅加入会提交世界绘制命令的对象会触发渲染契约错误。完整场景接入见[相机示例](../systems/camera.md#配置跟随)。
+
 ```cpp
 #include "engine/core/game_object.h"
 #include "engine/core/interface/updatable.h"

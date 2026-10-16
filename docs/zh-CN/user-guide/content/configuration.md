@@ -8,7 +8,7 @@
 | `UserConfig` | 玩家设置，通过 `ELYSIA_USER_CONFIG` 应用与保存 |
 | 游戏配置 | 内容加载后通过 `ELYSIA_CONFIG` 只读查询 |
 
-应用负责初始化用户设置及运行时回调，内容加载流程发布游戏配置；游戏对象不自行 initialize、publish 或关闭流程。加载与文件入口见[资源](resources.md)。
+应用负责初始化用户设置及运行时回调，内容加载流程发布游戏配置；游戏对象只使用读取、应用与保存接口，不自行初始化、发布快照或关闭服务。加载与文件入口见[资源](resources.md)。
 
 ## 读取游戏配置
 
@@ -32,7 +32,7 @@ std::optional<double> enemy_health_scale() {
 
 调用方遇到空结果时停止依赖该配置的生成操作或采用项目明确规定的默认值。服务不会自动回退。`contains(key)` 只说明存在，不保证目标 getter 的类型兼容。
 
-公开 getter 为 get_int、get_double、get_bool、get_string、get_vector2、get_rect 及对应的 `_array` 版本。失败包括 NotInitialized、MissingKey、TypeMismatch、InvalidValue；返回值拥有自身数据，不是对配置 JSON 的借用。
+公开读取接口为 `get_int`、`get_double`、`get_bool`、`get_string`、`get_vector2`、`get_rect` 及对应的 `_array` 版本。失败包括 `NotInitialized`、`MissingKey`、`TypeMismatch`、`InvalidValue`；返回值拥有自身数据，不是对配置 JSON 的借用。
 
 get_int 要求 int64 范围内的整数；get_double 接受有限数值，包括整数。布尔和字符串不作隐式转换。`Vector2` 必须是恰好包含 x、y 的对象；`Rect` 必须恰好包含 x、y、width、height，尺寸非负，分量须能表示为有限 float。数组 getter 对每项应用相同规则，不混入其他类型或 null。
 
@@ -92,7 +92,7 @@ bool save_settings(const elysia::config::UserConfigData& draft,
 
 内建 `SettingsScene` 使用草稿式提交：控件编辑不会立即修改运行时；Save 通过`UserConfigService::apply_and_save_user_config()` 批量应用并持久化。事务显式携带进入页面（或上次保存成功）时的`UserConfigRuntimeState` 作为回滚基线，因此应用失败或持久化失败不会回滚到点击 Save 前偶然变化的状态。回滚失败会作为独立错误返回，页面随后以 `UserConfig` 的实际运行时状态刷新。
 
-FPS 上限会立即应用到软件限帧器，VSync 会保存为下一次启动使用的值并显示重启提示。如果 VSync 又切回本次启动实际采用的值，待重启状态会自动取消。设置表单按显示、音频和通用分页，每页内容独立滚动，标题、状态消息及 Save/Back 操作保持固定。
+FPS 上限会立即应用到软件限帧器，VSync 会保存为下一次启动使用的值并显示重启提示。如果 VSync 又切回本次启动实际采用的值，待重启状态会自动取消。内置面板在同一滚动区域中按显示、音频和通用分组，标题、状态消息及 Save/Back 操作保持固定；界面入口见[设置场景](../builtin-scenes/settings.md)。
 
 ## 通用游戏玩法配置
 
@@ -105,7 +105,7 @@ FPS 上限会立即应用到软件限帧器，VSync 会保存为下一次启动�
 }
 ```
 
-`configs` 是命名空间到文档路径的映射。当前映射为空；未来角色、技能、关卡等游戏玩法文档在这里注册，由内容加载阶段统一读取。资源清单自身是严格结构约定；被引用的文档根节点可为 object、array、string、boolean 或 number，但不能为 `null`。
+`configs` 是命名空间到文档路径的映射。上例为空配置；接入角色、技能或关卡配置时，在此添加命名空间和路径，由内容加载阶段统一读取。资源清单自身是严格结构约定；被引用的文档根节点可为 object、array、string、boolean 或 number，但不能为 `null`。
 
 根值使用命名空间配置键注册；对象字段递归展开；数组下标使用无补位 `.0/.1/...` 组成部分。例如：
 

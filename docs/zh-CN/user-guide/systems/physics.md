@@ -76,7 +76,7 @@ public:
 
 `PhysicsParticipant` 已提供常用快捷接口：`physics_handle()`、`physics_collider(index)`、`physics_state()`、`velocity()`、`set_velocity(...)`、`set_velocity_x(...)`、`set_velocity_y(...)` 和 `update_physics_collider(index, definition)`。
 
-需要直接操作世界时，使用下列 `PhysicsWorld` 接口。所有对象、碰撞体和关节 ID 都是不透明句柄；传入失效句柄的命令返回 `false`，状态读取返回 `std::nullopt`。
+需要直接操作世界时，使用下列 `PhysicsWorld` 接口。对象、碰撞体和关节使用各自的句柄或标识，不能互换。返回 `bool` 的修改操作用 `false` 表示失败，`body_state`、`render_pose`、`joint_state` 无结果时返回 `std::nullopt`；创建和查找标识还需检查各类型的无效值。
 
 | 目标 | 接口 |
 | --- | --- |
@@ -163,7 +163,7 @@ TileMap 是借用引用，`ITileCollisionWorld` 实例必须比绑定持续更�
 
 `PhysicsWorld::last_step_stats()` 提供已注册对象与碰撞体、醒着的刚体、关节、接触数量及步进耗时。固定步执行次数、累计丢弃步数和插值比例属于场景的 `FixedStepStats`，通过 `Scene::fixed_step_stats()` 查询；未启用固定步时返回空指针。当前没有公开的 `accumulator_seconds()` 查询接口。`PhysicsWorld::reset()` 清空物理对象、地图、关节、接触和监听登记，但不重置场景的固定步累积器。
 
-最后的实践边界：一个 `Scene` 只应使用它自身的 `PhysicsWorld`；不要缓存原生 Box2D ID；地图绑定和监听器都要先于世界销毁；普通位置直接改写后必须用 `teleport_object` 或 `set_transform` 同步物理；渲染读 `render_pose`（普通对象绘制可用 `render_rect()`），判定读 `body_state`。这样可以避免渲染、碰撞和游戏规则各自使用不同的位置来源。
+游戏对象应使用所属场景的 `PhysicsWorld`，不要缓存原生 Box2D ID。地图和监听器由世界借用，释放它们之前先解除绑定。物理对象瞬移直接使用 `teleport_object` 或 `set_transform`，不要先通过 `set_position` 改写一份与模拟不一致的位置。渲染读取 `render_pose`（普通对象可用 `render_rect()`），判定读取 `body_state`。
 
 ## 监听、查询与清理示例
 

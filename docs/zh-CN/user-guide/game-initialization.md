@@ -6,7 +6,7 @@
 
 ## 1. 初始化流程
 
-引擎通过 `IGameModule` 获取游戏配置。`ELYSIA_INITIALIZE_APP` 不只是保存配置：它还准备运行环境、注册场景并启动初始场景。成功后，`ELYSIA_RUN_APP` 才开始持续处理输入、更新和绘制。
+引擎通过 `IGameModule` 获取应用描述并注册游戏场景。`ELYSIA_INITIALIZE_APP` 不只是保存描述：它还准备运行环境并启动初始场景。成功后，`ELYSIA_RUN_APP` 才开始持续处理输入、更新和绘制。资源中的只读游戏配置另由内容加载流程发布，见[配置指南](content/configuration.md)。
 
 ```text
 main()

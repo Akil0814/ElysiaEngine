@@ -1,6 +1,6 @@
 # 应用错误场景
 
-本文说明错误界面的适用条件、诊断传递和退出流程。先确认必要的渲染与内置资源仍可用，再使用错误场景；底层渲染故障由应用直接退出处理。
+本文说明何时可以显示内置错误界面、如何传递诊断，以及用户确认后的退出行为。它适用于游戏已无法继续、但窗口、渲染和必要内置资源仍可工作的情况。
 
 `ApplicationFailure` 用于展示启动资源失败或运行时致命错误的诊断，并提供退出流程。它不是通用重试、回档或恢复游戏的机制；可恢复的业务失败应由游戏自己的流程处理。
 
@@ -38,6 +38,10 @@ Payload 包含 `presentation`、`reason`、`error_code`、`category` 和 `diagno
 
 场景进入时检查 Payload 类型及展示模式。它会停用项目字体，使用内置展示资源降低对已失败项目内容的依赖。诊断仍应提供可追踪的类别与原因，不能仅展示“失败了”而丢失定位信息。
 
+传入完整的 `FailureDiagnostic`，保留消息、来源和附加错误；不要只截取一段消息再重新组装失败。引擎的场景边界错误可用 `make_application_failure_route(failure)` 转换，启动内容错误则使用对应的 `ContentLoadFailure` 重载。
+
+界面呈现与完整日志是两层信息：Release 界面会隐藏原始诊断，确认退出前仍会记录完整诊断。排查失败时应查看日志，不能仅根据界面短提示判断原因。
+
 ## 退出与能力边界
 
 用户确认退出会向终止管理器提交终止请求，由应用统一处理退出，不是返回之前的场景。场景自身没有成功返回路由，也没有通用“重新加载并继续游戏”的按钮。
@@ -46,22 +50,20 @@ Payload 包含 `presentation`、`reason`、`error_code`、`category` 和 `diagno
 
 不要在 `on_enter()`、`on_exit()`、`on_reset()` 或渲染阶段递归请求切换；也不要在已请求致命错误后继续提交依赖损坏状态的业务操作。
 
-场景逻辑异常的恢复顺序是：解除并退出当前场景，销毁故障场景及其对象，清理成功后才调用失败路由工厂并构造恢复场景。清理中某一步抛异常仍会继续其余清理，最终进入 Faulted，不调用失败路由工厂；恢复场景失败也不会递归恢复。`on_enter` 抛异常不会补调 `on_exit`，游戏侧外部副作用须由 RAII 或局部回滚撤销。
+## 与场景异常恢复的区别
+
+场景管理器可以在游戏逻辑异常后清理故障场景，再按失败路由进入另一个场景。这种“恢复”是恢复到可处理错误的流程，不是撤销伤害、恢复存档或继续原场景。
+
+故障场景清理失败，或恢复场景也失败时，管理器进入 `Faulted`，不会递归创建更多恢复场景。`on_enter()` 抛异常不补调 `on_exit()`，游戏侧外部订阅和回调应通过 RAII 或局部回滚解除。完整生命周期见[场景系统](../scene/scene.md#进入退出失败与关闭顺序)。
+
+## 底层渲染失败
+
+SDL 渲染后端失败通过 `RenderBackendError` 交给应用，直接进入故障退出，不尝试依赖同一渲染器显示错误界面。应用会停止后续绘制并关闭资源；游戏不应捕获后继续提交原来的绘制命令。
+
+普通游戏代码通过场景对象提交绘制命令，无需直接驱动底层执行器。维护自定义渲染代码时，应检查执行器返回的 `expected<void, RenderFailure>`，保留原始失败及状态恢复错误。相关定义见 [render_failure.h](../../../../engine/core/render/render_failure.h)。
 
 ## 参考
 
 - [诊断 Payload 与辅助函数](../../../../engine/builtin/scenes/application_failure_scene_payload.h)
 - [错误场景实现](../../../../engine/builtin/scenes/application_failure_scene.cpp)
 - [启动加载](startup-loading.md)、[日志](../tools/utilities.md)、[返回使用指南](../README.md)
-
-## 诊断传播与底层渲染失败
-
-`SceneBoundaryFailure` 用类型化字段保存场景键和边界，用 `FailureDiagnostic` 保存消息、来源及额外条目。日志和失败路由统一通过 `to_failure_diagnostic()` 投影主场景上下文，不修改原始失败。通过 `make_application_failure_route(failure)` 转换时完整保留诊断；通用失败路由的第三个参数为 `FailureDiagnostic`，消息需要在调用点显式通过 `make_failure_diagnostic()` 创建。
-
-底层 SDL 渲染失败使用 `RenderFailure` 和 `RenderBackendError`，直接进入应用故障退出，不进入错误场景。执行器返回 `expected`，先恢复已修改的状态，保留恢复错误，然后停止后续绘制；应用跳过提交和帧等待并执行完整关闭。关闭失败同样返回 `FaultExit`。
-
-确认退出前写入完整诊断日志；有界终止记录保留诊断来源，并在截断时指引查看原始日志。Release 界面仍遵循隐藏原始诊断的现有呈现规则。
-
-渲染执行器的单条和批量 `execute_render_command(s)` 返回 `[[nodiscard]] expected<void, RenderFailure>`，批量在首个失败后停止。`RenderFailure` 保存操作名及统一诊断；场景使用 `RenderBackendError` 传播到应用边界。执行器在绘制失败后仍尝试恢复已读取且已修改的状态，恢复错误附加到首个失败。清屏与帧提交走同一故障退出路径，失败后不再提交后续帧或等待帧节奏。
-
-场景清理期间也遵循后端错误优先规则：完成必要回收后，传播首个 `RenderBackendError`，将原始普通异常和后续清理失败保留为诊断上下文。恢复场景及缓存场景销毁同样适用；最终关闭边界只记录并返回关闭结果，不再次抛出。

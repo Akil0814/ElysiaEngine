@@ -37,7 +37,10 @@ void cancel_sound(std::optional<elysia::audio::SoundHandle>& handle) {
 ```
 
 服务不按场景或对象自动清理播放请求。句柄不延长资源或对象生命；Scheduled 只是预约成功，不保证到期一定播放。
+
 ## 音效播放与 SoundHandle
+
+以下签名和结构只摘录与调用有关的成员，省略命名空间、部分默认初始化和其他声明；用于查阅参数，不要复制为项目中的同名类型。实际定义见文末头文件。
 
 ### `play_sound`
 
@@ -45,7 +48,7 @@ void cancel_sound(std::optional<elysia::audio::SoundHandle>& handle) {
 bool play_sound(const std::string_view& key, int loops = 0);
 ```
 
-这是兼容性的简化入口：立即请求播放，默认归入 `SoundGroup::Extra`，只返回是否已经实际开始播放。
+这是简化入口：立即请求播放，默认归入 `SoundGroup::Extra`，只返回是否已经实际开始播放。
 
 - `loops = 0`：播放一次。
 - `loops > 0`：额外循环次数，实际播放次数为 `loops + 1`。
@@ -116,7 +119,7 @@ void cancel_all_scheduled_sounds();
 void stop_all_sounds(std::chrono::milliseconds fade_out = {});
 ```
 
-仅停止或渐出已经开始的全部音效，不取消延迟请求。所有新增时间参数使用毫秒，默认零；非正时长立即完成。
+仅停止或渐出已经开始的全部音效，不取消延迟请求。时间参数使用毫秒，默认零；非正时长立即完成。
 
 ## 并发组、冷却与溢出策略
 
@@ -129,7 +132,7 @@ void stop_all_sounds(std::chrono::milliseconds fade_out = {});
 | `Ambient` | 4 | 环境与场景持续音 |
 | `Extra` | 4 | 暂未分类或通用音效 |
 
-所有组共享 24 个物理 SDL_mixer 音效逻辑通道；音乐不使用这 24 个逻辑通道。四组固定硬上限合计也为 24，因此一个组即使看到其他组空闲，也不能超过自身硬上限。
+所有组共享 24 个音效播放槽，每个槽对应一个 SDL3_mixer `MIX_Track`；音乐使用独立轨道。四组硬上限合计为 24，因此一个组即使看到其他组空闲，也不能超过自身硬上限。
 
 组规则通过以下类型配置：
 
@@ -154,7 +157,7 @@ enum class SoundOverflowPolicy
 
 - `max_simultaneous = std::nullopt`：使用上表固定硬上限。
 - 设置具体上限时只能下调，不能超过该组硬上限；`0` 表示该组不接受新音效。
-- `cooldown` 按**音效资源键**计算。同组不同资源键不共享冷却；只有成功开始播放才会刷新该资源键的冷却时间。
+- `cooldown` 按**音效资源键**记录最近播放时间，并使用当前请求组的冷却时长判断。不同资源键互不影响；同一资源键即使换组也共享最近播放时间。只有成功开始播放才会刷新记录。
 - `IgnoreNew`：组已满时拒绝新请求，默认策略，适用于 UI 与环境音。
 - `ReplaceOldest`：组已满时停止本组最早开始的活跃声音，再启动新声音；被替换声音的 `SoundHandle` 会失效。它不会停止其他组的声音。
 - 若目标组未满但全局 24 逻辑通道已满，仍直接拒绝；当前没有跨组优先级或抢占。
@@ -197,7 +200,7 @@ const AudioSettings& settings() const;
 音乐有效音量为：
 
 ```text
-master_volume / 100 × music_volume / 100 × music_fade_gain × MIX_MAX_VOLUME
+music_gain = master_volume / 100 × music_volume / 100 × music_fade_gain
 ```
 
 ### 组音量
@@ -212,15 +215,15 @@ int sound_group_volume(SoundGroup group) const;
 - 输入值同样钳制到 `0..100`。
 - 新启动的逻辑通道会立即使用该组有效音量。
 - 修改 master、sound 或任一组音量时，该组所有仍活跃的逻辑通道会立即更新。
-- 组音量不进入 `AudioSettings`、用户配置或资源资源清单；下一次初始化会恢复四组为 `100`。
+- 组音量不进入 `AudioSettings`、用户配置或资源清单；下一次初始化会恢复四组为 `100`。
 
 音效逻辑通道的有效音量为：
 
 ```text
-master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_fade_gain × MIX_MAX_VOLUME
+sound_gain = master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_fade_gain
 ```
 
-渐变增益为独立的 `0..1` 线性系数；计算最终 SDL 音量后统一向下取整。音量设置与渐变相乘，渐变过程中修改设置立即生效，不修改保存的用户音量或组音量。播放前设置初始音量，避免渐入首帧满音量。
+以上除法按浮点数计算，最终通过 `MIX_SetTrackGain` 设置轨道增益，没有乘以整数音量上限或向下取整的步骤。渐变增益是独立的 `0..1` 线性系数；渐变过程中修改音量立即生效，渐变本身不修改音量设置。播放前先设置初始增益，避免渐入首帧满音量。
 
 `music_volume` 不影响音效；四组 `group_volume` 也不影响音乐。
 
@@ -254,7 +257,9 @@ bool transition_music(const std::string_view& key,
 
 ## 生命周期、失败与常见误用
 
-音频更新由 `Application` 在场景更新之后推进。场景 pause 不会自动暂停全局声音；需要退出某段流程时，显式停止所持句柄或音乐。音量 setter 只改变当前运行状态，保存玩家偏好使用[用户配置](../content/configuration.md)。
+音频调度由 `Application` 在场景更新之后使用缩放后的 `delta` 推进，因此延迟、冷却和渐变受全局时间倍率影响。已经启动的音轨由音频设备播放，慢动作不会自动改变音高或播放速度。场景暂停也不会暂停全局声音；退出某段流程时，显式停止所持句柄或音乐。
+
+音量 setter 只改变当前运行状态，保存玩家偏好使用[用户配置](../content/configuration.md)。音效句柄只在当前服务生命周期中使用；应用关闭或服务重新初始化后丢弃旧句柄。
 
 `play_music` 返回 false 时保留失败信息并决定是否无音乐继续；`transition_music` 的 true 只代表接受请求，未来启动失败不会自动重试。切换音乐是先淡出后淡入，不是双路交叉淡化。不要靠播放函数的返回值推断整段声音已经播放完成。
 

@@ -26,8 +26,9 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | --- | --- | --- |
 | Gameplay Collision | 游戏玩法碰撞、碰撞事件与关系处理 | [游戏玩法碰撞](gameplay/collision.md) |
 | Gameplay Control | 控制器管理、控制命令与场景控制上下文 | [控制器与控制命令](gameplay/control.md) |
-| `GameplayScene` | 游戏玩法场景 | [GameplayScene 使用指南](gameplay/scene.md) |
-| 攻击与伤害流程 | 攻击窗口、命中扣血、死亡与清理 | [从攻击命中到接收伤害](gameplay/damage.md) |
+| `GameplayScene` | 组织需要角色控制或玩法碰撞的关卡 | [GameplayScene 使用指南](gameplay/scene.md) |
+
+需要串起完整战斗流程时，阅读[从攻击命中到接收伤害](gameplay/damage.md)。这是游戏层组合示例：引擎提供命中事件，生命值、伤害计算和死亡规则由游戏实现。
 
 ## 按开发任务查阅
 
@@ -36,7 +37,7 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | 开发任务 | 文档入口 |
 | --- | --- |
 | 创建场景、管理对象、暂停与切换 | [场景系统](scene/scene.md) |
-| 编写对象行为、设置层级与提交绘制命令 | [游戏对象与绘制](scene/game-objects.md) |
+| 编写对象行为、选择绘制层级与提交绘制命令 | [游戏对象与绘制](scene/game-objects.md) |
 | 注册内容、配置预加载与资源清单 | [资源加载与配置格式](content/resources.md) |
 | 配置输入设备、动作映射与场景输入 | [输入系统](systems/input.md) |
 | 创建 UI 窗口、组织布局与组合控件 | [UI 入门与导航](ui/README.md) |
@@ -50,7 +51,7 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | 读写存档、处理恢复与错误 | [存档服务](content/save.md) |
 | 使用时间缩放、固定步更新与计时回调 | [时间与计时器](systems/time-and-timers.md) |
 | 查询翻译、切换语言与生成文本纹理 | [本地化与文本](systems/localization.md) |
-| 按类型、层级与空间条件查找游戏对象 | [游戏对象查询](systems/object-query.md) |
+| 按类型、绘制层级与空间条件查找游戏对象 | [游戏对象查询](systems/object-query.md) |
 | 绘制调试图元与管理调试类别 | [调试绘制](tools/debug-draw.md) |
 | 使用向量、矩形、颜色、随机数与日志 | [常用基础工具](tools/utilities.md) |
 
@@ -70,11 +71,11 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_EFFECTS` | 特效服务 | [动画与特效](systems/animation-and-effects.md) | [effect_service.h](../../../engine/effects/effect_service.h) |
 | `ELYSIA_LOCALIZATION` | 本地化服务 | [本地化与文本](systems/localization.md) | [localization_service.h](../../../engine/localization/localization_service.h) |
 | `ELYSIA_OBJECT_QUERY` | 游戏对象查询 | [游戏对象查询](systems/object-query.md) | [game_object_query_service.h](../../../engine/object_query/game_object_query_service.h) |
-| `ELYSIA_RESOURCES` | 资源管理 | [资源加载与配置格式](content/resources.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
+| `ELYSIA_RESOURCES` | 查询已加载资源 | [资源加载与配置格式](content/resources.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
 | `ELYSIA_SAVE` | 存档管理 | [存档服务](content/save.md) | [save_service.h](../../../engine/save/save_service.h) |
 | `ELYSIA_DEBUG_DRAW` | 调试绘制 | [调试绘制](tools/debug-draw.md) | [debug_draw.h](../../../engine/tools/debug_draw.h) |
-| `elysia::gameplay::ControllerService::instance()` | 控制器管理与控制命令 | [控制器与控制命令](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
-| `elysia::gameplay::collision::GameplayCollisionService::instance()` | 玩法碰撞绑定、事件与阵营关系 | [游戏玩法碰撞](gameplay/collision.md) | [gameplay_collision_service.h](../../../engine/gameplay/collision/gameplay_collision_service.h) |
+| `elysia::gameplay::ControllerService::instance()` | 控制会话、控制器与目标绑定 | [控制器与控制命令](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
+| `elysia::gameplay::collision::GameplayCollisionService::instance()` | 玩法碰撞绑定、事件监听与攻击实例清理 | [游戏玩法碰撞](gameplay/collision.md) | [gameplay_collision_service.h](../../../engine/gameplay/collision/gameplay_collision_service.h) |
 
 ### 日志宏
 
@@ -101,11 +102,11 @@ ELYSIA_LOG_INFO("Gameplay", "Game initialized.");
 ELYSIA_LOG_ERROR("Resources", "Failed to load texture.");
 ```
 
-## 错误处理与恢复
+## 应用错误展示与退出
 
 Elysia Engine 提供内置应用错误场景，用于处理无法在当前场景中恢复、但仍允许错误界面正常运行的错误。
 
-当游戏无法继续正常运行时，可以通过引擎提供的接口进入错误场景，展示相关错误信息。
+当游戏无法继续正常运行，且窗口、渲染和必要内置资源仍可用时，可以请求进入错误场景，展示诊断并让用户退出。该场景不提供通用重试或继续游戏功能；可恢复的业务失败由游戏自己的流程处理。
 
 具体使用方式请参阅[应用错误场景](builtin-scenes/application-failure.md)。
 
@@ -128,13 +129,13 @@ Elysia Engine 提供内置应用错误场景，用于处理无法在当前场景
 
 Elysia Engine 提供以下内置场景，用于处理常见的应用流程。
 
-| 场景 | 用途 | 使用文档 |
+| 场景键 | 用途 | 使用文档 |
 | --- | --- | --- |
-| `StartupLoading` | 启动加载与初始化 | [启动加载场景](builtin-scenes/startup-loading.md) |
+| `StartupLoading` | 项目内容加载、Logo 展示与完成确认 | [启动加载场景](builtin-scenes/startup-loading.md) |
 | `Settings` | 游戏设置界面 | [设置场景](builtin-scenes/settings.md) |
-| `ApplicationFailure` | 应用错误的展示与处理 | [应用错误场景](builtin-scenes/application-failure.md) |
+| `ApplicationFailure` | 应用错误展示与退出 | [应用错误场景](builtin-scenes/application-failure.md) |
 
-场景标识符定义于 [builtin_scene_keys.h](../../../engine/builtin/builtin_scene_keys.h)。
+上述键位于 `elysia::builtin::SceneKeys`，定义于 [builtin_scene_keys.h](../../../engine/builtin/builtin_scene_keys.h)。应用会注册这些内置场景，游戏通过路由使用它们。
 
 各场景的配置、数据传递方式及使用约定，请参考对应的使用文档、场景定义和 Payload 头文件。
 

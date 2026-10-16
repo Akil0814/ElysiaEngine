@@ -1,6 +1,6 @@
 # 游戏开发必读：核心概念
 
-本文介绍使用 **Elysia Engine** 开发游戏前需要理解的基本概念：场景与对象、所有权与生命周期、更新机制、对象状态、坐标系统，以及一个完整的游戏道具开发案例。
+本文介绍使用 Elysia Engine 开发游戏前需要理解的基本概念：场景与对象、所有权与生命周期、更新机制、对象状态和坐标系统。最后用生命药水串起这些概念；案例展示职责与步骤，不是可直接运行的完整游戏。
 
 > **阅读说明**：本文着重解释游戏层应遵守的行为约定，而非引擎内部的全部实现。
 
@@ -8,9 +8,10 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `scene_object.h` | 场景对象的公共基类与基本状态 |
-| `game_object.h` | 游戏世界对象的基础实现 |
-| `render_command.h` | 绘制指令的数据结构 |
+| [scene.h](../../../engine/scene/scene.h) | 场景扩展点与对象所有权 |
+| [scene_object.h](../../../engine/core/scene_object.h) | 场景对象的公共基类与基本状态 |
+| [game_object.h](../../../engine/core/game_object.h) | 游戏世界对象的基础实现 |
+| [render_command.h](../../../engine/core/render/render_command.h) | 绘制指令的数据结构 |
 
 
 ## 2. 场景、游戏对象与 UI 各负责什么
@@ -28,7 +29,7 @@ Scene（组织运行内容，持有对象）
 
 ### 2.1 SceneObject：公共基类
 
-`SceneObject` 为场景对象提供活跃、可见、销毁等基本状态，以及重置和暂停行为相关接口。绘制指令提交接口分别由 `GameObject` 和 `UiElement` 提供：
+`SceneObject` 为场景对象提供活跃、可见、销毁等基本状态，以及重置和暂停行为相关接口。绘制指令提交接口分别由 `GameObject` 和 `UiElement` 提供。以下仅列方法名，省略参数与声明：
 
 ```cpp
 // GameObject：提交世界对象绘制指令。
@@ -45,7 +46,7 @@ submit_ui_render_commands(...);
 
 `Scene` 用来组织一段独立的运行内容，例如：
 
-```cpp
+```text
 MainMenuScene
 SpecialEventsScene
 BattleScene
@@ -61,7 +62,7 @@ BattleScene
 std::vector<std::unique_ptr<elysia::core::SceneObject>> objects;
 ```
 
-**这只是概念示例，不代表场景内部使用 `std::vector`。**
+这只是所有权示意，省略了世界对象与 UI 根节点的分类存储，不代表真实容器布局。场景只接受 `GameObject` 或 `UiElement` 派生对象，不能直接添加任意 `SceneObject` 派生类。
 
 
 
@@ -79,7 +80,7 @@ std::vector<std::unique_ptr<elysia::core::SceneObject>> objects;
 
 ### 2.4 绘制层级与遮挡顺序
 
-创建 `GameObject` 时，需要通过构造函数指定 `DepthLayer`，并可指定层内顺序 `order_in_layer`（默认为 `0`）。这两项决定世界对象的绘制先后。
+创建 `GameObject` 时，需要通过构造函数指定 `DepthLayer`，并可通过参数 `order` 指定层内顺序（默认为 `0`，用 `order_in_layer()` 查询）。这两项决定世界对象的绘制先后。
 
 当前层级按以下顺序从后向前绘制：
 
@@ -91,7 +92,7 @@ Background → Terrain → EffectBack → Item → Character → EffectFront →
 
 层级名称用于表达对象的绘制用途，例如背景使用 `Background`，道具使用 `Item`，角色前方的特效使用 `EffectFront`。它们不会自动赋予对象行为：选择 `Character` 不会获得角色能力，选择 `Terrain` 也不会自动产生碰撞。
 
-**先比较层级，再比较层内顺序。** 同一层中，`order_in_layer` 越大，绘制越晚；它不能跨越层级。即使 `Item` 层对象的层内顺序很大，也不会因此绘制到 `Character` 层对象之前所处的前景位置。换言之，`Character` 层仍在 `Item` 层之后绘制。
+**先比较层级，再比较层内顺序。** 同一层中，`order_in_layer()` 越大，绘制越晚；它不能跨越层级。即使 `Item` 层对象的层内顺序很大，`Character` 层仍在它之后绘制。
 
 例如，药水可以在自己的构造函数中选择道具层：
 
@@ -106,7 +107,7 @@ UI 使用独立的排序体系。当前场景先绘制世界对象，再绘制 U
 
 ### 2.5 UiElement：界面元素
 
-`UiElement` 表示按钮、血条、背包面板等 UI 元素，可以直接加入场景，也可以加入 UI 容器。加入容器的子节点由所属容器持有，并遵循该容器的布局、交互和清理流程。
+`UiElement` 表示按钮、HUD 血条、背包面板等界面元素，可以直接加入场景，也可以加入 UI 容器。加入容器的子节点由所属容器持有，并遵循该容器的布局、交互和清理流程。角色头顶随世界相机移动的名字和血条另见[世界空间 Gameplay UI](../architecture/subsystems/gameplay-ui.md)。
 
 `UiElement` 和 `GameObject` 都继承 `SceneObject`，但**共享基类不代表共享坐标体系或更新机制**：
 
@@ -122,7 +123,7 @@ UI 使用独立的排序体系。当前场景先绘制世界对象，再绘制 U
 
 所有对象**成功加入场景后，由场景持有**。UI 子节点若加入了容器，则由对应容器持有。不要让两个所有者同时管理同一个对象。
 
-场景提供的对象创建与添加接口形式如下：
+场景提供的对象创建与添加接口形式如下；这里省略模板声明和类型约束，不是可直接复制的完整声明：
 
 ```cpp
 T* create_and_add_object(Args&&... args);
@@ -147,6 +148,8 @@ HealthPotion* raw = scene.add_object(std::move(potion));
 ```
 
 `std::move()` 用于转移 `unique_ptr` 的所有权。对象成功加入后由场景管理；原来的 `unique_ptr` 不再拥有它。
+
+创建或注册失败可能返回空指针，也可能抛出异常。调用后检查返回值；不能假定失败会把所有权交还原指针。同步添加只能在允许修改对象集合的阶段进行，具体位置见[场景阶段表](scene/scene.md#常用操作与扩展点)。
 
 ### 3.3 返回的裸指针不是所有权
 
@@ -184,7 +187,7 @@ potion->destroy();
 
 ```cpp
 HealthPotion* potion = scene.create_and_add_object<HealthPotion>();
-potion->destroy();
+if (potion) potion->destroy();
 
 // 随后执行场景清理时释放对象。
 // 对象释放后，potion 不会自动变为 nullptr。
@@ -248,15 +251,15 @@ if (potion && !potion->is_destroyed()) {
 
 场景可能被缓存。退出场景不等于销毁场景实例，再次进入也不一定重新构造所有对象。因此，需要区分保留状态、重置状态与重建实例。
 
-相关生命周期接口：
+游戏场景需要实现以下三个扩展点。这里列出简化签名，`ScenePayload` 位于 `elysia::scene`：
 
 ```cpp
 on_enter(const ScenePayload& payload);
 on_exit();
-reset();
+on_reset();
 ```
 
-`on_enter()` 与 `on_exit()` 分别对应进入和离开；`reset()` 用于执行已实现的重置逻辑，**不等于重新调用构造函数**。
+`on_enter()` 与 `on_exit()` 分别对应进入和离开；Reset 路由由引擎先重置框架状态，再调用 `on_reset()` 恢复业务状态。游戏不直接调用这些生命周期函数。对象的 `reset()` 是另一个接口，场景不会自动替所有业务对象调用它。
 
 场景重新进入模式定义为：
 
@@ -325,7 +328,7 @@ cooldown = std::max(0.0, cooldown - delta);
 
 实际使用时，应确认 `delta` 遵循的游戏时间、暂停和时间缩放规则。
 
-### 6.2 固定更新：`fixed_update`
+### 6.2 固定更新的扩展点
 
 固定更新使用固定模拟时间步长。它不与渲染帧数一一对应：某一渲染帧可能执行零次、一次或多次固定更新。
 
@@ -335,7 +338,9 @@ cooldown = std::max(0.0, cooldown - delta);
 - 与固定步物理状态紧密耦合的行为；
 - 需要稳定模拟步长或特定更新顺序的游戏规则。
 
-不要在 `update` 和 `fixed_update` 中分别推进同一份物理状态，避免重复移动或状态不同步。物理对象的状态应遵循对应物理系统的更新约定。
+普通 `Scene` 启用固定步后使用 `on_fixed_update(tick, delta)`；`GameplayScene` 使用 `on_game_fixed_update(tick, delta)`；注册到物理世界的 `PhysicsStepParticipant` 使用 `fixed_update(double)`。只给普通对象增加同名方法不会自动参与固定步。接入方式见[物理指南](systems/physics.md)。
+
+不要在逐帧更新和固定步中分别推进同一份物理状态，避免重复移动或状态不同步。
 
 简化的选择参考：
 
@@ -344,7 +349,7 @@ cooldown = std::max(0.0, cooldown - delta);
 | 普通计时器与一般技能冷却 | `update` |
 | 一般非物理驱动的表现状态 | `update` |
 | 物理模拟 | 对应的固定步物理系统 |
-| 与物理模拟同步的游戏规则 | `fixed_update` 或物理模块规定的阶段 |
+| 与物理模拟同步的游戏规则 | 场景固定步钩子或 `PhysicsStepParticipant::fixed_update` |
 
 ### 6.3 渲染只负责呈现状态
 
@@ -359,21 +364,23 @@ cooldown = std::max(0.0, cooldown - delta);
 
 ## 7. 容易混淆的对象状态与暂停
 
-### 7.1 `_visible`：可见性
+### 7.1 可见性
 
-`_visible` 控制相应绘制流程，不等于停止更新、碰撞、计时或输入。隐藏一个道具，不会自动完成拾取，也不会自动销毁它。
+通过 `set_visible()` 修改、`is_visible()` 查询。可见性控制相应绘制流程，不等于停止更新、碰撞、计时或输入。隐藏一个道具，不会自动完成拾取，也不会自动销毁它。
 
-### 7.2 `_active`：活跃状态
+### 7.2 活跃状态
 
-`_active` 用于筛选相应的更新和输入流程，不等于不可见。以普通 `GameObject` 为例，场景绘制检查可见和销毁等状态，不把活跃状态直接当作绘制开关。
+通过 `set_active()` 修改、`is_active()` 查询。活跃状态用于筛选相应的更新和输入流程，不等于不可见。以普通 `GameObject` 为例，场景绘制检查可见和销毁等状态，不把活跃状态直接当作绘制开关。
 
-### 7.3 `_destroyed`：销毁状态
+### 7.3 销毁状态
 
-`_destroyed` 表示对象准备退出使用，和临时隐藏或停用不同。对象只是暂时不可见时，不一定需要销毁；一次性道具拾取完毕后则可以进入销毁流程。
+通过 `destroy()` 标记、`is_destroyed()` 查询。销毁状态表示对象准备退出使用，和临时隐藏或停用不同。对象只是暂时不可见时，不一定需要销毁；一次性道具拾取完毕后则可以进入销毁流程。
 
 ### 7.4 暂停状态
 
 暂停时，场景会跳过不允许在暂停期间更新的对象，并停止该场景的物理推进；允许暂停时工作的对象仍可运行。输入处理也有单独的暂停规则。
+
+场景的 `on_before_update()` 和 `on_after_update()` 仍会被调用。在这两个钩子中推进需要随暂停停止的业务时，显式检查 `is_paused()`；全局时间也不会因场景暂停而停止。
 
 暂停菜单仍需要响应按钮输入和播放 UI 动画。**不要推断场景暂停就意味着整个应用程序完全静止。**
 
@@ -393,7 +400,7 @@ cooldown = std::max(0.0, cooldown - delta);
 
 应先通过对应的摄像机或坐标转换机制，把数据转换到**同一坐标空间**，再进行比较。
 
-例如:
+以下片段放在已启用相机的场景成员函数中；`object` 是仍有效的世界对象：
 
 ```cpp
 // 对象逻辑中心对应的屏幕位置
@@ -411,14 +418,16 @@ auto screen_rect = camera().world_to_screen(object.render_rect());
 
 **游戏规则使用逻辑状态；绘制使用对应的呈现状态。** 不要把用于平滑显示的插值位置写回业务或物理状态。
 
-## 9. 完整案例：局内掉落道具 `HealthPotion`
+## 9. 概念案例：局内掉落道具 `HealthPotion`
 
 假设游戏需要实现：玩家看见地图上的生命药水，满足拾取条件后恢复生命值，药水从世界中消失；如有背包功能，也可以改为将物品存入背包。
+
+下面的片段省略头文件、绘制资源、玩家类型和拾取检测，仅说明各部分如何分工。可编译的对象类型示例见[游戏对象与绘制](scene/game-objects.md)。
 
 ### 第一步：定义对象
 
 ```cpp
-class HealthPotion : public GameObject
+class HealthPotion : public elysia::core::GameObject
 {
 public:
     HealthPotion()
@@ -441,7 +450,7 @@ HealthPotion* potion =
     scene.create_and_add_object<HealthPotion>();
 ```
 
-通过当前 `GameObject` 的正式接口设置世界矩形、绘制配置等。成功加入后，场景持有该对象，返回指针只是访问入口。
+检查 `potion` 非空后，用 `set_world_rect()` 设置位置和尺寸，再按下一步实现绘制。场景须显式启用相机才能显示世界对象。成功加入后，场景持有该对象，返回指针只是访问入口。
 
 ### 第三步：按需实现绘制和交互
 
@@ -488,8 +497,8 @@ InventorySlot    显示单个物品
 | 继承 `GameObject` 就会自动碰撞 | 需要配置并接入物理或交互系统 |
 | `destroy()` 立即释放对象 | 只是标记；场景对象在随后实际执行的清理点释放 |
 | 裸指针非空表示对象有效 | 释放后可能成为非空的悬空指针 |
-| 隐藏对象就停止所有行为 | `_visible` 主要控制对应绘制流程 |
-| 对象不活跃就一定不可见 | `_active` 和 `_visible` 是不同状态 |
+| 隐藏对象就停止所有行为 | 可见性主要控制对应绘制流程 |
+| 对象不活跃就一定不可见 | 活跃状态和可见性是不同状态 |
 | 暂停意味着整个程序停止 | 部分更新和 UI 输入可能继续运行 |
 | 每帧恰好执行一次固定更新 | 可能执行零次、一次或多次 |
 | 所有计时器都必须使用固定更新 | 普通计时器通常可累积 `delta` |

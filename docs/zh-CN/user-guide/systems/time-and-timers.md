@@ -19,19 +19,22 @@
 ```cpp
 #include "engine/core/time.h"
 
-// 在游戏流程中启用慢动作；效果结束时恢复项目期望的倍率。
-ELYSIA_TIME->set_time_scale(0.5);
-// ……慢动作结束……
-ELYSIA_TIME->set_time_scale(1.0);
+// 由游戏流程分别在效果开始和结束时调用。
+void begin_slow_motion() { ELYSIA_TIME->set_time_scale(0.5); }
+void end_slow_motion() { ELYSIA_TIME->set_time_scale(1.0); }
 ```
 
-倍率在 `begin_frame()` 时参与计算，因此帧中修改从下一帧生效。零倍率停止时间推进，但输入、渲染和收到零 delta 的更新仍可能执行，不等于场景暂停。不要用零时间增量替代明确的输入禁用策略。
+本例假定正常倍率为 1，并且只有一个流程管理慢动作。多个效果可能同时修改倍率时，由游戏统一协调，不能让任意效果结束都无条件覆盖其他效果。
+
+倍率在 `begin_frame()` 时参与计算，因此帧中修改从下一帧生效。零倍率停止缩放后的时间推进，`raw_delta()`、`total_time()` 和帧计数仍继续变化；输入、渲染和收到零 delta 的更新也可能执行。不要用零时间增量替代明确的输入禁用策略。
 
 ## 物理、暂停与对象倍率
 
 启用固定步的场景把缩放后的 delta 交给独立的 `FixedStepRuntime` 累积；实际固定步先调用场景钩子，再推进可选的 `PhysicsWorld`。全局慢动作会减少单位真实时间内的固定步数量，固定步长本身不变；一帧可执行零次或多次。固定步回调不要再乘全局倍率。单次推进有最大步数限制，过大的积压会丢弃，不能用超大倍率承诺无限精确快进。
 
 `Scene::pause()` 会停止该场景物理推进，并按对象的暂停策略筛选普通更新与输入；不会停止全局时钟。`GameObject::set_time_scale()` 只是对象级倍率，普通场景调度不会自动替对象应用它。需要时在对象自己的逻辑中使用 `scaled_delta(delta)`；它不会自动改变刚体模拟速度。
+
+`on_before_update()` 和 `on_after_update()` 在场景暂停时仍会调用。把计时器放在这些钩子中时，若希望暂停计时，应先检查 `is_paused()`，或显式调用计时器的 `pause()`。对象成员中的计时器则随拥有者是否收到更新而推进。
 
 ## 手动驱动 Timer
 
@@ -48,6 +51,7 @@ public:
         timer_.set_wait_time(2.0);
         timer_.set_one_shot(true);
         timer_.set_on_timeout([this] { ready_ = true; });
+        timer_.pause(); // 由 start() 明确开始第一轮计时。
     }
     Cooldown(const Cooldown&) = delete;
     Cooldown& operator=(const Cooldown&) = delete;

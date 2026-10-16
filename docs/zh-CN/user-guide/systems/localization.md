@@ -27,8 +27,11 @@ bool change_language(std::string language)
     return true;
 }
 
-// 在服务可用后查询；复制为 string，以便独立保存。
-std::string title = std::string(ELYSIA_LOCALIZATION->tr("menu.title"));
+// 在服务可用后调用，避免在全局变量初始化期间访问服务。
+std::string menu_title()
+{
+    return std::string(ELYSIA_LOCALIZATION->tr("menu.title"));
+}
 ```
 
 `set_language` 可能因依赖未初始化、不支持的语言或加载失败返回错误，不能假定请求已生效。它改变本地化运行状态，不等于保存用户配置；需要持久化的语言设置通过[设置场景](../builtin-scenes/settings.md)或[用户配置服务](../content/configuration.md)完成。
