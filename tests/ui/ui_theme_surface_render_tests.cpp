@@ -15,6 +15,7 @@
 #include "engine/ui/containers/ui_scroll_container.h"
 #include "engine/ui/presets/settings_panel.h"
 #include "engine/ui/style/ui_theme_manager.h"
+#include "engine/ui/widgets/ui_button.h"
 #include "engine/ui/widgets/label/ui_label.h"
 #include "engine/ui/window/ui_window.h"
 #include "tests/support/sdl_audio_fixture.h"
@@ -25,7 +26,10 @@
 #include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -255,6 +259,136 @@ void test_nested_scroll_dialog_and_overrides(RenderFixture& renderer)
     }
     dialog_ptr->unregister_from_window();
 }
+
+void test_button_states(RenderFixture& renderer,const ThemeCase& entry)
+{
+    ui::UiWindow window(core::Rect{0,0,1280,720});
+    ui::UiThemeManager themes;
+    auto registration = themes.register_root(window);
+    themes.set_theme(entry.theme);
+    const auto add = [&](std::unique_ptr<ui::UiElement> child,const core::Rect& rect)
+    {
+        window.add_child(std::move(child),ui::UiLayoutChildOptions{
+            ._margin = {.left=rect.x(),.top=rect.y()},
+            ._size_override = rect.size(),
+            ._use_size_override = true
+        });
+    };
+    const auto label = [&](const char* text,const core::Rect& rect)
+    {
+        add(std::make_unique<ui::UiLabel>(rect,0,ui::ui_raw_text(text)),rect);
+    };
+    label(entry.name,{60,20,1120,50});
+    constexpr std::array roles{ui::UiButtonVisualRole::Default,
+        ui::UiButtonVisualRole::Primary,ui::UiButtonVisualRole::Danger};
+    constexpr std::array names{"普通操作","主要操作","危险操作"};
+    constexpr std::array states{"常态","悬停 / 聚焦","按下","禁用"};
+    std::array<std::array<ui::UiButton*,4>,3> buttons{};
+    for (std::size_t column=0;column<roles.size();++column)
+    {
+        const auto x = 260.0f+300.0f*static_cast<float>(column);
+        label(names[column],{x,90,270,40});
+        for (std::size_t row=0;row<states.size();++row)
+        {
+            const auto y = 160.0f+120.0f*static_cast<float>(row);
+            if (column==0)
+                label(states[row],{60,y,190,64});
+            auto button = std::make_unique<ui::UiButton>(core::Rect{0,0,270,64});
+            button->set_visual_role(roles[column]);
+            button->set_text_content(ui::ui_raw_text(names[column]));
+            auto* ptr = button.get();
+            add(std::move(button),{x,y,270,64});
+            if (row==1 || row==2)
+                ptr->set_focused(true);
+            if (row==2)
+                (void)ptr->on_ui_input_event({.action=ui::UiAction::Confirm,
+                    .type=ui::UiInputEventType::ActionPressed});
+            if (row==3)
+                ptr->set_enabled(false);
+            buttons[column][row] = ptr;
+        }
+    }
+    renderer.render(window,std::string(entry.name)+"-button-states");
+    for (std::size_t column=0;column<roles.size();++column)
+    {
+        const auto& background = themes.current_theme().button(roles[column]).chrome.background;
+        const std::array expected{background.idle,background.focused,background.active,background.disabled};
+        for (std::size_t i=0;i<buttons[column].size();++i)
+        {
+            const auto rect = buttons[column][i]->screen_rect();
+            require(renderer.pixel(static_cast<int>(rect.x()+8),static_cast<int>(rect.y()+8)) == expected[i],
+                "real buttons must render the expected idle, focused, pressed and disabled colors");
+        }
+    }
+}
+
+void capture_idle_button_audit(RenderFixture& renderer)
+{
+    const auto hex = [](core::Color color)
+    {
+        std::ostringstream out;
+        out << '#' << std::uppercase << std::hex << std::setfill('0')
+            << std::setw(2) << static_cast<int>(color.r)
+            << std::setw(2) << static_cast<int>(color.g)
+            << std::setw(2) << static_cast<int>(color.b);
+        return out.str();
+    };
+    std::ofstream report;
+    if (const auto* directory = SDL_getenv("ELYSIA_THEME_QA_DIR"))
+    {
+        report.open(std::filesystem::path(directory)/"button-idle-audit.csv");
+        require(report.is_open(),"button audit report opens");
+        report << "theme,role,page,section,fill,border,text\n";
+    }
+    constexpr std::array roles{ui::UiButtonVisualRole::Default,
+        ui::UiButtonVisualRole::Primary,ui::UiButtonVisualRole::Danger};
+    constexpr std::array names{"普通操作","主要操作","危险操作"};
+    constexpr std::array role_names{"Default","Primary","Danger"};
+    for (const auto& entry : cases)
+    {
+        ui::UiWindow window(core::Rect{0,0,1280,720});
+        ui::UiThemeManager themes;
+        auto registration = themes.register_root(window);
+        themes.set_theme(entry.theme);
+        const auto add = [&](std::unique_ptr<ui::UiElement> child,const core::Rect& rect)
+        {
+            window.add_child(std::move(child),ui::UiLayoutChildOptions{
+                ._margin={.left=rect.x(),.top=rect.y()},
+                ._size_override=rect.size(),._use_size_override=true});
+        };
+        const auto label = [&](const std::string& text,const core::Rect& rect)
+        {
+            add(std::make_unique<ui::UiLabel>(rect,0,ui::ui_raw_text(text)),rect);
+        };
+        label(std::string(entry.name)+" / idle",{24,8,1232,40});
+        label("页面背景 "+hex(entry.page),{24,58,600,32});
+        label("分区背景 "+hex(entry.section),{660,58,596,32});
+        auto section = std::make_unique<ui::UiPanel>(core::Rect{0,0,608,116});
+        section->set_style_overrides(ui::UiPanelStyleOverrides{.corner_radius=10.0f,.draw_border=false});
+        add(std::move(section),{648,102,608,116});
+        for (std::size_t column=0;column<roles.size();++column)
+        {
+            const auto& style = themes.current_theme().button(roles[column]);
+            require(style.chrome.background.idle != entry.page
+                    && style.chrome.background.idle != entry.section,
+                "every idle button role must have a fill distinct from page and section backgrounds");
+            if (report.is_open())
+                report << entry.name << ',' << role_names[column] << ',' << hex(entry.page)
+                    << ',' << hex(entry.section) << ',' << hex(style.chrome.background.idle)
+                    << ',' << hex(style.chrome.border.idle) << ',' << hex(style.text.enabled) << '\n';
+            for (const auto origin : {24.0f,660.0f})
+            {
+                const auto x = origin+196.0f*static_cast<float>(column);
+                auto button = std::make_unique<ui::UiButton>(core::Rect{0,0,184,56});
+                button->set_visual_role(roles[column]);
+                button->set_text_content(ui::ui_raw_text(names[column]));
+                add(std::move(button),{x,118,184,56});
+                label(hex(style.chrome.background.idle),{x,179,184,30});
+            }
+        }
+        renderer.render(window,std::string(entry.name)+"-buttons-idle");
+    }
+}
 }
 
 int main()
@@ -262,5 +396,8 @@ int main()
     RenderFixture renderer;
     test_settings_and_popups(renderer);
     test_nested_scroll_dialog_and_overrides(renderer);
+    for (const auto& entry : cases)
+        test_button_states(renderer,entry);
+    capture_idle_button_audit(renderer);
     return EXIT_SUCCESS;
 }

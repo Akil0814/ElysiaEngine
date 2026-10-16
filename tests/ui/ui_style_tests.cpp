@@ -826,14 +826,14 @@ void test_elysia_light_palette_and_contrast()
         "ElysiaLight containers must separate chiffon pages from pearl sections and silk dialogs");
 
     require(default_button.chrome.background.idle
-            == elysia::core::colors::elysia_chiffon_pink
+            == elysia::core::colors::elysia_light_button_idle
             && default_button.chrome.background.focused
-                == elysia::core::colors::elysia_silk_white
+                == elysia::core::colors::elysia_light_button_focus
             && default_button.chrome.background.active
-                == elysia::core::colors::elysia_opal_lilac
+                == elysia::core::colors::elysia_light_button_active
             && default_button.chrome.border.focused
                 == elysia::core::colors::elysia_deep_sea,
-        "ElysiaLight Default focus must use a white surface and deep-sea ring");
+        "ElysiaLight Default must use clear cherry-white and pink states with a deep-sea focus ring");
     require(primary_button.chrome.background.idle
             == elysia::core::colors::elysia_hair_rose
             && primary_button.chrome.background.focused
@@ -844,20 +844,20 @@ void test_elysia_light_palette_and_contrast()
                 == elysia::core::colors::elysia_deep_sea,
         "ElysiaLight Primary must pair luminous pink surfaces with deep-sea text");
     require(danger_button.chrome.background.idle
-            == elysia::core::colors::elysia_corruption_blue
+            == elysia::core::colors::elysia_rose_copper
             && danger_button.chrome.background.focused
-                == elysia::core::colors::elysia_corruption_blue_focus
+                == elysia::core::colors::elysia_rose_copper_focus
             && danger_button.chrome.background.active
-                == elysia::core::colors::elysia_corruption_blue_active
+                == elysia::core::colors::elysia_rose_copper_active
             && danger_button.chrome.border.idle
-                == elysia::core::colors::elysia_corruption_glow
+                == elysia::core::colors::elysia_rose_gold
             && danger_button.chrome.border.focused
-                == elysia::core::colors::elysia_corruption_ice
+                == elysia::core::colors::elysia_rose_gold_focus
             && danger_button.chrome.border.active
-                == elysia::core::colors::elysia_silk_white
+                == elysia::core::colors::elysia_rose_gold_active
             && danger_button.text.enabled
                 == elysia::core::colors::elysia_silk_white,
-        "ElysiaLight Danger must use the brighter corruption-blue sequence");
+        "ElysiaLight Danger must pair rose-copper surfaces with rose-gold borders");
     require(danger_button.chrome.background.idle
             != default_button.chrome.background.idle
             && danger_button.chrome.background.idle
@@ -1025,14 +1025,14 @@ void test_elysia_dark_palette_and_contrast()
         "ElysiaDark containers must preserve the starsea and crystal identity");
 
     require(default_button.chrome.background.idle
-            == elysia::core::colors::elysia_twilight_mist
+            == elysia::core::colors::elysia_dark_button_idle
             && default_button.chrome.background.focused
-                == elysia::core::colors::elysia_focus_blue
+                == elysia::core::colors::elysia_dark_button_focus
             && default_button.chrome.background.active
-                == elysia::core::colors::elysia_deep_sea
+                == elysia::core::colors::elysia_dark_button_active
             && default_button.chrome.border.focused
                 == elysia::core::colors::elysia_crystal_orchid,
-        "ElysiaDark Default focus must use a brighter star-blue crystal state");
+        "ElysiaDark Default must use distinct twilight-purple states and a crystal focus ring");
     require(primary_button.chrome.background.idle
             == elysia::core::colors::elysia_lilac
             && primary_button.chrome.background.focused
@@ -1219,25 +1219,35 @@ void test_evangelion_unit00_palette_and_contrast()
                 == elysia::core::colors::eva_unit00_muted_ink,
         "Unit-00 text roles must preserve graphite, blue, and signal-orange semantics");
     require(default_button.chrome.background.idle
-            == elysia::core::colors::eva_unit00_rei_white
+            == elysia::core::colors::eva_unit00_button_idle
             && default_button.chrome.background.focused
                 == elysia::core::colors::eva_unit00_focus_blue
             && default_button.chrome.background.active
                 == elysia::core::colors::eva_unit00_pale_blue
+            && default_button.chrome.border.idle
+                == elysia::core::colors::eva_unit00_soft_graphite
+            && default_button.chrome.border.focused
+                == elysia::core::colors::eva_unit00_deep_graphite
+            && default_button.chrome.border.active
+                == elysia::core::colors::gray_900
             && default_button.text.enabled
                 == elysia::core::colors::eva_unit00_deep_graphite,
-        "Unit-00 Default must use the cold-white to blue sequence");
+        "Unit-00 Default must use clean porcelain-white and ice-blue states");
     require(primary_button.chrome.background.idle
-            == elysia::core::colors::eva_unit00_frost_blue
+            == elysia::core::colors::eva_unit00_primary_idle
             && primary_button.chrome.background.focused
-                == elysia::core::colors::eva_unit00_caution_gold
+                == elysia::core::colors::alice_blue
             && primary_button.chrome.background.active
-                == elysia::core::colors::eva_unit00_warning_yellow
+                == elysia::core::colors::eva_unit00_pale_blue
+            && primary_button.chrome.border.idle
+                == elysia::core::colors::eva_unit00_soft_graphite
             && primary_button.chrome.border.focused
-                == elysia::core::colors::eva_unit00_signal_orange
+                == elysia::core::colors::eva_unit00_deep_graphite
+            && primary_button.chrome.border.active
+                == elysia::core::colors::gray_900
             && primary_button.text.enabled
                 == elysia::core::colors::eva_unit00_deep_graphite,
-        "Unit-00 Primary must move from frost blue into signal yellow");
+        "Unit-00 Primary must retain ice-blue states and graphite borders without an orange focus ring");
     require(danger_button.chrome.background.idle
             == elysia::core::colors::eva_unit00_alert_crimson
             && danger_button.chrome.background.focused
@@ -1331,7 +1341,7 @@ void test_evangelion_unit01_palette_and_contrast()
                 == elysia::core::colors::eva_unit01_deep_purple,
         "Unit-01 containers must separate void pages from deep-purple sections");
     require(default_button.chrome.background.idle
-            == elysia::core::colors::eva_unit01_deep_purple
+            == elysia::core::colors::eva_unit01_button_idle
             && default_button.chrome.background.focused
                 == elysia::core::colors::eva_unit01_royal_purple
             && default_button.chrome.background.active
@@ -1430,7 +1440,7 @@ void test_evangelion_unit02_palette_and_contrast()
                 == elysia::core::colors::eva_unit02_pressed_maroon,
         "Unit-02 containers must stay within the deep-red armor hierarchy");
     require(default_button.chrome.background.idle
-            == elysia::core::colors::eva_unit02_deep_maroon
+            == elysia::core::colors::eva_unit02_button_idle
             && default_button.chrome.background.focused
                 == elysia::core::colors::eva_unit02_crimson
             && default_button.chrome.background.active
@@ -1523,8 +1533,8 @@ void test_quiet_slate_palette_and_contrast()
             == elysia::core::colors::quiet_slate_charcoal,
         "QuietSlate panels must use the dedicated charcoal surface");
     require(default_button.chrome.background.focused
-            == elysia::core::colors::quiet_slate_steel,
-        "QuietSlate default focus must use the dedicated steel surface");
+            == elysia::core::colors::quiet_slate_button_focus,
+        "QuietSlate default focus must remain brighter than its separate idle surface");
     require(primary_button.chrome.background.idle
             == elysia::core::colors::quiet_slate_mist,
         "QuietSlate Primary must use the dedicated mist surface");
