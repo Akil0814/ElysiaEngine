@@ -58,6 +58,7 @@ public:
     void start() { ready_ = false; timer_.restart(); }
     void update(double delta) { timer_.update(delta); }
     bool ready() const { return ready_; }
+    double remaining_seconds() const { return timer_.get_remaining_time(); }
 private:
     bool ready_ = false;
     elysia::tools::Timer timer_;
@@ -65,6 +66,10 @@ private:
 ```
 
 `set_wait_time()` 设置间隔而不自动重启；`restart()` 清空累计时间和已触发标记并解除暂停。`pause()` 保留进度，`resume()` 恢复；单次计时器触发后会暂停，再开始一轮应使用 `restart()`。
+
+读取倒计时状态时，`get_wait_time()` 返回配置的间隔，`get_elapsed_time()` 返回当前累计时间，`get_remaining_time()` 返回剩余时间，单位均为秒。单次计时完成后，已用时间返回当前配置的完整间隔，剩余时间为 `0`；此时修改间隔，已用时间也随配置变化。间隔为零时，剩余时间为 `0`，不会因此视为已经完成。
+
+`is_one_shot()` 查询当前模式；`is_finished()` 仅在单次模式且已经触发时为 `true`。主动暂停不会标记完成，完成后调用 `resume()` 也不会清除完成标记，`restart()` 才会清除。循环模式始终返回未完成。修改间隔或在回调中中断补触发，可能使未完成计时器的累计时间超过间隔，此时剩余时间仍为 `0`。
 
 循环计时器 `set_one_shot(false)` 在大 delta 下可能连续触发多次以消耗累计间隔。非正等待时间或非正 delta 不推进。回调中重启、暂停或修改等待时间会中止当前这一轮继续补触发；不要在回调中直接销毁正在执行的 `Timer` 所有者。
 

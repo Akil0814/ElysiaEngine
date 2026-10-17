@@ -171,6 +171,11 @@ foreach(INPUT_TEST_TARGET IN ITEMS
     )
 endforeach()
 
+add_elysia_test(timer_tests
+    LABEL tools
+    SOURCES tools/timer_tests.cpp
+)
+
 add_elysia_test(termination_manager_tests
     LABEL application
     SOURCES application/termination_manager_tests.cpp
