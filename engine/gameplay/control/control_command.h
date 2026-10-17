@@ -2,6 +2,7 @@
 #include "../../input/action/action_input_frame.h"
 #include "../../input/input_source.h"
 #include <map>
+#include <optional>
 #include <vector>
 namespace elysia::gameplay
 {
@@ -24,6 +25,13 @@ struct ControlCommand
     std::unordered_map<elysia::input::InputActionId, elysia::input::InputActionValue,
                        elysia::input::InputActionIdHash>
         deltas;
+    // Latest logical screen position from this player's routed mouse motion/button events.
+    // Unavailable until a position arrives; cleared on cancellation or position consumption.
+    std::optional<elysia::core::Vector2> pointer_position;
+    // A new position sample is delivered once at the next fixed tick; position itself persists.
+    bool pointer_updated = false;
+    // Last device with an event routed to this local player; cleared on cancellation.
+    elysia::input::InputDevice input_device = elysia::input::InputDevice::Unknown;
 };
 class ControlCommandReceiver
 {

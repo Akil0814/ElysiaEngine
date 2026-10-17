@@ -6,6 +6,16 @@
 namespace elysia::gameplay
 {
 using namespace elysia::input;
+namespace
+{
+bool has_pointer_position(const RawInputEvent &event)
+{
+    return event.source.is_mouse() && event.device == InputDevice::Mouse &&
+           (event.type == RawInputEventType::MouseMoved ||
+            ((event.type == RawInputEventType::ControlPressed ||
+              event.type == RawInputEventType::ControlReleased) && is_mouse_button_control(event.control)));
+}
+} // namespace
 void ControllerManager::initialize()
 {
     if (!_initialized)
@@ -156,6 +166,9 @@ void ControllerManager::cancel(Entry &e, InputCancelReason reason)
     e.command.state = {};
     e.command.events.clear();
     e.command.deltas.clear();
+    e.command.pointer_position.reset();
+    e.command.pointer_updated = false;
+    e.command.input_device = InputDevice::Unknown;
     if (e.cancelling)
         return;
     e.cancelling = true;
@@ -552,6 +565,27 @@ void ControllerManager::input(SceneControlContext &ctx, const InputSnapshot &inp
                 return false;
             });
             auto filtered = players.for_player(player, input);
+            // A consumed position invalidates older samples, including those buffered before a tick.
+            // Only a later routed position in this snapshot may restore it.
+            std::uint64_t consumed_position = 0;
+            for (const auto &operation : ctx._scene.input_router().consumed_operations())
+                if (players.owns(player, operation) && has_pointer_position(operation))
+                {
+                    consumed_position = std::max(consumed_position, operation.routing_id);
+                    e->command.pointer_position.reset();
+                    e->command.pointer_updated = false;
+                }
+            for (const auto &event : filtered.events)
+            {
+                if (event.device != InputDevice::Unknown)
+                    e->command.input_device = event.device;
+                if (has_pointer_position(event) && event.routing_id > consumed_position)
+                {
+                    e->command.pointer_position = {static_cast<float>(event.mouse_x),
+                                                   static_cast<float>(event.mouse_y)};
+                    e->command.pointer_updated = true;
+                }
+            }
             e->producing_generation = e->cancel_generation;
             struct Guard
             {
@@ -707,6 +741,7 @@ void ControllerManager::advance(SceneControlContext &ctx, std::uint64_t tick, do
             e->command.events.clear();
             e->command.deltas.clear();
             e->command.state.clear_edges();
+            e->command.pointer_updated = false;
             e->receiver->on_control_command(command, delta);
         }
     });
@@ -744,6 +779,9 @@ void ControllerManager::close_context_noexcept(SceneControlContext& ctx) noexcep
             entry.command.state = {};
             entry.command.events.clear();
             entry.command.deltas.clear();
+            entry.command.pointer_position.reset();
+            entry.command.pointer_updated = false;
+            entry.command.input_device = InputDevice::Unknown;
             if (auto* local = dynamic_cast<LocalPlayerController*>(entry.controller.get()))
                 local->_map.reset_state();
         }
