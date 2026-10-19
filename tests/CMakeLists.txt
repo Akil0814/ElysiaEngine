@@ -484,6 +484,7 @@ foreach(UI_TEST_TARGET IN ITEMS
     ui_callback_safety_tests
     ui_text_input_rendering_tests
     ui_number_rendering_tests
+    ui_number_formatting_tests
 )
     add_elysia_test(${UI_TEST_TARGET}
         LABEL ui

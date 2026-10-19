@@ -848,7 +848,7 @@ void Scene::reset_camera_runtime() noexcept
 }
 
 std::optional<elysia::camera::CameraFocus> Scene::resolve_camera_focus(
-    elysia::camera::CameraSlot
+    [[maybe_unused]] elysia::camera::CameraSlot slot
 ) const
 {
     return std::nullopt;

@@ -30,10 +30,11 @@ class GameplayScene : public elysia::scene::Scene
   protected:
     [[nodiscard]] collision::GameplayCollisionRuntime* try_collision_runtime() noexcept;
     [[nodiscard]] collision::GameplayCollisionRuntime& collision_runtime();
-    virtual void on_game_fixed_update(std::uint64_t, double)
+    virtual void on_game_fixed_update(
+        [[maybe_unused]] std::uint64_t tick, [[maybe_unused]] double delta)
     {
     }
-    virtual void on_control_target_removing(elysia::core::SceneObject &)
+    virtual void on_control_target_removing([[maybe_unused]] elysia::core::SceneObject &object)
     {
     }
 

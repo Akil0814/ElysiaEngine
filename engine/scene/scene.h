@@ -173,18 +173,20 @@ protected:
     virtual void on_enter(const ScenePayload& payload) = 0;
     virtual void on_exit() = 0;
     virtual void on_reset() = 0;
-    virtual void on_before_update(double) {}
-    virtual void on_after_update(double) {}
+    virtual void on_before_update([[maybe_unused]] double delta) {}
+    virtual void on_after_update([[maybe_unused]] double delta) {}
 
-    virtual void on_shortcuts(const elysia::input::RawInputFrame&,
-                              const std::vector<elysia::input::RawInputEvent>&)
+    virtual void on_shortcuts(
+        [[maybe_unused]] const elysia::input::RawInputFrame& input,
+        [[maybe_unused]] const std::vector<elysia::input::RawInputEvent>& events)
     {}
-    virtual bool on_unassigned_input(const elysia::input::RawInputEvent&) { return false; }
-    virtual void on_routed_input(const elysia::input::InputSnapshot&) {}
-    virtual void on_pause_changed(bool) {}
-    virtual void on_fixed_update(std::uint64_t, double) {}
-    virtual void on_scene_object_registered(elysia::core::SceneObject&) {}
-    virtual void on_scene_object_removing(elysia::core::SceneObject&) {}
+    virtual bool on_unassigned_input([[maybe_unused]] const elysia::input::RawInputEvent& event)
+    { return false; }
+    virtual void on_routed_input([[maybe_unused]] const elysia::input::InputSnapshot& input) {}
+    virtual void on_pause_changed([[maybe_unused]] bool paused) {}
+    virtual void on_fixed_update([[maybe_unused]] std::uint64_t tick, [[maybe_unused]] double delta) {}
+    virtual void on_scene_object_registered([[maybe_unused]] elysia::core::SceneObject& object) {}
+    virtual void on_scene_object_removing([[maybe_unused]] elysia::core::SceneObject& object) {}
     virtual void on_runtime_attach() {}
     virtual void on_runtime_detach() {}
     virtual void on_runtime_reset() {}
@@ -226,9 +228,11 @@ protected:
     [[nodiscard]] const SceneCameraRuntime& camera_runtime() const;
 
     virtual void on_camera_blend_completed(
-        elysia::camera::CameraBlendId, elysia::camera::CameraSlot) {}
+        [[maybe_unused]] elysia::camera::CameraBlendId id,
+        [[maybe_unused]] elysia::camera::CameraSlot slot) {}
     virtual void on_camera_motion_completed(
-        elysia::camera::CameraMotionId, elysia::camera::CameraSlot) {}
+        [[maybe_unused]] elysia::camera::CameraMotionId id,
+        [[maybe_unused]] elysia::camera::CameraSlot slot) {}
     [[nodiscard]] virtual std::optional<elysia::camera::CameraFocus>
         resolve_camera_focus(elysia::camera::CameraSlot slot) const;
 
