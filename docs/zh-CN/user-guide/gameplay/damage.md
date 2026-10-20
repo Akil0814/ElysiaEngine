@@ -27,30 +27,38 @@
 #include "engine/physics/contracts/physics_participant.h"
 #include "engine/core/render/render_command.h"
 #include "engine/tools/logger.h"
+
 #include <algorithm>
 #include <array>
 #include <stdexcept>
 #include <vector>
 
-namespace damage_example {
+namespace damage_example
+{
 namespace gc = elysia::gameplay::collision;
 namespace ph = elysia::physics;
 
 class Fighter final : public elysia::core::GameObject,
-                      public ph::PhysicsParticipant {
+                      public ph::PhysicsParticipant
+{
 public:
     Fighter(gc::ActorId actor, gc::TeamId faction, elysia::core::Vector2 position)
-        : GameObject(elysia::core::DepthLayer::Character), id(actor), team(faction) {
+        : GameObject(elysia::core::DepthLayer::Character), id(actor), team(faction)
+    {
         set_world_rect({position, {32.0f, 32.0f}});
-        colliders_[0].shape = ph::AabbShape{{0, 0, 32, 32}};
-        colliders_[0].filter = {.category = 2u, .mask = 1u};
-        colliders_[0].response = ph::CollisionResponse::Overlap;
-        colliders_[1].shape = ph::AabbShape{{24, 0, 40, 32}};
-        colliders_[1].filter = {.category = 1u, .mask = 2u};
-        colliders_[1].response = ph::CollisionResponse::Overlap;
-        colliders_[1].enabled = false;
+        // 索引 0 是受击区，索引 1 是攻击区；过滤位必须双向匹配。
+        _colliders[0].shape = ph::AabbShape{{0, 0, 32, 32}};
+        _colliders[0].filter = {.category = 2u, .mask = 1u};
+        _colliders[0].response = ph::CollisionResponse::Overlap;
+        _colliders[1].shape = ph::AabbShape{{24, 0, 40, 32}};
+        _colliders[1].filter = {.category = 1u, .mask = 2u};
+        _colliders[1].response = ph::CollisionResponse::Overlap;
+        // 攻击区先注册但不启用，等固定步中的攻击请求到达再开启。
+        _colliders[1].enabled = false;
     }
-    ph::BodyDefinition body_definition() const override {
+
+    ph::BodyDefinition body_definition() const override
+    {
         ph::BodyDefinition body;
         body.type = ph::BodyType::Dynamic;
         body.mass_policy = ph::MassPolicy::ExplicitMass;
@@ -58,10 +66,14 @@ public:
         body.gravity_scale = 0.0f;
         return body;
     }
-    std::span<const ph::Collider> collider_definitions() const override {
-        return colliders_;
+
+    std::span<const ph::Collider> collider_definitions() const override
+    {
+        return _colliders;
     }
-    void submit_render_commands(std::vector<elysia::core::RenderCommand>& out) const override {
+
+    void submit_render_commands(std::vector<elysia::core::RenderCommand>& out) const override
+    {
         elysia::core::RenderCommand command;
         command.type = elysia::core::RenderCommandType::FillRect;
         command.command_rect = render_rect();
@@ -69,17 +81,22 @@ public:
             ? elysia::core::Color{80, 160, 255} : elysia::core::Color{255, 100, 100};
         out.push_back(command);
     }
-    void reset() noexcept override {
+
+    void reset() noexcept override
+    {
         GameObject::reset();
+        // 基类只恢复对象基础状态，生命值和无敌状态由游戏自行重置。
         hp = 40;
         invulnerable = false;
     }
+
     gc::ActorId id;
     gc::TeamId team;
     int hp = 40;
     bool invulnerable = false;
+
 private:
-    std::array<ph::Collider, 2> colliders_{};
+    std::array<ph::Collider, 2> _colliders{};
 };
 } // namespace damage_example
 ```
@@ -91,137 +108,226 @@ private:
 此场景进入后自动请求一次攻击。后续可由输入或控制命令调用 `queue_attack()`；示例不规定统一攻击按键。两角色的位置使攻击范围与目标 HurtBox 相交，第一次命中后目标生命从 40 降至 15，第二次有效攻击会死亡。
 
 ```cpp
-namespace damage_example {
+namespace damage_example
+{
 class DamageScene final : public elysia::gameplay::GameplayScene,
-                          private gc::GameplayCollisionListener {
+                          private gc::GameplayCollisionListener
+{
 public:
-    DamageScene() : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
-        .physics = ph::PhysicsWorldConfig{},
-        .gameplay_collision = true,
-        .camera = elysia::scene::CameraSceneConfig{}}) {}
-    ~DamageScene() override { teardown(); }
-    void on_enter(const elysia::scene::ScenePayload&) override {
-        if (!attacker_) attacker_ = create_and_add_object<Fighter>(
-            1, gc::teams::Player, elysia::core::Vector2{100, 100});
-        if (!defender_) defender_ = create_and_add_object<Fighter>(
-            2, gc::teams::Enemy, elysia::core::Vector2{140, 100});
-        if (!attacker_ || !defender_ || !attacker_->physics_state() ||
-            !defender_->physics_state() || !bind_fighter(*attacker_) ||
-            !bind_fighter(*defender_)) {
+    DamageScene()
+        : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+            .physics = ph::PhysicsWorldConfig{},
+            .gameplay_collision = true,
+            .camera = elysia::scene::CameraSceneConfig{}})
+    {
+    }
+
+    ~DamageScene() override
+    {
+        teardown();
+    }
+
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        // Reuse 保留存活对象，进入时重新建立本场景的玩法绑定。
+        if (!_attacker)
+        {
+            _attacker = create_and_add_object<Fighter>(
+                1, gc::teams::Player, elysia::core::Vector2{100, 100});
+        }
+        if (!_defender)
+        {
+            _defender = create_and_add_object<Fighter>(
+                2, gc::teams::Enemy, elysia::core::Vector2{140, 100});
+        }
+        if (!_attacker || !_defender || !_attacker->physics_state() ||
+            !_defender->physics_state() || !bind_fighter(*_attacker) ||
+            !bind_fighter(*_defender))
+        {
             teardown();
             throw std::runtime_error("Damage example actor binding failed.");
         }
-        listening_ = collision_runtime().add_listener(*this);
-        if (!listening_) {
+        _listening = collision_runtime().add_listener(*this);
+        if (!_listening)
+        {
             teardown();
             throw std::runtime_error("Damage example listener binding failed.");
         }
         // 无跟随策略时明确设置视野，保证两个对象可见。
         camera_runtime().set_center(elysia::camera::CameraSlot::Main, {140, 116});
         resume();
-        queued_ = true;
+        _queued = true;
     }
-    void on_exit() override { teardown(); }
-    void on_reset() override {
+
+    void on_exit() override
+    {
         teardown();
-        if (attacker_) attacker_->reset();
-        if (defender_) defender_->reset();
     }
-    void queue_attack() { if (listening_) queued_ = true; }
-    void on_after_update(double) override {
+
+    void on_reset() override
+    {
+        teardown();
+        if (_attacker)
+            _attacker->reset();
+        if (_defender)
+            _defender->reset();
+    }
+
+    void queue_attack()
+    {
+        // 输入阶段只记录意图，碰撞体启停统一交给固定步处理。
+        if (_listening)
+            _queued = true;
+    }
+
+    void on_after_update(double) override
+    {
         // 此时物理回调已完成，标记对象尚待末尾回收；仅保存反馈值，不保存受击者指针。
-        for (const auto& feedback : feedback_) {
+        for (const Feedback& feedback : _feedback)
+        {
             ELYSIA_LOG_INFO("combat", "Actor " << feedback.target
                 << " took " << feedback.damage << ", hp=" << feedback.remaining_hp);
             // 可在这里向 UI 发消息、调用音频或特效服务。
         }
-        feedback_.clear();
+        _feedback.clear();
     }
+
 protected:
-    void on_game_fixed_update(std::uint64_t, double delta) override {
-        if (active_attack_) {
-            remaining_ -= delta;
-            if (remaining_ <= 0.0) finish_attack();
+    void on_game_fixed_update(std::uint64_t, double delta) override
+    {
+        if (_active_attack)
+        {
+            _remaining -= delta;
+            if (_remaining <= 0.0)
+                finish_attack();
             return; // 关闭后本步不重新开启，至少经过一次禁用状态的物理步。
         }
-        if (!queued_) return;
-        queued_ = false;
-        if (!attacker_ || attacker_->is_destroyed() || attacker_->hp <= 0) return;
-        if (next_attack_ == 0) throw std::overflow_error("Attack id exhausted.");
-        active_attack_ = next_attack_++;
-        const auto hit = attacker_->physics_collider(1);
+        if (!_queued)
+            return;
+        _queued = false;
+        if (!_attacker || _attacker->is_destroyed() || _attacker->hp <= 0)
+            return;
+        if (_next_attack == 0)
+            throw std::overflow_error("Attack id exhausted.");
+
+        // 新挥击分配新实例号；失败时 finish_attack 会撤销部分绑定。
+        _active_attack = _next_attack++;
+        const ph::ColliderId hit = _attacker->physics_collider(1);
         const bool bound = collision_runtime().bind_hit_box({
-            .collider = {hit, attacker_->id, attacker_->team, gc::ColliderRole::HitBox},
-            .instigator = attacker_->id,
-            .attack_instance = active_attack_, .attack_definition = 1});
-        if (!bound || !physics_world().set_collider_enabled(hit, true)) {
+            .collider = {hit, _attacker->id, _attacker->team, gc::ColliderRole::HitBox},
+            .instigator = _attacker->id,
+            .attack_instance = _active_attack,
+            .attack_definition = 1});
+        if (!bound || !physics_world().set_collider_enabled(hit, true))
+        {
             finish_attack();
             ELYSIA_LOG_ERROR("combat", "Attack could not be enabled.");
             return;
         }
-        remaining_ = 0.15; // 秒；下一次固定步开始递减。
+        _remaining = 0.15; // 秒；下一次固定步开始递减。
     }
-    void on_control_target_removing(elysia::core::SceneObject& object) override {
-        if (&object == attacker_) {
+
+    void on_control_target_removing(elysia::core::SceneObject& object) override
+    {
+        // 对象仍有效时解除玩法关联，再清空场景中的借用指针。
+        if (&object == _attacker)
+        {
             finish_attack();
-            (void)collision_runtime().unbind_actor(attacker_->id);
-            attacker_ = nullptr;
+            (void)collision_runtime().unbind_actor(_attacker->id);
+            _attacker = nullptr;
         }
-        if (&object == defender_) {
-            (void)collision_runtime().unbind_actor(defender_->id);
-            defender_ = nullptr;
+        if (&object == _defender)
+        {
+            (void)collision_runtime().unbind_actor(_defender->id);
+            _defender = nullptr;
         }
     }
+
 private:
-    struct Feedback { gc::ActorId target; int damage; int remaining_hp; };
-    bool bind_fighter(Fighter& actor) {
+    struct Feedback
+    {
+        gc::ActorId target;
+        int damage;
+        int remaining_hp;
+    };
+
+    bool bind_fighter(Fighter& actor)
+    {
         gc::ActorCollisionRig rig;
         rig.owner = actor.id;
         rig.team = actor.team;
         rig.hurt_boxes = {actor.physics_collider(0)};
         return collision_runtime().bind_actor(rig);
     }
-    Fighter* find_actor(gc::ActorId id) const {
-        if (attacker_ && attacker_->id == id) return attacker_;
-        if (defender_ && defender_->id == id) return defender_;
+
+    Fighter* find_actor(gc::ActorId id) const
+    {
+        if (_attacker && _attacker->id == id)
+            return _attacker;
+        if (_defender && _defender->id == id)
+            return _defender;
         return nullptr;
     }
-    void on_hit_overlap(const gc::HitOverlapEvent& event) override {
+
+    void on_hit_overlap(const gc::HitOverlapEvent& event) override
+    {
         if (event.phase != ph::CollisionEventPhase::Begin ||
-            !active_attack_ || event.hit_box.attack_instance != active_attack_ ||
-            event.hit_box.attack_definition != 1) return;
-        auto* source = find_actor(event.hit_box.instigator);
-        auto* target = find_actor(event.hurt_box.owner);
+            !_active_attack || event.hit_box.attack_instance != _active_attack ||
+            event.hit_box.attack_definition != 1)
+            return;
+
+        // 物理命中已经成立，是否能扣血仍须通过游戏的存活与无敌检查。
+        Fighter* source = find_actor(event.hit_box.instigator);
+        Fighter* target = find_actor(event.hurt_box.owner);
         if (!source || !target || source == target || source->is_destroyed() ||
             target->is_destroyed() || source->hp <= 0 || target->hp <= 0 ||
-            target->invulnerable) return;
-        constexpr int damage = 25;
-        target->hp = std::max(0, target->hp - damage);
-        feedback_.push_back({target->id, damage, target->hp});
-        if (target->hp == 0) target->destroy(); // 标记，不能 delete。
+            target->invulnerable)
+            return;
+
+        constexpr int kDamage = 25;
+        target->hp = std::max(0, target->hp - kDamage);
+        _feedback.push_back({target->id, kDamage, target->hp});
+        if (target->hp == 0)
+            target->destroy(); // 标记，不能 delete。
     }
-    void finish_attack() {
-        if (attacker_ && physics_world().contains_collider(attacker_->physics_collider(1)))
-            (void)physics_world().set_collider_enabled(attacker_->physics_collider(1), false);
-        if (active_attack_) collision_runtime().end_attack_instance(active_attack_);
-        active_attack_ = 0;
-        remaining_ = 0.0;
+
+    void finish_attack()
+    {
+        // 禁用物理形状和清除玩法去重是两件事，结束攻击时都要执行。
+        if (_attacker && physics_world().contains_collider(_attacker->physics_collider(1)))
+            (void)physics_world().set_collider_enabled(_attacker->physics_collider(1), false);
+        if (_active_attack)
+            collision_runtime().end_attack_instance(_active_attack);
+        _active_attack = 0;
+        _remaining = 0.0;
     }
-    void teardown() {
+
+    void teardown()
+    {
+        // 退出、重置和析构都可能到达这里；重复解除已有绑定是允许的。
+        // 这些 bool 表示此前是否存在绑定，已解除时无需作为失败再报告。
         finish_attack();
-        if (listening_) (void)collision_runtime().remove_listener(*this);
-        listening_ = false;
-        if (attacker_) (void)collision_runtime().unbind_actor(attacker_->id);
-        if (defender_) (void)collision_runtime().unbind_actor(defender_->id);
-        queued_ = false;
-        feedback_.clear();
+        if (_listening)
+            (void)collision_runtime().remove_listener(*this);
+        _listening = false;
+        if (_attacker)
+            (void)collision_runtime().unbind_actor(_attacker->id);
+        if (_defender)
+            (void)collision_runtime().unbind_actor(_defender->id);
+        _queued = false;
+        _feedback.clear();
     }
-    Fighter* attacker_ = nullptr;
-    Fighter* defender_ = nullptr;
-    bool listening_ = false, queued_ = false;
-    gc::AttackInstanceId active_attack_ = 0, next_attack_ = 1;
-    double remaining_ = 0.0;
-    std::vector<Feedback> feedback_;
+
+private:
+    // 对象由场景持有；移除通知负责清空这两个借用指针。
+    Fighter* _attacker = nullptr;
+    Fighter* _defender = nullptr;
+    bool _listening = false;
+    bool _queued = false;
+    gc::AttackInstanceId _active_attack = 0;
+    gc::AttackInstanceId _next_attack = 1;
+    double _remaining = 0.0; // 当前攻击窗口剩余秒数，只在固定步递减。
+    std::vector<Feedback> _feedback;
 };
 } // namespace damage_example
 ```

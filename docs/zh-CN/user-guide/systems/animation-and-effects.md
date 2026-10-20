@@ -21,29 +21,42 @@
 #include "engine/tools/logger.h"
 
 class AnimatedItem final : public elysia::core::GameObject,
-                           public elysia::core::Updatable {
+                           public elysia::core::Updatable
+{
 public:
-    AnimatedItem() : GameObject(elysia::core::DepthLayer::Item) {
+    AnimatedItem() : GameObject(elysia::core::DepthLayer::Item)
+    {
         set_world_rect({100, 100, 64, 64});
-        animation_ = ELYSIA_ANIMATIONS->create_animation("test.animation");
-        if (!animation_) {
+        // 对象独占动画播放实例；其引用的图集仍由资源系统持有。
+        _animation = ELYSIA_ANIMATIONS->create_animation("test.animation");
+        if (!_animation)
+        {
             ELYSIA_LOG_ERROR("animation", "Missing test.animation");
             destroy();
         }
     }
-    void update(double delta) override {
-        if (animation_) animation_->update(scaled_delta(delta));
+
+    void update(double delta) override
+    {
+        // 播放状态只在更新阶段推进，绘制阶段只读取当前帧。
+        if (_animation)
+            _animation->update(scaled_delta(delta));
     }
+
     void submit_render_commands(
-        std::vector<elysia::core::RenderCommand>& out) const override {
-        if (!animation_) return;
+        std::vector<elysia::core::RenderCommand>& out) const override
+    {
+        if (!_animation)
+            return;
         elysia::core::RenderCommand command;
-        if (animation_->build_render_command(render_rect(), 0.0,
+        // 当前帧无法生成有效绘制命令时跳过，不能提交未填写的命令。
+        if (_animation->build_render_command(render_rect(), 0.0,
                 elysia::core::SpriteFlip::None, command))
             out.push_back(command);
     }
+
 private:
-    std::unique_ptr<elysia::animation::Animation> animation_;
+    std::unique_ptr<elysia::animation::Animation> _animation;
 };
 ```
 
@@ -61,7 +74,8 @@ private:
 #include "engine/effects/effect_service.h"
 #include "engine/tools/logger.h"
 
-void show_hit(elysia::core::Vector2 position) {
+void show_hit(elysia::core::Vector2 position)
+{
     elysia::effects::AnimationEffectSpawnRequest request;
     request.effect_key = "effect.test";
     request.position = position;
@@ -95,7 +109,8 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 `AnimationEf
 #include "engine/effects/effect_service.h"
 
 // 闪白：立即显示，然后在 0.2 秒内淡出。
-std::optional<elysia::effects::ScreenEffectHandle> flash_white() {
+std::optional<elysia::effects::ScreenEffectHandle> flash_white()
+{
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {255, 255, 255};
     request.playback.hold_seconds = 0.0;
@@ -104,7 +119,8 @@ std::optional<elysia::effects::ScreenEffectHandle> flash_white() {
 }
 
 // 图片必须已通过项目的纹理资源配置加载。
-std::optional<elysia::effects::ScreenEffectHandle> show_screen_image() {
+std::optional<elysia::effects::ScreenEffectHandle> show_screen_image()
+{
     elysia::effects::ScreenImageEffectRequest request;
     request.texture_key = "screen.blood"; // 项目提供的纹理 key
     request.fit = elysia::effects::ScreenEffectFit::Cover;
@@ -138,29 +154,33 @@ elysia::effects::ScreenAnimationEffectRequest single;
 single.effect_key = "effect.test";
 single.playback.fade_in_seconds = 0.2;
 single.playback.fade_out_seconds = 0.4;
-auto single_handle = ELYSIA_EFFECTS->request_screen_animation_effect(single);
+const std::optional<elysia::effects::ScreenEffectHandle> single_handle =
+    ELYSIA_EFFECTS->request_screen_animation_effect(single);
 
 // 循环全屏遮罩：等待调用方 stop/cancel。
-auto overlay = single;
+elysia::effects::ScreenAnimationEffectRequest overlay = single;
 overlay.loop = true;
 overlay.fit = elysia::effects::ScreenEffectFit::Cover;
 overlay.playback.end = elysia::effects::ScreenEffectEnd::Manual;
-auto overlay_handle = ELYSIA_EFFECTS->request_screen_animation_effect(overlay);
+const std::optional<elysia::effects::ScreenEffectHandle> overlay_handle =
+    ELYSIA_EFFECTS->request_screen_animation_effect(overlay);
 
 // 右下角动画：原始尺寸，向内偏移 24 个逻辑像素。
-auto corner = single;
+elysia::effects::ScreenAnimationEffectRequest corner = single;
 corner.fit = elysia::effects::ScreenEffectFit::Natural;
 corner.placement.anchor = elysia::effects::EffectAnchor::BottomRight;
 corner.placement.offset = {-24, -24};
 corner.placement.scale = {0.5f, 0.5f};
-auto corner_handle = ELYSIA_EFFECTS->request_screen_animation_effect(corner);
+const std::optional<elysia::effects::ScreenEffectHandle> corner_handle =
+    ELYSIA_EFFECTS->request_screen_animation_effect(corner);
 
 // 静态图片也使用相同布局参数。
 elysia::effects::ScreenImageEffectRequest image;
 image.texture_key = "demo.screen_effect";
 image.fit = corner.fit;
 image.placement = corner.placement;
-auto image_handle = ELYSIA_EFFECTS->request_screen_image_effect(image);
+const std::optional<elysia::effects::ScreenEffectHandle> image_handle =
+    ELYSIA_EFFECTS->request_screen_image_effect(image);
 ```
 
 动画与淡入从下一帧同步推进。`AnimationFinished` 等动画和淡入均完成后淡出，忽略保持时长；循环动画不能使用此策略。非循环动画在 `Timed`/`Manual` 中完成后保持最后一帧；stop 淡出期间动画继续推进。每帧持续一个完整帧间隔，单次时长为帧数 / FPS，大 delta 的剩余时间会推进淡出。
@@ -174,7 +194,8 @@ auto image_handle = ELYSIA_EFFECTS->request_screen_image_effect(image);
 旧场景请求渐黑，并用与特效相同的时钟累计时间；达到淡入时长后按现有场景路由接口请求切换。使用 `Manual` 让黑幕在切换前持续保持。创建失败时不要启动转场计时。
 
 ```cpp
-std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout() {
+std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout()
+{
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {0, 0, 0};
     request.playback.fade_in_seconds = 0.4;
@@ -183,7 +204,8 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout() {
 }
 
 // 在新场景 on_enter 中调用，在首次绘制前创建全黑遮罩。
-std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout() {
+std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout()
+{
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {0, 0, 0};
     request.playback.hold_seconds = 0.0;

@@ -17,15 +17,22 @@
 ```cpp
 #include "engine/config/config_service.h"
 #include "engine/tools/logger.h"
-#include <optional>
 
-std::optional<double> enemy_health_scale() {
-    auto result = ELYSIA_CONFIG->get_double("game.difficulty.enemy_health_scale");
-    if (!result) {
+#include <optional>
+#include <expected>
+
+std::optional<double> enemy_health_scale()
+{
+    const std::expected<double, elysia::config::ConfigAccessFailure> result =
+        ELYSIA_CONFIG->get_double("game.difficulty.enemy_health_scale");
+    if (!result)
+    {
         ELYSIA_LOG_ERROR("config", result.error().message);
         return std::nullopt;
     }
-    if (*result <= 0.0) return std::nullopt; // 游戏自己的业务约束。
+    // 类型检查属于配置服务；生命倍率必须为正是游戏自己的业务约束。
+    if (*result <= 0.0)
+        return std::nullopt; // 游戏自己的业务约束。
     return *result;
 }
 ```
@@ -45,13 +52,20 @@ get_int 要求 int64 范围内的整数；get_double 接受有限数值，包括
 #include "engine/tools/logger.h"
 
 bool save_settings(const elysia::config::UserConfigData& draft,
-                   const elysia::config::UserConfigRuntimeState& baseline) {
-    auto result = ELYSIA_USER_CONFIG->apply_and_save_user_config(draft, baseline);
-    if (!result) {
-        const auto diagnostic = elysia::config::to_failure_diagnostic(result.error());
+                   const elysia::config::UserConfigRuntimeState& baseline)
+{
+    // baseline 是进入编辑页面时保存的运行状态，失败时据此尝试回滚。
+    const std::expected<elysia::config::UserConfigApplyStatus,
+        elysia::config::UserConfigCommitFailure> result =
+        ELYSIA_USER_CONFIG->apply_and_save_user_config(draft, baseline);
+    if (!result)
+    {
+        const elysia::core::FailureDiagnostic diagnostic =
+            elysia::config::to_failure_diagnostic(result.error());
         elysia::tools::Logger::instance()->log_stream(
             elysia::tools::LogLevel::Error, "settings",
-            [&](std::ostream& output) {
+            [&](std::ostream& output)
+            {
                 output << elysia::core::format_failure_diagnostic(
                     diagnostic, "SETTINGS", "settings");
             }, diagnostic.origin);

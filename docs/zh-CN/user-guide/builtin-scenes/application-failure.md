@@ -15,12 +15,22 @@
 class FailureExampleScene final : public elysia::scene::Scene
 {
 public:
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    // 本例只演示失败路由，不创建额外业务对象。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
 
     void show_fatal_error()
     {
+        // 仅用于渲染和内置资源仍可用的失败；保留完整诊断交给错误场景。
         request_scene_switch(elysia::builtin::make_application_failure_route(
             elysia::builtin::ApplicationFailurePresentation::RuntimeFatal,
             "gameplay",

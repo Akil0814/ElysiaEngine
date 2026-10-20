@@ -15,23 +15,41 @@ UI 使用 `UiElement` 派生对象，与 `GameObject` 分开管理。通常先�
 ```
 
 ```cpp
-class ExitMenuScene final : public elysia::scene::Scene {
+class ExitMenuScene final : public elysia::scene::Scene
+{
 protected:
-    void on_enter(const elysia::scene::ScenePayload&) override {
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
         clear_scene_objects(); // 本例选择每次进入重建，不积累旧窗口。
-        auto* window = create_and_add_object<elysia::ui::UiWindow>(
+        // 场景持有窗口，局部指针仅用于本次组装。
+        elysia::ui::UiWindow* window = create_and_add_object<elysia::ui::UiWindow>(
             elysia::core::Rect{40, 40, 300, 160}, 100);
-        if (!window) return;
-        auto* button = window->create_child<elysia::ui::UiButton>(
+        if (!window)
+            return;
+        // 子按钮归窗口所有；坐标与布局在 UI 空间中解释。
+        elysia::ui::UiButton* button = window->create_child<elysia::ui::UiButton>(
             elysia::ui::UiLayoutChildOptions{},
             elysia::core::Rect{0, 0, 180, 44},
             elysia::ui::UiButtonConfig{
                 .content = elysia::ui::ui_raw_text("Exit")});
-        if (!button) return;
-        button->set_on_click([this] { request_quit(); });
+        if (!button)
+            return;
+        // 回调借用场景；按钮随场景管理的 UI 一起清理。
+        button->set_on_click([this]
+        {
+            request_quit();
+        });
     }
-    void on_exit() override {}
-    void on_reset() override { clear_scene_objects(); }
+
+    void on_exit() override
+    {
+        // 缓存窗口留到下一次 on_enter() 或 on_reset() 清理。
+    }
+
+    void on_reset() override
+    {
+        clear_scene_objects();
+    }
 };
 ```
 

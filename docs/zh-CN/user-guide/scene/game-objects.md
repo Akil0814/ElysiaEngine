@@ -17,20 +17,28 @@
 #include "engine/core/render/colors.h"
 
 class MovingBlock final : public elysia::core::GameObject,
-                          public elysia::core::Updatable {
+                          public elysia::core::Updatable
+{
 public:
-    MovingBlock() : GameObject(elysia::core::DepthLayer::Item) {
+    MovingBlock() : GameObject(elysia::core::DepthLayer::Item)
+    {
         set_world_rect({40.0f, 40.0f, 32.0f, 32.0f});
     }
-    void update(double delta) override {
-        auto pos = position();
-        pos.x += 50.0f * static_cast<float>(scaled_delta(delta));
-        set_position(pos);
+
+    void update(double delta) override
+    {
+        // delta 已包含全局倍率；这里只额外应用该对象自己的倍率。
+        elysia::core::Vector2 next_position = position();
+        next_position.x += 50.0f * static_cast<float>(scaled_delta(delta));
+        set_position(next_position);
     }
+
     void submit_render_commands(
-        std::vector<elysia::core::RenderCommand>& commands) const override {
+        std::vector<elysia::core::RenderCommand>& commands) const override
+    {
         elysia::core::RenderCommand command;
         command.type = elysia::core::RenderCommandType::FillRect;
+        // 保留世界坐标，统一投影由场景在提交后完成。
         command.command_rect = render_rect();
         command.color = elysia::core::colors::white;
         commands.push_back(command);

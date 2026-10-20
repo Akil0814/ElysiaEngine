@@ -11,25 +11,32 @@
 ```cpp
 #include "engine/audio/audio_service.h"
 #include "engine/tools/logger.h"
+
 #include <optional>
 #include <chrono>
 
-std::optional<elysia::audio::SoundHandle> play_explosion() {
+std::optional<elysia::audio::SoundHandle> play_explosion()
+{
     using namespace std::chrono_literals;
-    auto result = ELYSIA_AUDIO->request_sound("skill.explosion", {
+    // 预约由应用的音频调度推进；返回句柄不代表已经发声。
+    const elysia::audio::SoundRequestResult result = ELYSIA_AUDIO->request_sound("skill.explosion", {
         .group = elysia::audio::SoundGroup::Gameplay,
         .start_delay = 300ms
     });
-    if (result.status == elysia::audio::SoundRequestStatus::Rejected) {
+    if (result.status == elysia::audio::SoundRequestStatus::Rejected)
+    {
         ELYSIA_LOG_WARN("audio", "Explosion sound rejected.");
         return std::nullopt;
     }
+    // 调用方保存句柄，在技能取消或退出场景时显式取消预约/停止播放。
     return result.handle;
 }
 
 // 技能取消、场景退出或所有者销毁前调用。
-void cancel_sound(std::optional<elysia::audio::SoundHandle>& handle) {
-    if (!handle) return;
+void cancel_sound(std::optional<elysia::audio::SoundHandle>& handle)
+{
+    if (!handle)
+        return;
     // false 也可能表示已经自然结束，无需重复停止。
     (void)ELYSIA_AUDIO->stop_sound(*handle);
     handle.reset();
@@ -79,7 +86,12 @@ struct SoundPlayOptions
 返回值：
 
 ```cpp
-enum class SoundRequestStatus { Started, Scheduled, Rejected };
+enum class SoundRequestStatus
+{
+    Started,
+    Scheduled,
+    Rejected
+};
 
 struct SoundRequestResult
 {

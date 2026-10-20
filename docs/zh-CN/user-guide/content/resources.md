@@ -16,8 +16,10 @@
 #include "engine/resources/resource_service.h"
 #include "engine/tools/logger.h"
 
-SDL_Texture* find_icon() {
-    auto* texture = ELYSIA_RESOURCES->find_texture("ui.moon");
+SDL_Texture* find_icon()
+{
+    // 查询已完成加载的资源键，不在绘制或更新循环里临时加载文件。
+    SDL_Texture* texture = ELYSIA_RESOURCES->find_texture("ui.moon");
     if (!texture)
         ELYSIA_LOG_ERROR("resources", "Missing texture: ui.moon");
     return texture; // 借用，不调用 SDL_DestroyTexture。

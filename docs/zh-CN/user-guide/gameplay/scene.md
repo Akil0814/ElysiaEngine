@@ -16,9 +16,18 @@
 class BattleScene final : public elysia::gameplay::GameplayScene
 {
 public:
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    // 本例只展示固定步扩展点，暂不创建角色或绑定外部监听。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
 
 protected:
     void on_game_fixed_update(std::uint64_t tick, double delta) override

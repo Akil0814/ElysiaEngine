@@ -11,13 +11,16 @@
 ```cpp
 #include "engine/builtin/builtin_scene_keys.h"
 #include "engine/builtin/scenes/startup_loading_scene_payload.h"
+
 #include <utility>
 
 elysia::scene::SceneRoute make_startup_route(
     elysia::scene::SceneRoute main_menu)
 {
     elysia::builtin::StartupLoadingScenePayload payload;
+    // 加载成功后交给调用方指定的主菜单；路由可携带其业务 Payload。
     payload.success_route = std::move(main_menu);
+    // 本例只演示加载接入，不等待 Logo 播放或额外确认。
     payload.wait_for_logo_sequence = false;
     payload.wait_for_confirmation = false;
     return {

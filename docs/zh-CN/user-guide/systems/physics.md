@@ -12,32 +12,45 @@
 #include "engine/core/game_object.h"
 #include "engine/physics/contracts/physics_participant.h"
 #include "engine/physics/contracts/physics_step_participant.h"
+
 #include <array>
 
 class FallingBox final : public elysia::core::GameObject,
                          public elysia::physics::PhysicsParticipant,
-                         public elysia::physics::PhysicsStepParticipant {
+                         public elysia::physics::PhysicsStepParticipant
+{
 public:
-    FallingBox() : GameObject(elysia::core::DepthLayer::Item) {
+    FallingBox() : GameObject(elysia::core::DepthLayer::Item)
+    {
         set_world_rect({100, 100, 32, 32});
-        colliders_[0].shape = elysia::physics::AabbShape{
+        // 碰撞形状相对刚体放置；世界位置来自对象的 world_rect。
+        _colliders[0].shape = elysia::physics::AabbShape{
             elysia::core::Rect{0, 0, 32, 32}};
     }
-    elysia::physics::BodyDefinition body_definition() const override {
+
+    elysia::physics::BodyDefinition body_definition() const override
+    {
         elysia::physics::BodyDefinition body;
         body.type = elysia::physics::BodyType::Dynamic;
         body.fixed_rotation = true;
         return body;
     }
-    std::span<const elysia::physics::Collider> collider_definitions() const override {
-        return colliders_;
+
+    std::span<const elysia::physics::Collider> collider_definitions() const override
+    {
+        return _colliders;
     }
-    void fixed_update(double) override {
-        if (!physics_world()) return;
+
+    void fixed_update(double) override
+    {
+        if (!physics_world())
+            return;
+        // 固定步只设置速度，位置由物理世界推进，不能再手动移动一次。
         set_velocity_x(40.0f);
     }
+
 private:
-    std::array<elysia::physics::Collider, 1> colliders_{};
+    std::array<elysia::physics::Collider, 1> _colliders{};
 };
 ```
 
@@ -53,16 +66,30 @@ private:
 class ConfiguredPhysicsScene final : public elysia::scene::Scene
 {
 public:
-    ConfiguredPhysicsScene() : Scene(elysia::scene::SceneRuntimeFeatures{
-        .fixed_step = elysia::scene::FixedStepConfig{
-            .delta_seconds = 1.0 / 60.0, .max_steps_per_frame = 8},
-        .physics = elysia::physics::PhysicsWorldConfig{
-            .sub_steps = 4, .units_per_meter = 100,
-            .gravity = {0.0f, 980.0f}}}) {}
+    ConfiguredPhysicsScene()
+        : Scene(elysia::scene::SceneRuntimeFeatures{
+            .fixed_step = elysia::scene::FixedStepConfig{
+                .delta_seconds = 1.0 / 60.0,
+                .max_steps_per_frame = 8},
+            .physics = elysia::physics::PhysicsWorldConfig{
+                .sub_steps = 4,
+                .units_per_meter = 100,
+                .gravity = {0.0f, 980.0f}}})
+    {
+    }
 
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    // 本类型只展示物理配置，游戏在 on_enter 中按需添加 FallingBox。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
 };
 ```
 
@@ -174,7 +201,9 @@ TileMap 是借用引用，`ITileCollisionWorld` 实例必须比绑定持续更�
 
 std::optional<elysia::physics::CollisionQueryHit> find_obstacle(
     elysia::physics::PhysicsWorld& world,
-    elysia::core::Vector2 start, elysia::core::Vector2 end) {
+    elysia::core::Vector2 start, elysia::core::Vector2 end)
+{
+    // 这里只查询，不产生碰撞事件；调用方仍需处理没有命中的情况。
     return world.segment_cast({.start = start, .end = end});
 }
 ```

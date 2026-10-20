@@ -12,12 +12,16 @@
 #include "engine/core/geometry/vector2.h"
 
 elysia::core::Vector2 move_toward(elysia::core::Vector2 from,
-    elysia::core::Vector2 to, float speed, double delta) {
-    const auto offset = to - from;
-    const auto distance = offset.length();
-    if (speed <= 0.0f || delta <= 0.0) return from;
-    const auto step = speed * static_cast<float>(delta);
-    if (distance <= step) return to;
+    elysia::core::Vector2 to, float speed, double delta)
+{
+    const elysia::core::Vector2 offset = to - from;
+    const float distance = offset.length();
+    if (speed <= 0.0f || delta <= 0.0)
+        return from;
+    const float step = speed * static_cast<float>(delta);
+    // 剩余距离不足一步时直接到达目标，避免越过后反复来回移动。
+    if (distance <= step)
+        return to;
     return from + offset.normalized() * step;
 }
 ```
@@ -30,8 +34,10 @@ elysia::core::Vector2 move_toward(elysia::core::Vector2 from,
 #include "engine/core/geometry/rect.h"
 
 // 放在区域判定函数中；参数必须采用同一种坐标系。
-bool within_area(elysia::core::Vector2 point) {
+bool within_area(elysia::core::Vector2 point)
+{
     const elysia::core::Rect area{0, 0, 100, 80};
+    // 排除右边与下边，便于让相邻网格共享边界而不重复命中。
     return area.contains_half_open(point);
 }
 ```
@@ -47,8 +53,8 @@ bool within_area(elysia::core::Vector2 point) {
 #include "engine/core/render/colors.h"
 
 // 在设置绘制颜色的函数中使用。
-constexpr elysia::core::Color translucent_red{255, 0, 0, 128};
-constexpr auto foreground = elysia::core::colors::white;
+constexpr elysia::core::Color kTranslucentRed{255, 0, 0, 128};
+constexpr elysia::core::Color kForeground = elysia::core::colors::white;
 ```
 
 `Color` 使用 0–255 的 RGBA 通道，默认白色且不透明，省略 alpha 时为 255。`colors` 提供 white、black、transparent 等常量；它不是主题管理器。不要把 0–1 的浮点颜色直接当作这些整数通道。
@@ -59,6 +65,7 @@ constexpr auto foreground = elysia::core::colors::white;
 
 ```cpp
 #include "engine/tools/random_generator.h"
+
 #include <array>
 
 // 例如关卡初始化时创建并保存 rng；固定种子便于重现问题。

@@ -14,12 +14,15 @@
 std::vector<elysia::core::GameObject*> nearby_items(
     elysia::core::Vector2 origin, float radius)
 {
-    auto* query = ELYSIA_OBJECT_QUERY;
+    elysia::object_query::GameObjectQueryService* query = ELYSIA_OBJECT_QUERY;
+    // 全局入口只借用当前场景；场景未绑定时不发起查询。
     if (!query->is_available())
         return {};
+    // 返回的对象指针仍属于场景，调用方不能据此延长对象寿命。
     return query->find_objects_in_radius<elysia::core::GameObject>(
         origin, radius, elysia::core::DepthLayerMask{elysia::core::DepthLayer::Item},
-        [](const elysia::core::GameObject& object) {
+        [](const elysia::core::GameObject& object)
+        {
             return object.is_active();
         });
 }

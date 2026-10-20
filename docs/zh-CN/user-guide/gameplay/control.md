@@ -21,6 +21,10 @@
 ```cpp
 #include "engine/gameplay/control/controller_service.h"
 #include "engine/gameplay/scene/gameplay_scene.h"
+#include "engine/tools/logger.h"
+
+#include <expected>
+#include <optional>
 #include <utility>
 
 std::expected<elysia::gameplay::ControllerHandle,
@@ -30,6 +34,7 @@ create_player_control(elysia::gameplay::GameplayScene& scene,
                       elysia::input::InputActionMap map)
 {
     using namespace elysia::gameplay;
+    // 作用域关联场景上下文，映射的所有权随创建参数移交给控制器。
     return ControllerService::instance()->create<LocalPlayerController>(
         ControllerCreateInfo{ControllerScope::Scene,
                              scene.control_context().token()},
@@ -44,18 +49,33 @@ create_player_control(elysia::gameplay::GameplayScene& scene,
 `bind_target`、`unbind_target`、`replace_input_map` 返回 `ControllerOperation`。调用可能在内部回调边界延迟提交，不能把“函数返回”理解为“绑定完成”。
 
 ```cpp
-// 接在创建成功之后；scene、target 均满足前述前提。
-auto* service = elysia::gameplay::ControllerService::instance();
-auto created = create_player_control(scene, player, std::move(map));
-if (!created) {
-    return; // 由调用方记录 created.error()，中止本次接入。
+// 放在返回 void 的接入函数中；scene、target 均满足前述前提。
+elysia::gameplay::ControllerService* service =
+    elysia::gameplay::ControllerService::instance();
+const std::expected<elysia::gameplay::ControllerHandle,
+    elysia::gameplay::ControllerError> created =
+    create_player_control(scene, player, std::move(map));
+if (!created)
+{
+    ELYSIA_LOG_ERROR("control", "Controller creation failed: "
+        << static_cast<int>(created.error()));
+    return;
 }
-auto handle = *created;
-auto operation = service->bind_target(handle, scene.control_context(), target);
-if (operation.failed()) {
-    auto error = operation.error();
-    (void)error; // 记录失败原因。
-    (void)service->remove(handle); // 本次新建控制器不再使用。
+const elysia::gameplay::ControllerHandle handle = *created;
+const elysia::gameplay::ControllerOperation operation =
+    service->bind_target(handle, scene.control_context(), target);
+if (operation.failed())
+{
+    const std::optional<elysia::gameplay::ControllerError> error = operation.error();
+    if (error)
+        ELYSIA_LOG_ERROR("control", "Target binding failed: " << static_cast<int>(*error));
+
+    // 本次新建控制器不再使用；清理失败单独记录，保留原始绑定失败。
+    const std::expected<void, elysia::gameplay::ControllerError> removed =
+        service->remove(handle);
+    if (!removed)
+        ELYSIA_LOG_ERROR("control", "Controller removal failed: "
+            << static_cast<int>(removed.error()));
     return;
 }
 // 保存 handle；若 operation.pending()，同时保存 operation，后续检查最终状态。
@@ -73,19 +93,29 @@ if (operation.failed()) {
 #include "engine/gameplay/control/control_command.h"
 
 class ControlledObject final : public elysia::core::GameObject,
-                               public elysia::gameplay::ControlCommandReceiver {
+                               public elysia::gameplay::ControlCommandReceiver
+{
 public:
-    ControlledObject() : GameObject(elysia::core::DepthLayer::Character) {}
+    ControlledObject() : GameObject(elysia::core::DepthLayer::Character)
+    {
+    }
+
     void on_control_command(const elysia::gameplay::ControlCommand& command,
-                            double fixed_delta) override {
-        movement_ = command.state.axis2d(elysia::input::InputActionId{"game.move"});
-        set_position(position() + movement_ * (100.0f * static_cast<float>(fixed_delta)));
+                            double fixed_delta) override
+    {
+        // 命令按固定步交付；本对象没有刚体，直接移动且不再叠加全局倍率。
+        _movement = command.state.axis2d(elysia::input::InputActionId{"game.move"});
+        set_position(position() + _movement * (100.0f * static_cast<float>(fixed_delta)));
     }
-    void on_control_cancelled(elysia::gameplay::InputCancelReason) override {
-        movement_ = {};
+
+    void on_control_cancelled(elysia::gameplay::InputCancelReason) override
+    {
+        // 失焦、暂停或解绑后清除持续意图，不沿用上一条命令。
+        _movement = {};
     }
+
 private:
-    elysia::core::Vector2 movement_{};
+    elysia::core::Vector2 _movement{};
 };
 ```
 

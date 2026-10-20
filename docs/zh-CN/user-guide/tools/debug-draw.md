@@ -14,10 +14,12 @@
 void show_interaction_area(const elysia::core::Rect& world_rect)
 {
     using elysia::tools::DebugDrawCategory;
-    auto* draw = ELYSIA_DEBUG_DRAW;
+    elysia::tools::DebugDraw* draw = ELYSIA_DEBUG_DRAW;
     draw->set_enabled(true);
+    // 保留其他系统已启用的类别，只添加本例所需的 Gameplay。
     draw->set_enabled_categories(
         draw->enabled_categories() | DebugDrawCategory::Gameplay);
+    // 本例负责该类别的全部图元，每次先清理，再提交当前世界区域。
     draw->clear_categories(DebugDrawCategory::Gameplay);
     draw->draw_rect(DebugDrawCategory::Gameplay, world_rect,
                     elysia::core::Color{0, 255, 0, 255}, 2.0f);

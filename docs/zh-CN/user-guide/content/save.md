@@ -11,40 +11,65 @@
 ```cpp
 #include "engine/save/save_service.h"
 #include "engine/tools/logger.h"
-#include <cstdint>
 
-bool save_level() {
+#include <cstdint>
+#include <expected>
+
+bool save_level()
+{
     const auto log_failure = [](const elysia::save::SaveFailure& failure,
-        elysia::tools::LogLevel level = elysia::tools::LogLevel::Error) {
+        elysia::tools::LogLevel level = elysia::tools::LogLevel::Error)
+    {
         elysia::tools::Logger::instance()->log_stream(level, "save",
-            [&](std::ostream& output) {
+            [&](std::ostream& output)
+            {
                 output << elysia::core::format_failure_diagnostic(
                     failure.diagnostic, "SAVE", "save");
             }, failure.diagnostic.origin);
     };
-    auto* saves = ELYSIA_SAVE;
-    auto opened = saves->open("slot_01");
-    if (!opened) {
+
+    elysia::save::SaveService* saves = ELYSIA_SAVE;
+    // 失败后放弃本例的内存编辑；关闭本身的失败也必须保留诊断。
+    const auto discard_changes = [&]
+    {
+        const std::expected<void, elysia::save::SaveFailure> closed =
+            saves->close("slot_01", elysia::save::SaveClosePolicy::DiscardChanges);
+        if (!closed)
+            log_failure(closed.error());
+    };
+
+    const std::expected<elysia::save::SaveOpenResult, elysia::save::SaveFailure> opened =
+        saves->open("slot_01");
+    if (!opened)
+    {
         log_failure(opened.error());
         return false;
     }
     if (opened->warning)
         log_failure(*opened->warning, elysia::tools::LogLevel::Warn);
-    auto changed = saves->set("slot_01", "player.level", std::int64_t{12});
-    if (!changed) {
+
+    // set 只编辑内存；字段类型必须与存档约定的 int64 精确一致。
+    const std::expected<void, elysia::save::SaveFailure> changed =
+        saves->set("slot_01", "player.level", std::int64_t{12});
+    if (!changed)
+    {
         log_failure(changed.error());
-        (void)saves->close("slot_01", elysia::save::SaveClosePolicy::DiscardChanges);
+        discard_changes();
         return false;
     }
-    auto committed = saves->commit("slot_01");
-    if (!committed) {
+    // 只有 commit 成功才能向玩家报告保存成功。
+    const std::expected<void, elysia::save::SaveFailure> committed =
+        saves->commit("slot_01");
+    if (!committed)
+    {
         log_failure(committed.error());
         // 本例选择放弃内存编辑；需要重试的业务应保留打开文档并另行管理。
-        (void)saves->close("slot_01", elysia::save::SaveClosePolicy::DiscardChanges);
+        discard_changes();
         return false;
     }
-    auto closed = saves->close("slot_01");
-    if (!closed) log_failure(closed.error());
+    const std::expected<void, elysia::save::SaveFailure> closed = saves->close("slot_01");
+    if (!closed)
+        log_failure(closed.error());
     return closed.has_value();
 }
 ```

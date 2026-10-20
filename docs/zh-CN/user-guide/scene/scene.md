@@ -13,41 +13,58 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/scene/routing/scene_payload.h"
 
-struct RoomPayload { int score = 0; };
+struct RoomPayload
+{
+    int score = 0;
+};
 
-class RoomScene final : public elysia::scene::Scene {
+class RoomScene final : public elysia::scene::Scene
+{
 public:
-    void on_enter(const elysia::scene::ScenePayload& payload) override {
-        if (const auto* data = elysia::scene::try_scene_payload<RoomPayload>(payload))
-            score_ = data->score;
+    void on_enter(const elysia::scene::ScenePayload& payload) override
+    {
+        if (const RoomPayload* data = elysia::scene::try_scene_payload<RoomPayload>(payload))
+            _score = data->score;
         // 本例允许空 Payload；需要必填参数的场景应显式拒绝类型不符。
-        if (!object_)
-            object_ = create_and_add_object<elysia::core::GameObject>(
+        if (!_object)
+            _object = create_and_add_object<elysia::core::GameObject>(
                 elysia::core::DepthLayer::Item);
-        if (!object_)
+        if (!_object)
             return; // 创建未成功，不执行依赖对象的逻辑。
-        object_->set_position({100.0f, 100.0f});
+        _object->set_position({100.0f, 100.0f});
         resume();
     }
-    void on_exit() override {
+
+    void on_exit() override
+    {
         // 本例保留对象供下次进入；外部订阅应在这里解除。
     }
-    void on_reset() override {
-        score_ = 0;
-        if (object_) object_->reset();
+
+    void on_reset() override
+    {
+        // 框架重置不会代替业务对象 reset；这里显式恢复本场景的数据。
+        _score = 0;
+        if (_object)
+            _object->reset();
         resume();
     }
+
 protected:
-    void on_scene_object_removing(elysia::core::SceneObject& object) override {
-        if (&object == object_) object_ = nullptr;
+    void on_scene_object_removing(elysia::core::SceneObject& object) override
+    {
+        // 移除通知发生时对象仍有效，及时清空借用，避免留下悬空指针。
+        if (&object == _object)
+            _object = nullptr;
     }
+
 private:
-    elysia::core::GameObject* object_ = nullptr; // 场景持有，这里只借用。
-    int score_ = 0;
+    elysia::core::GameObject* _object = nullptr; // 场景持有，这里只借用。
+    int _score = 0;
 };
 
 // 由 IGameModule::register_scenes 调用；项目内确保标识符唯一。
-inline void register_room(elysia::scene::SceneManager& scenes) {
+inline void register_room(elysia::scene::SceneManager& scenes)
+{
     scenes.register_game_scene<RoomScene>(1);
 }
 ```

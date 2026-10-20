@@ -18,12 +18,25 @@
 class CollisionExampleScene final : public elysia::gameplay::GameplayScene
 {
 public:
-    CollisionExampleScene() : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
-        .physics = elysia::physics::PhysicsWorldConfig{},
-        .gameplay_collision = true}) {}
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    CollisionExampleScene()
+        : GameplayScene(elysia::gameplay::GameplaySceneFeatures{
+            .physics = elysia::physics::PhysicsWorldConfig{},
+            .gameplay_collision = true})
+    {
+    }
+
+    // 此场景只启用运行时；下方辅助函数演示如何注册已存在的碰撞体。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
 };
 ```
 
@@ -43,9 +56,10 @@ bool bind_player(elysia::gameplay::collision::ActorId actor,
                  elysia::physics::ColliderId hurt)
 {
     using namespace elysia::gameplay::collision;
-    auto* service = GameplayCollisionService::instance();
+    GameplayCollisionService* service = GameplayCollisionService::instance();
     if (!service->has_active_runtime())
         return false;
+    // 传入的是已注册的物理碰撞体 ID；这里添加角色归属与玩法角色。
     ActorCollisionRig rig;
     rig.owner = actor;
     rig.team = teams::Player;
@@ -67,10 +81,13 @@ bool bind_player(elysia::gameplay::collision::ActorId actor,
 bool begin_hit(elysia::physics::ColliderId hit,
                elysia::gameplay::collision::ActorId owner,
                elysia::gameplay::collision::AttackInstanceId instance,
-               elysia::gameplay::collision::AttackDefinitionId definition) {
+               elysia::gameplay::collision::AttackDefinitionId definition)
+{
     using namespace elysia::gameplay::collision;
-    auto* service = GameplayCollisionService::instance();
-    if (!service->has_active_runtime()) return false;
+    GameplayCollisionService* service = GameplayCollisionService::instance();
+    if (!service->has_active_runtime())
+        return false;
+    // instance 标识本次挥击，definition 标识攻击种类，不能互相替代。
     return service->bind_hit_box({
         .collider = {hit, owner, teams::Player, ColliderRole::HitBox},
         .instigator = owner,

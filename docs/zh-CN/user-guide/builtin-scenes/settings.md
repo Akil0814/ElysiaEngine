@@ -12,24 +12,39 @@
 #include "engine/builtin/builtin_scene_keys.h"
 #include "engine/builtin/scenes/settings_scene_payload.h"
 #include "engine/scene/scene.h"
+
 #include <utility>
 
-class SettingsExampleScene final : public elysia::scene::Scene {
+class SettingsExampleScene final : public elysia::scene::Scene
+{
 public:
-    void open_settings(elysia::scene::SceneRoute return_route) {
+    void open_settings(elysia::scene::SceneRoute return_route)
+    {
         elysia::builtin::SettingsScenePayload payload;
+        // 返回路由连同业务 Payload 一起移入，保留调用场景的恢复方式。
         payload.return_route = std::move(return_route);
         payload.visibility.target_fps = false;
+        // 这里只发出路由请求，实际切换由场景管理器在安全阶段执行。
         request_scene_switch(elysia::scene::SceneRoute{
             .target = elysia::builtin::SceneKeys::Settings,
             .payload = std::move(payload),
             .reload_mode = elysia::scene::SceneReloadMode::Reuse
         });
     }
+
 protected:
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    // 空场景只演示打开设置，不持有需要初始化或清理的业务对象。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
 };
 ```
 

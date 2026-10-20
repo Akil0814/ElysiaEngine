@@ -91,14 +91,24 @@ int main(int argc, char** argv)
 
 namespace initialization_example
 {
-inline constexpr elysia::scene::SceneKey Entry = 1;
+// 示例选择的游戏场景键，须与本项目其他游戏场景保持唯一。
+inline constexpr elysia::scene::SceneKey kEntry = 1;
 
 class EntryScene final : public elysia::scene::Scene
 {
 protected:
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    // 最小入口场景不持有业务对象，三个生命周期钩子在此为空实现。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
 };
 
 class GameModule final : public elysia::application::IGameModule
@@ -110,14 +120,15 @@ public:
         elysia::application::ApplicationDescriptor descriptor;
         descriptor.logical_width = 1280;
         descriptor.logical_height = 720;
-        descriptor.initial_route = { .target = Entry };
+        // 场景注册完成后，应用通过该路由激活入口。
+        descriptor.initial_route = {.target = kEntry};
         return descriptor;
     }
 
     void register_scenes(
         elysia::scene::SceneManager& scene_manager) const override
     {
-        scene_manager.register_game_scene<EntryScene>(Entry);
+        scene_manager.register_game_scene<EntryScene>(kEntry);
     }
 };
 }
@@ -156,6 +167,7 @@ elysia::scene::SceneRoute make_startup_route(
     elysia::scene::SceneRoute success_route)
 {
     elysia::builtin::StartupLoadingScenePayload payload;
+    // 正式内容准备完毕后才进入使用项目资源的目标场景。
     payload.success_route = std::move(success_route);
     payload.wait_for_logo_sequence = false;
     payload.wait_for_confirmation = true;

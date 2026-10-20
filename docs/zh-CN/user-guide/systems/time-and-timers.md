@@ -20,8 +20,14 @@
 #include "engine/core/time.h"
 
 // 由游戏流程分别在效果开始和结束时调用。
-void begin_slow_motion() { ELYSIA_TIME->set_time_scale(0.5); }
-void end_slow_motion() { ELYSIA_TIME->set_time_scale(1.0); }
+void begin_slow_motion()
+{
+    ELYSIA_TIME->set_time_scale(0.5);
+}
+void end_slow_motion()
+{
+    ELYSIA_TIME->set_time_scale(1.0);
+}
 ```
 
 本例假定正常倍率为 1，并且只有一个流程管理慢动作。多个效果可能同时修改倍率时，由游戏统一协调，不能让任意效果结束都无条件覆盖其他效果。
@@ -48,20 +54,45 @@ class Cooldown
 public:
     Cooldown()
     {
-        timer_.set_wait_time(2.0);
-        timer_.set_one_shot(true);
-        timer_.set_on_timeout([this] { ready_ = true; });
-        timer_.pause(); // 由 start() 明确开始第一轮计时。
+        _timer.set_wait_time(2.0);
+        _timer.set_one_shot(true);
+        // 回调借用 this；计时器是成员，并禁止复制含此回调的拥有者。
+        _timer.set_on_timeout([this]
+        {
+            _ready = true;
+        });
+        _timer.pause(); // 由 start() 明确开始第一轮计时。
     }
+
     Cooldown(const Cooldown&) = delete;
     Cooldown& operator=(const Cooldown&) = delete;
-    void start() { ready_ = false; timer_.restart(); }
-    void update(double delta) { timer_.update(delta); }
-    bool ready() const { return ready_; }
-    double remaining_seconds() const { return timer_.get_remaining_time(); }
+
+    // 每次使用技能后重新开始整段冷却。
+    void start()
+    {
+        _ready = false;
+        _timer.restart();
+    }
+
+    void update(double delta)
+    {
+        // 调用方决定使用哪种时间；Timer 不会自动订阅全局更新。
+        _timer.update(delta);
+    }
+
+    bool ready() const
+    {
+        return _ready;
+    }
+
+    double remaining_seconds() const
+    {
+        return _timer.get_remaining_time();
+    }
+
 private:
-    bool ready_ = false;
-    elysia::tools::Timer timer_;
+    bool _ready = false;
+    elysia::tools::Timer _timer;
 };
 ```
 

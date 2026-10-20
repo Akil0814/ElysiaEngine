@@ -187,7 +187,8 @@ potion->destroy();
 
 ```cpp
 HealthPotion* potion = scene.create_and_add_object<HealthPotion>();
-if (potion) potion->destroy();
+if (potion)
+    potion->destroy();
 
 // 随后执行场景清理时释放对象。
 // 对象释放后，potion 不会自动变为 nullptr。
@@ -196,7 +197,8 @@ if (potion) potion->destroy();
 对象实际释放后，之前保存的 `potion` 可能成为**悬空指针（dangling pointer）**。仅检查非空不能证明对象仍然有效：
 
 ```cpp
-if (potion != nullptr) {
+if (potion != nullptr)
+{
     // 不能据此认定对象仍然存活。
 }
 ```
@@ -204,7 +206,8 @@ if (potion != nullptr) {
 即使写成下面这样，也不能检测已经释放的对象：
 
 ```cpp
-if (potion && !potion->is_destroyed()) {
+if (potion && !potion->is_destroyed())
+{
     // 调用 is_destroyed() 本身就要求 potion 指向有效对象。
 }
 ```
@@ -321,9 +324,9 @@ position.x += 100.0f * delta;
 `update` 通常适合一般游戏行为、普通计时器、技能冷却、非物理驱动的动画状态，以及按帧间隔推进的表现逻辑。例如：
 
 ```cpp
-// 成员变量：double cooldown = 0.0; // 剩余冷却时间，单位为秒。
+// 私有成员：double _cooldown = 0.0; // 剩余冷却时间，单位为秒。
 // 在 update(double delta) 中更新：
-cooldown = std::max(0.0, cooldown - delta);
+_cooldown = std::max(0.0, _cooldown - delta);
 ```
 
 实际使用时，应确认 `delta` 遵循的游戏时间、暂停和时间缩放规则。
@@ -404,10 +407,10 @@ cooldown = std::max(0.0, cooldown - delta);
 
 ```cpp
 // 对象逻辑中心对应的屏幕位置
-auto screen_center = camera().world_to_screen(object.center());
+const elysia::core::Vector2 screen_center = camera().world_to_screen(object.center());
 
 // 对象显示矩形对应的屏幕区域
-auto screen_rect = camera().world_to_screen(object.render_rect());
+const elysia::core::Rect screen_rect = camera().world_to_screen(object.render_rect());
 ```
 
 ### 8.2 `world_rect()` 与 `render_rect()`

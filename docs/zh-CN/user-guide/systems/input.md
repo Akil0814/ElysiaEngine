@@ -10,17 +10,21 @@
 
 ```cpp
 #include "engine/input/action/input_action_map.h"
+
 #include <optional>
 
-std::optional<elysia::input::InputActionMap> make_move_map() {
+std::optional<elysia::input::InputActionMap> make_move_map()
+{
     using namespace elysia::input;
     InputActionMap map;
-    InputActionId move{"game.move"};
+    const InputActionId move{"game.move"};
+    // 将四个按键合成为一个二维动作；注册失败时不发布半成品映射。
     if (!map.register_action({move, InputActionValueType::Axis2D}, {
         {move, Button2DInputBinding{
             RawInputControl::KeyA, RawInputControl::KeyD,
             RawInputControl::KeyW, RawInputControl::KeyS}}
-    })) return std::nullopt;
+    }))
+        return std::nullopt;
     return map;
 }
 ```
@@ -51,17 +55,32 @@ std::optional<elysia::input::InputActionMap> make_move_map() {
 ```cpp
 #include "engine/scene/scene.h"
 
-class ShortcutScene final : public elysia::scene::Scene {
+class ShortcutScene final : public elysia::scene::Scene
+{
 protected:
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
+    // 该快捷键示例没有需要创建、注销或重置的业务对象。
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+    }
+
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
+
     void on_shortcuts(const elysia::input::RawInputFrame&,
-        const std::vector<elysia::input::RawInputEvent>& events) override {
+        const std::vector<elysia::input::RawInputEvent>& events) override
+    {
         using namespace elysia::input;
-        for (const auto& event : events) {
+        for (const RawInputEvent& event : events)
+        {
             if (event.type == RawInputEventType::ControlPressed &&
-                event.control == RawInputControl::KeyEscape) {
+                event.control == RawInputControl::KeyEscape)
+            {
+                // 标记原事件已消费，避免后续玩法处理重复响应同一次按键。
                 consume_input(event);
                 request_quit();
                 return;

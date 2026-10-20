@@ -11,27 +11,45 @@
 ```cpp
 #include "engine/scene/scene.h"
 #include "engine/camera/follow_strategy.h"
+
 #include <memory>
 
-class FollowScene final : public elysia::scene::Scene {
+class FollowScene final : public elysia::scene::Scene
+{
 public:
-    FollowScene() : Scene(elysia::scene::SceneRuntimeFeatures{
-        .camera = elysia::scene::CameraSceneConfig{
-            .focus_mode = elysia::scene::CameraFocusMode::ResolveEachFrame}}) {}
+    FollowScene()
+        : Scene(elysia::scene::SceneRuntimeFeatures{
+            .camera = elysia::scene::CameraSceneConfig{
+                .focus_mode = elysia::scene::CameraFocusMode::ResolveEachFrame}})
+    {
+    }
+
 protected:
-    void on_enter(const elysia::scene::ScenePayload&) override {
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
         using namespace elysia::camera;
-        auto& cameras = camera_runtime();
+        // 借用本场景的相机运行时；由场景统一推进，不手动调用更新。
+        elysia::scene::SceneCameraRuntime& cameras = camera_runtime();
         cameras.set_zoom(CameraSlot::Main, 1.0f);
         cameras.set_world_bounds(CameraSlot::Main,
             elysia::core::Rect{0, 0, 3000, 2000});
         cameras.set_follow_strategy(CameraSlot::Main,
             std::make_unique<SmoothFollowStrategy>(300.0));
     }
-    void on_exit() override {}
-    void on_reset() override {}
+
+    // 本例没有外部订阅或业务状态；镜头活动由场景生命周期清理。
+    void on_exit() override
+    {
+    }
+
+    void on_reset() override
+    {
+    }
+
     std::optional<elysia::camera::CameraFocus> resolve_camera_focus(
-        elysia::camera::CameraSlot) const override {
+        elysia::camera::CameraSlot) const override
+    {
+        // 单目标示例：包围区域与主目标使用相同矩形，返回的是几何值副本。
         const elysia::core::Rect target{100, 100, 32, 32};
         return elysia::camera::CameraFocus{target, target};
     }

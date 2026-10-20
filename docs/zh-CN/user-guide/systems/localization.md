@@ -13,16 +13,28 @@
 ```cpp
 #include "engine/localization/localization_service.h"
 #include "engine/tools/logger.h"
+
 #include <string>
+#include <expected>
 #include <utility>
 
 bool change_language(std::string language)
 {
-    auto* service = ELYSIA_LOCALIZATION;
-    auto result = service->set_language(std::move(language));
-    if (!result) {
-        ELYSIA_LOG_ERROR("localization", "Language change failed.");
-        return false; // 可继续记录 result.error() 的诊断。
+    elysia::localization::LocalizationService* service = ELYSIA_LOCALIZATION;
+    const std::expected<void, elysia::localization::LocalizationFailure> result =
+        service->set_language(std::move(language));
+    if (!result)
+    {
+        // 记录完整失败及原始来源；返回 false 时不能提示语言已切换。
+        const elysia::localization::LocalizationFailure& failure = result.error();
+        elysia::tools::Logger::instance()->log_stream(
+            elysia::tools::LogLevel::Error, "localization",
+            [&](std::ostream& output)
+            {
+                output << elysia::core::format_failure_diagnostic(
+                    failure.diagnostic, failure.error_code(), "localization");
+            }, failure.diagnostic.origin);
+        return false;
     }
     return true;
 }
@@ -30,6 +42,7 @@ bool change_language(std::string language)
 // 在服务可用后调用，避免在全局变量初始化期间访问服务。
 std::string menu_title()
 {
+    // tr 返回借用视图，复制为 string 后才可独立保留这次查询结果。
     return std::string(ELYSIA_LOCALIZATION->tr("menu.title"));
 }
 ```
@@ -48,12 +61,15 @@ std::string menu_title()
 // 在字体、渲染器和本地化服务准备好后执行。
 elysia::localization::LocalizedTextStyle style;
 style.wrap_width = 300;
-int width = 0, height = 0;
-if (!ELYSIA_LOCALIZATION->measure_raw_text("Hello", style, width, height)) {
+int width = 0;
+int height = 0;
+if (!ELYSIA_LOCALIZATION->measure_raw_text("Hello", style, width, height))
+{
     return; // 放在返回 void 的调用方函数中，处理字体或测量失败。
 }
 SDL_Texture* texture = ELYSIA_LOCALIZATION->get_raw_text_texture("Hello", style);
-if (!texture) {
+if (!texture)
+{
     return; // 不提交无效纹理。
 }
 // texture 是缓存借用指针，交给既有绘制流程使用，不自行销毁。
