@@ -42,7 +42,7 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | 编写对象行为、选择绘制层级与提交绘制命令 | [游戏对象与绘制](scene/game-objects.md) |
 | 注册内容、配置预加载与资源清单 | [资源加载与使用](content/resources.md) |
 | 配置输入设备、动作映射与场景输入 | [输入系统](systems/input.md) |
-| 创建 UI 窗口、组织布局与组合控件 | [UI 入门与导航](ui/README.md) |
+| 创建 UI 窗口、组织布局与组合控件 | [UI 使用指南](ui/README.md#create-window) |
 | 显示世界名字牌、血条与气泡 | [世界空间 UI](gameplay/world-ui.md) |
 | 接入地图碰撞、刷新单元格和穿平台 | [地图碰撞](systems/tilemap-collision.md) |
 | 启用开发覆盖层并注册面板 | [开发面板](tools/development-panels.md) |

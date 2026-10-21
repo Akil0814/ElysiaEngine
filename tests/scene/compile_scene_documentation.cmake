@@ -98,9 +98,7 @@ function(elysia_add_scene_documentation_examples)
     elysia_extract_documentation_cpp("${documentation_root}/systems/input.md"
         "${generated_directory}/input.cpp" 2 ShortcutScene)
     elysia_extract_documentation_cpp("${documentation_root}/ui/README.md"
-        "${generated_directory}/ui.cpp" 2 ExitMenuScene)
-    elysia_extract_documentation_cpp("${documentation_root}/ui/usage-guide.md"
-        "${generated_directory}/ui_usage.cpp" 1 GuideMenuScene)
+        "${generated_directory}/ui.cpp" 1 GuideMenuScene)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/world-ui.md"
         "${generated_directory}/world_ui.cpp" 1 NamedActor)
     elysia_extract_documentation_cpp("${documentation_root}/tools/development-panels.md"
@@ -137,7 +135,6 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/control.cpp"
         "${generated_directory}/input.cpp"
         "${generated_directory}/ui.cpp"
-        "${generated_directory}/ui_usage.cpp"
         "${generated_directory}/world_ui.cpp"
         "${generated_directory}/development_panels.cpp"
         "${generated_directory}/tilemap_collision.cpp"

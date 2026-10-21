@@ -1,12 +1,18 @@
-# SettingsPanel preset：设置表单
+# 设置面板
 
-头文件：`engine/ui/presets/settings_panel.h`。可复用的设置表单，组合窗口模式、分辨率、帧率上限、VSync、三路音量、语言、状态消息及 Save/Back 动作。
+本页说明设置表单的配置契约；直接使用引擎设置场景时，先阅读[内置设置场景指南](../../user-guide/builtin-scenes/settings.md)。
+
+<a id="settings-panel"></a>
+## SettingsPanel：设置表单
+
+头文件：[settings_panel.h](../../../../engine/ui/presets/settings_panel.h)。可复用的设置表单，组合窗口模式、分辨率、帧率上限、VSync、三路音量、语言、状态消息及 Save/Back 动作。
 
 本文说明设置表单的组成、草稿与宿主的分工，以及嵌入窗口时的调用顺序。面板只编辑数据，宿主负责应用和保存。
 
-面板由左对齐的固定标题、单个纵向滚动内容区、固定状态消息和底部右对齐的 Back/Save 组成。字段按 Display、Audio、General 的固定顺序分组，每组使用现有主题的面板底色，不覆盖主题颜色；音量百分比位于滑条右侧。标题、状态和操作按钮不随内容滚动。输入映射不属于当前预设，未来应由设置场景作为独立二级页面管理。
+面板由左对齐的固定标题、单个纵向滚动内容区、固定状态消息和底部右对齐的 Back/Save 组成。字段按 Display、Audio、General 的固定顺序分组，每组使用现有主题的面板底色，不覆盖主题颜色；音量百分比位于滑条右侧。标题、状态和操作按钮不随内容滚动。输入映射不属于当前预设，扩展设置流程由游戏决定。
 
-## 组件可见性
+<a id="settings-panel-组件可见性"></a>
+### 组件可见性
 
 `SettingsPanelVisibility` 控制是否创建各个内置字段，所有开关默认为 `true`。可见性在面板生命周期内不变；如果项目要更换组件集合，应重建面板。
 
@@ -29,7 +35,8 @@ auto panel = std::make_unique<elysia::ui::SettingsPanel>(
 
 `SettingsScenePayload::visibility` 使项目可在进入内置设置场景时选择组件。仅设置 `return_route` 的旧调用保持全量显示；缓存场景再次进入且可见性变化时，场景会重建 UI。
 
-## 数据与选项
+<a id="settings-panel-数据与选项"></a>
+### 数据与选项
 
 - `SettingsPanelDraft` 是面板当前编辑的完整草稿；`set_draft` 写入并同步已创建的控件，`draft` 返回借用的只读引用。
 - `SettingsPanelOptions` 提供窗口尺寸、帧率和语言候选项；`set_options` 会移除无效或重复值，并保留草稿中仍有效但未列出的当前值。可选的 `usable_window_size` 限制窗口尺寸，超出范围的旧值不会被重新加入；窗口字段可见时，超限草稿会改选列表中最大的可用尺寸，直到 Save 才由宿主应用。
@@ -39,7 +46,8 @@ auto panel = std::make_unique<elysia::ui::SettingsPanel>(
 - `reset_navigation_state` 只将唯一滚动容器归顶，不修改草稿、候选项、可见性或回调。
 - 面板只维护草稿，不应用或持久化设置。Save 回调接收当前 `SettingsPanelDraft`，宿主负责验证、应用和保存。
 
-## 调用顺序
+<a id="settings-panel-调用顺序"></a>
+### 调用顺序
 
 以下局部片段位于宿主成员函数中，矩形、选项和草稿已准备好；`apply_settings` 由游戏实现，负责处理应用与持久化失败。回调借用的宿主应活到面板销毁或回调解除。
 

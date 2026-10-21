@@ -11,7 +11,7 @@
 
 ## 界面、资源与持久化
 
-- [UI 架构](subsystems/ui/README.md)：元素树、布局、输入、窗口表面和主题的内部协作。
+- [UI 架构](subsystems/ui/README.md#element-tree)：元素树、布局、输入、窗口表面和主题的内部协作。
 - [资源加载管线](subsystems/resources/README.md)：资源请求组装、加载顺序和服务之间的职责。
 - [运行时配置](subsystems/runtime-config.md)：启动默认值、用户设置和只读游戏配置的职责与提交边界。
 - [音频服务](subsystems/audio.md)：资源查找、播放调度、并发限制、冷却和音量。

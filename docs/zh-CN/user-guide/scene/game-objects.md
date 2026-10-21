@@ -2,7 +2,7 @@
 
 本文说明如何为世界对象接入更新和绘制，以及如何在场景中管理它。创建对象、让对象每帧运行和让对象可见是三个不同步骤，下面逐项解释。
 
-`GameObject` 表示世界中的对象。它提供位置、尺寸、状态和绘制扩展点，不自动加载图片、响应输入或参与物理。需要持续行为时实现 `Updatable`，需要碰撞时接入[物理](../systems/physics.md)，角色输入通过[控制器](../gameplay/control.md)。UI 使用独立的 [UiElement 体系](../ui/README.md)。
+`GameObject` 表示世界中的对象。它提供位置、尺寸、状态和绘制扩展点，不自动加载图片、响应输入或参与物理。需要持续行为时实现 `Updatable`，需要碰撞时接入[物理](../systems/physics.md)，角色输入通过[控制器](../gameplay/control.md)。UI 使用独立的 [UiElement 体系](../ui/README.md#create-window)。
 
 ## 创建一个会移动的可见对象
 

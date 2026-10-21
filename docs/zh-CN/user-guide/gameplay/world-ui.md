@@ -66,4 +66,4 @@ private:
 `world_ui_tests` 验证纹理复用与失效、着色、数值边界、气泡布局与绘制顺序，以及相机投影和 SDL 软件渲染。实际画面可在物理／战斗示例的自由游玩模式查看。
 
 
-- [屏幕 UI](../ui/README.md)、[相机](../systems/camera.md)、[返回使用指南](../README.md)
+- [屏幕 UI](../ui/README.md#create-window)、[相机](../systems/camera.md)、[返回使用指南](../README.md)

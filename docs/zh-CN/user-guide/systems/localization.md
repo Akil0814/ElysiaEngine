@@ -86,5 +86,5 @@ UI 文本优先使用现有 UI 文本内容接口，让控件处理呈现，而�
 ## 参考
 
 - [服务定义](../../../../engine/localization/localization_service.h)
-- [资源清单与国际化](../content/resources.md)、[UI 使用](../ui/usage-guide.md)
+- [资源清单与国际化](../content/resources.md)、[UI 使用](../ui/README.md#create-window)
 - [返回使用指南](../README.md)
