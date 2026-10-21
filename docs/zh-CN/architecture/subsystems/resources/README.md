@@ -15,15 +15,12 @@ assets/content_registry.json
   │   ├─ textures/fonts/audio ───────────────> 核心资源
   │   ├─ i18n ───────────────────────────────> LocalizationManager
   └─ manifests.additional
-      ├─ characters ─────────────────────────> 本体 Animation/Texture/Audio
-      ├─ character_effects ──────────────────> 特效 Animation + EffectDefinition
-      ├─ enemies ────────────────────────────> 敌人 Animation
-      └─ <任意其他 module 名> ───────────────> 同一种通用 module loader
+      └─ ryougi_sample ──────────────────────> 示例 Animation/Atlas
 ```
 
-`additional` 不再按模块名选择专用加载器。所有模块都使用同一个结构约定，并按模块名的确定性顺序遍历。当前三个名称只是仓库配置，不是硬编码白名单。
+上图对应当前仓库注册表。`additional` 不按模块名选择专用加载器；项目新增模块时仍使用同一结构约定，并按模块名的确定性顺序遍历。`ryougi_sample` 的命名空间为空，只声明动画能力；实际配置链路见[资源参考](../../../reference/resources/entity-content.md#当前仓库样例)。
 
-资源请求按以下阶段组装：
+通用加载器按以下阶段组装请求；某类能力未声明时，该阶段没有对应模块请求：
 
 1. 核心 Animation/Atlas。
 2. 全部附加内容模块的 Animation/Atlas。

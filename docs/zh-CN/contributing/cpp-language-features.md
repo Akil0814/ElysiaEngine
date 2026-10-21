@@ -17,42 +17,42 @@
 
 <!-- BEGIN GENERATED: cpp-language-feature-stats -->
 
-本区块由 `scripts/audit_cpp_language_features.ps1` 根据当前工作树生成；共扫描 759 个第一方 C++ 源文件。
+本区块由 `scripts/audit_cpp_language_features.ps1` 根据当前工作树生成；共扫描 763 个第一方 C++ 源文件。
 “命中”表示过滤注释及字符串/字符字面量后的检测模式次数，不等同于运行时调用次数。
 
 ### C++11
 
 | ID | 分类 | 特性 | engine | game | tests | 总命中 | 文件数 | 代表性位置 |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `cpp11-array` | 标准库 | `std::array` | 59 | 42 | 65 | 166 | 82 | [源码](../../../game/showcase/ui/hud_demo_state.h) |
-| `cpp11-auto` | 语言 | `auto` 类型推导 | 1334 | 461 | 1476 | 3271 | 305 | [源码](../../../game/navigation/main_menu_scene.cpp) |
+| `cpp11-array` | 标准库 | `std::array` | 59 | 42 | 81 | 182 | 85 | [源码](../../../game/showcase/ui/hud_demo_state.h) |
+| `cpp11-auto` | 语言 | `auto` 类型推导 | 1340 | 461 | 1554 | 3355 | 309 | [源码](../../../game/navigation/main_menu_scene.cpp) |
 | `cpp11-chrono` | 标准库 | `std::chrono` | 38 | 1 | 18 | 57 | 26 | [源码](../../../tests/audio/sound_playback_scheduler_tests.cpp) |
 | `cpp11-concurrency` | 标准库 | 线程、同步与原子操作 | 55 | 0 | 20 | 75 | 12 | [源码](../../../engine/tools/termination_manager.h) |
-| `cpp11-constexpr` | 语言 | `constexpr` | 514 | 43 | 48 | 605 | 126 | [源码](../../../engine/application/application.cpp) |
+| `cpp11-constexpr` | 语言 | `constexpr` | 533 | 43 | 56 | 632 | 128 | [源码](../../../engine/application/application.cpp) |
 | `cpp11-decltype` | 语言 | `decltype` | 14 | 2 | 4 | 20 | 15 | [源码](../../../tests/camera/camera_manager_tests.cpp) |
-| `cpp11-declval` | 标准库 | `std::declval` | 0 | 0 | 1 | 1 | 1 | [源码](../../../tests/camera/camera_manager_tests.cpp) |
+| `cpp11-declval` | 标准库 | `std::declval` | 0 | 0 | 7 | 7 | 2 | [源码](../../../tests/camera/camera_manager_tests.cpp) |
 | `cpp11-defaulted-functions` | 语言 | 显式默认函数 | 168 | 6 | 0 | 174 | 135 | [源码](../../../game/navigation/main_menu_scene.h) |
 | `cpp11-deleted-functions` | 语言 | 显式删除函数 | 81 | 4 | 0 | 85 | 28 | [源码](../../../engine/camera/camera_manager.h) |
 | `cpp11-enum-class` | 语言 | 有作用域枚举 | 163 | 11 | 3 | 177 | 109 | [源码](../../../engine/animation/animation_registration_failure.h) |
 | `cpp11-exception-pointers` | 标准库 | 异常保存与重新传播 | 59 | 0 | 2 | 61 | 12 | [源码](../../../tests/application/application_startup_exception_tests.cpp) |
-| `cpp11-final` | 语言 | `final` | 65 | 46 | 109 | 220 | 134 | [源码](../../../game/showcase/ui/ui_component_gallery_scene.h) |
-| `cpp11-fixed-width-integers` | 标准库 | 定宽整数类型 | 332 | 13 | 66 | 411 | 128 | [源码](../../../engine/audio/sound_playback_types.h) |
+| `cpp11-final` | 语言 | `final` | 65 | 46 | 115 | 226 | 136 | [源码](../../../game/showcase/ui/ui_component_gallery_scene.h) |
+| `cpp11-fixed-width-integers` | 标准库 | 定宽整数类型 | 342 | 13 | 71 | 426 | 132 | [源码](../../../engine/audio/sound_playback_types.h) |
 | `cpp11-function` | 标准库 | `std::function` | 64 | 57 | 31 | 152 | 79 | [源码](../../../engine/animation/animation.h) |
 | `cpp11-initializer-list` | 标准库 | `std::initializer_list` | 9 | 1 | 1 | 11 | 10 | [源码](../../../engine/resources/atlas/atlas.h) |
-| `cpp11-lambda` | 语言 | Lambda 表达式 | 502 | 187 | 433 | 1122 | 179 | [源码](../../../game/showcase/effects/effects_showcase_scene.cpp) |
-| `cpp11-math-functions` | 标准库 | C++11 数学函数 | 202 | 14 | 5 | 221 | 50 | [源码](../../../engine/application/application.cpp) |
-| `cpp11-move-forward` | 标准库 | 移动与完美转发工具 | 854 | 222 | 173 | 1249 | 222 | [源码](../../../game/navigation/main_menu_scene.cpp) |
+| `cpp11-lambda` | 语言 | Lambda 表达式 | 502 | 187 | 445 | 1134 | 181 | [源码](../../../game/showcase/effects/effects_showcase_scene.cpp) |
+| `cpp11-math-functions` | 标准库 | C++11 数学函数 | 205 | 14 | 5 | 224 | 51 | [源码](../../../engine/application/application.cpp) |
+| `cpp11-move-forward` | 标准库 | 移动与完美转发工具 | 854 | 222 | 183 | 1259 | 223 | [源码](../../../game/navigation/main_menu_scene.cpp) |
 | `cpp11-new-algorithms` | 标准库 | C++11 非修改序列算法 | 16 | 0 | 3 | 19 | 9 | [源码](../../../engine/ui/window/ui_window.cpp) |
-| `cpp11-noexcept` | 语言 | `noexcept` | 3105 | 131 | 66 | 3302 | 389 | [源码](../../../engine/scene/scene_manager.h) |
-| `cpp11-nullptr` | 语言 | `nullptr` | 641 | 123 | 476 | 1240 | 257 | [源码](../../../engine/scene/scene_manager.h) |
-| `cpp11-override` | 语言 | `override` | 383 | 129 | 366 | 878 | 138 | [源码](../../../game/showcase/ui/ui_component_gallery_scene.h) |
+| `cpp11-noexcept` | 语言 | `noexcept` | 3123 | 131 | 74 | 3328 | 394 | [源码](../../../engine/scene/scene_manager.h) |
+| `cpp11-nullptr` | 语言 | `nullptr` | 641 | 123 | 480 | 1244 | 259 | [源码](../../../engine/scene/scene_manager.h) |
+| `cpp11-override` | 语言 | `override` | 383 | 129 | 377 | 889 | 140 | [源码](../../../game/showcase/ui/ui_component_gallery_scene.h) |
 | `cpp11-quick-exit` | 标准库 | `std::_Exit` | 0 | 0 | 3 | 3 | 3 | [源码](../../../tests/application/application_startup_exception_tests.cpp) |
 | `cpp11-random` | 标准库 | 随机数工具 | 2 | 0 | 0 | 2 | 2 | [源码](../../../engine/tools/random_generator.cpp) |
-| `cpp11-range-for` | 语言 | 基于范围的 `for` | 412 | 69 | 164 | 645 | 190 | [源码](../../../game/showcase/ui/ui_component_gallery_content.cpp) |
+| `cpp11-range-for` | 语言 | 基于范围的 `for` | 415 | 69 | 179 | 663 | 193 | [源码](../../../game/showcase/ui/ui_component_gallery_content.cpp) |
 | `cpp11-reference-wrappers` | 标准库 | 引用包装工具 | 0 | 0 | 17 | 17 | 6 | [源码](../../../tests/scene/scene_recovery_tests.cpp) |
-| `cpp11-smart-pointers` | 标准库 | 智能指针与 `std::make_shared` | 194 | 46 | 23 | 263 | 112 | [源码](../../../engine/ui/core/ui_child_host.h) |
-| `cpp11-static-assert` | 语言 | `static_assert` | 13 | 0 | 43 | 56 | 19 | [源码](../../../engine/scene/scene_manager.h) |
-| `cpp11-string-conversion` | 标准库 | 字符串与数值转换 | 31 | 19 | 33 | 83 | 40 | [源码](../../../game/showcase/gameplay/runtime/demo_combat.cpp) |
+| `cpp11-smart-pointers` | 标准库 | 智能指针与 `std::make_shared` | 194 | 46 | 25 | 265 | 113 | [源码](../../../engine/ui/core/ui_child_host.h) |
+| `cpp11-static-assert` | 语言 | `static_assert` | 13 | 0 | 49 | 62 | 20 | [源码](../../../engine/scene/scene_manager.h) |
+| `cpp11-string-conversion` | 标准库 | 字符串与数值转换 | 32 | 19 | 35 | 86 | 43 | [源码](../../../game/showcase/gameplay/runtime/demo_combat.cpp) |
 | `cpp11-system-error` | 标准库 | 系统错误码工具 | 56 | 0 | 28 | 84 | 21 | [源码](../../../engine/builtin/resources/builtin_asset_catalog.cpp) |
 | `cpp11-time-formatting` | 标准库 | `std::put_time` | 2 | 0 | 0 | 2 | 1 | [源码](../../../engine/tools/logger.cpp) |
 | `cpp11-tuple` | 标准库 | 元组工具 | 6 | 0 | 0 | 6 | 4 | [源码](../../../engine/ui/core/ui_child_host.h) |
@@ -69,7 +69,7 @@
 | `cpp14-exchange` | 标准库 | `std::exchange` | 6 | 1 | 11 | 18 | 11 | [源码](../../../engine/gameplay/control/controller_manager.cpp) |
 | `cpp14-generic-lambda` | 语言 | 泛型 Lambda | 79 | 9 | 61 | 149 | 53 | [源码](../../../game/showcase/gameplay/gameplay_demo_scene_base.cpp) |
 | `cpp14-init-capture` | 语言 | Lambda 初始化捕获 | 2 | 4 | 0 | 6 | 5 | [源码](../../../engine/ui/widgets/ui_button.cpp) |
-| `cpp14-make-unique` | 标准库 | `std::make_unique` | 75 | 156 | 174 | 405 | 72 | [源码](../../../engine/animation/animation_service.cpp) |
+| `cpp14-make-unique` | 标准库 | `std::make_unique` | 75 | 156 | 185 | 416 | 73 | [源码](../../../engine/animation/animation_service.cpp) |
 | `cpp14-type-trait-aliases` | 标准库 | 类型特征 `_t` 别名 | 15 | 2 | 2 | 19 | 12 | [源码](../../../engine/ui/core/ui_child_host.h) |
 
 ### C++17
@@ -80,21 +80,22 @@
 | `cpp17-apply` | 标准库 | `std::apply` | 1 | 0 | 0 | 1 | 1 | [源码](../../../engine/scene/scene_manager.h) |
 | `cpp17-as-const` | 标准库 | `std::as_const` | 3 | 0 | 0 | 3 | 1 | [源码](../../../engine/object_query/game_object_query_service.h) |
 | `cpp17-clamp` | 标准库 | `std::clamp` | 70 | 3 | 0 | 73 | 37 | [源码](../../../engine/camera/camera_controller.cpp) |
-| `cpp17-ctad` | 语言 | 类模板实参推导 | 5 | 5 | 33 | 43 | 23 | [源码](../../../tests/application/application_presentation_settings_tests.cpp) |
-| `cpp17-filesystem` | 标准库 | `std::filesystem` | 372 | 0 | 368 | 740 | 133 | [源码](../../../engine/io/path/path_manager.h) |
+| `cpp17-ctad` | 语言 | 类模板实参推导 | 5 | 5 | 44 | 54 | 26 | [源码](../../../tests/application/application_presentation_settings_tests.cpp) |
+| `cpp17-filesystem` | 标准库 | `std::filesystem` | 372 | 0 | 371 | 743 | 134 | [源码](../../../engine/io/path/path_manager.h) |
 | `cpp17-if-constexpr` | 语言 | `if constexpr` | 43 | 2 | 0 | 45 | 14 | [源码](../../../engine/camera/camera_manager.cpp) |
-| `cpp17-if-initializer` | 语言 | `if` 初始化语句 | 145 | 3 | 13 | 161 | 69 | [源码](../../../engine/animation/runtime/animation_manager.cpp) |
-| `cpp17-inline-variables` | 语言 | 内联变量 | 215 | 24 | 0 | 239 | 21 | [源码](../../../engine/core/render/colors.h) |
+| `cpp17-if-initializer` | 语言 | `if` 初始化语句 | 147 | 3 | 13 | 163 | 70 | [源码](../../../engine/animation/runtime/animation_manager.cpp) |
+| `cpp17-inline-variables` | 语言 | 内联变量 | 234 | 24 | 0 | 258 | 21 | [源码](../../../engine/core/render/colors.h) |
 | `cpp17-invoke` | 标准库 | `std::invoke` 与结果类型特征 | 9 | 0 | 0 | 9 | 2 | [源码](../../../engine/object_query/game_object_query_service.h) |
-| `cpp17-nested-namespace` | 语言 | 嵌套命名空间定义 | 586 | 155 | 96 | 837 | 681 | [源码](../../../engine/animation/animation.h) |
-| `cpp17-nodiscard` | 语言 | `[[nodiscard]]` | 1608 | 78 | 45 | 1731 | 304 | [源码](../../../engine/animation/animation.h) |
-| `cpp17-optional` | 标准库 | `std::optional` / `std::nullopt` | 552 | 37 | 39 | 628 | 188 | [源码](../../../engine/animation/animation.h) |
+| `cpp17-maybe-unused` | 语言 | `[[maybe_unused]]` | 19 | 0 | 0 | 19 | 3 | [源码](../../../engine/scene/scene.h) |
+| `cpp17-nested-namespace` | 语言 | 嵌套命名空间定义 | 586 | 155 | 98 | 839 | 682 | [源码](../../../engine/animation/animation.h) |
+| `cpp17-nodiscard` | 语言 | `[[nodiscard]]` | 1617 | 78 | 45 | 1740 | 305 | [源码](../../../engine/animation/animation.h) |
+| `cpp17-optional` | 标准库 | `std::optional` / `std::nullopt` | 556 | 37 | 41 | 634 | 190 | [源码](../../../engine/animation/animation.h) |
 | `cpp17-scoped-lock` | 标准库 | `std::scoped_lock` | 7 | 0 | 0 | 7 | 1 | [源码](../../../engine/config/config_service.cpp) |
 | `cpp17-size` | 标准库 | `std::size` | 0 | 0 | 1 | 1 | 1 | [源码](../../../tests/loading/resource_load_plan_validator_tests.cpp) |
 | `cpp17-string-view` | 标准库 | `std::string_view` | 471 | 17 | 118 | 606 | 159 | [源码](../../../engine/animation/animation_service.h) |
 | `cpp17-structured-bindings` | 语言 | 结构化绑定 | 68 | 3 | 6 | 77 | 31 | [源码](../../../game/showcase/gameplay/runtime/demo_combat.cpp) |
 | `cpp17-type-trait-variables` | 标准库 | 类型特征 `_v` 变量模板 | 42 | 2 | 21 | 65 | 25 | [源码](../../../engine/camera/camera_manager.cpp) |
-| `cpp17-variant` | 标准库 | 变体类型工具 | 51 | 2 | 11 | 64 | 31 | [源码](../../../engine/ui/widgets/ui_button.cpp) |
+| `cpp17-variant` | 标准库 | 变体类型工具 | 63 | 2 | 11 | 76 | 33 | [源码](../../../engine/ui/widgets/ui_button.cpp) |
 
 ### C++20
 
@@ -102,7 +103,7 @@
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | `cpp20-bit-operations` | 标准库 | 位操作工具 | 1 | 0 | 0 | 1 | 1 | [源码](../../../engine/tools/debug_draw.cpp) |
 | `cpp20-concepts` | 语言 | Concepts 与 `requires` 子句 | 15 | 0 | 3 | 18 | 5 | [源码](../../../engine/save/save_data.h) |
-| `cpp20-designated-initializers` | 语言 | 指定初始化器 | 91 | 84 | 444 | 619 | 116 | [源码](../../../game/navigation/main_menu_scene.cpp) |
+| `cpp20-designated-initializers` | 语言 | 指定初始化器 | 91 | 84 | 458 | 633 | 119 | [源码](../../../game/navigation/main_menu_scene.cpp) |
 | `cpp20-erase` | 标准库 | `std::erase` / `std::erase_if` | 45 | 2 | 0 | 47 | 18 | [源码](../../../engine/physics/physics_world.cpp) |
 | `cpp20-format` | 标准库 | `std::format` | 0 | 4 | 0 | 4 | 1 | [源码](../../../game/showcase/camera/camera_showcase_scene.cpp) |
 | `cpp20-jthread` | 标准库 | `std::jthread` / 停止令牌 | 0 | 0 | 4 | 4 | 2 | [源码](../../../tests/application/application_lifecycle_tests.cpp) |
@@ -130,7 +131,6 @@
 | C++14 | `cpp14-binary-literals` | 语言 | 二进制字面量 |
 | C++14 | `cpp14-digit-separators` | 语言 | 数字分隔符 |
 | C++17 | `cpp17-fallthrough` | 语言 | `[[fallthrough]]` |
-| C++17 | `cpp17-maybe-unused` | 语言 | `[[maybe_unused]]` |
 | C++20 | `cpp20-bit-cast` | 标准库 | `std::bit_cast` |
 | C++20 | `cpp20-consteval` | 语言 | `consteval` |
 | C++20 | `cpp20-constinit` | 语言 | `constinit` |

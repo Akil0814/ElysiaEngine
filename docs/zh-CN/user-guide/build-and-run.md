@@ -83,7 +83,7 @@ ctest --test-dir out/build/msvc-debug -R "^scene_lifecycle_regression_tests$" --
 
 GPU 测试需要真实图形设备，不能使用 dummy video 驱动。`sdl3_gpu_integration_tests` 会在测试工作目录生成 `sdl3-gpu-verification.png`；示例应用 smoke test 会自动注入退出事件。
 
-`-LE gpu` 仅跳过标记为 `gpu` 的测试，部分 `application` 标签下的生命周期测试也需要 GPU。无显示环境应按具体测试的设备要求选择用例。
+`-LE '^gpu$'` 仅跳过标记为 `gpu` 的测试。需要 GPU 的应用生命周期分支同时标记 `application` 与 `gpu`；两个仅检查场景管理器的分支不需要 GPU。标签筛选不保证剩余用例满足所有无显示环境条件，仍须检查各测试的其他设备与文件系统要求。
 
 修改指南中的示例后，可单独构建文档示例目标；它要求配置时保持 `BUILD_TESTING=ON`。
 

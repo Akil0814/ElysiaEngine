@@ -14,7 +14,7 @@
 - [UI 架构](subsystems/ui/README.md#element-tree)：元素树、布局、输入、窗口表面和主题的内部协作。
 - [资源加载管线](subsystems/resources/README.md)：资源请求组装、加载顺序和服务之间的职责。
 - [运行时配置](subsystems/runtime-config.md)：启动默认值、用户设置和只读游戏配置的职责与提交边界。
-- [音频服务](subsystems/audio.md)：资源查找、播放调度、并发限制、冷却和音量。
+- [音频架构](subsystems/audio.md)：资源持有、请求调度、轨道后端与渐变流程；公开调用规则见[音频参考](../reference/audio.md)。
 - [存档服务](subsystems/save.md)：类型化数据、可靠写入、恢复和失败诊断。
 
 ## 开发工具与验收记录

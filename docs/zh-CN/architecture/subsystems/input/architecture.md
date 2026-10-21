@@ -48,7 +48,9 @@
 
 `create_partition`／`update_partition`／`remove_partition` 管理分区，`bind_keyboard` 绑定分区；`bind_source`／`unbind_source`／`transfer_source` 管理鼠标或手柄，`replace_gamepad` 替换玩家的手柄。
 
-上述设备变更统一返回 `expected<void, InputBindingError>`，有效但未分配的设备重复解绑成功，非法玩家或设备返回具体错误。`configuration` 提供只读配置，`apply_configuration` 原子提交批量变化，返回 `InputBindingError`；失败不改变绑定和版本。已绑定分区不能删除，活动控制器的键盘映射不能引用分区外按键。
+`create_partition` 返回 `std::expected<KeyboardPartitionId, InputBindingError>`，成功值是新分区 ID，应保存用于后续绑定、更新或删除。更新、删除分区及设备绑定等修改操作返回 `std::expected<void, InputBindingError>`：有效但未分配的设备重复解绑成功，非法玩家或设备可通过 `.error()` 读取具体错误。
+
+`configuration` 提供只读配置；`apply_configuration` 返回 `std::expected<void, InputBindingError>`，成功表示批量变化已原子提交，失败不改变绑定和版本。已绑定分区不能删除，活动控制器的键盘映射不能引用分区外按键。
 
 每玩家 binding_version 在归属或分区内容变化时更新，输入阶段与实际固定步前均检测。受影响玩家取消旧命令并要求持续控制释放／回中，其他玩家继续操作。鼠标转移丢弃待消费增量，不从当前位置合成位移。移除手柄只解绑该实例，重连不自动恢复。
 

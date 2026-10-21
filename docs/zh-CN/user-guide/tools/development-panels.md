@@ -121,10 +121,12 @@ F2 显示或隐藏开发覆盖层。隐藏时保留已初始化上下文，但�
 三个 Physics Combat Demo 由 `GameplayDemoSceneBase` 共同注册 `physics_demo.inspector`。F2 显示或隐藏覆盖层，F1 原有 `DebugDraw` 开关保持不变。Inspector 展示：
 
 - frame delta、ImGui FPS 和场景名；
-- fixed 模拟步、gravity、追赶步数和 solver iterations；
-- object、collider、proxy、broad-phase、narrow test、contact、Tile、CCD、solver 和 dropped-模拟步统计；
-- 当前按需物理调试快照的 shape、pair、Tile candidate、contact 和 velocity 数量；
-- `DebugDraw` 全局开关及 `Collider`、Contact、ContactNormal、BroadPhase、CCD、Velocity、Gameplay 分类。
+- 世界配置：固定步长、重力、每帧最大补步数和 Box2D `sub_steps`；
+- 最近固定步统计：已注册对象、碰撞体、接触、清醒刚体、关节、物理步耗时，以及固定步运行时累计丢弃的步数；
+- 当前按需物理调试快照的 Shapes、Contacts 和 Velocities 数量；
+- `DebugDraw` 全局开关，以及渲染姿态碰撞体、接触、接触法线、Native AABB、前一／当前物理姿态、速度、关节锚点和 Gameplay 分类。
+
+最大补步数限制场景一帧内推进多少个固定步；`sub_steps` 是 Box2D 在单次物理模拟中的子步数，不能当作同一参数或旧求解器迭代次数。Native AABB 与接触数据来自最近物理步，碰撞体轮廓使用渲染姿态；姿态历史用于对照前后模拟状态、诊断插值。关节锚点标出约束在相连刚体上的连接位置，也使用插值姿态，便于与绘制中的刚体对齐。具体单位与调试状态见[物理参考](../../reference/physics/units-and-state.md)。
 
 复选框直接修改现有 `DebugDraw`，场景下一次更新再映射为 `PhysicsDebugCapture`。Inspector 不建立第二套物理调试状态，也不改变模拟结果。
 

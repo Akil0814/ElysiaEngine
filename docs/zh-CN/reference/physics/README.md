@@ -15,7 +15,9 @@
 | 刚体模拟 | 静态、运动学、动态刚体；重力、阻尼、睡眠、旋转、质量 | `BodyDefinition`、`PhysicsWorld::set_velocity`、`apply_force`、`apply_impulse` |
 | 碰撞体 | AABB、圆形；材质、层/掩码过滤、实体、阻挡或重叠 | `Collider`、`AabbShape`、`CircleShape`、`CollisionFilter` |
 | 连续碰撞 | 对高速动态刚体启用 CCD | `BodyDefinition::bullet`、`Collider::detection_mode` |
-| 固定步进与渲染插值 | 固定模拟频率，渲染读取平滑姿态 | `PhysicsWorldConfig`、`advance`、`render_pose` |
+| 固定步调度 | 场景累计帧时间并限制补步次数 | `FixedStepConfig`、场景持有的 `FixedStepRuntime` |
+| 物理模拟与帧末插值 | 固定步执行模拟，帧末更新插值系数 | `PhysicsWorld::step`、`finalize_frame` |
+| 渲染快照 | 读取前后模拟姿态的插值结果 | `PhysicsWorld::render_pose` |
 | 碰撞事件与接地状态 | Begin/Stay/End、接触流形、冲量、地面/墙/天花状态 | `ICollisionListener`、`CollisionEvent`、`contact_state`、`collect_contacts` |
 | 空间查询 | 射线、线段、AABB/圆重叠、AABB 扫掠 | `raycast`、`segment_cast`、`overlap_aabb`、`overlap_circle`、`sweep_aabb` |
 | TileMap 碰撞 | 方块、触发、单向平台、边界墙、局部脏区更新 | `ITileCollisionWorld`、`set_tile_world`、`update_tiles`、`request_pass_through` |

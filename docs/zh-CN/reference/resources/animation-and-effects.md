@@ -34,14 +34,16 @@
 
 ## 实体 Animation 能力声明
 
+以下是当前 `ryougi_sample` 模块中 `capabilities` 的动画部分；完整模块与实体入口见[当前仓库样例](entity-content.md#当前仓库样例)。此片段不能直接替代完整模块根结构。
+
 ```json
 {
   "animations": {
-    "texture_root": "textures/character/{id}",
-    "config_template": "configs/character/{id}/animation_info.json",
+    "texture_root": "textures/examples/ryougi/{id}",
+    "config_template": "configs/examples/ryougi/{id}/animation_info.json",
     "frame_prefix_template": "{id}_{animation}{segment_suffix}",
     "layouts": {
-      "fighter": "configs/character/layouts/character_animation_layout.json"
+      "fighter": "configs/examples/ryougi/animation_layout.json"
     }
   }
 }
@@ -133,7 +135,7 @@ first frame              ..._00_000.png             ..._01_000.png
 }
 ```
 
-实体模块的 `effects` 能力声明只提供每实体配置路径：
+下面两段是假设项目的特效配置示例，需要项目自行提供对应配置、动画和素材。当前 `ryougi_sample` 没有声明 `effects` 能力。实体模块的 `effects` 能力声明只提供每实体配置路径：
 
 ```json
 {
@@ -160,7 +162,7 @@ first frame              ..._00_000.png             ..._01_000.png
 
 特效名可与动画名不同。映射分段动画时，会为已配置的每个分段生成一个 EffectDefinition；若目标动画不存在则配置失败。宽高必须同时为零/省略，或同时为正数；零表示播放时使用动画单帧自然尺寸。
 
-当前角色特效使用 `character_effects` 模块，资源键例如 `RyougiShiki.effect.attack_normal.0`，文件前缀由模块模板配置为 `RyougiShiki_effects_attack_normal_00`。`Animation` 先完成注册，EffectDefinition 最后注册。
+若项目自行配置名为 `character_effects`、命名空间为 `effect` 的模块，资源键可以是 `RyougiShiki.effect.attack_normal.0`，文件前缀可以由模块模板配置为 `RyougiShiki_effects_attack_normal_00`。这些是配置结果示例，不是当前 `ryougi_sample` 默认提供的特效键；相应特效配置与素材需要项目自行提供。加载时先完成 `Animation` 注册，再注册 EffectDefinition。
 
 ## 资源键冲突
 

@@ -627,11 +627,16 @@ add_elysia_test(application_lifecycle_tests LABEL gpu SOURCES application/applic
 set_tests_properties(application_lifecycle_tests PROPERTIES RUN_SERIAL TRUE TIMEOUT 30)
 foreach(CASE IN ITEMS exit_unknown low fault queue manager_standard manager_unknown render_clear render_draw render_present init_backend cleanup_backend)
     add_test(NAME application_lifecycle_${CASE} COMMAND application_lifecycle_tests ${CASE})
-    set_tests_properties(application_lifecycle_${CASE} PROPERTIES LABELS "application" RUN_SERIAL TRUE TIMEOUT 30)
+    if(CASE MATCHES "^manager_")
+        set(lifecycle_labels "application")
+    else()
+        set(lifecycle_labels "application;gpu")
+    endif()
+    set_tests_properties(application_lifecycle_${CASE} PROPERTIES LABELS "${lifecycle_labels}" RUN_SERIAL TRUE TIMEOUT 30)
 endforeach()
 if(ELYSIA_ENABLE_IMGUI)
     add_test(NAME application_lifecycle_event COMMAND application_lifecycle_tests event)
-    set_tests_properties(application_lifecycle_event PROPERTIES LABELS "application" RUN_SERIAL TRUE TIMEOUT 30)
+    set_tests_properties(application_lifecycle_event PROPERTIES LABELS "application;gpu" RUN_SERIAL TRUE TIMEOUT 30)
 endif()
 
 add_elysia_test(error_boundary_tests

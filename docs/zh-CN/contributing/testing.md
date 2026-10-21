@@ -29,7 +29,7 @@ ctest --test-dir out/build/sdl3-Debug -C Debug -L '^physics$' --output-on-failur
 ctest --test-dir out/build/sdl3-Debug -C Debug -L '^ui$' --output-on-failure
 ```
 
-`gpu` 测试需要实际图形设备与可用驱动，不能用 dummy 视频驱动替代。无显示环境可以用 `-LE '^gpu$'` 排除这些测试，但报告中必须说明排除范围。软件渲染测试检查像素和布局规则，不等于实际 GPU 或窗口交互验收。
+设备要求统一见[构建指南](../user-guide/build-and-run.md#运行测试)。`gpu` 测试需要实际图形设备与可用驱动，不能用 dummy 视频驱动替代。`-LE '^gpu$'` 只排除带该标签的用例，不自动验证剩余测试的所有环境要求。需要 GPU 的应用生命周期分支同时标记 `application` 与 `gpu`；两个 `manager_*` 分支仅标记 `application`。无显示环境应按实际设备、音频与文件系统要求选择用例，并记录排除范围。软件渲染测试不等于实际 GPU 或窗口交互验收。
 
 ## 3. 编译文档示例
 
@@ -54,10 +54,12 @@ cmake --build out/build/sdl3-Debug --config Debug --target scene_documentation_e
 文档变更应运行链接检查；涉及完整示例时还要编译示例。语言特性盘点使用统计脚本验证：
 
 ```powershell
-python scripts/check_documentation_links.py
+python scripts/check_documentation_links.py docs/zh-CN README.zh-CN.md
 pwsh -File scripts/audit_cpp_language_features.ps1 -SelfTest
 pwsh -File scripts/audit_cpp_language_features.ps1 -Check
 git diff --check
 ```
 
 `python` 需要 Python 3，统计脚本需要 PowerShell 7。检查报告应区分编译结果、运行测试、截图检查和人工体验。历史验收数字不能替代当前变更的验证结果。
+
+上述链接命令完整检查中文目录与根目录中文 README；无参数形式完整检查中文目录，并额外核对指向该目录的入站链接，不会完整检查其他文档。它检查本地行内 Markdown 链接、标题锚点及代码围栏，不验证外链、HTML 图片或引用式链接。需要保留其他语言入站链接检查时，再运行一次无参数命令；不能把中文范围通过写成全项目文档通过。

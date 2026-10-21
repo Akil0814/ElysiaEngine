@@ -104,7 +104,7 @@ $script:Features = @(
     New-FeatureDefinition -Id 'cpp17-inline-variables' -Standard 'C++17' -Kind 'Language' -Name '内联变量' -Pattern '\binline\s+(?:static\s+)?constexpr\b' -Example 'engine/core/render/colors.h'
     New-FeatureDefinition -Id 'cpp17-ctad' -Standard 'C++17' -Kind 'Language' -Name '类模板实参推导' -Pattern '\bstd::array(?:\s+[A-Za-z_]\w*)?\s*\{' -Example 'tests/application/application_presentation_settings_tests.cpp'
     New-FeatureDefinition -Id 'cpp17-nodiscard' -Standard 'C++17' -Kind 'Language' -Name '`[[nodiscard]]`' -Pattern '\[\[\s*nodiscard\s*\]\]' -Example 'engine/animation/animation.h'
-    New-FeatureDefinition -Id 'cpp17-maybe-unused' -Standard 'C++17' -Kind 'Language' -Name '`[[maybe_unused]]`' -Pattern '\[\[\s*maybe_unused\s*\]\]' -CommonUnused
+    New-FeatureDefinition -Id 'cpp17-maybe-unused' -Standard 'C++17' -Kind 'Language' -Name '`[[maybe_unused]]`' -Pattern '\[\[\s*maybe_unused\s*\]\]' -Example 'engine/scene/scene.h'
     New-FeatureDefinition -Id 'cpp17-fallthrough' -Standard 'C++17' -Kind 'Language' -Name '`[[fallthrough]]`' -Pattern '\[\[\s*fallthrough\s*\]\]' -CommonUnused
     New-FeatureDefinition -Id 'cpp17-optional' -Standard 'C++17' -Kind 'Library' -Name '`std::optional` / `std::nullopt`' -Pattern '\bstd::(?:optional|nullopt)\b' -Example 'engine/animation/animation.h' -Symbols @('optional', 'nullopt')
     New-FeatureDefinition -Id 'cpp17-variant' -Standard 'C++17' -Kind 'Library' -Name '变体类型工具' -Pattern '\bstd::(?:variant|visit|get|get_if|holds_alternative|monostate)\b' -Example 'engine/ui/widgets/ui_button.cpp' -Symbols @('variant', 'visit', 'get', 'get_if', 'holds_alternative', 'monostate')
@@ -160,7 +160,8 @@ $script:BaselineStdSymbols = @(
     'strcpy', 'streambuf', 'streamsize', 'string', 'swap', 'time', 'time_t', 'tm',
     'toupper', 'unique',
     'upper_bound', 'vector', 'bad_alloc', 'copy', 'count', 'fprintf', 'fputs', 'free',
-    'log', 'malloc', 'set_terminate', 'strcmp', 'strtol'
+    'log', 'malloc', 'set_terminate', 'strcmp', 'strtol',
+    'hex', 'locale', 'numpunct', 'uppercase'
 )
 
 function Hide-CppNonCode {
@@ -526,7 +527,19 @@ constexpr auto order = left <=> right;
         }
     }
 
-    $task_fake_source = [pscustomobject]@{ Code = 'std::definitely_unknown_symbol value;'; Path = 'fixture.cpp'; Scope = 'tests' }
+    # These are pre-C++11 library facilities, not modern-feature statistics.
+    $task_baseline_code = 'std::hex; std::locale; std::numpunct<char>; std::uppercase;'
+    $task_baseline_source = [pscustomobject]@{ Code = $task_baseline_code; Path = 'baseline.cpp'; Scope = 'tests' }
+    if (@(Get-UnclassifiedStdSymbols -Sources @($task_baseline_source)).Count -ne 0) {
+        throw 'Self-test failed to classify baseline formatting and locale symbols.'
+    }
+    foreach ($task_definition in $script:Features) {
+        if ([regex]::IsMatch($task_baseline_code, $task_definition.Pattern)) {
+            throw "Self-test counted baseline library symbols as '$($task_definition.Id)'."
+        }
+    }
+
+    $task_fake_source = [pscustomobject]@{ Code = "$task_baseline_code std::definitely_unknown_symbol value;"; Path = 'fixture.cpp'; Scope = 'tests' }
     $task_unknown = @(Get-UnclassifiedStdSymbols -Sources @($task_fake_source))
     if ($task_unknown.Count -ne 1 -or $task_unknown[0] -ne 'definitely_unknown_symbol') {
         throw 'Self-test failed to detect an unclassified std:: symbol.'

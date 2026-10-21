@@ -2,9 +2,11 @@
 
 本文说明附加内容模块如何声明实体资源。模块名用于组织内容，不选择不同加载器；所有模块采用相同格式，资源最终进入相应的统一注册表。
 
-`manifests.additional` 的每项都是一个任意命名的实体资源包。所有包由同一个加载器处理；`characters`、`character_effects` 和 `enemies` 只是当前配置的名称，不是代码白名单。
+`manifests.additional` 的每项都是一个任意命名的实体资源包。所有包由同一个加载器处理；当前仓库只配置了 `ryougi_sample`，模块名不是代码白名单。实际配置入口见[当前仓库样例](#当前仓库样例)。
 
 ## 模块资源清单
+
+下面是假设项目中的角色特效模块，用于说明动画与特效的组合声明。`configs/character/`、`textures/character/` 等路径不是当前仓库素材；采用这种组织时，项目必须自行提供文件。本文后续 Texture/Audio 声明与 `FlyingDemon` 实体也属于假设示例。
 
 ```json
 {
@@ -89,7 +91,7 @@ Texture   = <base>.<texture logical name>[.<directory file stem>]
 Sound     = <base>.<audio logical name>
 ```
 
-例如：
+以下是上述假设项目的资源键示例；模块名本身不进入资源键，实体 ID 与命名空间才参与构造：
 
 ```text
 characters / namespace ""      -> RyougiShiki.idle
@@ -98,15 +100,21 @@ character_effects / "effect"   -> RyougiShiki.effect.attack_normal.0
 
 每个组成部分使用 `[A-Za-z0-9_]+`；点仅用于连接组成部分。空组成部分、横线、空格、非 ASCII 字符和连续/首尾点都非法。分段资源键永不补位；补两位只属于文件系统的目录与文件名前缀。
 
-## 当前模块划分
+## 当前仓库样例
 
 | 模块 | 命名空间 | 能力声明 |
 | --- | --- | --- |
-| `characters` | `""` | `animations`、`textures`、`audio` |
-| `character_effects` | `effect` | `animations`、`effects` |
-| `enemies` | `""` | `animations` |
+| `ryougi_sample` | `""` | `animations` |
 
-同一个实体资源清单可以被多个模块复用。角色特效模块只在 `effect` 命名空间下加载自身动画，并把已有动画注册为 EffectDefinition；它不加载角色本体动画。
+可以沿以下实际文件阅读加载输入：
+
+1. [content_registry.json](../../../../assets/content_registry.json) 的 `manifests.additional` 引用模块。
+2. [content_manifest.json](../../../../assets/configs/examples/ryougi/content_manifest.json) 声明空命名空间、实体清单和动画模板。
+3. [entities_manifest.json](../../../../assets/configs/examples/ryougi/entities_manifest.json) 启用 `RyougiShiki`，选择 `fighter` 布局。
+4. [animation_layout.json](../../../../assets/configs/examples/ryougi/animation_layout.json) 定义相对实体纹理根的动画路径；[animation_info.json](../../../../assets/configs/examples/ryougi/RyougiShiki/animation_info.json) 定义帧数、帧率、循环和分段。
+5. 纹理根为 [textures/examples/ryougi/RyougiShiki](../../../../assets/textures/examples/ryougi/RyougiShiki)，例如生成 `RyougiShiki.idle` 动画键。
+
+样例只声明动画，不意味着通用加载器不再支持 Texture、Audio 或 Effect。多个模块仍可复用同一实体清单；若项目自行声明 `effect` 命名空间的模块，它加载自身动画并据此注册 EffectDefinition，不会自动加载另一模块的本体动画或生成当前样例未声明的特效键。
 
 ## 常见失败
 
