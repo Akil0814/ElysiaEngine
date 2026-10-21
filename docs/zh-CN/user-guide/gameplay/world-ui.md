@@ -1,25 +1,43 @@
 # 世界空间 Gameplay UI
 
-本文说明名字牌、世界血条和气泡如何与游戏对象组合。它们随世界相机投影，适合角色附近的提示；屏幕菜单和 HUD 仍使用普通 UI。下面的调用片段假设构件由游戏对象持有。
+本文说明名字牌、世界血条和气泡如何与游戏对象组合。它们随世界相机投影，适合角色附近的提示；屏幕菜单和 HUD 仍使用普通 UI。下面的完整对象类型持有名字牌；把它加入已完成初始化的场景即可提交文字。示例省略角色贴图绘制。
 
 `engine/gameplay/ui/` 提供 `elysia::gameplay::ui::WorldText`、`WorldBar` 和`SpeechBubble`。它们是由游戏对象持有的普通构件，输出世界空间 `RenderCommand`。位置、尺寸、尾巴和描边一起接受场景当前展示相机的投影，绘制顺序属于提交命令的`GameObject`。对象销毁时其成员随之释放，无须向场景注册或注销这些构件。
 
 ## 文字
 
 ```cpp
-nameplate.set_text_key("gameplay_ui_demo.player");
-nameplate.set_world_units_per_pixel(0.3f);
-nameplate.set_color({220, 240, 255, 255});
-nameplate.set_color_mode(elysia::gameplay::ui::TextColorMode::Tint);
+#include "engine/core/game_object.h"
+#include "engine/gameplay/ui/world_text.h"
 
-const auto visual = render_rect();
-nameplate.submit_render_commands(commands,
-    {visual.center().x, visual.top() - 10.0f}, {0.5f, 1.0f});
+class NamedActor final : public elysia::core::GameObject
+{
+public:
+    NamedActor() : GameObject(elysia::core::DepthLayer::Character)
+    {
+        set_size({32.0f, 48.0f});
+        _nameplate.set_raw_text("Player");
+        _nameplate.set_world_units_per_pixel(0.3f);
+        _nameplate.set_color({220, 240, 255, 255});
+    }
+
+    void submit_render_commands(
+        std::vector<elysia::core::RenderCommand>& commands) const override
+    {
+        // render_rect 跟随呈现姿态；底边中心锚点把名字放到对象上方。
+        const elysia::core::Rect visual = render_rect();
+        _nameplate.submit_render_commands(commands,
+            {visual.center().x, visual.top() - 10.0f}, {0.5f, 1.0f});
+    }
+
+private:
+    elysia::gameplay::ui::WorldText _nameplate;
+};
 ```
 
 最后一个参数是文字自身的归一化锚点；默认 `{0,0}` 将传入位置作为左上角，`{0.5,1}` 将文字底边中心放在该位置。`content_size()` 返回当前文字的世界尺寸。锚点应从对象的 `render_rect()` 取得，以跟随物理呈现插值。
 
-`set_text_key` 使用当前语言查找翻译，`set_raw_text` 接收 UTF-8 原文；也可以`set_text_content(UiTextContent)`。空内容不产生命令。首版复用现有 UI 字体角色和来源，通过 `set_typography_role` 和 `set_font_source_override` 选择。
+`set_text_key` 使用当前语言查找翻译，`set_raw_text` 接收 UTF-8 原文；也可以`set_text_content(UiTextContent)`。空内容不产生命令。文字复用现有 UI 字体角色和来源，通过 `set_typography_role` 和 `set_font_source_override` 选择。
 
 `set_world_units_per_pixel` 设置源文字纹理每像素对应的世界单位，默认 1，必须为有限正数；无效设置保留原值。`set_max_width` 的单位也是世界单位，默认 0 表示不自动换行，负值归一为 0。构件按比例将宽度转换为至少 1 像素的换行宽度，显式换行保留。相机缩放不会重新生成字体纹理。`set_visible` 控制绘制，尺寸测量不受可见性影响。
 
@@ -46,3 +64,6 @@ nameplate.submit_render_commands(commands,
 战斗示例 `BlockCombatActor` 持有这三个构件。名字牌使用本地化资源键和预着色，世界血条替代原先手写矩形；受击后游戏逻辑显示气泡 1.5 秒，暂停时计时随对象暂停。显示锚点均由角色 `render_rect()` 计算，屏幕 HUD 仍使用原有 UI。
 
 `world_ui_tests` 验证纹理复用与失效、着色、数值边界、气泡布局与绘制顺序，以及相机投影和 SDL 软件渲染。实际画面可在物理／战斗示例的自由游玩模式查看。
+
+
+- [屏幕 UI](../ui/README.md)、[相机](../systems/camera.md)、[返回使用指南](../README.md)

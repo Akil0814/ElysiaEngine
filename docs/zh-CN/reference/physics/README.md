@@ -6,7 +6,7 @@
 
 游戏扩展使用 `on_before_update` / `on_after_update`，不重写或手动调用基础调度。
 
-本文面向需要查询物理能力与公开调用的开发者。每项功能先说明用途，再介绍接口和限制；运行机制与所有权详见[物理架构](02-target-architecture.md)。
+本文面向需要查询物理能力与公开调用的开发者。每项功能先说明用途，再介绍接口和限制；运行机制与所有权详见[物理架构](../../architecture/subsystems/physics/02-target-architecture.md)。
 
 ## 能力清单
 
@@ -27,42 +27,7 @@
 
 实现 `elysia::physics::PhysicsParticipant` 的 `GameObject` 会在 `Scene::add_object` 时自动注册。实现 `PhysicsStepParticipant` 后，`fixed_update(double fixed_delta_seconds)` 会在每一个实际物理步执行，适合读取已锁存的输入并施加力或设置速度；不要在渲染帧里按帧率累积物理控制。
 
-```cpp
-class Player final : public elysia::core::GameObject,
-                     public elysia::physics::PhysicsParticipant,
-                     public elysia::physics::PhysicsStepParticipant
-{
-public:
-    elysia::physics::BodyDefinition body_definition() const override
-    {
-        return {
-            .type = elysia::physics::BodyType::Dynamic,
-            .mass_policy = elysia::physics::MassPolicy::ExplicitMass,
-            .mass = 70.0f,
-            .gravity_scale = 1.0f,
-            .fixed_rotation = true,
-            .bullet = false,
-        };
-    }
-
-    std::span<const elysia::physics::Collider> collider_definitions() const override
-    {
-        return _colliders;
-    }
-
-    void fixed_update(double) override
-    {
-        set_velocity_x(_move_direction * 280.0f);
-        if (_jump_requested && physics_world())
-            physics_world()->apply_impulse(physics_handle(), {0.0f, -22000.0f});
-    }
-
-private:
-    std::array<elysia::physics::Collider, 1> _colliders{ /* ... */ };
-    float _move_direction = 0.0f;
-    bool _jump_requested = false;
-};
-```
+完整物理对象、碰撞体初始化和固定步示例见[物理指南](../../user-guide/systems/physics.md#最小物理对象)。
 
 `PhysicsParticipant` 已提供常用快捷接口：`physics_handle()`、`physics_collider(index)`、`physics_state()`、`velocity()`、`set_velocity(...)`、`set_velocity_x(...)`、`set_velocity_y(...)` 和 `update_physics_collider(index, definition)`。
 
@@ -83,15 +48,7 @@ private:
 
 `Collider` 支持两种形状：`AabbShape{ Rect local_rect }` 和 `CircleShape{ Vector2 local_center, float radius }`。一个刚体可带多个 `Collider`；调用 `collider_id(handle, index)` 或 `PhysicsParticipant::physics_collider(index)` 获取其稳定 ID。
 
-```cpp
-elysia::physics::Collider body_collider{
-    .shape = elysia::physics::AabbShape{{-16.0f, -28.0f, 32.0f, 56.0f}},
-    .filter = {.category = PlayerBits, .mask = WorldBits | EnemyBits},
-    .response = elysia::physics::CollisionResponse::Block,
-    .material = {.friction = 0.4f, .restitution = 0.0f},
-    .tag = "player-body",
-};
-```
+碰撞体配置示例见[过滤与响应](../../user-guide/systems/physics.md#碰撞体过滤与响应)。
 
 - `CollisionResponse::Block` 会产生实体接触和解算；`Overlap` 产生事件但不阻挡；`Ignore` 不参与。
 - `CollisionFilter` 用 `category` / `mask` 双向匹配。相同且非零的 `group` 优先：正数强制碰撞，负数强制忽略。
@@ -103,14 +60,7 @@ elysia::physics::Collider body_collider{
 
 实现 `ICollisionListener::on_collision_event(const CollisionEvent&)` 并用 `PhysicsWorld::add_listener(listener)` 注册。事件包含 `CollisionEventPhase::{Begin, Stay, End}`、排序稳定的 `CollisionPair`、法线/穿透/最多两个接触点的 `CollisionManifold`，以及法向和切向冲量。
 
-```cpp
-void Character::fixed_update(double)
-{
-    const auto state = physics_world()->contact_state(physics_handle());
-    if (state.grounded)
-        /* 可以起跳 */;
-}
-```
+监听器注册与接触查询的完整上下文见[监听、查询与清理示例](../../user-guide/systems/physics.md#监听查询与清理示例)。
 
 `contact_state(PhysicsObjectHandle)` 会合并对象全部 `Collider` 的 `grounded`、`ceiling`、`wall_left`、`wall_right`；也可传入 `CollisionTarget`。`collect_contacts(target, out_contacts)` 读取该目标当前的接触快照。法线方向以 `CollisionPair::first` 指向 `second`；读取单个目标时应优先使用 `contact_state`，避免自行反转法线。
 
@@ -134,15 +84,7 @@ void Character::fixed_update(double)
 
 实现 `ITileCollisionWorld`：提供地图原点、格子尺寸、行列数、越界策略和 `cell_at(TileCoordinate)`。`TileCollisionCell::type` 可为 `Empty`、`Block`、`Overlap` 或 `OneWay`，同时可携带独立的过滤器、材质、tag 与单向规则。
 
-```cpp
-world.set_tile_world(my_tile_collision_world);
-
-// 修改格子后，仅重建包含变动格的闭区间。
-world.update_tiles({dirty_left, dirty_top}, {dirty_right, dirty_bottom});
-
-// 场景结束或切换地图时，传入同一个地图实例解除绑定。
-world.clear_tile_world(my_tile_collision_world);
-```
+绑定、刷新和解除地图的操作步骤见[地图碰撞指南](../../user-guide/systems/tilemap-collision.md)。
 
 TileMap 是借用引用，`ITileCollisionWorld` 实例必须比绑定持续更久。`TileOutOfBoundsPolicy::Block` 会生成外围四面边界墙，`Empty` 则不生成。相邻、过滤规则相同的实体格会抑制内部共享面；暴露面仍可碰撞。当前不包含斜坡、半格、分块流式加载或合并轮廓。
 
@@ -164,25 +106,7 @@ TileMap 是借用引用，`ITileCollisionWorld` 实例必须比绑定持续更�
 | `HitBox` | `bind_hit_box(HitBoxBinding)` | `on_hit_overlap` |
 | `Sensor` | `ActorCollisionRig::sensors` 或 `bind_collider` | `on_sensor_overlap`（仅与 Body 的 Overlap） |
 
-```cpp
-auto* collision = elysia::gameplay::collision::GameplayCollisionService::instance();
-
-collision->bind_actor({
-    .owner = player_id,
-    .team = elysia::gameplay::collision::teams::Player,
-    .body = player_body_id,
-    .hurt_boxes = {player_hurtbox_id},
-});
-
-collision->bind_hit_box({
-    .collider = {attack_collider_id, player_id,
-                 elysia::gameplay::collision::teams::Player,
-                 elysia::gameplay::collision::ColliderRole::HitBox},
-    .instigator = player_id,
-    .attack_instance = attack_instance_id,
-    .attack_definition = slash_definition_id,
-});
-```
+角色、HitBox 和攻击实例的配套绑定示例见[玩法碰撞指南](../../user-guide/gameplay/collision.md)。
 
 `HitBox` 只在 Begin 时对 `HurtBox` 路由，且仅阵营关系为 `Hostile` 时触发；同一个 `(attack_instance, hurt_actor)` 在攻击存续期内只会命中一次。攻击结束后必须调用 `end_attack_instance(id)` 清除去重记录和该攻击的 HitBox 绑定；角色或形状生命周期结束时调用 `unbind_actor(actor)` 或 `unbind_collider(collider)`。
 

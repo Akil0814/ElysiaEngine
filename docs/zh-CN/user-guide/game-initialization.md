@@ -180,7 +180,7 @@ elysia::scene::SceneRoute make_startup_route(
 }
 ```
 
-将辅助函数放在模块使用它的位置之前，或在头文件中声明后于实现文件中定义。随后把模块中的初始路由赋值改为 `descriptor.initial_route = make_startup_route({ .target = Entry });`，即可在内容加载和确认完成后进入 `EntryScene`。
+将辅助函数放在模块使用它的位置之前，或在头文件中声明后于实现文件中定义。随后把模块中的初始路由赋值改为 `descriptor.initial_route = make_startup_route({ .target = kEntry });`，即可在内容加载和确认完成后进入 `EntryScene`。
 
 上面两项等待配置与仓库示例一致：资源加载成功后不必等 Logo 序列结束，但仍需用户确认。因此，示例游戏的流程是：
 
@@ -200,7 +200,7 @@ MainMenu
 
 ## 5. 注册游戏场景
 
-`register_scenes()` 通过 `register_game_scene<T>(key)` 注册游戏场景。前面的模块示例使用 `Entry`；实际游戏可以继续注册主菜单、关卡和结算等场景，并在路由中使用同一组标识符。
+`register_scenes()` 通过 `register_game_scene<T>(key)` 注册游戏场景。前面的模块示例使用 `kEntry`；实际游戏可以继续注册主菜单、关卡和结算等场景，并在路由中使用同一组标识符。
 
 游戏场景的 `SceneKey` 范围为 `1` 到 `999`，同一标识符不能重复注册。引擎已在调用游戏模块前注册内置场景，游戏模块不需要重复注册 `StartupLoading`。
 
@@ -229,6 +229,8 @@ GameModule::create_development_overlay() const
 只有 CMake 选项 `ELYSIA_ENABLE_IMGUI` 启用时，应用才调用这个工厂并接管返回的覆盖层。关闭该选项时，即使模块重写了方法，应用也不会调用它。无需开发工具时，可以保留接口的默认空实现。
 
 覆盖层由引擎初始化、驱动和关闭，游戏模块不应自行调用其运行周期方法。自定义实现还必须遵守 `shutdown() noexcept` 等接口约定，不能让异常逃出这些函数。完整接口见 [development_overlay.h](../../../engine/tools/development_overlay.h)，可工作的工厂声明与实现见仓库游戏模块。
+
+注册与注销面板的完整场景示例见[开发面板指南](tools/development-panels.md)。
 
 ## 7. 完整参考实现
 

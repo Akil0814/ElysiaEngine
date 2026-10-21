@@ -34,7 +34,7 @@
 
 ## 游戏层连接示例
 
-可运行示例位于 UI 组件展示场景的「控件 / Controls」页，源码见 [ui_component_gallery_hud.cpp](../../../../../../game/showcase/ui/ui_component_gallery_hud.cpp)。E 或鼠标按下触发技能，3 秒后冷却恢复；1／2 或鼠标点击使用物品；P 或点击暂停按钮只暂停示例的冷却与物品操作。切换页签会清理交互状态，隐藏页不处理这些快捷键。
+可运行示例位于 UI 组件展示场景的「控件 / Controls」页，源码见 [ui_component_gallery_hud.cpp](../../../../../game/showcase/ui/ui_component_gallery_hud.cpp)。E 或鼠标按下触发技能，3 秒后冷却恢复；1／2 或鼠标点击使用物品；P 或点击暂停按钮只暂停示例的冷却与物品操作。切换页签会清理交互状态，隐藏页不处理这些快捷键。
 
 以下回调中的游戏方法由游戏层自行实现。它们可以提交输入请求，也可以执行暂停等场景操作；控件自身不选择这些路径。
 
@@ -43,11 +43,16 @@ using namespace elysia::ui;
 
 // 按住型技能：点击 HUD 产生游戏输入请求，外部 gameplay 状态只更新视觉。
 skill_button.set_key_hint(ui_raw_text("E"));
-skill_button.set_on_interaction([this](const UiActionButtonInteraction& event) {
+skill_button.set_on_interaction([this](const UiActionButtonInteraction& event)
+{
     if (event.phase == UiActionButtonInteractionPhase::Pressed)
+    {
         begin_skill_from_hud();
+    }
     else // Released 或 Canceled：均结束 HUD 产生的按住请求。
+    {
         end_skill_from_hud();
+    }
 });
 // game 的 HUD 更新：不要在这里重复执行技能。
 skill_button.set_external_pressed(skill_action_is_held());
@@ -55,17 +60,23 @@ skill_button.set_overlay_ratio(skill_cooldown_remaining_fraction());
 skill_button.set_enabled(can_start_skill());
 
 // 物品格：一次成功点击改变游戏选中项；数量与选择由游戏状态反馈。
-item_slot.set_on_interaction([this](const UiActionButtonInteraction& event) {
+item_slot.set_on_interaction([this](const UiActionButtonInteraction& event)
+{
     if (event.phase == UiActionButtonInteractionPhase::Released && event.clicked)
+    {
         select_item_slot();
+    }
 });
 item_slot.set_badge_text(ui_raw_text(std::to_string(item_count())));
 item_slot.set_selected(item_slot_is_selected());
 
 // 暂停按钮：game 的键盘快捷键与 HUD 点击都调用同一个 game 方法。
-pause_button.set_on_interaction([this](const UiActionButtonInteraction& event) {
+pause_button.set_on_interaction([this](const UiActionButtonInteraction& event)
+{
     if (event.phase == UiActionButtonInteractionPhase::Released && event.clicked)
+    {
         toggle_pause();
+    }
 });
 ```
 

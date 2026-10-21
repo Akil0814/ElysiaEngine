@@ -14,8 +14,14 @@
 
 按钮只有在可见、活跃且启用时，才响应确认动作和主鼠标按键。`set_enabled(false)` 会切换到禁用样式并阻止点击回调。`set_focused` 通常由焦点区域设置；手工设置适合复合组件同步内部视觉状态，不应代替导航系统。
 
+以下片段位于拥有 `button` 的宿主成员函数中，`save_settings()` 由游戏实现。
+
 ```cpp
 button.set_text_content(elysia::ui::ui_text_key("common.confirm"));
-button.set_on_click([this] { save_settings(); });
+// 宿主负责验证、应用和保存设置；回调不能比宿主活得更久。
+button.set_on_click([this]
+{
+    save_settings();
+});
 button.set_visual_role(elysia::ui::UiButtonVisualRole::Primary);
 ```

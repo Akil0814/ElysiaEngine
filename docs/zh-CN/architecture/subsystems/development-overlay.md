@@ -4,26 +4,7 @@
 
 `DevelopmentOverlay` 是引擎提供给开发工具的可选覆盖层插槽。正式 UI、场景、物理和游戏玩法 只依赖通用面板注册接口；`Application` 只编排通用生命周期，不包含 `imgui.h`，也不直接调用任何 Dear ImGui API。
 
-## 构建开关与发布成本
-
-当前仓库开发构建默认开启。发布构建如需完全移除开发工具，应显式关闭：
-
-```powershell
-cmake -S . -B build -DELYSIA_ENABLE_IMGUI=OFF
-```
-
-关闭时不会创建 `imgui_lib`，不会编译 ImGui 适配器或游戏侧 Physics Inspector，也不会链接 ImGui 符号。`Application` 中事件、逐帧和渲染接入点同样由编译条件移除；`SceneRuntimeContext::development_panels()` 始终返回空。因此显式关闭的发布构建没有 ImGui 上下文、字体图集、事件处理、统计采集或绘制成本。
-
-也可以显式开启或修正已有 CMake 缓存：
-
-```powershell
-cmake -S . -B build-imgui -DELYSIA_ENABLE_IMGUI=ON
-cmake --build build-imgui --config Debug
-```
-
-开启后使用仓库固定的 Dear ImGui 1.92.9、`imgui_impl_sdl3` 与 `imgui_impl_sdlrenderer3`。不编译 `imgui_demo.cpp`，不启用 停靠、多视口或手柄导航。覆盖层隐藏时仍保留已初始化的 上下文和默认字体内存，但不向 后端发送事件，不调用 `NewFrame`、面板回调或渲染。
-
-修改 `option()` 的默认值不会覆盖已经存在的 `CMakeCache.txt`；旧构建目录需要重新配置并显式传入 `-DELYSIA_ENABLE_IMGUI=ON`。
+构建开关、工厂接入和面板注册示例见[开发面板指南](../../user-guide/tools/development-panels.md)。
 
 ## 分层与所有权
 
@@ -55,42 +36,8 @@ flowchart LR
 
 适配器绘制前保存 SDL Renderer 的渲染目标、逻辑呈现尺寸与模式（logical presentation）、缩放、视口、裁剪、绘制颜色和混合模式，绘制后按正确依赖顺序恢复，避免污染正式渲染。
 
-## 注册开发面板
+## 注册表执行边界
 
-场景只需在进入时注册，在退出、reset 和析构兜底路径中注销：
+面板绘制使用批次快照；绘制期间的增删排队，下一批次生效。注册表不拥有回调捕获的业务对象，场景退出时必须先解除注册。
 
-```cpp
-auto* panels = runtime_context().development_panels();
-if (panels)
-{
-    _panel = panels->register_panel(
-        "project.example.inspector",
-        [this]() { draw_inspector(); });
-}
-
-if (panels && _panel.is_valid())
-    (void)panels->unregister_panel(_panel);
-```
-
-面板 stable ID 在一个覆盖层生命周期内的活动集合中唯一；空 ID、空回调和重复 ID 会返回无效句柄并记录诊断，不抛异常。句柄单调分配且不复用。绘制期间注册或注销会排队，当前批次使用进入绘制时的快照，修改从下一帧生效。
-
-面板回调属于调用方代码，契约要求不得抛异常。若回调抛出，异常会传播到 `Application` render boundary，记录 `UnhandledException` 并进入 FaultExit；引擎不尝试回滚任意 ImGui 或场景状态。
-
-## Physics Combat Demo 示例
-
-三个 Physics Combat Demo 由 `GameplayDemoSceneBase` 共同注册 `physics_demo.inspector`。F2 显示或隐藏覆盖层，F1 原有 `DebugDraw` 开关保持不变。Inspector 展示：
-
-- frame delta、ImGui FPS 和场景名；
-- fixed 模拟步、gravity、追赶步数和 solver iterations；
-- object、collider、proxy、broad-phase、narrow test、contact、Tile、CCD、solver 和 dropped-模拟步统计；
-- 当前按需物理调试快照的 shape、pair、Tile candidate、contact 和 velocity 数量；
-- `DebugDraw` 全局开关及 `Collider`、Contact、ContactNormal、BroadPhase、CCD、Velocity、Gameplay 分类。
-
-复选框直接修改现有 `DebugDraw`，场景下一次更新再映射为 `PhysicsDebugCapture`。Inspector 不建立第二套物理调试状态，也不改变模拟结果。
-
-## 当前限制
-
-- 覆盖层只用于开发工具，不替代正式 UI。
-- 不提供布局持久化、自定义字体、远程调试、ImPlot、编辑器、多窗口或 Viewport。
-- 面板回调必须在场景注销前保持捕获对象存活。
-- ImGui 适配器与游戏侧 Inspector 是生产代码中仅有的 `imgui.h` 使用点；其他模块应继续依赖通用契约。
+回调异常交给应用 render boundary，记录 `UnhandledException` 并进入 FaultExit，不尝试回滚任意 ImGui 状态。完整调用与生命周期条件见[面板指南](../../user-guide/tools/development-panels.md#注册与注销)。

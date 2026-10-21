@@ -2,11 +2,16 @@
 # Include this file from tests/CMakeLists.txt after engine_lib exists, then call:
 #   elysia_add_scene_documentation_examples()
 function(elysia_extract_documentation_cpp markdown output block_count)
+    cmake_parse_arguments(EXTRACT "" "START_BLOCK" "" ${ARGN})
+    if(NOT EXTRACT_START_BLOCK)
+        set(EXTRACT_START_BLOCK 1)
+    endif()
+    math(EXPR last_block "${EXTRACT_START_BLOCK} + ${block_count} - 1")
     file(READ "${markdown}" remaining)
     string(REPLACE "\r\n" "\n" remaining "${remaining}")
     set(generated "// Generated from ${markdown}; edit the Markdown source.\n#include <type_traits>\n")
     set(consumed_lines 0)
-    foreach(index RANGE 1 ${block_count})
+    foreach(index RANGE 1 ${last_block})
         string(FIND "${remaining}" "```cpp\n" opening)
         if(opening EQUAL -1)
             message(FATAL_ERROR "Missing C++ block ${index} in ${markdown}")
@@ -22,7 +27,9 @@ function(elysia_extract_documentation_cpp markdown output block_count)
             message(FATAL_ERROR "Unclosed C++ block ${index} in ${markdown}")
         endif()
         string(SUBSTRING "${remaining}" 0 ${closing} code)
-        string(APPEND generated "#line ${source_line} \"${markdown}\"\n${code}\n")
+        if(index GREATER_EQUAL EXTRACT_START_BLOCK)
+            string(APPEND generated "#line ${source_line} \"${markdown}\"\n${code}\n")
+        endif()
         math(EXPR fence_end "${closing} + 4")
         string(SUBSTRING "${remaining}" 0 ${fence_end} extracted)
         string(REGEX REPLACE "[^\n]" "" extracted_newlines "${extracted}")
@@ -30,7 +37,7 @@ function(elysia_extract_documentation_cpp markdown output block_count)
         math(EXPR consumed_lines "${consumed_lines} + ${prefix_line_count} + ${extracted_line_count}")
         string(SUBSTRING "${remaining}" ${fence_end} -1 remaining)
     endforeach()
-    foreach(example_type IN LISTS ARGN)
+    foreach(example_type IN LISTS EXTRACT_UNPARSED_ARGUMENTS)
         string(APPEND generated "static_assert(!std::is_abstract_v<${example_type}>);\n")
     endforeach()
     file(WRITE "${output}" "${generated}")
@@ -92,6 +99,18 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/input.cpp" 2 ShortcutScene)
     elysia_extract_documentation_cpp("${documentation_root}/ui/README.md"
         "${generated_directory}/ui.cpp" 2 ExitMenuScene)
+    elysia_extract_documentation_cpp("${documentation_root}/ui/usage-guide.md"
+        "${generated_directory}/ui_usage.cpp" 1 GuideMenuScene)
+    elysia_extract_documentation_cpp("${documentation_root}/gameplay/world-ui.md"
+        "${generated_directory}/world_ui.cpp" 1 NamedActor)
+    elysia_extract_documentation_cpp("${documentation_root}/tools/development-panels.md"
+        "${generated_directory}/development_panels.cpp" 1 DevelopmentPanelScene)
+    elysia_extract_documentation_cpp("${documentation_root}/systems/tilemap-collision.md"
+        "${generated_directory}/tilemap_collision.cpp" 1)
+    elysia_extract_documentation_cpp("${documentation_root}/gameplay/control.md"
+        "${generated_directory}/custom_controller.cpp" 1 ConstantController START_BLOCK 4)
+    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/zh-CN/reference/input/action-mapping.md"
+        "${generated_directory}/delta_mapping.cpp" 1)
     add_library(scene_documentation_examples OBJECT
         "${generated_directory}/game_initialization.cpp"
         "${generated_directory}/scene.cpp"
@@ -117,6 +136,12 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/utilities.cpp"
         "${generated_directory}/control.cpp"
         "${generated_directory}/input.cpp"
-        "${generated_directory}/ui.cpp")
+        "${generated_directory}/ui.cpp"
+        "${generated_directory}/ui_usage.cpp"
+        "${generated_directory}/world_ui.cpp"
+        "${generated_directory}/development_panels.cpp"
+        "${generated_directory}/tilemap_collision.cpp"
+        "${generated_directory}/custom_controller.cpp"
+        "${generated_directory}/delta_mapping.cpp")
     target_link_libraries(scene_documentation_examples PRIVATE engine_lib)
 endfunction()

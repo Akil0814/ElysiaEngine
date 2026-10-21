@@ -40,11 +40,14 @@ Elysia Engine 提供游戏玩法相关的基础模块，用于组织游戏场景
 | --- | --- |
 | 创建场景、管理对象、暂停与切换 | [场景系统](scene/scene.md) |
 | 编写对象行为、选择绘制层级与提交绘制命令 | [游戏对象与绘制](scene/game-objects.md) |
-| 注册内容、配置预加载与资源清单 | [资源加载与配置格式](content/resources.md) |
+| 注册内容、配置预加载与资源清单 | [资源加载与使用](content/resources.md) |
 | 配置输入设备、动作映射与场景输入 | [输入系统](systems/input.md) |
 | 创建 UI 窗口、组织布局与组合控件 | [UI 入门与导航](ui/README.md) |
-| 查询 UI 控件的公开接口 | [UI API 参考](../architecture/subsystems/ui/README.md) |
-| 使用刚体、物理碰撞事件、空间查询与 TileMap 碰撞 | [物理功能与接口总览](systems/physics.md) |
+| 显示世界名字牌、血条与气泡 | [世界空间 UI](gameplay/world-ui.md) |
+| 接入地图碰撞、刷新单元格和穿平台 | [地图碰撞](systems/tilemap-collision.md) |
+| 启用开发覆盖层并注册面板 | [开发面板](tools/development-panels.md) |
+| 查询 UI 控件的公开接口 | [UI API 参考](../reference/ui/README.md) |
+| 使用刚体、物理碰撞事件、空间查询与 TileMap 碰撞 | [物理接入指南](systems/physics.md) |
 | 实现一方攻击、另一方受伤与死亡 | [从攻击命中到接收伤害](gameplay/damage.md) |
 | 配置动画资源、图集与特效 | [动画与特效](systems/animation-and-effects.md) |
 | 播放音乐与音效，控制音量和播放调度 | [音频服务](systems/audio.md) |
@@ -73,7 +76,7 @@ Elysia Engine 为部分常用服务提供便利宏，方便游戏开发者访问
 | `ELYSIA_EFFECTS` | 特效服务 | [动画与特效](systems/animation-and-effects.md) | [effect_service.h](../../../engine/effects/effect_service.h) |
 | `ELYSIA_LOCALIZATION` | 本地化服务 | [本地化与文本](systems/localization.md) | [localization_service.h](../../../engine/localization/localization_service.h) |
 | `ELYSIA_OBJECT_QUERY` | 游戏对象查询 | [游戏对象查询](systems/object-query.md) | [game_object_query_service.h](../../../engine/object_query/game_object_query_service.h) |
-| `ELYSIA_RESOURCES` | 查询已加载资源 | [资源加载与配置格式](content/resources.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
+| `ELYSIA_RESOURCES` | 查询已加载资源 | [资源加载与使用](content/resources.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
 | `ELYSIA_SAVE` | 存档管理 | [存档服务](content/save.md) | [save_service.h](../../../engine/save/save_service.h) |
 | `ELYSIA_DEBUG_DRAW` | 调试绘制 | [调试绘制](tools/debug-draw.md) | [debug_draw.h](../../../engine/tools/debug_draw.h) |
 | `elysia::gameplay::ControllerService::instance()` | 控制会话、控制器与目标绑定 | [控制器与控制命令](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
@@ -142,6 +145,8 @@ Elysia Engine 提供以下内置场景，用于处理常见的应用流程。
 各场景的配置、数据传递方式及使用约定，请参考对应的使用文档、场景定义和 Payload 头文件。
 
 ## 进一步阅读
+
+- [接口与格式参考](../reference/README.md)：查询完整 API 契约和资源格式。
 
 - [架构与模块设计](../architecture/README.md)：了解引擎内部的职责划分与运行机制。
 - [开发与贡献指南](../contributing/README.md)：了解代码规范、测试和文档维护要求。

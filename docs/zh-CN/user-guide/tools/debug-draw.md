@@ -45,5 +45,5 @@ Dear ImGui 开发覆盖层可提供调试面板，`DebugDraw` 本身是独立服
 ## 参考
 
 - [图元与类别定义](../../../../engine/tools/debug_draw.h)
-- [开发覆盖层](../../architecture/subsystems/development-overlay.md)、[物理功能](../systems/physics.md)
+- [开发覆盖层](development-panels.md)、[物理功能](../systems/physics.md)
 - [返回使用指南](../README.md)

@@ -14,4 +14,4 @@
 
 ## 被动提示
 
-`UiTooltip` 设置触发元素和内容后，再调用 `register_with_window`。内容归提示组件持有，触发元素只是借用。提示保持被动，不承担对话框式输入交互。具体流程见[窗口参考](../reference/ui_window.md)。
+`UiTooltip` 设置触发元素和内容后，再调用 `register_with_window`。内容归提示组件持有，触发元素只是借用。提示保持被动，不承担对话框式输入交互。具体流程见[窗口参考](../controls/ui_window.md)。

@@ -85,6 +85,12 @@
 
 场景的 `FixedStepRuntime` 唯一持有固定步累积器，`GameplayScene` 无需 `PhysicsWorld` 也执行控制器固定步。零固定步累计事件和增量，下一固定步一次消费；补跑只保留持续值。丢弃的补步不消费输入。目标无效、inactive、上下文不活动时不积攒恢复后命令。
 
+## GameplayScene 调度接缝
+
+`GameplayScene` 的输入、固定步和对象移除接入为 final。每个实际固定步先由控制器管理器交付命令，再执行游戏的 `on_game_fixed_update`，之后推进物理参与者与模拟；游戏不能再次手动驱动这条链路。
+
+上下文的激活、退出和重置由场景管理器协调。退出解绑并取消输入，Reset 更新上下文代次、释放场景作用域控制器，再调用游戏 `on_reset`；Session 控制器留到会话结束。仅重置 UI 输入路由不能替代世界生命周期操作。接入与双玩家示例见[GameplayScene 指南](../../../user-guide/gameplay/scene.md)。
+
 ## UI 与取消
 
 公共 UI 接受键盘、鼠标及最多一台独立指定的手柄。set_ui_gamepad 不修改游戏设备归属；纯菜单可以认领首个有效手柄按下作为 UI 手柄并消费该操作。玩法场景不自动认领。

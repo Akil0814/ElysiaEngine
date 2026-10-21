@@ -12,4 +12,4 @@
 
 `UiNumber` 通过 `set_value` 更新浮点数，通过 `set_integer_value` 精确显示有符号 64 位整数。`clear_value()` 表示缺失，显示 `--`；NaN 和正负无穷也按缺失处理。读取时先用 `has_value()` 区分缺失与真实零，精确整数使用 `integer_value()` 查询。
 
-使用 `set_decimal_places`、`set_suffix` 等接口设置格式，使用 `set_fixed_glyph_advance` 和 `set_target_height` 控制字形尺寸。需要在指定区域内完整显示时，可开启默认关闭的 `set_shrink_to_fit(true)`，让整串数字等比缩小到 padding 后的可用宽高内。缩放继续复用已有字形纹理，不改变控件的布局占位。详见[数值展示](../reference/value_display.md)。
+使用 `set_decimal_places`、`set_suffix` 等接口设置格式，使用 `set_fixed_glyph_advance` 和 `set_target_height` 控制字形尺寸。需要在指定区域内完整显示时，可开启默认关闭的 `set_shrink_to_fit(true)`，让整串数字等比缩小到 padding 后的可用宽高内。缩放继续复用已有字形纹理，不改变控件的布局占位。详见[数值展示](../controls/value_display.md)。

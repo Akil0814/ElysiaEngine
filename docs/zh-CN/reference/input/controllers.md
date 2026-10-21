@@ -4,7 +4,7 @@
 
 ## 游戏 API
 
-[ControllerService](../../../../../engine/gameplay/control/controller_service.h) 是游戏侧单例入口。Manager 是唯一所有者；Service 不另存实例或自行调度。
+[ControllerService](../../../../engine/gameplay/control/controller_service.h) 是游戏侧单例入口。Manager 是唯一所有者；Service 不另存实例或自行调度。
 
 | 接口 | 用途 |
 | --- | --- |
@@ -17,7 +17,7 @@
 
 所有 Service 调用与控制器回调均在引擎主线程执行；未来网络工作线程应排队提交到主线程，不直接调用这些接口。
 
-`ControllerCreateInfo` 显式给出场景或 Session 作用域；场景还需运行时上下文.标记()。创建失败不会隐式开始会话。借用指针不能跨回调、删除或会话边界保留。
+`ControllerCreateInfo` 显式给出场景或 Session 作用域；场景作用域还需 `control_context().token()`。创建失败不会隐式开始会话。借用指针不能跨回调、删除或会话边界保留。
 
 ## ControlCommand
 
@@ -25,50 +25,19 @@
 
 角色实现 `ControlCommandReceiver::on_control_command(command, fixed_delta)` 和 `on_control_cancelled(reason)`。取消用于清除移动、蓄力等意图，不当作正常松键释放攻击。
 
-引擎没有固定 Move／Jump／Attack 访问器。演示使用游戏层 [CommandView](../../../../../game/gameplay/control/command_view.h) 提供便捷读取。内置 `EngineCharacter` 的构造函数显式接收移动动作 ID，不依赖演示动作集合。
+引擎没有固定 Move／Jump／Attack 访问器。演示使用游戏层 [CommandView](../../../../game/gameplay/control/command_view.h) 提供便捷读取。内置 `EngineCharacter` 的构造函数显式接收移动动作 ID，不依赖演示动作集合。
 
 物理角色在命令入口写入意图，在物理参与者 fixed_update 中施力；非物理角色可在命令入口按固定 delta 移动。动画等 `Updatable` 保持变步长，不重复移动。
 
 ## 自定义来源
 
-自定义 `Controller` 覆盖 `produce_intent(tick, fixed_delta)`，通过 protected `submit(ActionInputResult)` 提交状态、事件和增量。Manager 负责验证、缓存、绑定检查和交付；控制器不能绕过调度直接调用角色接收器。
-
-```cpp
-class ConstantController final : public elysia::gameplay::Controller {
-public:
-    explicit ConstantController(elysia::input::InputActionId axis) : _axis(std::move(axis)) {}
-protected:
-    void produce_intent(std::uint64_t, double) override {
-        elysia::input::ActionInputResult intention;
-        intention.frame.set(_axis, elysia::input::InputActionValueType::Axis1D, {0.5f, 0});
-        submit(std::move(intention));
-    }
-private:
-    elysia::input::InputActionId _axis;
-};
-```
-
-本地控制器通过 protected `on_mapped_input(const ActionInputResult&)` 观察唯一活动映射的结果，不另外解析第二套映射；键鼠、手柄和受控换绑保持一致。辅助行为仍延迟到 produce_intent 的固定步执行。
-
-本地控制器可以专门处理游戏工具操作；`Collider` 示例的查询控制器在固定步执行查询，并通过对象移除通知清理工具引用。角色仍由 Manager 的统一命令入口驱动。
-
-测试控制器验证了无玩家、无输入系统的来源以及接管目标。AI 决策、网络接收、远端命令验证和网络超时策略仍未实现。
+`Controller::produce_intent(tick, fixed_delta)` 通过受保护的 `submit(ActionInputResult)` 交付意图。实现示例见[自定义控制器](../../user-guide/gameplay/control.md#自定义控制器)。
 
 ## 配置操作结果
 
 `ControllerOperation` 没有 bool 转换，提供 `status()`、`error()` 及 `pending()`／`succeeded()`／`failed()`。三种状态为 Pending、Succeeded、Failed。回调外调用在执行完成后返回终态；回调内允许延迟提交，Pending 只表示请求已受理。
 
-```cpp
-// 保存结果，在主线程更新中检查；只在 Succeeded 后更新依赖绑定的游戏状态。
-std::optional<elysia::gameplay::ControllerOperation> pending_binding;
-pending_binding = service->bind_target(handle, context, target);
-// 在后续 update 中：
-if (pending_binding && !pending_binding->pending()) {
-    if (pending_binding->succeeded()) { /* 应用依赖绑定的状态 */ }
-    else { /* 处理 *pending_binding->error() */ }
-    pending_binding.reset();
-}
-```
+操作结果的保存与轮询示例见[控制器指南](../../user-guide/gameplay/control.md)。
 
 同一控制器的有效换绑／解绑请求覆盖尚未提交的旧目标请求，旧请求以 Superseded 失败；被拒绝的新请求不覆盖旧请求。映射替换按 FIFO 提交。目标和玩家排他性在排队期间同样保留。等待期间控制器被移除时，请求以 InvalidHandle 失败；上下文失效返回 InvalidContext，目标移除返回 InvalidTarget，会话结束返回 NoSession；所有待执行请求均会终结。
 

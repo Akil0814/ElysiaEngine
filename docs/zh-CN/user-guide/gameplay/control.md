@@ -127,6 +127,39 @@ private:
 
 自定义 AI 等来源继承 `Controller`，在 `produce_intent(tick, fixed_delta)` 中通过受保护的 `submit(ActionInputResult)` 提交结果。无需伪造设备事件；这也不意味着引擎已提供网络同步。
 
+## 自定义控制器
+
+下面是完整类型定义，演示不依赖设备的恒定轴输入。通过 `ControllerService::create<ConstantController>` 创建并绑定目标，传入目标认识的 Axis1D 动作 ID；本例没有 AI 决策或网络同步。
+
+```cpp
+#include "engine/gameplay/control/controller.h"
+#include <utility>
+
+class ConstantController final : public elysia::gameplay::Controller
+{
+public:
+    explicit ConstantController(elysia::input::InputActionId axis)
+        : _axis(std::move(axis))
+    {
+    }
+
+protected:
+    void produce_intent(std::uint64_t, double) override
+    {
+        elysia::input::ActionInputResult intention;
+        intention.frame.set(_axis, elysia::input::InputActionValueType::Axis1D,
+                            {0.5f, 0.0f});
+        // 提交给统一调度；不要从控制器直接调用目标对象。
+        submit(std::move(intention));
+    }
+
+private:
+    elysia::input::InputActionId _axis;
+};
+```
+
+本地控制器可覆盖 `on_mapped_input` 观察唯一活动映射的结果，不再解析另一套设备映射。需要固定步执行的辅助行为应留给 `produce_intent`。目标被移除时，工具还需清理自身保存的业务引用。
+
 ## 作用域与清理
 
 会话创建失败时停止创建控制器，例如重复开始会话应由游戏流程解决。`unbind_target(handle)` 只解除目标关联，`remove(handle)` 释放控制器；两者不要混用。get 返回的控制器指针只是临时借用，remove、上下文销毁或 end_session 后不可继续保存使用。
@@ -134,6 +167,8 @@ private:
 场景作用域绑定创建时的上下文标记；上下文重置、场景销毁或会话结束会使相关控制器失效。Session 作用域可跨场景保留控制器，但离开旧场景仍会解绑目标，需要在新场景显式重新绑定。
 
 仅离开缓存场景不等于重置上下文。不要在每次 `on_enter()` 中重复创建未清理的控制器。对象移除、场景离开和暂停有引擎侧取消流程；游戏侧仍需停止使用失效句柄及 `get()` 返回的借用指针。`remove()` 返回错误时应区分已经失效与其他接入问题。
+
+完整公开契约见[接口参考](../../reference/input/controllers.md)。
 
 ## 参考
 

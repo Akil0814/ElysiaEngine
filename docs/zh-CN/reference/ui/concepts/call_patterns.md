@@ -1,6 +1,6 @@
 # 公开 API 调用模式
 
-本页是组件参考页的共同约定。示例均为局部调用片段，假设对象仍然存活，并由所属场景或 `UiChildHost` 持有。
+本页是组件参考页的共同约定。示例均为局部调用片段，假设对象仍然存活，并由所属场景或 `UiChildHost` 持有。片段中的矩形、预览内容和窗口由调用方提供；日志宏需包含 `engine/tools/logger.h`。
 
 ## 1. 所有权与借用指针
 
@@ -36,7 +36,8 @@ host.add_child(std::move(preview), fixed);
 组件的 `set_base_style` 替换完整基准值；`set_style_overrides` 替换稀疏覆盖树，而不是与旧覆盖配置增量合并。`style()` 是最终生效样式，`style_overrides()` 是当前稀疏覆盖，`clear_style_overrides()` 回到纯基础样式。
 
 ```cpp
-auto registration = theme_manager.register_root(window);
+// 保存注册对象，直到界面不再需要响应主题变化。
+elysia::ui::UiThemeRegistration registration = theme_manager.register_root(window);
 theme_manager.set_theme(elysia::ui::UiBuiltinTheme::ElysiaDark);
 
 elysia::ui::UiButtonStyleOverrides overrides{};
@@ -62,10 +63,17 @@ button.set_style_overrides(overrides);
 
 ```cpp
 auto dialog = std::make_unique<elysia::ui::UiDialog>(dialog_rect);
-auto* dialog_ptr = dialog.get();
+elysia::ui::UiDialog* dialog_ptr = dialog.get();
 window.add_child(std::move(dialog));
-dialog_ptr->register_with_window(window);
-dialog_ptr->open();
+// 只有成功注册为覆盖层后，才能按弹窗方式打开。
+if (dialog_ptr->register_with_window(window))
+{
+    dialog_ptr->open();
+}
+else
+{
+    ELYSIA_LOG_ERROR("ui", "Dialog must be a direct child of its window.");
+}
 ```
 
 覆盖层使用 `open_overlay(element)`/`close_overlay(element)`；对话框、下拉控件、提示使用自己的 `open`/`close` 或注册 API。不要混用两套调用入口。

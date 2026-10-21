@@ -11,9 +11,8 @@
 
 ## 界面、资源与持久化
 
-- [UI](subsystems/ui/README.md)：保留模式界面的布局、焦点、窗口表面、样式和控件参考。
-- [世界空间 Gameplay UI](subsystems/gameplay-ui.md)：与游戏对象组合的世界文字、数值条和被动气泡。
-- [资源加载与 JSON](subsystems/resources/README.md)：启动注册、资源清单、实体内容、动画和特效配置。
+- [UI 架构](subsystems/ui/README.md)：元素树、布局、输入、窗口表面和主题的内部协作。
+- [资源加载管线](subsystems/resources/README.md)：资源请求组装、加载顺序和服务之间的职责。
 - [运行时配置](subsystems/runtime-config.md)：启动默认值、用户设置和只读游戏配置的职责与提交边界。
 - [音频服务](subsystems/audio.md)：资源查找、播放调度、并发限制、冷却和音量。
 - [存档服务](subsystems/save.md)：类型化数据、可靠写入、恢复和失败诊断。

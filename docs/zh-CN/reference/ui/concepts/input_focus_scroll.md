@@ -14,4 +14,4 @@
 
 ## 谁维护滚动
 
-`UiScrollState` 计算滚动轴、视口与内容尺寸、偏移、比例和步长。普通界面使用 `UiScrollContainer` 的公开接口即可；只有实现新容器时才需要直接使用底层状态。更多输入捕获与取消规则见[输入运行时](../reference/input_runtime.md)。
+`UiScrollState` 计算滚动轴、视口与内容尺寸、偏移、比例和步长。普通界面使用 `UiScrollContainer` 的公开接口即可；只有实现新容器时才需要直接使用底层状态。更多输入捕获与取消规则见[输入运行时](../controls/input_runtime.md)。

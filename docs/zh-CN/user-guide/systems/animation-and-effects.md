@@ -236,11 +236,11 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout()
 
 ## 资源配置
 
-下文是项目需提供的 JSON 格式；核心资源清单路径由 content_registry 的 required 项指定。实体资源包的模板、布局与资源键规则见本目录[资源指南](../content/resources.md)。
+先准备图片及动画声明，再让特效定义引用已经声明的动画。注册表的 `required.animations` 与 `required.effects` 分别指向这两份清单。
 
-### 核心动画
+### 添加核心动画
 
-`assets/configs/manifests/animations_manifest.json`：
+将横向排列的 14 帧图片放到 `assets/textures/test/frame_group.png`，在动画清单中声明：
 
 ```json
 {
@@ -257,97 +257,11 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout()
 }
 ```
 
-每项必须有合法 dotted `key`、相对于 `assets/textures/` 的 `path`、正整数 `frame_count`、正数 `fps` 和 boolean `loop`。`horizontal_strip` 可省略，默认 `false`。
+图片应只有一行等宽帧，宽度能被帧数整除。加载成功后，用 `test.animation` 创建本页前文介绍的动画实例，并由所属对象推进更新。使用逐帧目录或实体动画时，按[动画格式参考](../../reference/resources/animation-and-effects.md)提供帧前缀、布局和配置。
 
-- 目录帧：`path` 必须是目录，且必须提供非空 `frame_prefix`。
-- 横向序列图：`path` 必须是普通图片，不能出现 `frame_prefix`。
+### 把动画声明为特效
 
-### 实体动画能力声明
-
-```json
-{
-  "animations": {
-    "texture_root": "textures/character/{id}",
-    "config_template": "configs/character/{id}/animation_info.json",
-    "frame_prefix_template": "{id}_{animation}{segment_suffix}",
-    "layouts": {
-      "fighter": "configs/character/layouts/character_animation_layout.json"
-    }
-  }
-}
-```
-
-`texture_root`、`config_template` 和非空 `layouts` 必填。每个实体用 `animation_layout` 选择布局，再由自己的动画配置描述帧数和播放参数。模板及路径规则见 [实体内容资源包](../content/resources.md)。
-
-### 动画布局与配置
-
-布局只描述相对于实体纹理根目录的路径：
-
-```json
-{
-  "animations": {
-    "idle": { "path": "idle" },
-    "attack_normal": { "segment_path": "animation/attack/normal/{segment}" }
-  }
-}
-```
-
-一个条目只能有 `path` 或 `segment_path`。`segment_path` 中的 `{segment}` 会替换为两位文件系统编号；没有该标记时也会自动追加对应两位目录。
-
-每个实体动画配置只允许 `defaults`、`animations`：
-
-```json
-{
-  "defaults": { "source_type": "frame_directory" },
-  "animations": {
-    "idle": { "frame_count": 7, "fps": 10, "loop": false },
-    "attack_normal": {
-      "segments": [
-        { "frame_count": 7, "fps": 10, "loop": false },
-        { "frame_count": 8, "fps": 10, "loop": false }
-      ]
-    }
-  }
-}
-```
-
-`source_type` 必填，只能是 `frame_directory` 或 `horizontal_strip`，并作用于整个配置；不支持单项覆盖。普通动画和每个分段都必须提供正数 `frame_count`、正数 `fps` 与 boolean `loop`。动画逻辑名必须存在于选中的布局。
-
-### 帧来源与分段
-
-目录帧严格由配置生成，不扫描 PNG：
-
-```text
-<source>/<prefix>_000.png
-<source>/<prefix>_001.png
-...
-```
-
-缺少任一预期帧会失败；额外 PNG 不读取。横向图固定为单行、从左到右、等宽、无边距和无帧间距：
-
-```text
-<texture_root>/<resolved layout path>/<animation>.png
-frame_width = image_width / frame_count
-source_rect = { index * frame_width, 0, frame_width, image_height }
-```
-
-横向图只解码一份 texture。图片宽度必须能被 `frame_count` 整除，帧宽和图片高度都必须大于零。
-
-分段的运行时资源键不补位，文件系统编号补两位：
-
-```text
-segment index            0                         1
-runtime key              RyougiShiki.attack_normal.0 RyougiShiki.attack_normal.1
-layout directory         .../00                    .../01
-segment suffix           _00                        _01
-first frame              ..._00_000.png             ..._01_000.png
-```
-
-分段索引范围是 `0–99`；帧索引从 0 开始，文件名使用至少三位数字。
-
-### 特效定义
-
-核心 `effects_manifest.json` 将已有 `Animation` 资源键映射为 EffectDefinition：
+在特效清单中把动画资源键映射为特效资源键：
 
 ```json
 {
@@ -363,37 +277,9 @@ first frame              ..._00_000.png             ..._01_000.png
 }
 ```
 
-实体模块的 `effects` 能力声明只提供每实体配置路径：
+内容加载成功后，通过特效服务请求 `effect.test`。特效定义不会代替动画加载；引用不存在的动画会失败。模块内特效、分段编号和尺寸约束见[特效格式](../../reference/resources/animation-and-effects.md#特效)。
 
-```json
-{
-  "effects": {
-    "config_template": "configs/character/{id}/effect_info.json"
-  }
-}
-```
-
-`effect_info.json` 只描述逻辑映射：
-
-```json
-{
-  "effects": {
-    "slash_trail": {
-      "animation": "attack_normal",
-      "default_width": 0,
-      "default_height": 0,
-      "default_angle_degrees": 0
-    }
-  }
-}
-```
-
-特效名可与动画名不同。映射分段动画时，会为已配置的每个分段生成一个 EffectDefinition；若目标动画不存在则配置失败。宽高必须同时为零/省略，或同时为正数；零表示播放时使用动画单帧自然尺寸。
-
-
-### 资源键冲突
-
-核心与所有模块的请求会按 `Atlas`、`Animation`、`Effect`、Texture、Font、Sound、Music 注册表分别去重。同一字符串可出现在不同注册表；同一注册表冲突会在提交前失败，并在诊断中提供首次与重复声明的项目相对路径、JSON 路径指针、焦点区域、模块、能力声明、实体、逻辑名和分段。
+配置错误时，先检查注册表是否引用了正确清单，再检查图片尺寸、帧文件是否齐全、动画键是否存在，以及同类型资源是否重复。文件系统分段编号与运行时资源键不同，完整规则集中在[帧来源与分段](../../reference/resources/animation-and-effects.md#帧来源与分段)。
 
 ## 常见误用与参考
 

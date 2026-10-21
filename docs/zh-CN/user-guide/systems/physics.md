@@ -218,6 +218,10 @@ std::optional<elysia::physics::CollisionQueryHit> find_obstacle(
 
 常见误用是重复注册场景已注册的对象、用 set_position 瞬移物理刚体、在渲染帧重复施加本应按固定步消费的冲量，以及忘记解除地图或监听器借用。
 
+完整公开契约见[接口参考](../../reference/physics/README.md)。
+
+地图绑定、脏区刷新与单向平台操作见[地图碰撞指南](tilemap-collision.md)。
+
 ## 参考
 
 - [物理公开接口](../../../../engine/physics/physics_world.h)、[查询参数](../../../../engine/physics/collision/collision_query.h)

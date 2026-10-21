@@ -56,7 +56,7 @@ Visual Studio 是多配置生成器，同一构建目录可以构建 Debug 和 R
 | `ELYSIA_ENABLE_IMGUI` | `ON` | 构建 Dear ImGui 开发覆盖层，运行时按 F2 显示或隐藏。 |
 | `BUILD_TESTING` | `ON` | 构建并注册测试；只构建示例程序时可关闭。 |
 
-在配置命令末尾添加 `-DELYSIA_ENABLE_IMGUI=OFF` 或 `-DBUILD_TESTING=OFF` 即可关闭对应功能。Debug 和 Release 都可以启用或关闭开发覆盖层。接口说明见[开发覆盖层](../architecture/subsystems/development-overlay.md)。
+在配置命令末尾添加 `-DELYSIA_ENABLE_IMGUI=OFF` 或 `-DBUILD_TESTING=OFF` 即可关闭对应功能。Debug 和 Release 都可以启用或关闭开发覆盖层。接口说明见[开发覆盖层](tools/development-panels.md)。
 
 ## 运行测试
 

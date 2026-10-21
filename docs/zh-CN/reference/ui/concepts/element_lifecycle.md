@@ -8,8 +8,10 @@
 - `reset()` 恢复对象状态；对象由 `std::unique_ptr` 拥有时不要保留其销毁后的裸指针。
 - `bind_translation_animation`、`play_translation_animation`、`stop_translation_animation`、`active_translation_animation` 管理呈现位移；它不改变布局矩形。
 
+以下局部片段假设 `window` 是已登记到场景的窗口，控件头文件已包含；返回指针只在窗口拥有该元素时可用。
+
 ```cpp
-auto* button = window.create_child<elysia::ui::UiButton>(elysia::core::Rect{0, 0, 180, 44});
+elysia::ui::UiButton* button = window.create_child<elysia::ui::UiButton>(elysia::core::Rect{0, 0, 180, 44});
 button->set_visible(true);
 button->set_opacity(220);
 ```

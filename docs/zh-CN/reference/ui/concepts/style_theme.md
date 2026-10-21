@@ -14,4 +14,4 @@
 
 `UiThemeDefaults` 保存进程级的构造默认主题。修改它只影响随后创建或主动重置的控件，不会刷新已有 UI。`UiThemeManager` 在构造时取得默认主题快照，此后独立管理注册的子树。
 
-字段定义和视觉角色位于 `engine/ui/style/`。具体组件的样式配置见相应参考页，内部合成与遍历见[样式运行时](../reference/theme_runtime.md)。
+字段定义和视觉角色位于 `engine/ui/style/`。具体组件的样式配置见相应参考页，内部合成与遍历见[样式运行时](../controls/theme_runtime.md)。

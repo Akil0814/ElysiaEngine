@@ -41,12 +41,16 @@ auto panel = std::make_unique<elysia::ui::SettingsPanel>(
 
 ## 调用顺序
 
+以下局部片段位于宿主成员函数中，矩形、选项和草稿已准备好；`apply_settings` 由游戏实现，负责处理应用与持久化失败。回调借用的宿主应活到面板销毁或回调解除。
+
 ```cpp
 auto panel = std::make_unique<elysia::ui::SettingsPanel>(panel_rect);
-auto* panel_ptr = panel.get();
+elysia::ui::SettingsPanel* panel_ptr = panel.get();
 panel_ptr->set_options(options);
 panel_ptr->set_draft(draft);
-panel_ptr->set_on_save([this](const elysia::ui::SettingsPanelDraft& next) {
+// 宿主处理保存结果，再通过状态消息反馈给用户。
+panel_ptr->set_on_save([this](const elysia::ui::SettingsPanelDraft& next)
+{
     apply_settings(next);
 });
 window.add_child(std::move(panel));

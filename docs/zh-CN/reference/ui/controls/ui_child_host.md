@@ -8,11 +8,14 @@
 
 ## 常用调用
 
+以下局部片段假设窗口及两个矩形已准备好，并已包含列表和按钮头文件。
+
 ```cpp
-auto* list = window.create_child<elysia::ui::UiListContainer>(list_rect);
+elysia::ui::UiListContainer* list = window.create_child<elysia::ui::UiListContainer>(list_rect);
 auto item = std::make_unique<elysia::ui::UiButton>(button_rect);
-elysia::ui::UiElement* adopted = list->add_child(std::move(item));
-if (!adopted) {
+elysia::ui::UiElement* adopted = list->add_back(std::move(item));
+if (!adopted)
+{
     // nullptr 代表未接管；传入的 unique_ptr 会在调用结束时销毁。
 }
 ```

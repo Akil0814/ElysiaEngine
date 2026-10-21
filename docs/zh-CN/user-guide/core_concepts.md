@@ -107,7 +107,7 @@ UI 使用独立的排序体系。当前场景先绘制世界对象，再绘制 U
 
 ### 2.5 UiElement：界面元素
 
-`UiElement` 表示按钮、HUD 血条、背包面板等界面元素，可以直接加入场景，也可以加入 UI 容器。加入容器的子节点由所属容器持有，并遵循该容器的布局、交互和清理流程。角色头顶随世界相机移动的名字和血条另见[世界空间 Gameplay UI](../architecture/subsystems/gameplay-ui.md)。
+`UiElement` 表示按钮、HUD 血条、背包面板等界面元素，可以直接加入场景，也可以加入 UI 容器。加入容器的子节点由所属容器持有，并遵循该容器的布局、交互和清理流程。角色头顶随世界相机移动的名字和血条另见[世界空间 Gameplay UI](gameplay/world-ui.md)。
 
 `UiElement` 和 `GameObject` 都继承 `SceneObject`，但**共享基类不代表共享坐标体系或更新机制**：
 
