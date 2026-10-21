@@ -103,9 +103,9 @@ def main():
     if len(sys.argv) > 1:
         paths = [p for arg in sys.argv[1:] for p in ((ROOT / arg).rglob('*.md') if (ROOT / arg).is_dir() else [ROOT / arg])]
     else:
-        paths = sorted((ROOT / 'docs/zh-CN').rglob('*.md'))
-        # Verify incoming references to Chinese docs without flagging unrelated
-        # missing English/Japanese documentation, which has a separate scope.
+        paths = sorted((ROOT / 'docs/zh-CN').rglob('*.md')) + sorted((ROOT / 'docs/en').rglob('*.md'))
+        paths += [ROOT / 'README.md', ROOT / 'README.zh-CN.md']
+        # Also verify incoming references from languages outside the supported pair.
         callers = sorted((ROOT / 'docs').rglob('*.md')) + sorted(ROOT.glob('README*.md'))
         for path in callers:
             if path in paths:
@@ -118,7 +118,7 @@ def main():
                     if parts.scheme or parts.netloc or not parts.path:
                         continue
                     dest = (path.parent / unquote(parts.path)).resolve()
-                    if dest.is_relative_to(ROOT / 'docs/zh-CN'):
+                    if any(dest.is_relative_to(ROOT / 'docs' / language) for language in ('zh-CN', 'en')):
                         fragment = unquote(parts.fragment).lower()
                         if not dest.exists() or (fragment and dest.suffix == '.md' and fragment not in anchors(dest)):
                             print(f'{path.relative_to(ROOT)}:{number}: invalid incoming link: {target}')

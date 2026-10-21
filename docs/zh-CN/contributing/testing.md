@@ -34,7 +34,7 @@ ctest --test-dir out/build/sdl3-Debug -C Debug -L '^ui$' --output-on-failure
 ## 3. 编译文档示例
 
 ```powershell
-cmake --build out/build/sdl3-Debug --config Debug --target scene_documentation_examples
+cmake --build out/build/sdl3-Debug --config Debug --target scene_documentation_examples scene_documentation_examples_en
 ```
 
 该目标由 [Markdown 提取脚本](../../../tests/scene/compile_scene_documentation.cmake)直接提取文档中指定的 C++ 代码块，检查场景、对象、服务调用和 UI 示例是否仍符合公开接口。覆盖文件与代码块数量以脚本中的列表为准，概念片段和需要调用方上下文的局部片段不全部纳入。它是编译目标，不是 CTest 测试；不能只运行 `ctest` 就认为示例已验证。
@@ -54,12 +54,16 @@ cmake --build out/build/sdl3-Debug --config Debug --target scene_documentation_e
 文档变更应运行链接检查；涉及完整示例时还要编译示例。语言特性盘点使用统计脚本验证：
 
 ```powershell
-python scripts/check_documentation_links.py docs/zh-CN README.zh-CN.md
+python scripts/check_documentation_links.py
+python scripts/check_documentation_links.py --self-test
+python scripts/check_documentation_parity.py
+python scripts/check_documentation_parity.py --self-test
 pwsh -File scripts/audit_cpp_language_features.ps1 -SelfTest
-pwsh -File scripts/audit_cpp_language_features.ps1 -Check
+pwsh -File scripts/audit_cpp_language_features.ps1 -Language zh-CN -Check
+pwsh -File scripts/audit_cpp_language_features.ps1 -Language en -Check
 git diff --check
 ```
 
 `python` 需要 Python 3，统计脚本需要 PowerShell 7。检查报告应区分编译结果、运行测试、截图检查和人工体验。历史验收数字不能替代当前变更的验证结果。
 
-上述链接命令完整检查中文目录与根目录中文 README；无参数形式完整检查中文目录，并额外核对指向该目录的入站链接，不会完整检查其他文档。它检查本地行内 Markdown 链接、标题锚点及代码围栏，不验证外链、HTML 图片或引用式链接。需要保留其他语言入站链接检查时，再运行一次无参数命令；不能把中文范围通过写成全项目文档通过。
+无参数链接命令完整检查中英文目录及两份根 README，并核对其他语言指向这两个目录的入站链接；不完整检查日文。仍支持显式路径参数，例如 `python scripts/check_documentation_links.py docs/zh-CN README.zh-CN.md`。检查范围为本地行内 Markdown 链接、标题锚点和围栏，不验证外链、HTML 图片或引用式链接。双语检查验证相对路径、标题层级、围栏语言与顺序、JSON 内容及除注释和空白外的 C++ 标记（保留字符串字面量），并检查英文入口可达性。两个编译目标使用同一提取清单，分别从中文和英文生成文件；未纳入的概念片段不宣称通过编译。语言特性统计的 `-Language` 默认为 `zh-CN`；生成和更新英文时分别使用 `-Language en` 和 `-Language en -Update`。

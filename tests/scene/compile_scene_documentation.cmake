@@ -44,9 +44,9 @@ function(elysia_extract_documentation_cpp markdown output block_count)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${markdown}")
 endfunction()
 
-function(elysia_add_scene_documentation_examples)
-    set(documentation_root "${PROJECT_SOURCE_DIR}/docs/zh-CN/user-guide")
-    set(generated_directory "${CMAKE_CURRENT_BINARY_DIR}/scene_documentation_examples")
+function(elysia_add_scene_documentation_examples_language language target)
+    set(documentation_root "${PROJECT_SOURCE_DIR}/docs/${language}/user-guide")
+    set(generated_directory "${CMAKE_CURRENT_BINARY_DIR}/${target}")
     file(MAKE_DIRECTORY "${generated_directory}")
     elysia_extract_documentation_cpp("${documentation_root}/game-initialization.md"
         "${generated_directory}/game_initialization.cpp" 3
@@ -65,7 +65,7 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/object_query.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/damage.md"
         "${generated_directory}/damage.cpp" 2 damage_example::Fighter damage_example::DamageScene)
-    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/zh-CN/architecture/subsystems/save.md"
+    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/${language}/architecture/subsystems/save.md"
         "${generated_directory}/save.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/application-failure.md"
         "${generated_directory}/application_failure.cpp" 1 FailureExampleScene)
@@ -107,9 +107,9 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/tilemap_collision.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/control.md"
         "${generated_directory}/custom_controller.cpp" 1 ConstantController START_BLOCK 4)
-    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/zh-CN/reference/input/action-mapping.md"
+    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/${language}/reference/input/action-mapping.md"
         "${generated_directory}/delta_mapping.cpp" 1)
-    add_library(scene_documentation_examples OBJECT
+    add_library(${target} OBJECT
         "${generated_directory}/game_initialization.cpp"
         "${generated_directory}/scene.cpp"
         "${generated_directory}/gameplay_scene.cpp"
@@ -140,5 +140,11 @@ function(elysia_add_scene_documentation_examples)
         "${generated_directory}/tilemap_collision.cpp"
         "${generated_directory}/custom_controller.cpp"
         "${generated_directory}/delta_mapping.cpp")
-    target_link_libraries(scene_documentation_examples PRIVATE engine_lib)
+    target_link_libraries(${target} PRIVATE engine_lib)
+endfunction()
+
+function(elysia_add_scene_documentation_examples)
+    # Both languages use exactly the same extraction list and type assertions.
+    elysia_add_scene_documentation_examples_language(zh-CN scene_documentation_examples)
+    elysia_add_scene_documentation_examples_language(en scene_documentation_examples_en)
 endfunction()

@@ -13,14 +13,17 @@ param(
     [string]$Feature,
 
     [Parameter(ParameterSetName = 'SelfTest')]
-    [switch]$SelfTest
+    [switch]$SelfTest,
+
+    [ValidateSet('zh-CN', 'en')]
+    [string]$Language = 'zh-CN'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:RepositoryRoot = Split-Path -Parent $PSScriptRoot
-$script:DocumentPath = Join-Path $script:RepositoryRoot 'docs/zh-CN/contributing/cpp-language-features.md'
+$script:DocumentPath = Join-Path $script:RepositoryRoot "docs/$Language/contributing/cpp-language-features.md"
 $script:GeneratedBegin = '<!-- BEGIN GENERATED: cpp-language-feature-stats -->'
 $script:GeneratedEnd = '<!-- END GENERATED: cpp-language-feature-stats -->'
 $script:SourceRoots = @('engine', 'game', 'tests')
@@ -31,6 +34,7 @@ function New-FeatureDefinition {
         [Parameter(Mandatory)][ValidateSet('C++11', 'C++14', 'C++17', 'C++20', 'C++23')][string]$Standard,
         [Parameter(Mandatory)][ValidateSet('Language', 'Library')][string]$Kind,
         [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$EnglishName,
         [Parameter(Mandatory)][string]$Pattern,
         [string]$Example = '',
         [string[]]$Symbols = @(),
@@ -42,6 +46,7 @@ function New-FeatureDefinition {
         Standard = $Standard
         Kind = $Kind
         Name = $Name
+        EnglishName = $EnglishName
         Pattern = $Pattern
         Example = $Example
         Symbols = @($Symbols)
@@ -50,103 +55,103 @@ function New-FeatureDefinition {
 }
 
 $script:Features = @(
-    New-FeatureDefinition -Id 'cpp11-auto' -Standard 'C++11' -Kind 'Language' -Name '`auto` 类型推导' -Pattern '\b(?:(?:static|inline|constexpr|const)\s+)*auto(?:\s*[*&])?\s+[A-Za-z_]\w*\s*(?==|\{|;|:)' -Example 'game/navigation/main_menu_scene.cpp'
-    New-FeatureDefinition -Id 'cpp11-lambda' -Standard 'C++11' -Kind 'Language' -Name 'Lambda 表达式' -Pattern '\[[^\]]*\]\s*(?:\([^)]*\))?\s*(?:mutable\s*)?(?:noexcept\s*)?(?:->[^\{]+)?\{' -Example 'game/showcase/effects/effects_showcase_scene.cpp'
-    New-FeatureDefinition -Id 'cpp11-range-for' -Standard 'C++11' -Kind 'Language' -Name '基于范围的 `for`' -Pattern '(?s:\bfor\s*\((?:(?!;).)*?:(?:(?!;).)*?\))' -Example 'game/showcase/ui/ui_component_gallery_content.cpp'
-    New-FeatureDefinition -Id 'cpp11-nullptr' -Standard 'C++11' -Kind 'Language' -Name '`nullptr`' -Pattern '\bnullptr\b' -Example 'engine/scene/scene_manager.h'
-    New-FeatureDefinition -Id 'cpp11-enum-class' -Standard 'C++11' -Kind 'Language' -Name '有作用域枚举' -Pattern '\benum\s+class\b' -Example 'engine/animation/animation_registration_failure.h'
-    New-FeatureDefinition -Id 'cpp11-override' -Standard 'C++11' -Kind 'Language' -Name '`override`' -Pattern '\boverride\b' -Example 'game/showcase/ui/ui_component_gallery_scene.h'
-    New-FeatureDefinition -Id 'cpp11-final' -Standard 'C++11' -Kind 'Language' -Name '`final`' -Pattern '\bfinal\b' -Example 'game/showcase/ui/ui_component_gallery_scene.h'
-    New-FeatureDefinition -Id 'cpp11-constexpr' -Standard 'C++11' -Kind 'Language' -Name '`constexpr`' -Pattern '\bconstexpr\b' -Example 'engine/application/application.cpp'
-    New-FeatureDefinition -Id 'cpp11-noexcept' -Standard 'C++11' -Kind 'Language' -Name '`noexcept`' -Pattern '\bnoexcept\b' -Example 'engine/scene/scene_manager.h'
-    New-FeatureDefinition -Id 'cpp11-static-assert' -Standard 'C++11' -Kind 'Language' -Name '`static_assert`' -Pattern '\bstatic_assert\b' -Example 'engine/scene/scene_manager.h'
-    New-FeatureDefinition -Id 'cpp11-defaulted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式默认函数' -Pattern '=\s*default\s*;' -Example 'game/navigation/main_menu_scene.h'
-    New-FeatureDefinition -Id 'cpp11-deleted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式删除函数' -Pattern '=\s*delete\s*;' -Example 'engine/camera/camera_manager.h'
-    New-FeatureDefinition -Id 'cpp11-decltype' -Standard 'C++11' -Kind 'Language' -Name '`decltype`' -Pattern '\bdecltype\s*\(' -Example 'tests/camera/camera_manager_tests.cpp'
-    New-FeatureDefinition -Id 'cpp11-type-alias' -Standard 'C++11' -Kind 'Language' -Name '`using` 类型别名' -Pattern '\busing\s+[A-Za-z_]\w*\s*=' -Example 'engine/animation/animation.h'
-    New-FeatureDefinition -Id 'cpp11-variadic-templates' -Standard 'C++11' -Kind 'Language' -Name '可变参数模板' -Pattern '\b(?:class|typename)\s*\.\.\.|template\s*<[^>]*\.\.\.' -Example 'engine/ui/core/ui_child_host.h'
-    New-FeatureDefinition -Id 'cpp11-move-forward' -Standard 'C++11' -Kind 'Library' -Name '移动与完美转发工具' -Pattern '\bstd::(?:move|forward|make_move_iterator)\s*\(' -Example 'game/navigation/main_menu_scene.cpp' -Symbols @('move', 'forward', 'make_move_iterator')
-    New-FeatureDefinition -Id 'cpp11-smart-pointers' -Standard 'C++11' -Kind 'Library' -Name '智能指针与 `std::make_shared`' -Pattern '\bstd::(?:unique_ptr|shared_ptr|weak_ptr|make_shared)\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('unique_ptr', 'shared_ptr', 'weak_ptr', 'make_shared')
-    New-FeatureDefinition -Id 'cpp11-array' -Standard 'C++11' -Kind 'Library' -Name '`std::array`' -Pattern '\bstd::array\b' -Example 'game/showcase/ui/hud_demo_state.h' -Symbols @('array')
-    New-FeatureDefinition -Id 'cpp11-function' -Standard 'C++11' -Kind 'Library' -Name '`std::function`' -Pattern '\bstd::function\b' -Example 'engine/animation/animation.h' -Symbols @('function')
-    New-FeatureDefinition -Id 'cpp11-tuple' -Standard 'C++11' -Kind 'Library' -Name '元组工具' -Pattern '\bstd::(?:tuple|make_tuple|tie)\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('tuple', 'make_tuple', 'tie')
-    New-FeatureDefinition -Id 'cpp11-chrono' -Standard 'C++11' -Kind 'Library' -Name '`std::chrono`' -Pattern '\bstd::chrono(?:::|_)' -Example 'tests/audio/sound_playback_scheduler_tests.cpp' -Symbols @('chrono', 'milli')
-    New-FeatureDefinition -Id 'cpp11-random' -Standard 'C++11' -Kind 'Library' -Name '随机数工具' -Pattern '\bstd::(?:random_device|mt19937|mt19937_64|uniform_[A-Za-z_]+_distribution)\b' -Example 'engine/tools/random_generator.cpp' -Symbols @('random_device', 'mt19937', 'mt19937_64', 'uniform_real_distribution')
-    New-FeatureDefinition -Id 'cpp11-concurrency' -Standard 'C++11' -Kind 'Library' -Name '线程、同步与原子操作' -Pattern '\bstd::(?:thread|this_thread|mutex|lock_guard|unique_lock|condition_variable|promise|future_status|atomic|memory_order_[A-Za-z_]+)\b' -Example 'engine/tools/termination_manager.h' -Symbols @('thread', 'this_thread', 'mutex', 'lock_guard', 'unique_lock', 'condition_variable', 'promise', 'future_status', 'atomic', 'memory_order_acq_rel', 'memory_order_acquire', 'memory_order_release')
-    New-FeatureDefinition -Id 'cpp11-unordered-containers' -Standard 'C++11' -Kind 'Library' -Name '无序容器与哈希' -Pattern '\bstd::(?:unordered_map|unordered_set|hash)\b' -Example 'engine/builtin/resources/builtin_asset_cache.h' -Symbols @('unordered_map', 'unordered_set', 'hash')
-    New-FeatureDefinition -Id 'cpp11-initializer-list' -Standard 'C++11' -Kind 'Library' -Name '`std::initializer_list`' -Pattern '\bstd::initializer_list\b' -Example 'engine/resources/atlas/atlas.h' -Symbols @('initializer_list')
-    New-FeatureDefinition -Id 'cpp11-type-index' -Standard 'C++11' -Kind 'Library' -Name '`std::type_index`' -Pattern '\bstd::type_index\b' -Example 'engine/ui/style/ui_theme_style_resolver.h' -Symbols @('type_index')
-    New-FeatureDefinition -Id 'cpp11-declval' -Standard 'C++11' -Kind 'Library' -Name '`std::declval`' -Pattern '\bstd::declval\b' -Example 'tests/camera/camera_manager_tests.cpp' -Symbols @('declval')
-    New-FeatureDefinition -Id 'cpp11-new-algorithms' -Standard 'C++11' -Kind 'Library' -Name 'C++11 非修改序列算法' -Pattern '\bstd::(?:all_of|any_of|none_of|copy_n)\b' -Example 'engine/ui/window/ui_window.cpp' -Symbols @('all_of', 'any_of', 'none_of', 'copy_n')
-    New-FeatureDefinition -Id 'cpp11-system-error' -Standard 'C++11' -Kind 'Library' -Name '系统错误码工具' -Pattern '\bstd::(?:error_code|errc|make_error_code)\b' -Example 'engine/builtin/resources/builtin_asset_catalog.cpp' -Symbols @('error_code', 'errc', 'make_error_code')
-    New-FeatureDefinition -Id 'cpp11-fixed-width-integers' -Standard 'C++11' -Kind 'Library' -Name '定宽整数类型' -Pattern '\bstd::(?:u?int(?:8|16|32|64)_t|uintptr_t)\b' -Example 'engine/audio/sound_playback_types.h' -Symbols @('int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint32_t', 'uint64_t', 'uintptr_t')
-    New-FeatureDefinition -Id 'cpp11-math-functions' -Standard 'C++11' -Kind 'Library' -Name 'C++11 数学函数' -Pattern '\bstd::(?:expm1|remainder|copysign|isfinite|lround|nan|nextafter|round)\b' -Example 'engine/application/application.cpp' -Symbols @('expm1', 'remainder', 'copysign', 'isfinite', 'lround', 'nan', 'nextafter', 'round')
-    New-FeatureDefinition -Id 'cpp11-string-conversion' -Standard 'C++11' -Kind 'Library' -Name '字符串与数值转换' -Pattern '\bstd::(?:to_string|stoi|stod)\b' -Example 'game/showcase/gameplay/runtime/demo_combat.cpp' -Symbols @('to_string', 'stoi', 'stod')
-    New-FeatureDefinition -Id 'cpp11-time-formatting' -Standard 'C++11' -Kind 'Library' -Name '`std::put_time`' -Pattern '\bstd::put_time\b' -Example 'engine/tools/logger.cpp' -Symbols @('put_time')
+    New-FeatureDefinition -Id 'cpp11-auto' -Standard 'C++11' -Kind 'Language' -Name '`auto` 类型推导' -EnglishName '`auto` type deduction' -Pattern '\b(?:(?:static|inline|constexpr|const)\s+)*auto(?:\s*[*&])?\s+[A-Za-z_]\w*\s*(?==|\{|;|:)' -Example 'game/navigation/main_menu_scene.cpp'
+    New-FeatureDefinition -Id 'cpp11-lambda' -Standard 'C++11' -Kind 'Language' -Name 'Lambda 表达式' -EnglishName 'Lambda expressions' -Pattern '\[[^\]]*\]\s*(?:\([^)]*\))?\s*(?:mutable\s*)?(?:noexcept\s*)?(?:->[^\{]+)?\{' -Example 'game/showcase/effects/effects_showcase_scene.cpp'
+    New-FeatureDefinition -Id 'cpp11-range-for' -Standard 'C++11' -Kind 'Language' -Name '基于范围的 `for`' -EnglishName 'Range-based `for`' -Pattern '(?s:\bfor\s*\((?:(?!;).)*?:(?:(?!;).)*?\))' -Example 'game/showcase/ui/ui_component_gallery_content.cpp'
+    New-FeatureDefinition -Id 'cpp11-nullptr' -Standard 'C++11' -Kind 'Language' -Name '`nullptr`' -EnglishName '`nullptr`' -Pattern '\bnullptr\b' -Example 'engine/scene/scene_manager.h'
+    New-FeatureDefinition -Id 'cpp11-enum-class' -Standard 'C++11' -Kind 'Language' -Name '有作用域枚举' -EnglishName 'Scoped enumerations' -Pattern '\benum\s+class\b' -Example 'engine/animation/animation_registration_failure.h'
+    New-FeatureDefinition -Id 'cpp11-override' -Standard 'C++11' -Kind 'Language' -Name '`override`' -EnglishName '`override`' -Pattern '\boverride\b' -Example 'game/showcase/ui/ui_component_gallery_scene.h'
+    New-FeatureDefinition -Id 'cpp11-final' -Standard 'C++11' -Kind 'Language' -Name '`final`' -EnglishName '`final`' -Pattern '\bfinal\b' -Example 'game/showcase/ui/ui_component_gallery_scene.h'
+    New-FeatureDefinition -Id 'cpp11-constexpr' -Standard 'C++11' -Kind 'Language' -Name '`constexpr`' -EnglishName '`constexpr`' -Pattern '\bconstexpr\b' -Example 'engine/application/application.cpp'
+    New-FeatureDefinition -Id 'cpp11-noexcept' -Standard 'C++11' -Kind 'Language' -Name '`noexcept`' -EnglishName '`noexcept`' -Pattern '\bnoexcept\b' -Example 'engine/scene/scene_manager.h'
+    New-FeatureDefinition -Id 'cpp11-static-assert' -Standard 'C++11' -Kind 'Language' -Name '`static_assert`' -EnglishName '`static_assert`' -Pattern '\bstatic_assert\b' -Example 'engine/scene/scene_manager.h'
+    New-FeatureDefinition -Id 'cpp11-defaulted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式默认函数' -EnglishName 'Explicitly defaulted functions' -Pattern '=\s*default\s*;' -Example 'game/navigation/main_menu_scene.h'
+    New-FeatureDefinition -Id 'cpp11-deleted-functions' -Standard 'C++11' -Kind 'Language' -Name '显式删除函数' -EnglishName 'Explicitly deleted functions' -Pattern '=\s*delete\s*;' -Example 'engine/camera/camera_manager.h'
+    New-FeatureDefinition -Id 'cpp11-decltype' -Standard 'C++11' -Kind 'Language' -Name '`decltype`' -EnglishName '`decltype`' -Pattern '\bdecltype\s*\(' -Example 'tests/camera/camera_manager_tests.cpp'
+    New-FeatureDefinition -Id 'cpp11-type-alias' -Standard 'C++11' -Kind 'Language' -Name '`using` 类型别名' -EnglishName '`using` type aliases' -Pattern '\busing\s+[A-Za-z_]\w*\s*=' -Example 'engine/animation/animation.h'
+    New-FeatureDefinition -Id 'cpp11-variadic-templates' -Standard 'C++11' -Kind 'Language' -Name '可变参数模板' -EnglishName 'Variadic templates' -Pattern '\b(?:class|typename)\s*\.\.\.|template\s*<[^>]*\.\.\.' -Example 'engine/ui/core/ui_child_host.h'
+    New-FeatureDefinition -Id 'cpp11-move-forward' -Standard 'C++11' -Kind 'Library' -Name '移动与完美转发工具' -EnglishName 'Move and perfect forwarding utilities' -Pattern '\bstd::(?:move|forward|make_move_iterator)\s*\(' -Example 'game/navigation/main_menu_scene.cpp' -Symbols @('move', 'forward', 'make_move_iterator')
+    New-FeatureDefinition -Id 'cpp11-smart-pointers' -Standard 'C++11' -Kind 'Library' -Name '智能指针与 `std::make_shared`' -EnglishName 'Smart pointers and `std::make_shared`' -Pattern '\bstd::(?:unique_ptr|shared_ptr|weak_ptr|make_shared)\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('unique_ptr', 'shared_ptr', 'weak_ptr', 'make_shared')
+    New-FeatureDefinition -Id 'cpp11-array' -Standard 'C++11' -Kind 'Library' -Name '`std::array`' -EnglishName '`std::array`' -Pattern '\bstd::array\b' -Example 'game/showcase/ui/hud_demo_state.h' -Symbols @('array')
+    New-FeatureDefinition -Id 'cpp11-function' -Standard 'C++11' -Kind 'Library' -Name '`std::function`' -EnglishName '`std::function`' -Pattern '\bstd::function\b' -Example 'engine/animation/animation.h' -Symbols @('function')
+    New-FeatureDefinition -Id 'cpp11-tuple' -Standard 'C++11' -Kind 'Library' -Name '元组工具' -EnglishName 'Tuple utilities' -Pattern '\bstd::(?:tuple|make_tuple|tie)\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('tuple', 'make_tuple', 'tie')
+    New-FeatureDefinition -Id 'cpp11-chrono' -Standard 'C++11' -Kind 'Library' -Name '`std::chrono`' -EnglishName '`std::chrono`' -Pattern '\bstd::chrono(?:::|_)' -Example 'tests/audio/sound_playback_scheduler_tests.cpp' -Symbols @('chrono', 'milli')
+    New-FeatureDefinition -Id 'cpp11-random' -Standard 'C++11' -Kind 'Library' -Name '随机数工具' -EnglishName 'Random number utilities' -Pattern '\bstd::(?:random_device|mt19937|mt19937_64|uniform_[A-Za-z_]+_distribution)\b' -Example 'engine/tools/random_generator.cpp' -Symbols @('random_device', 'mt19937', 'mt19937_64', 'uniform_real_distribution')
+    New-FeatureDefinition -Id 'cpp11-concurrency' -Standard 'C++11' -Kind 'Library' -Name '线程、同步与原子操作' -EnglishName 'Threads, synchronization, and atomics' -Pattern '\bstd::(?:thread|this_thread|mutex|lock_guard|unique_lock|condition_variable|promise|future_status|atomic|memory_order_[A-Za-z_]+)\b' -Example 'engine/tools/termination_manager.h' -Symbols @('thread', 'this_thread', 'mutex', 'lock_guard', 'unique_lock', 'condition_variable', 'promise', 'future_status', 'atomic', 'memory_order_acq_rel', 'memory_order_acquire', 'memory_order_release')
+    New-FeatureDefinition -Id 'cpp11-unordered-containers' -Standard 'C++11' -Kind 'Library' -Name '无序容器与哈希' -EnglishName 'Unordered containers and hashing' -Pattern '\bstd::(?:unordered_map|unordered_set|hash)\b' -Example 'engine/builtin/resources/builtin_asset_cache.h' -Symbols @('unordered_map', 'unordered_set', 'hash')
+    New-FeatureDefinition -Id 'cpp11-initializer-list' -Standard 'C++11' -Kind 'Library' -Name '`std::initializer_list`' -EnglishName '`std::initializer_list`' -Pattern '\bstd::initializer_list\b' -Example 'engine/resources/atlas/atlas.h' -Symbols @('initializer_list')
+    New-FeatureDefinition -Id 'cpp11-type-index' -Standard 'C++11' -Kind 'Library' -Name '`std::type_index`' -EnglishName '`std::type_index`' -Pattern '\bstd::type_index\b' -Example 'engine/ui/style/ui_theme_style_resolver.h' -Symbols @('type_index')
+    New-FeatureDefinition -Id 'cpp11-declval' -Standard 'C++11' -Kind 'Library' -Name '`std::declval`' -EnglishName '`std::declval`' -Pattern '\bstd::declval\b' -Example 'tests/camera/camera_manager_tests.cpp' -Symbols @('declval')
+    New-FeatureDefinition -Id 'cpp11-new-algorithms' -Standard 'C++11' -Kind 'Library' -Name 'C++11 非修改序列算法' -EnglishName 'C++11 non-modifying sequence algorithms' -Pattern '\bstd::(?:all_of|any_of|none_of|copy_n)\b' -Example 'engine/ui/window/ui_window.cpp' -Symbols @('all_of', 'any_of', 'none_of', 'copy_n')
+    New-FeatureDefinition -Id 'cpp11-system-error' -Standard 'C++11' -Kind 'Library' -Name '系统错误码工具' -EnglishName 'System error code utilities' -Pattern '\bstd::(?:error_code|errc|make_error_code)\b' -Example 'engine/builtin/resources/builtin_asset_catalog.cpp' -Symbols @('error_code', 'errc', 'make_error_code')
+    New-FeatureDefinition -Id 'cpp11-fixed-width-integers' -Standard 'C++11' -Kind 'Library' -Name '定宽整数类型' -EnglishName 'Fixed-width integer types' -Pattern '\bstd::(?:u?int(?:8|16|32|64)_t|uintptr_t)\b' -Example 'engine/audio/sound_playback_types.h' -Symbols @('int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint32_t', 'uint64_t', 'uintptr_t')
+    New-FeatureDefinition -Id 'cpp11-math-functions' -Standard 'C++11' -Kind 'Library' -Name 'C++11 数学函数' -EnglishName 'C++11 mathematical functions' -Pattern '\bstd::(?:expm1|remainder|copysign|isfinite|lround|nan|nextafter|round)\b' -Example 'engine/application/application.cpp' -Symbols @('expm1', 'remainder', 'copysign', 'isfinite', 'lround', 'nan', 'nextafter', 'round')
+    New-FeatureDefinition -Id 'cpp11-string-conversion' -Standard 'C++11' -Kind 'Library' -Name '字符串与数值转换' -EnglishName 'String and numeric conversions' -Pattern '\bstd::(?:to_string|stoi|stod)\b' -Example 'game/showcase/gameplay/runtime/demo_combat.cpp' -Symbols @('to_string', 'stoi', 'stod')
+    New-FeatureDefinition -Id 'cpp11-time-formatting' -Standard 'C++11' -Kind 'Library' -Name '`std::put_time`' -EnglishName '`std::put_time`' -Pattern '\bstd::put_time\b' -Example 'engine/tools/logger.cpp' -Symbols @('put_time')
 
-    New-FeatureDefinition -Id 'cpp11-reference-wrappers' -Standard 'C++11' -Kind 'Library' -Name '引用包装工具' -Pattern '\bstd::(?:ref|cref)\b' -Example 'tests/scene/scene_recovery_tests.cpp' -Symbols @('ref', 'cref')
-    New-FeatureDefinition -Id 'cpp11-exception-pointers' -Standard 'C++11' -Kind 'Library' -Name '异常保存与重新传播' -Pattern '\bstd::(?:exception_ptr|current_exception|rethrow_exception)\b' -Example 'tests/application/application_startup_exception_tests.cpp' -Symbols @('exception_ptr', 'current_exception', 'rethrow_exception')
-    New-FeatureDefinition -Id 'cpp11-quick-exit' -Standard 'C++11' -Kind 'Library' -Name '`std::_Exit`' -Pattern '\bstd::_Exit\b' -Example 'tests/application/application_startup_exception_tests.cpp' -Symbols @('_Exit')
+    New-FeatureDefinition -Id 'cpp11-reference-wrappers' -Standard 'C++11' -Kind 'Library' -Name '引用包装工具' -EnglishName 'Reference wrappers' -Pattern '\bstd::(?:ref|cref)\b' -Example 'tests/scene/scene_recovery_tests.cpp' -Symbols @('ref', 'cref')
+    New-FeatureDefinition -Id 'cpp11-exception-pointers' -Standard 'C++11' -Kind 'Library' -Name '异常保存与重新传播' -EnglishName 'Exception capture and rethrow' -Pattern '\bstd::(?:exception_ptr|current_exception|rethrow_exception)\b' -Example 'tests/application/application_startup_exception_tests.cpp' -Symbols @('exception_ptr', 'current_exception', 'rethrow_exception')
+    New-FeatureDefinition -Id 'cpp11-quick-exit' -Standard 'C++11' -Kind 'Library' -Name '`std::_Exit`' -EnglishName '`std::_Exit`' -Pattern '\bstd::_Exit\b' -Example 'tests/application/application_startup_exception_tests.cpp' -Symbols @('_Exit')
 
-    New-FeatureDefinition -Id 'cpp14-generic-lambda' -Standard 'C++14' -Kind 'Language' -Name '泛型 Lambda' -Pattern '\[[^\]]*\]\s*\([^)]*\bauto(?:\s*[*&])?\b' -Example 'game/showcase/gameplay/gameplay_demo_scene_base.cpp'
-    New-FeatureDefinition -Id 'cpp14-init-capture' -Standard 'C++14' -Kind 'Language' -Name 'Lambda 初始化捕获' -Pattern '\[[^\]]*\b[A-Za-z_]\w*\s*=' -Example 'engine/ui/widgets/ui_button.cpp'
-    New-FeatureDefinition -Id 'cpp14-make-unique' -Standard 'C++14' -Kind 'Library' -Name '`std::make_unique`' -Pattern '\bstd::make_unique\b' -Example 'engine/animation/animation_service.cpp' -Symbols @('make_unique')
-    New-FeatureDefinition -Id 'cpp14-chrono-literals' -Standard 'C++14' -Kind 'Library' -Name '时间字面量' -Pattern '\bstd::chrono_literals\b' -Example 'tests/audio/sound_playback_scheduler_tests.cpp' -Symbols @('chrono_literals')
-    New-FeatureDefinition -Id 'cpp14-type-trait-aliases' -Standard 'C++14' -Kind 'Library' -Name '类型特征 `_t` 别名' -Pattern '\bstd::(?:conditional|decay|enable_if|make_signed|make_unsigned|remove_const|remove_cv|remove_reference|tuple_element|underlying_type)_t\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('conditional_t', 'decay_t', 'enable_if_t', 'make_signed_t', 'make_unsigned_t', 'remove_const_t', 'remove_cv_t', 'remove_reference_t', 'tuple_element_t', 'underlying_type_t')
-    New-FeatureDefinition -Id 'cpp14-binary-literals' -Standard 'C++14' -Kind 'Language' -Name '二进制字面量' -Pattern '\b0[bB][01]+' -CommonUnused
-    New-FeatureDefinition -Id 'cpp14-digit-separators' -Standard 'C++14' -Kind 'Language' -Name '数字分隔符' -Pattern '\b\d[\dA-Fa-fxXbB]*''[\dA-Fa-f]+' -CommonUnused
-    New-FeatureDefinition -Id 'cpp14-exchange' -Standard 'C++14' -Kind 'Library' -Name '`std::exchange`' -Pattern '\bstd::exchange\b' -Symbols @('exchange') -Example 'engine/gameplay/control/controller_manager.cpp' -CommonUnused
+    New-FeatureDefinition -Id 'cpp14-generic-lambda' -Standard 'C++14' -Kind 'Language' -Name '泛型 Lambda' -EnglishName 'Generic lambdas' -Pattern '\[[^\]]*\]\s*\([^)]*\bauto(?:\s*[*&])?\b' -Example 'game/showcase/gameplay/gameplay_demo_scene_base.cpp'
+    New-FeatureDefinition -Id 'cpp14-init-capture' -Standard 'C++14' -Kind 'Language' -Name 'Lambda 初始化捕获' -EnglishName 'Lambda init-capture' -Pattern '\[[^\]]*\b[A-Za-z_]\w*\s*=' -Example 'engine/ui/widgets/ui_button.cpp'
+    New-FeatureDefinition -Id 'cpp14-make-unique' -Standard 'C++14' -Kind 'Library' -Name '`std::make_unique`' -EnglishName '`std::make_unique`' -Pattern '\bstd::make_unique\b' -Example 'engine/animation/animation_service.cpp' -Symbols @('make_unique')
+    New-FeatureDefinition -Id 'cpp14-chrono-literals' -Standard 'C++14' -Kind 'Library' -Name '时间字面量' -EnglishName 'Chrono literals' -Pattern '\bstd::chrono_literals\b' -Example 'tests/audio/sound_playback_scheduler_tests.cpp' -Symbols @('chrono_literals')
+    New-FeatureDefinition -Id 'cpp14-type-trait-aliases' -Standard 'C++14' -Kind 'Library' -Name '类型特征 `_t` 别名' -EnglishName 'Type trait `_t` aliases' -Pattern '\bstd::(?:conditional|decay|enable_if|make_signed|make_unsigned|remove_const|remove_cv|remove_reference|tuple_element|underlying_type)_t\b' -Example 'engine/ui/core/ui_child_host.h' -Symbols @('conditional_t', 'decay_t', 'enable_if_t', 'make_signed_t', 'make_unsigned_t', 'remove_const_t', 'remove_cv_t', 'remove_reference_t', 'tuple_element_t', 'underlying_type_t')
+    New-FeatureDefinition -Id 'cpp14-binary-literals' -Standard 'C++14' -Kind 'Language' -Name '二进制字面量' -EnglishName 'Binary literals' -Pattern '\b0[bB][01]+' -CommonUnused
+    New-FeatureDefinition -Id 'cpp14-digit-separators' -Standard 'C++14' -Kind 'Language' -Name '数字分隔符' -EnglishName 'Digit separators' -Pattern '\b\d[\dA-Fa-fxXbB]*''[\dA-Fa-f]+' -CommonUnused
+    New-FeatureDefinition -Id 'cpp14-exchange' -Standard 'C++14' -Kind 'Library' -Name '`std::exchange`' -EnglishName '`std::exchange`' -Pattern '\bstd::exchange\b' -Symbols @('exchange') -Example 'engine/gameplay/control/controller_manager.cpp' -CommonUnused
 
-    New-FeatureDefinition -Id 'cpp17-structured-bindings' -Standard 'C++17' -Kind 'Language' -Name '结构化绑定' -Pattern '\b(?:const\s+)?auto(?:\s*&&?|\s+)?\s*\[[^\]]+\]' -Example 'game/showcase/gameplay/runtime/demo_combat.cpp'
-    New-FeatureDefinition -Id 'cpp17-if-constexpr' -Standard 'C++17' -Kind 'Language' -Name '`if constexpr`' -Pattern '\bif\s+constexpr\b' -Example 'engine/camera/camera_manager.cpp'
-    New-FeatureDefinition -Id 'cpp17-if-initializer' -Standard 'C++17' -Kind 'Language' -Name '`if` 初始化语句' -Pattern '\bif\s*\(\s*(?:const\s+)?(?:auto(?:\s*[*&])?|[A-Za-z_][\w:<>]*\s*[*&]?)\s+[A-Za-z_]\w*\s*=[^;\r\n]+;' -Example 'engine/animation/runtime/animation_manager.cpp'
-    New-FeatureDefinition -Id 'cpp17-nested-namespace' -Standard 'C++17' -Kind 'Language' -Name '嵌套命名空间定义' -Pattern '\bnamespace\s+[A-Za-z_]\w*(?:::[A-Za-z_]\w*)+' -Example 'engine/animation/animation.h'
-    New-FeatureDefinition -Id 'cpp17-inline-variables' -Standard 'C++17' -Kind 'Language' -Name '内联变量' -Pattern '\binline\s+(?:static\s+)?constexpr\b' -Example 'engine/core/render/colors.h'
-    New-FeatureDefinition -Id 'cpp17-ctad' -Standard 'C++17' -Kind 'Language' -Name '类模板实参推导' -Pattern '\bstd::array(?:\s+[A-Za-z_]\w*)?\s*\{' -Example 'tests/application/application_presentation_settings_tests.cpp'
-    New-FeatureDefinition -Id 'cpp17-nodiscard' -Standard 'C++17' -Kind 'Language' -Name '`[[nodiscard]]`' -Pattern '\[\[\s*nodiscard\s*\]\]' -Example 'engine/animation/animation.h'
-    New-FeatureDefinition -Id 'cpp17-maybe-unused' -Standard 'C++17' -Kind 'Language' -Name '`[[maybe_unused]]`' -Pattern '\[\[\s*maybe_unused\s*\]\]' -Example 'engine/scene/scene.h'
-    New-FeatureDefinition -Id 'cpp17-fallthrough' -Standard 'C++17' -Kind 'Language' -Name '`[[fallthrough]]`' -Pattern '\[\[\s*fallthrough\s*\]\]' -CommonUnused
-    New-FeatureDefinition -Id 'cpp17-optional' -Standard 'C++17' -Kind 'Library' -Name '`std::optional` / `std::nullopt`' -Pattern '\bstd::(?:optional|nullopt)\b' -Example 'engine/animation/animation.h' -Symbols @('optional', 'nullopt')
-    New-FeatureDefinition -Id 'cpp17-variant' -Standard 'C++17' -Kind 'Library' -Name '变体类型工具' -Pattern '\bstd::(?:variant|visit|get|get_if|holds_alternative|monostate)\b' -Example 'engine/ui/widgets/ui_button.cpp' -Symbols @('variant', 'visit', 'get', 'get_if', 'holds_alternative', 'monostate')
-    New-FeatureDefinition -Id 'cpp17-any' -Standard 'C++17' -Kind 'Library' -Name '`std::any`' -Pattern '\bstd::(?:any|any_cast)\b' -Example 'tests/scene/scene_core_tests.cpp' -Symbols @('any', 'any_cast')
-    New-FeatureDefinition -Id 'cpp17-filesystem' -Standard 'C++17' -Kind 'Library' -Name '`std::filesystem`' -Pattern '\bstd::filesystem\b' -Example 'engine/io/path/path_manager.h' -Symbols @('filesystem')
-    New-FeatureDefinition -Id 'cpp17-string-view' -Standard 'C++17' -Kind 'Library' -Name '`std::string_view`' -Pattern '\bstd::string_view\b' -Example 'engine/animation/animation_service.h' -Symbols @('string_view')
-    New-FeatureDefinition -Id 'cpp17-invoke' -Standard 'C++17' -Kind 'Library' -Name '`std::invoke` 与结果类型特征' -Pattern '\bstd::(?:invoke|invoke_result_t)\b' -Example 'engine/object_query/game_object_query_service.h' -Symbols @('invoke', 'invoke_result_t')
-    New-FeatureDefinition -Id 'cpp17-as-const' -Standard 'C++17' -Kind 'Library' -Name '`std::as_const`' -Pattern '\bstd::as_const\b' -Example 'engine/object_query/game_object_query_service.h' -Symbols @('as_const')
-    New-FeatureDefinition -Id 'cpp17-scoped-lock' -Standard 'C++17' -Kind 'Library' -Name '`std::scoped_lock`' -Pattern '\bstd::scoped_lock\b' -Example 'engine/config/config_service.cpp' -Symbols @('scoped_lock')
-    New-FeatureDefinition -Id 'cpp17-clamp' -Standard 'C++17' -Kind 'Library' -Name '`std::clamp`' -Pattern '\bstd::clamp\b' -Example 'engine/camera/camera_controller.cpp' -Symbols @('clamp')
-    New-FeatureDefinition -Id 'cpp17-size' -Standard 'C++17' -Kind 'Library' -Name '`std::size`' -Pattern '\bstd::size\b' -Example 'tests/loading/resource_load_plan_validator_tests.cpp' -Symbols @('size')
-    New-FeatureDefinition -Id 'cpp17-type-trait-variables' -Standard 'C++17' -Kind 'Library' -Name '类型特征 `_v` 变量模板' -Pattern '\bstd::[A-Za-z_]\w*_v\b' -Example 'engine/camera/camera_manager.cpp' -Symbols @('is_abstract_v', 'is_base_of_v', 'is_const_v', 'is_copy_assignable_v', 'is_copy_constructible_v', 'is_default_constructible_v', 'is_move_assignable_v', 'is_move_constructible_v', 'is_same_v', 'is_constructible_v', 'is_convertible_v', 'is_nothrow_move_assignable_v', 'is_nothrow_swappable_v', 'is_void_v')
+    New-FeatureDefinition -Id 'cpp17-structured-bindings' -Standard 'C++17' -Kind 'Language' -Name '结构化绑定' -EnglishName 'Structured bindings' -Pattern '\b(?:const\s+)?auto(?:\s*&&?|\s+)?\s*\[[^\]]+\]' -Example 'game/showcase/gameplay/runtime/demo_combat.cpp'
+    New-FeatureDefinition -Id 'cpp17-if-constexpr' -Standard 'C++17' -Kind 'Language' -Name '`if constexpr`' -EnglishName '`if constexpr`' -Pattern '\bif\s+constexpr\b' -Example 'engine/camera/camera_manager.cpp'
+    New-FeatureDefinition -Id 'cpp17-if-initializer' -Standard 'C++17' -Kind 'Language' -Name '`if` 初始化语句' -EnglishName '`if` initializer statements' -Pattern '\bif\s*\(\s*(?:const\s+)?(?:auto(?:\s*[*&])?|[A-Za-z_][\w:<>]*\s*[*&]?)\s+[A-Za-z_]\w*\s*=[^;\r\n]+;' -Example 'engine/animation/runtime/animation_manager.cpp'
+    New-FeatureDefinition -Id 'cpp17-nested-namespace' -Standard 'C++17' -Kind 'Language' -Name '嵌套命名空间定义' -EnglishName 'Nested namespace definitions' -Pattern '\bnamespace\s+[A-Za-z_]\w*(?:::[A-Za-z_]\w*)+' -Example 'engine/animation/animation.h'
+    New-FeatureDefinition -Id 'cpp17-inline-variables' -Standard 'C++17' -Kind 'Language' -Name '内联变量' -EnglishName 'Inline variables' -Pattern '\binline\s+(?:static\s+)?constexpr\b' -Example 'engine/core/render/colors.h'
+    New-FeatureDefinition -Id 'cpp17-ctad' -Standard 'C++17' -Kind 'Language' -Name '类模板实参推导' -EnglishName 'Class template argument deduction' -Pattern '\bstd::array(?:\s+[A-Za-z_]\w*)?\s*\{' -Example 'tests/application/application_presentation_settings_tests.cpp'
+    New-FeatureDefinition -Id 'cpp17-nodiscard' -Standard 'C++17' -Kind 'Language' -Name '`[[nodiscard]]`' -EnglishName '`[[nodiscard]]`' -Pattern '\[\[\s*nodiscard\s*\]\]' -Example 'engine/animation/animation.h'
+    New-FeatureDefinition -Id 'cpp17-maybe-unused' -Standard 'C++17' -Kind 'Language' -Name '`[[maybe_unused]]`' -EnglishName '`[[maybe_unused]]`' -Pattern '\[\[\s*maybe_unused\s*\]\]' -Example 'engine/scene/scene.h'
+    New-FeatureDefinition -Id 'cpp17-fallthrough' -Standard 'C++17' -Kind 'Language' -Name '`[[fallthrough]]`' -EnglishName '`[[fallthrough]]`' -Pattern '\[\[\s*fallthrough\s*\]\]' -CommonUnused
+    New-FeatureDefinition -Id 'cpp17-optional' -Standard 'C++17' -Kind 'Library' -Name '`std::optional` / `std::nullopt`' -EnglishName '`std::optional` / `std::nullopt`' -Pattern '\bstd::(?:optional|nullopt)\b' -Example 'engine/animation/animation.h' -Symbols @('optional', 'nullopt')
+    New-FeatureDefinition -Id 'cpp17-variant' -Standard 'C++17' -Kind 'Library' -Name '变体类型工具' -EnglishName 'Variant utilities' -Pattern '\bstd::(?:variant|visit|get|get_if|holds_alternative|monostate)\b' -Example 'engine/ui/widgets/ui_button.cpp' -Symbols @('variant', 'visit', 'get', 'get_if', 'holds_alternative', 'monostate')
+    New-FeatureDefinition -Id 'cpp17-any' -Standard 'C++17' -Kind 'Library' -Name '`std::any`' -EnglishName '`std::any`' -Pattern '\bstd::(?:any|any_cast)\b' -Example 'tests/scene/scene_core_tests.cpp' -Symbols @('any', 'any_cast')
+    New-FeatureDefinition -Id 'cpp17-filesystem' -Standard 'C++17' -Kind 'Library' -Name '`std::filesystem`' -EnglishName '`std::filesystem`' -Pattern '\bstd::filesystem\b' -Example 'engine/io/path/path_manager.h' -Symbols @('filesystem')
+    New-FeatureDefinition -Id 'cpp17-string-view' -Standard 'C++17' -Kind 'Library' -Name '`std::string_view`' -EnglishName '`std::string_view`' -Pattern '\bstd::string_view\b' -Example 'engine/animation/animation_service.h' -Symbols @('string_view')
+    New-FeatureDefinition -Id 'cpp17-invoke' -Standard 'C++17' -Kind 'Library' -Name '`std::invoke` 与结果类型特征' -EnglishName '`std::invoke` and result type traits' -Pattern '\bstd::(?:invoke|invoke_result_t)\b' -Example 'engine/object_query/game_object_query_service.h' -Symbols @('invoke', 'invoke_result_t')
+    New-FeatureDefinition -Id 'cpp17-as-const' -Standard 'C++17' -Kind 'Library' -Name '`std::as_const`' -EnglishName '`std::as_const`' -Pattern '\bstd::as_const\b' -Example 'engine/object_query/game_object_query_service.h' -Symbols @('as_const')
+    New-FeatureDefinition -Id 'cpp17-scoped-lock' -Standard 'C++17' -Kind 'Library' -Name '`std::scoped_lock`' -EnglishName '`std::scoped_lock`' -Pattern '\bstd::scoped_lock\b' -Example 'engine/config/config_service.cpp' -Symbols @('scoped_lock')
+    New-FeatureDefinition -Id 'cpp17-clamp' -Standard 'C++17' -Kind 'Library' -Name '`std::clamp`' -EnglishName '`std::clamp`' -Pattern '\bstd::clamp\b' -Example 'engine/camera/camera_controller.cpp' -Symbols @('clamp')
+    New-FeatureDefinition -Id 'cpp17-size' -Standard 'C++17' -Kind 'Library' -Name '`std::size`' -EnglishName '`std::size`' -Pattern '\bstd::size\b' -Example 'tests/loading/resource_load_plan_validator_tests.cpp' -Symbols @('size')
+    New-FeatureDefinition -Id 'cpp17-type-trait-variables' -Standard 'C++17' -Kind 'Library' -Name '类型特征 `_v` 变量模板' -EnglishName 'Type trait `_v` variable templates' -Pattern '\bstd::[A-Za-z_]\w*_v\b' -Example 'engine/camera/camera_manager.cpp' -Symbols @('is_abstract_v', 'is_base_of_v', 'is_const_v', 'is_copy_assignable_v', 'is_copy_constructible_v', 'is_default_constructible_v', 'is_move_assignable_v', 'is_move_constructible_v', 'is_same_v', 'is_constructible_v', 'is_convertible_v', 'is_nothrow_move_assignable_v', 'is_nothrow_swappable_v', 'is_void_v')
 
-    New-FeatureDefinition -Id 'cpp17-apply' -Standard 'C++17' -Kind 'Library' -Name '`std::apply`' -Pattern '\bstd::apply\b' -Example 'engine/scene/scene_manager.h' -Symbols @('apply')
+    New-FeatureDefinition -Id 'cpp17-apply' -Standard 'C++17' -Kind 'Library' -Name '`std::apply`' -EnglishName '`std::apply`' -Pattern '\bstd::apply\b' -Example 'engine/scene/scene_manager.h' -Symbols @('apply')
 
-    New-FeatureDefinition -Id 'cpp20-designated-initializers' -Standard 'C++20' -Kind 'Language' -Name '指定初始化器' -Pattern '(?s:\{\s*\.[A-Za-z_]\w*\s*=)' -Example 'game/navigation/main_menu_scene.cpp'
-    New-FeatureDefinition -Id 'cpp20-three-way-comparison' -Standard 'C++20' -Kind 'Language' -Name '三路比较' -Pattern '<=>' -Example 'engine/physics/collision/collision_target.h'
-    New-FeatureDefinition -Id 'cpp20-concepts' -Standard 'C++20' -Kind 'Language' -Name 'Concepts 与 `requires` 子句' -Pattern '\bconcept\s+[A-Za-z_]\w*\s*=|\brequires\s+(?:std::|[A-Za-z_]\w*\s*<)|\brequires\s*\{' -Example 'engine/save/save_data.h'
-    New-FeatureDefinition -Id 'cpp20-span' -Standard 'C++20' -Kind 'Library' -Name '`std::span`' -Pattern '\bstd::span\b' -Example 'engine/builtin/object/engine_character.cpp' -Symbols @('span')
-    New-FeatureDefinition -Id 'cpp20-ranges' -Standard 'C++20' -Kind 'Library' -Name 'Ranges 库' -Pattern '\bstd::ranges(?:::|_)' -Example 'engine/physics/physics_world.cpp' -Symbols @('ranges')
-    New-FeatureDefinition -Id 'cpp20-standard-concepts' -Standard 'C++20' -Kind 'Library' -Name '标准库 Concepts' -Pattern '\bstd::(?:integral|same_as|predicate)\b' -Example 'engine/object_query/game_object_query_service.h' -Symbols @('integral', 'same_as', 'predicate')
-    New-FeatureDefinition -Id 'cpp20-source-location' -Standard 'C++20' -Kind 'Library' -Name '`std::source_location`' -Pattern '\bstd::source_location\b' -Example 'engine/application/lifecycle/application_termination_logging.h' -Symbols @('source_location')
-    New-FeatureDefinition -Id 'cpp20-erase' -Standard 'C++20' -Kind 'Library' -Name '`std::erase` / `std::erase_if`' -Pattern '\bstd::erase(?:_if)?\b' -Example 'engine/physics/physics_world.cpp' -Symbols @('erase', 'erase_if')
-    New-FeatureDefinition -Id 'cpp20-string-prefix-suffix' -Standard 'C++20' -Kind 'Library' -Name '`starts_with` / `ends_with`' -Pattern '\.(?:starts_with|ends_with)\s*\(' -Example 'tests/save/save_service_tests.cpp'
-    New-FeatureDefinition -Id 'cpp20-remove-cvref' -Standard 'C++20' -Kind 'Library' -Name '`std::remove_cvref_t`' -Pattern '\bstd::remove_cvref_t\b' -Example 'engine/save/save_service.h' -Symbols @('remove_cvref_t')
-    New-FeatureDefinition -Id 'cpp20-bit-operations' -Standard 'C++20' -Kind 'Library' -Name '位操作工具' -Pattern '\bstd::has_single_bit\b' -Example 'engine/tools/debug_draw.cpp' -Symbols @('has_single_bit')
-    New-FeatureDefinition -Id 'cpp20-ordering-types' -Standard 'C++20' -Kind 'Library' -Name '比较类别类型' -Pattern '\bstd::strong_ordering\b' -Example 'engine/physics/collision/collision_target.h' -Symbols @('strong_ordering')
-    New-FeatureDefinition -Id 'cpp20-lerp' -Standard 'C++20' -Kind 'Library' -Name '`std::lerp`' -Pattern '\bstd::lerp\b' -Example 'engine/gameplay/ui/world_bar.cpp' -Symbols @('lerp')
-    New-FeatureDefinition -Id 'cpp20-numbers' -Standard 'C++20' -Kind 'Library' -Name '数学常量' -Pattern '\bstd::numbers\b' -Example 'engine/physics/physics_debug_draw.cpp' -Symbols @('numbers')
-    New-FeatureDefinition -Id 'cpp20-consteval' -Standard 'C++20' -Kind 'Language' -Name '`consteval`' -Pattern '\bconsteval\b' -CommonUnused
-    New-FeatureDefinition -Id 'cpp20-constinit' -Standard 'C++20' -Kind 'Language' -Name '`constinit`' -Pattern '\bconstinit\b' -CommonUnused
-    New-FeatureDefinition -Id 'cpp20-coroutines' -Standard 'C++20' -Kind 'Language' -Name '协程' -Pattern '\b(?:co_await|co_return|co_yield)\b' -CommonUnused
-    New-FeatureDefinition -Id 'cpp20-bit-cast' -Standard 'C++20' -Kind 'Library' -Name '`std::bit_cast`' -Pattern '\bstd::bit_cast\b' -Symbols @('bit_cast') -CommonUnused
-    New-FeatureDefinition -Id 'cpp20-jthread' -Standard 'C++20' -Kind 'Library' -Name '`std::jthread` / 停止令牌' -Pattern '\bstd::(?:jthread|stop_token)\b' -Symbols @('jthread', 'stop_token') -Example 'tests/application/application_lifecycle_tests.cpp' -CommonUnused
-    New-FeatureDefinition -Id 'cpp20-format' -Standard 'C++20' -Kind 'Library' -Name '`std::format`' -Pattern '\bstd::format\b' -Symbols @('format') -Example 'game/showcase/camera/camera_showcase_scene.cpp' -CommonUnused
+    New-FeatureDefinition -Id 'cpp20-designated-initializers' -Standard 'C++20' -Kind 'Language' -Name '指定初始化器' -EnglishName 'Designated initializers' -Pattern '(?s:\{\s*\.[A-Za-z_]\w*\s*=)' -Example 'game/navigation/main_menu_scene.cpp'
+    New-FeatureDefinition -Id 'cpp20-three-way-comparison' -Standard 'C++20' -Kind 'Language' -Name '三路比较' -EnglishName 'Three-way comparison' -Pattern '<=>' -Example 'engine/physics/collision/collision_target.h'
+    New-FeatureDefinition -Id 'cpp20-concepts' -Standard 'C++20' -Kind 'Language' -Name 'Concepts 与 `requires` 子句' -EnglishName 'Concepts and `requires` clauses' -Pattern '\bconcept\s+[A-Za-z_]\w*\s*=|\brequires\s+(?:std::|[A-Za-z_]\w*\s*<)|\brequires\s*\{' -Example 'engine/save/save_data.h'
+    New-FeatureDefinition -Id 'cpp20-span' -Standard 'C++20' -Kind 'Library' -Name '`std::span`' -EnglishName '`std::span`' -Pattern '\bstd::span\b' -Example 'engine/builtin/object/engine_character.cpp' -Symbols @('span')
+    New-FeatureDefinition -Id 'cpp20-ranges' -Standard 'C++20' -Kind 'Library' -Name 'Ranges 库' -EnglishName 'Ranges library' -Pattern '\bstd::ranges(?:::|_)' -Example 'engine/physics/physics_world.cpp' -Symbols @('ranges')
+    New-FeatureDefinition -Id 'cpp20-standard-concepts' -Standard 'C++20' -Kind 'Library' -Name '标准库 Concepts' -EnglishName 'Standard library concepts' -Pattern '\bstd::(?:integral|same_as|predicate)\b' -Example 'engine/object_query/game_object_query_service.h' -Symbols @('integral', 'same_as', 'predicate')
+    New-FeatureDefinition -Id 'cpp20-source-location' -Standard 'C++20' -Kind 'Library' -Name '`std::source_location`' -EnglishName '`std::source_location`' -Pattern '\bstd::source_location\b' -Example 'engine/application/lifecycle/application_termination_logging.h' -Symbols @('source_location')
+    New-FeatureDefinition -Id 'cpp20-erase' -Standard 'C++20' -Kind 'Library' -Name '`std::erase` / `std::erase_if`' -EnglishName '`std::erase` / `std::erase_if`' -Pattern '\bstd::erase(?:_if)?\b' -Example 'engine/physics/physics_world.cpp' -Symbols @('erase', 'erase_if')
+    New-FeatureDefinition -Id 'cpp20-string-prefix-suffix' -Standard 'C++20' -Kind 'Library' -Name '`starts_with` / `ends_with`' -EnglishName '`starts_with` / `ends_with`' -Pattern '\.(?:starts_with|ends_with)\s*\(' -Example 'tests/save/save_service_tests.cpp'
+    New-FeatureDefinition -Id 'cpp20-remove-cvref' -Standard 'C++20' -Kind 'Library' -Name '`std::remove_cvref_t`' -EnglishName '`std::remove_cvref_t`' -Pattern '\bstd::remove_cvref_t\b' -Example 'engine/save/save_service.h' -Symbols @('remove_cvref_t')
+    New-FeatureDefinition -Id 'cpp20-bit-operations' -Standard 'C++20' -Kind 'Library' -Name '位操作工具' -EnglishName 'Bit utilities' -Pattern '\bstd::has_single_bit\b' -Example 'engine/tools/debug_draw.cpp' -Symbols @('has_single_bit')
+    New-FeatureDefinition -Id 'cpp20-ordering-types' -Standard 'C++20' -Kind 'Library' -Name '比较类别类型' -EnglishName 'Comparison category types' -Pattern '\bstd::strong_ordering\b' -Example 'engine/physics/collision/collision_target.h' -Symbols @('strong_ordering')
+    New-FeatureDefinition -Id 'cpp20-lerp' -Standard 'C++20' -Kind 'Library' -Name '`std::lerp`' -EnglishName '`std::lerp`' -Pattern '\bstd::lerp\b' -Example 'engine/gameplay/ui/world_bar.cpp' -Symbols @('lerp')
+    New-FeatureDefinition -Id 'cpp20-numbers' -Standard 'C++20' -Kind 'Library' -Name '数学常量' -EnglishName 'Mathematical constants' -Pattern '\bstd::numbers\b' -Example 'engine/physics/physics_debug_draw.cpp' -Symbols @('numbers')
+    New-FeatureDefinition -Id 'cpp20-consteval' -Standard 'C++20' -Kind 'Language' -Name '`consteval`' -EnglishName '`consteval`' -Pattern '\bconsteval\b' -CommonUnused
+    New-FeatureDefinition -Id 'cpp20-constinit' -Standard 'C++20' -Kind 'Language' -Name '`constinit`' -EnglishName '`constinit`' -Pattern '\bconstinit\b' -CommonUnused
+    New-FeatureDefinition -Id 'cpp20-coroutines' -Standard 'C++20' -Kind 'Language' -Name '协程' -EnglishName 'Coroutines' -Pattern '\b(?:co_await|co_return|co_yield)\b' -CommonUnused
+    New-FeatureDefinition -Id 'cpp20-bit-cast' -Standard 'C++20' -Kind 'Library' -Name '`std::bit_cast`' -EnglishName '`std::bit_cast`' -Pattern '\bstd::bit_cast\b' -Symbols @('bit_cast') -CommonUnused
+    New-FeatureDefinition -Id 'cpp20-jthread' -Standard 'C++20' -Kind 'Library' -Name '`std::jthread` / 停止令牌' -EnglishName '`std::jthread` / stop tokens' -Pattern '\bstd::(?:jthread|stop_token)\b' -Symbols @('jthread', 'stop_token') -Example 'tests/application/application_lifecycle_tests.cpp' -CommonUnused
+    New-FeatureDefinition -Id 'cpp20-format' -Standard 'C++20' -Kind 'Library' -Name '`std::format`' -EnglishName '`std::format`' -Pattern '\bstd::format\b' -Symbols @('format') -Example 'game/showcase/camera/camera_showcase_scene.cpp' -CommonUnused
 
-    New-FeatureDefinition -Id 'cpp23-expected' -Standard 'C++23' -Kind 'Library' -Name '`std::expected` / `std::unexpected`' -Pattern '\bstd::(?:expected|unexpected)\b' -Example 'engine/bootstrap/bootstrapper.h' -Symbols @('expected', 'unexpected')
-    New-FeatureDefinition -Id 'cpp23-if-consteval' -Standard 'C++23' -Kind 'Language' -Name '`if consteval`' -Pattern '\bif\s+consteval\b' -CommonUnused
-    New-FeatureDefinition -Id 'cpp23-to-underlying' -Standard 'C++23' -Kind 'Library' -Name '`std::to_underlying`' -Pattern '\bstd::to_underlying\b' -Symbols @('to_underlying') -CommonUnused
-    New-FeatureDefinition -Id 'cpp23-byteswap' -Standard 'C++23' -Kind 'Library' -Name '`std::byteswap`' -Pattern '\bstd::byteswap\b' -Symbols @('byteswap') -CommonUnused
-    New-FeatureDefinition -Id 'cpp23-print' -Standard 'C++23' -Kind 'Library' -Name '`std::print` / `std::println`' -Pattern '\bstd::print(?:ln)?\b' -Symbols @('print', 'println') -CommonUnused
-    New-FeatureDefinition -Id 'cpp23-mdspan' -Standard 'C++23' -Kind 'Library' -Name '`std::mdspan`' -Pattern '\bstd::mdspan\b' -Symbols @('mdspan') -CommonUnused
+    New-FeatureDefinition -Id 'cpp23-expected' -Standard 'C++23' -Kind 'Library' -Name '`std::expected` / `std::unexpected`' -EnglishName '`std::expected` / `std::unexpected`' -Pattern '\bstd::(?:expected|unexpected)\b' -Example 'engine/bootstrap/bootstrapper.h' -Symbols @('expected', 'unexpected')
+    New-FeatureDefinition -Id 'cpp23-if-consteval' -Standard 'C++23' -Kind 'Language' -Name '`if consteval`' -EnglishName '`if consteval`' -Pattern '\bif\s+consteval\b' -CommonUnused
+    New-FeatureDefinition -Id 'cpp23-to-underlying' -Standard 'C++23' -Kind 'Library' -Name '`std::to_underlying`' -EnglishName '`std::to_underlying`' -Pattern '\bstd::to_underlying\b' -Symbols @('to_underlying') -CommonUnused
+    New-FeatureDefinition -Id 'cpp23-byteswap' -Standard 'C++23' -Kind 'Library' -Name '`std::byteswap`' -EnglishName '`std::byteswap`' -Pattern '\bstd::byteswap\b' -Symbols @('byteswap') -CommonUnused
+    New-FeatureDefinition -Id 'cpp23-print' -Standard 'C++23' -Kind 'Library' -Name '`std::print` / `std::println`' -EnglishName '`std::print` / `std::println`' -Pattern '\bstd::print(?:ln)?\b' -Symbols @('print', 'println') -CommonUnused
+    New-FeatureDefinition -Id 'cpp23-mdspan' -Standard 'C++23' -Kind 'Library' -Name '`std::mdspan`' -EnglishName '`std::mdspan`' -Pattern '\bstd::mdspan\b' -Symbols @('mdspan') -CommonUnused
 )
 
 $script:BaselineStdSymbols = @(
@@ -386,11 +391,20 @@ function New-GeneratedMarkdown {
         [Parameter(Mandatory)][object[]]$Statistics
     )
 
+    $task_english = $Language -eq 'en'
+    $task_language_kind = if ($task_english) { 'Language' } else { '语言' }
+    $task_library_kind = if ($task_english) { 'Library' } else { '标准库' }
+    $task_source_label = if ($task_english) { 'Source' } else { '源码' }
     $task_lines = [System.Collections.Generic.List[string]]::new()
     $task_lines.Add($script:GeneratedBegin)
     $task_lines.Add('')
-    $task_lines.Add("本区块由 ``scripts/audit_cpp_language_features.ps1`` 根据当前工作树生成；共扫描 $($Sources.Count) 个第一方 C++ 源文件。")
-    $task_lines.Add('“命中”表示过滤注释及字符串/字符字面量后的检测模式次数，不等同于运行时调用次数。')
+    if ($task_english) {
+        $task_lines.Add("Generated from the current working tree by ``scripts/audit_cpp_language_features.ps1``; $($Sources.Count) first-party C++ source files scanned.")
+        $task_lines.Add('A match counts a detector pattern after excluding comments and string/character literals, not runtime calls.')
+    } else {
+        $task_lines.Add("本区块由 ``scripts/audit_cpp_language_features.ps1`` 根据当前工作树生成；共扫描 $($Sources.Count) 个第一方 C++ 源文件。")
+        $task_lines.Add('“命中”表示过滤注释及字符串/字符字面量后的检测模式次数，不等同于运行时调用次数。')
+    }
 
     foreach ($task_standard in @('C++11', 'C++14', 'C++17', 'C++20', 'C++23')) {
         $task_used = @($Statistics | Where-Object { $_.Definition.Standard -eq $task_standard -and $_.Total -gt 0 } | Sort-Object { $_.Definition.Id })
@@ -399,27 +413,29 @@ function New-GeneratedMarkdown {
         $task_lines.Add('')
         $task_lines.Add("### $task_standard")
         $task_lines.Add('')
-        $task_lines.Add('| ID | 分类 | 特性 | engine | game | tests | 总命中 | 文件数 | 代表性位置 |')
+        $task_lines.Add($(if ($task_english) { '| ID | Category | Feature | engine | game | tests | Total matches | Files | Representative location |' } else { '| ID | 分类 | 特性 | engine | game | tests | 总命中 | 文件数 | 代表性位置 |' }))
         $task_lines.Add('| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |')
         foreach ($task_statistic in $task_used) {
             $task_definition = $task_statistic.Definition
-            $task_kind = if ($task_definition.Kind -eq 'Language') { '语言' } else { '标准库' }
+            $task_kind = if ($task_definition.Kind -eq 'Language') { $task_language_kind } else { $task_library_kind }
+            $task_name = if ($task_english) { $task_definition.EnglishName } else { $task_definition.Name }
             $task_example_link = ConvertTo-DocumentLink -RepositoryRelativePath $task_definition.Example
-            $task_lines.Add("| ``$($task_definition.Id)`` | $task_kind | $($task_definition.Name) | $($task_statistic.Engine) | $($task_statistic.Game) | $($task_statistic.Tests) | $($task_statistic.Total) | $($task_statistic.Files) | [源码]($task_example_link) |")
+            $task_lines.Add("| ``$($task_definition.Id)`` | $task_kind | $task_name | $($task_statistic.Engine) | $($task_statistic.Game) | $($task_statistic.Tests) | $($task_statistic.Total) | $($task_statistic.Files) | [$task_source_label]($task_example_link) |")
         }
     }
 
     $task_unused = @($Statistics | Where-Object { $_.Definition.CommonUnused -and $_.Total -eq 0 } | Sort-Object { $_.Definition.Standard }, { $_.Definition.Id })
     if ($task_unused.Count -gt 0) {
         $task_lines.Add('')
-        $task_lines.Add('### 常见但当前未检出')
+        $task_lines.Add($(if ($task_english) { '### Common Features Not Currently Detected' } else { '### 常见但当前未检出' }))
         $task_lines.Add('')
-        $task_lines.Add('| 标准 | ID | 分类 | 特性 |')
+        $task_lines.Add($(if ($task_english) { '| Standard | ID | Category | Feature |' } else { '| 标准 | ID | 分类 | 特性 |' }))
         $task_lines.Add('| --- | --- | --- | --- |')
         foreach ($task_statistic in $task_unused) {
             $task_definition = $task_statistic.Definition
-            $task_kind = if ($task_definition.Kind -eq 'Language') { '语言' } else { '标准库' }
-            $task_lines.Add("| $($task_definition.Standard) | ``$($task_definition.Id)`` | $task_kind | $($task_definition.Name) |")
+            $task_kind = if ($task_definition.Kind -eq 'Language') { $task_language_kind } else { $task_library_kind }
+            $task_name = if ($task_english) { $task_definition.EnglishName } else { $task_definition.Name }
+            $task_lines.Add("| $($task_definition.Standard) | ``$($task_definition.Id)`` | $task_kind | $task_name |")
         }
     }
 
@@ -545,7 +561,32 @@ constexpr auto order = left <=> right;
         throw 'Self-test failed to detect an unclassified std:: symbol.'
     }
 
-    Write-Output 'Self-test passed: filtering, feature detection, and symbol classification are working.'
+    # Localization must change labels only; every feature keeps its stable ID
+    # and the same numerical row under both rendering templates.
+    foreach ($task_definition in $script:Features) {
+        if ([string]::IsNullOrWhiteSpace($task_definition.EnglishName) -or $task_definition.EnglishName -match '[\u4e00-\u9fff]') {
+            throw "Missing English name for '$($task_definition.Id)'."
+        }
+    }
+    $task_fixture_source = [pscustomobject]@{ Code = $task_code; Path = 'fixture.cpp'; Scope = 'tests' }
+    $task_fixture_statistics = Get-FeatureStatistics -Sources @($task_fixture_source)
+    $task_original_language = $Language
+    try {
+        $script:Language = 'zh-CN'
+        $task_chinese_block = New-GeneratedMarkdown -Sources @($task_fixture_source) -Statistics $task_fixture_statistics
+        $script:Language = 'en'
+        $task_english_block = New-GeneratedMarkdown -Sources @($task_fixture_source) -Statistics $task_fixture_statistics
+        $task_pattern = '(?m)^\| `cpp[^\r\n]+?\| (\d+) \| (\d+) \| (\d+) \| (\d+) \| (\d+) \|'
+        $task_chinese_counts = @([regex]::Matches($task_chinese_block, $task_pattern) | ForEach-Object { $_.Groups[0].Value -replace '^(.+?\|).+?\|.+?\|', '$1' })
+        $task_english_counts = @([regex]::Matches($task_english_block, $task_pattern) | ForEach-Object { $_.Groups[0].Value -replace '^(.+?\|).+?\|.+?\|', '$1' })
+        if ($task_chinese_counts.Count -eq 0 -or ($task_chinese_counts -join "`n") -cne ($task_english_counts -join "`n")) {
+            throw 'Self-test failed: bilingual feature IDs or counts differ.'
+        }
+        if ($task_english_block -match '[\u4e00-\u9fff]') { throw 'Self-test failed: Chinese text in English generated block.' }
+    } finally {
+        $script:Language = $task_original_language
+    }
+    Write-Output 'Self-test passed: filtering, feature detection, symbol classification, and bilingual templates are working.'
 }
 
 if ($SelfTest) {
@@ -563,7 +604,8 @@ if ($Feature) {
     if ($null -eq $task_definition) {
         throw "Unknown feature id '$Feature'. Valid ids: $(($script:Features.Id | Sort-Object) -join ', ')"
     }
-    Write-Output "$($task_definition.Id) - $($task_definition.Standard) - $($task_definition.Name)"
+    $task_name = if ($Language -eq 'en') { $task_definition.EnglishName } else { $task_definition.Name }
+    Write-Output "$($task_definition.Id) - $($task_definition.Standard) - $task_name"
     Write-FeatureMatches -Definition $task_definition -Sources $task_sources
     exit 0
 }
@@ -578,7 +620,7 @@ if ($Check) {
     $task_document = [System.IO.File]::ReadAllText($script:DocumentPath)
     $task_existing = Get-DocumentGeneratedBlock -Document $task_document
     if ($task_existing -cne $task_generated) {
-        throw "Generated C++ feature statistics are stale. Run '$($MyInvocation.MyCommand.Path) -Update'."
+        throw "Generated C++ feature statistics are stale. Run '$($MyInvocation.MyCommand.Path) -Language $Language -Update'."
     }
     Write-Output 'C++ feature statistics are current.'
     exit 0

@@ -43,6 +43,7 @@ This repository contains both the reusable engine implementation and a sample ap
 | --- | --- |
 | Set up the environment, build, run, and troubleshoot | [Build, Run, and Test](docs/en/user-guide/build-and-run.md) |
 | Find guidance on using the engine and its public interfaces | [User Guide](docs/en/user-guide/README.md) |
+| Look up complete API contracts and configuration formats | [Interface and Format Reference](docs/en/reference/README.md) |
 | Understand subsystem boundaries and runtime behavior | [Architecture and Module Design](docs/en/architecture/README.md) |
 | Contribute and learn about coding conventions, testing, and documentation maintenance | [Development and Contribution Guide](docs/en/contributing/README.md) |
 | Explore planned capabilities, technical discussions, and migration designs | [Design and Roadmap](docs/en/design/README.md) |

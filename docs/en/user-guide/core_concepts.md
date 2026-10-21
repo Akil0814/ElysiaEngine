@@ -1,96 +1,97 @@
 # Essential Game Development Concepts
 
-This document introduces the fundamental concepts you should understand before developing games with **Elysia Engine**: scenes and objects, ownership and lifetimes, update mechanisms, object states, coordinate systems, and a complete example of implementing an in-game item.
+This document introduces the concepts needed before developing with Elysia Engine: scenes and objects, ownership and lifetime, updates, `object` states, and coordinates. A health `potion` example connects them at the end; it illustrates responsibilities and steps, not a complete runnable game.
 
-> **Reading note:** This document focuses on the behavioral contracts that game-layer code should follow, rather than every detail of the engine's internal implementation.
+> **Reading note**: this document focuses on game-layer behavior contracts rather than every engine implementation detail.
 
-## 1. Core Source Files to Read First
+## 1. Core Code to Read First
 
-| File | Purpose |
+| File | Role |
 | --- | --- |
-| `scene_object.h` | Common base class and basic states for scene objects |
-| `game_object.h` | Base implementation for objects in the game world |
-| `render_command.h` | Data structures for rendering commands |
+| [scene.h](../../../engine/scene/scene.h) | `Scene` extension points and `object` ownership |
+| [scene_object.h](../../../engine/core/scene_object.h) | Common scene `object` base and basic states |
+| [game_object.h](../../../engine/core/game_object.h) | Base implementation for world objects |
+| [render_command.h](../../../engine/core/render/render_command.h) | Drawing command data structures |
 
 ## 2. Responsibilities of Scenes, Game Objects, and UI
 
-The core relationships can be simplified as follows:
+The core relationship can be simplified to:
 
 ```text
-Scene (organizes runtime content and owns objects)
-└── SceneObject (common object base class)
-    ├── GameObject (game-world object)
+Scene (organizes runtime content, owns objects)
+└── SceneObject (common object base)
+    ├── GameObject (world object)
     └── UiElement (UI element)
 ```
 
-This diagram **combines organizational and inheritance relationships**: `Scene` owns objects but does not inherit from `SceneObject`; `GameObject` and `UiElement` both inherit from `SceneObject`.
+This is a **combined organization and inheritance diagram**: `Scene` owns objects and does not inherit `SceneObject`; `GameObject` and `UiElement` do inherit it.
 
-### 2.1 SceneObject: Common Base Class
+### 2.1 SceneObject: Common Base
 
-`SceneObject` provides basic states, such as active, visible, and destroyed, as well as reset and pause-related interfaces. Rendering-command submission is provided separately by `GameObject` and `UiElement`:
+`SceneObject` provides basic active, visible, and destroyed states plus reset/pause-related interfaces. `GameObject` and `UiElement` separately provide drawing command submission. Only method names are shown below; parameters and declarations are omitted:
 
 ```cpp
-// GameObject: submit rendering commands for world objects.
+// GameObject: submit world drawing commands.
 submit_render_commands(...);
-// UiElement: submit UI rendering commands.
+// UiElement: submit UI drawing commands.
 submit_ui_render_commands(...);
 ```
 
-Objects that need to be drawn assemble their own rendering commands, which the scene system then collects and executes together. **Submitting commands does not draw anything immediately.** An object is not required to submit any rendering commands at all.
+Drawable objects assemble their own commands; the scene collects and executes them together. **Submitting commands does not draw immediately**, and an `object` need not submit any drawing content.
 
-Inheriting from `SceneObject` does not automatically provide per-frame updates, input handling, or physics collisions. These capabilities must be explicitly implemented and integrated according to the rules of the relevant systems.
+Inheriting `SceneObject` does not automatically enable frame updates, input, or physics collision. Explicitly implement and integrate those capabilities under each system's rules.
 
-### 2.2 Scene: Organizer of Runtime Content
+### 2.2 Scene: Runtime Content Organizer
 
-`Scene` organizes an independent segment of runtime content, for example:
+`Scene` organizes an independent part of runtime content, for example:
 
-```cpp
+```text
 MainMenuScene
 SpecialEventsScene
 BattleScene
 ```
 
-It owns scene objects, coordinates input, updates, rendering-command collection, and object cleanup, and manages scene entry, exit, and reset procedures. A scene should focus on **organizing objects and coordinating the overall flow**; it does not need to implement every object's specific behavior.
+It owns scene objects, coordinates input, updates, drawing command collection, and cleanup, and manages entry, exit, and reset. Scenes should handle **`object` organization and overall flow** without implementing every `object`'s behavior.
 
-For example, a `BattleScene` might organize players, enemies, items, backgrounds, and combat UI. Player movement should be handled by the player or controller-related logic, and item pickup by the item or interaction system, rather than putting every behavior into `BattleScene`.
+For example, `BattleScene` can organize the player, enemies, items, background, and battle UI. Player/control logic should handle movement; item/interaction systems should handle pickup. Do not put every behavior into `BattleScene`.
 
-Each scene has its own collection of objects. From an ownership perspective, it can be understood conceptually as:
+Each scene owns an independent `object` collection. Conceptually, ownership looks like:
 
 ```cpp
 std::vector<std::unique_ptr<elysia::core::SceneObject>> objects;
 ```
 
-**This is only a conceptual example; it does not mean the scene internally uses `std::vector`.**
+This ownership sketch omits separate world-`object` and UI-root storage and does not represent actual container layout. Scenes accept only objects derived from `GameObject` or `UiElement`, not arbitrary `SceneObject` subclasses.
 
-### 2.3 GameObject: Game-World Object
+### 2.3 GameObject: World Objects
 
-`GameObject` represents characters, items, projectiles, decorations, and other objects in the game world. It provides basic capabilities such as a world-space rectangle, rendering layer, and ordering within that layer.
+`GameObject` represents actors, items, projectiles, or decorations in the world. It supplies world rectangles, drawing layers, and `order` within layers.
 
-However, inheriting from `GameObject` **does not automatically provide**:
+Inheriting `GameObject` **does not automatically provide**:
 
-- Movement or input handling;
-- Physics bodies, colliders, or pickup detection;
-- Per-frame or fixed-step updates.
+- Movement or input response;
+- Rigid bodies, colliders, or pickup detection;
+- Frame or fixed-step updates.
 
-These capabilities must be implemented as needed and integrated with the corresponding update mechanism or subsystem. A static decoration and a player character may both be `GameObject`s without needing the same behaviors.
+Implement these as needed and integrate their update paths or subsystems. Static decorations and players may both be `GameObject` without sharing behavior.
 
-### 2.4 Rendering Layers and Draw Order
+### 2.4 Drawing Layers and Occlusion Order
 
-When creating a `GameObject`, you must specify a `DepthLayer` in its constructor. You may also specify an ordering value within the layer, `order_in_layer` (default: `0`). Together, these determine the draw order of world objects.
+Constructing a `GameObject` requires a `DepthLayer`; optional `order` sets `order` within that layer (default `0`, queried with `order_in_layer()`). These determine world drawing `order`.
 
-The current layers are drawn from back to front in this order:
+Current layers draw back to front as follows:
 
 ```text
 Background → Terrain → EffectBack → Item → Character → EffectFront → Foreground
 ```
 
-Content drawn later generally appears over content drawn earlier, although actual occlusion also depends on transparency and other rendering settings. `Count` is only an enum marker indicating the number of layers; it is not a usable rendering layer.
+Later content generally appears over earlier content, subject to opacity and other drawing settings. `Count` is an enum layer-count marker, not a usable layer.
 
-Layer names express an object's intended rendering role. For example, backgrounds use `Background`, items use `Item`, and effects in front of characters use `EffectFront`. Layers do not automatically grant behavior: selecting `Character` does not give an object character capabilities, and selecting `Terrain` does not automatically create collisions.
+Names express drawing purpose: backgrounds use `Background`, items use `Item`, effects in front of actors use `EffectFront`. They grant no behavior: `Character` grants no actor capabilities, and `Terrain` creates no collisions.
 
-**Compare the layer first, then the order within that layer.** Within the same layer, a larger `order_in_layer` is drawn later. This value cannot override the layer ordering. Even an `Item` object with a very large order value cannot be moved in front of objects in the `Character` layer: `Character` is still drawn after `Item`.
+**Compare layer first, then `order` within it.** Larger `order_in_layer()` draws later within one layer, without crossing layers. Even an `Item` with a large `order` is drawn before `Character`.
 
-For example, a potion can select the item layer in its constructor:
+For example, a `potion` can select its item layer in its constructor:
 
 ```cpp
 HealthPotion()
@@ -99,163 +100,168 @@ HealthPotion()
 }
 ```
 
-UI uses a separate ordering system. The current scene draws world objects first and UI afterward. Raising a `GameObject`'s layer or order within its layer cannot make it draw over the UI.
+UI has independent ordering. Scenes currently draw world objects before UI; raising a `GameObject` layer/`order` cannot place it over UI.
 
-### 2.5 UiElement: User Interface Element
+### 2.5 UiElement: Interface Elements
 
-`UiElement` represents UI elements such as buttons, health bars, and inventory panels. It can be added directly to a scene or placed inside a UI container. A child added to a container is owned by that container and follows the container's layout, interaction, and cleanup procedures.
+`UiElement` represents buttons, HUD health bars, inventory panels, and other interface elements. Add it directly to a scene or a UI container. Containers own their children and manage layout, interaction, and cleanup. See [world-space Gameplay UI](gameplay/world-ui.md) for names/health bars above actors that move with the world camera.
 
-`UiElement` and `GameObject` both inherit from `SceneObject`, but **sharing a base class does not mean sharing a coordinate system or update mechanism**:
+`UiElement` and `GameObject` both inherit `SceneObject`, but **a shared base does not imply shared coordinates or updates**:
 
 | Property | `GameObject` | `UiElement` |
 | --- | --- | --- |
-| Purpose | Characters, enemies, items, etc. in the world | Buttons, health bars, inventories, etc. |
+| Purpose | World actors, enemies, items | Buttons, health bars, inventory |
 | Coordinates | World coordinates | UI coordinates and container layout |
-| Camera | Drawn through the appropriate world-camera projection | Does not follow the regular world-camera projection |
+| Camera | Drawing uses the corresponding world camera projection | Does not follow ordinary world camera projection |
 
-For example, a `HealthPotion` dropped on the map is a `GameObject`, while the potion icon displayed in an inventory belongs to the UI. Inventory **data** should preferably be maintained by independent game logic, with the UI responsible for displaying it. Do not use a pointer to a world item that is about to be destroyed as the inventory data itself.
+A dropped `HealthPotion` is a `GameObject`; its inventory icon is UI. Independent game logic should maintain inventory **data**, with UI displaying it. Do not use a soon-to-be-destroyed world item pointer as inventory data.
 
-## 3. Object Creation, Ownership, and Responsibility
+## 3. Object Creation, Membership, and Ownership
 
-All objects **successfully added to a scene are owned by that scene**. If a UI child is added to a container, the corresponding container owns it instead. Do not let two owners manage the same object simultaneously.
+Objects **successfully added to a scene are owned by it**. UI children added to containers are owned by those containers. Never let two owners manage the same `object`.
 
-The scene provides object-creation and addition interfaces in the following forms:
+`Scene` creation/addition interfaces have these forms; template declarations and constraints are omitted, so these are not complete declarations to copy:
 
 ```cpp
 T* create_and_add_object(Args&&... args);
 T* add_object(std::unique_ptr<T> object);
 ```
 
-### 3.1 Let the Scene Create an Object
+### 3.1 Letting the Scene Create Objects
 
-Assuming `HealthPotion` provides a default constructor:
+Assume `HealthPotion` has a no-argument constructor:
 
 ```cpp
 HealthPotion* potion = scene.create_and_add_object<HealthPotion>();
 ```
 
-When using `create_and_add_object`, specify the object type. Supply the arguments needed to construct the object inside the parentheses; the interface perfectly forwards them to the constructor. The exact arguments depend on the class definition.
+Specify the `object` type for `create_and_add_object`; pass its constructor arguments in parentheses. The interface perfectly forwards them to the constructor. Required arguments depend on the class definition.
 
-### 3.2 Transfer Ownership of an Existing Object
+### 3.2 Transferring Ownership of Existing Objects
 
 ```cpp
 auto potion = std::make_unique<HealthPotion>();
 HealthPotion* raw = scene.add_object(std::move(potion));
 ```
 
-`std::move()` is used to transfer ownership of the `unique_ptr`. Once the object has been successfully added, it is managed by the scene; the original `unique_ptr` no longer owns it.
+`std::move()` transfers `unique_ptr` ownership. After successful insertion, the scene manages the `object`; the original `unique_ptr` no longer owns it.
 
-### 3.3 A Returned Raw Pointer Does Not Convey Ownership
+Creation or registration failure may return null or throw. Check the result; do not assume failure returns ownership to the original pointer. Synchronous insertion is allowed only in phases permitting collection mutation; see the [scene phase table](scene/scene.md#common-operations-and-extension-points).
 
-Both interfaces return a `T*`, but this is only a way to access the object. It is not responsible for releasing it:
+### 3.3 Returned Raw Pointers Do Not Own Objects
+
+Both interfaces return `T*` for access only; it is not responsible for release:
 
 ```cpp
 HealthPotion* potion = scene.create_and_add_object<HealthPotion>();
 
-// Wrong: the scene already owns this object.
+// Incorrect: the scene already owns the object.
 // delete potion;
 
-// Wrong: do not create a second owner for the same object.
+// Incorrect: never create a second owner for the same object.
 // std::unique_ptr<HealthPotion> another_owner(potion);
 ```
 
-**The scene manages the object's lifetime; the returned raw pointer only provides access.**
+**Scenes manage `object` lifetime; returned raw pointers provide access only.**
 
 ## 4. Object Lifetime and Destruction
 
-### 4.1 `destroy()` Only Marks an Object for Destruction
+### 4.1 `destroy()` Only Marks Destruction
 
-Calling `destroy()` on any `SceneObject` only marks it for destruction. It does not immediately free its memory at the call site:
+For every `SceneObject`, `destroy()` marks destruction without immediately freeing memory:
 
 ```cpp
 potion->destroy();
 ```
 
-Objects owned directly by a scene are removed and freed at cleanup after `on_after_update`, `on_exit`, or `on_reset`. Child nodes in UI containers are cleaned up by their respective containers.
+Direct scene-owned objects are removed and released at cleanup after updates (`on_after_update`), exit callbacks, or reset callbacks. UI containers clean up their own children.
 
-An object marked in `on_exit()` is retired during that exit, without waiting for another update or entry. Unmarked objects may remain in a cached scene for Reuse. Reset calls the scene's `on_reset()` hook; it does not automatically clear or reset all gameplay objects.
+`Scene` objects marked in `on_exit()` are reclaimed within that exit, without waiting for reentry. Unmarked objects can remain in cached scenes for `Reuse`. `Reset` calls scene `on_reset()` without automatically clearing/resetting every game `object`.
 
-Once an object is marked, treat it as about to leave service. Do not rely on the fact that it temporarily remains in memory to schedule new gameplay operations on it.
+Treat a marked `object` as leaving use; do not schedule new operations merely because it temporarily remains in memory.
 
 ### 4.2 Raw Pointers Do Not Automatically Become Null
 
 ```cpp
 HealthPotion* potion = scene.create_and_add_object<HealthPotion>();
-potion->destroy();
+if (potion)
+    potion->destroy();
 
-// The object is freed when scene cleanup subsequently runs.
-// potion does not automatically become nullptr after the object is freed.
+// Release at subsequent scene cleanup.
+// After release, potion does not automatically become nullptr.
 ```
 
-After the object is actually released, the saved `potion` pointer may become a **dangling pointer**. Checking for a non-null value does not prove that the object is still valid:
+After actual release, saved `potion` may become a **dangling pointer**. Non-null does not prove validity:
 
 ```cpp
-if (potion != nullptr) {
-    // This does not establish that the object is still alive.
+if (potion != nullptr)
+{
+    // This does not prove the object is still alive.
 }
 ```
 
-Even the following cannot detect an object that has already been freed:
+Even this cannot detect an already freed `object`:
 
 ```cpp
-if (potion && !potion->is_destroyed()) {
-    // Calling is_destroyed() itself requires potion to point to a valid object.
+if (potion && !potion->is_destroyed())
+{
+    // Calling is_destroyed() itself requires a valid potion.
 }
 ```
 
-Distinguish between these cases:
+Distinguish:
 
-| State | Meaning |
+| Situation | Meaning |
 | --- | --- |
-| `nullptr` | The pointer is null |
-| Valid pointer | Points to an object that is still alive |
-| Marked for destruction | The object may not have been freed yet, but destruction has been requested |
-| Dangling pointer | The object has been freed, but the old pointer may still be non-null |
+| `nullptr` | Null pointer |
+| Valid pointer | Refers to a live `object` |
+| Marked destroyed | Object may not yet be freed, but is in destruction flow |
+| Dangling pointer | Object was freed; the old pointer may remain non-null |
 
 ### 4.3 Deferred Cleanup Timeline
 
 ```text
 Call potion->destroy()
         ↓
-Object is marked for destruction (no immediate delete at the call site)
+Object marked for destruction (no immediate delete at the call)
         ↓
-The scene's cleanup point actually runs
+A scene cleanup point actually executes
         ↓
-End of scene update: remove and free objects marked for destruction
+Scene removes and releases marked objects after update or exit/reset callbacks
         ↓
-External pointers to potion may now be dangling
+Externally retained potion pointers may dangle
 ```
 
-Do not interpret deferred cleanup as an absolute guarantee that an object will remain alive until the next update.
+Deferred cleanup is not an absolute guarantee of survival until the next update.
 
-### 4.4 References Across Frames and Callbacks
+### 4.4 References and Callbacks Across Frames
 
-Keeping non-owning pointers such as `Player*`, `Enemy*`, or `HealthPotion*` is not inherently wrong, but you must establish:
+Keeping non-owning `Player*`, `Enemy*`, or `HealthPotion*` is not inherently wrong, but establish:
 
-- When might the referenced object be destroyed?
-- Could the current object or callback outlive the referenced object?
-- Will the reference still be valid after a scene switch or reset?
-- Who is responsible for clearing the reference at the appropriate time?
+- When can the referenced `object` be destroyed?
+- Can this `object` or callback outlive it?
+- Is the reference valid after scene switching/reset?
+- Who clears it at the appropriate time?
 
-In particular, do not let a longer-lived event callback capture a pointer to an object that has already been freed. Until a dedicated safe-reference mechanism exists, game developers must maintain the validity of cross-frame references themselves.
+In particular, never let a longer-lived event callback capture an already freed `object` pointer. Without a dedicated safe reference mechanism, developers must maintain cross-frame reference validity themselves.
 
-`std::unique_ptr` solves the **ownership** problem. It does not automatically invalidate other raw pointers or set them to `nullptr`.
+`std::unique_ptr` solves **ownership**; it does not invalidate other raw pointers or turn them into `nullptr`.
 
-## 5. Scene Caching, Entry, and Re-entry
+## 5. Scene Caching, Entry, and Reentry
 
-Scenes may be cached. Leaving a scene does not necessarily destroy its instance, and entering it again does not necessarily reconstruct all its objects. You must therefore distinguish between preserving state, resetting state, and recreating an instance.
+Scenes may be cached. Exit does not imply destruction, and reentry does not necessarily reconstruct objects. Distinguish retaining state, resetting state, and rebuilding an instance.
 
-Relevant lifecycle interfaces:
+Game scenes must implement three extension points. These simplified signatures use `ScenePayload` from `elysia::scene`:
 
 ```cpp
 on_enter(const ScenePayload& payload);
 on_exit();
-reset();
+on_reset();
 ```
 
-`on_enter()` and `on_exit()` correspond to entering and leaving a scene, respectively. `reset()` executes the reset logic that has been implemented; **it does not mean calling the constructor again**.
+`on_enter()` and `on_exit()` handle entry/exit. For `Reset` routes, the engine resets framework state before `on_reset()` restores game state. Games do not directly call these lifecycle functions. Object `reset()` is separate; scenes do not automatically call it for every game `object`.
 
-Scene re-entry modes are defined as follows:
+`Scene` reentry modes are:
 
 ```cpp
 enum class SceneReloadMode
@@ -266,156 +272,162 @@ enum class SceneReloadMode
 };
 ```
 
-Their intended meanings are:
+Their design intent is:
 
 | Mode | Meaning |
 | --- | --- |
-| `Reuse` | Reuse an existing scene |
-| `Reset` | Run the reset procedure on an existing scene |
+| `Reuse` | `Reuse` an existing scene |
+| `Reset` | Run reset on an existing scene |
 | `Recreate` | Create a new scene instance |
 
-When re-entering a scene, do not assume the item count has returned to zero, enemies have been cleared, event bindings have been removed, or old pointers remain valid. Check the scene's actual exit and reset logic before deciding which data to preserve or clear.
+On reentry, do not assume item counts reset, enemies clear, event bindings detach, or old pointers stay valid. Inspect exit/reset logic before deciding what to retain or clear.
 
-For example, returning to a level from a pause menu might require preserving state, while restarting a level might require respawning enemies, resetting the player's position, and clearing the current run's dropped items. These are different operations.
+Returning from pause may preserve level state; restarting may respawn enemies, reset player position, and clear dropped items. Keep these intentions distinct.
 
-## 6. When Does Game Code Run?
+## 6. When Code Runs
 
-Use the following **conceptual flow** to understand a normal frame:
+Start with this **conceptual flow** for a normal frame:
 
 ```text
-Input processing
+Input handling
    ↓
 Scene update
-  ├─ Regular updates
-  ├─ Fixed-step updates as needed based on accumulated time
-  ├─ Other engine-defined procedures
-  └─ End of update: clean up objects marked for destruction
+  ├─ Ordinary update
+  ├─ Fixed steps as needed from accumulated time
+  ├─ Other engine-defined phases
+  └─ End of update: clean up marked objects
    ↓
 Rendering
 ```
 
-This is only a conceptual overview, not a complete account of the engine's internal call order.
+This is conceptual, not the complete internal call `order`.
 
-### 6.1 Regular Updates: `update`
+### 6.1 Ordinary Update: update
 
-A regular game object must implement `Updatable` and be added to a scene to be registered with the corresponding per-frame update process. Merely inheriting from `GameObject` or writing a method with the same name does not cause the engine to call it automatically. Whether it runs during the current frame also depends on the object's state and the pause rules.
+Ordinary game objects must implement `Updatable` and join the scene to register for frame updates. Inheriting `GameObject` or writing a same-named method alone does not cause invocation. Execution also depends on `object` state and pause rules.
 
-In regular updates, `delta` is the elapsed time in seconds. If an object should move at 100 world units per second, adding a fixed distance each frame creates frame-rate-dependent movement:
+`delta` is elapsed time in seconds. At a speed of 100 world units per second, hardcoding movement per frame creates frame-rate dependence:
 
 ```cpp
-// Wrong approach: moving a fixed distance per frame makes speed depend on frame rate.
+// Incorrect: fixed distance per frame makes speed frame-rate dependent.
 position.x += 100.0f;
 
-// Basic time-based approach: advance according to elapsed time.
+// Basic time calculation: advance by elapsed time.
 position.x += 100.0f * delta;
 ```
 
-This only illustrates time-based calculations. If an object is driven by the physics system, follow that module's rules for changing its state instead of modifying its position arbitrarily.
+This illustrates time calculation only. Physics-driven objects must follow physics state mutation rules instead of arbitrarily rewriting position.
 
-`update` is usually suitable for general gameplay behavior, ordinary timers, ability cooldowns, animation states not driven by physics, and presentation logic advanced according to frame intervals. For example:
+update generally suits ordinary game behavior, timers, cooldowns, non-physics animation state, and presentation logic advanced each frame. For example:
 
 ```cpp
-// Member variable: double cooldown = 0.0; // Remaining cooldown in seconds.
-// Update inside update(double delta):
-cooldown = std::max(0.0, cooldown - delta);
+// Private member: double _cooldown = 0.0; // Remaining cooldown in seconds.
+// Advance in update(double delta):
+_cooldown = std::max(0.0, _cooldown - delta);
 ```
 
-In actual use, check how `delta` relates to game time, pausing, and time scaling.
+Verify the game-time, pause, and time-scale rules governing `delta`.
 
-### 6.2 Fixed Updates: `fixed_update`
+### 6.2 Fixed-Update Extension Points
 
-Fixed updates use a fixed simulation time step. They do not correspond one-to-one with rendered frames: a rendered frame may execute zero, one, or multiple fixed updates.
+Fixed updates use a fixed simulation time step, without one-to-one correspondence with rendered frames: a frame may contain zero, one, or multiple fixed updates.
 
-Fixed updates are usually appropriate for:
+Typical uses:
 
 - Physics simulation;
-- Behavior closely coupled to fixed-step physics state;
-- Gameplay rules requiring a stable simulation step or a particular update order.
+- Behavior tightly coupled to fixed-step physics state;
+- Rules requiring stable simulation steps or specific execution `order`.
 
-Do not advance the same physics state separately in both `update` and `fixed_update`, as that can cause duplicate movement or inconsistent state. Physics-driven objects should follow the update conventions of their physics system.
+An ordinary `Scene` with fixed stepping enabled uses `on_fixed_update(tick, delta)`; `GameplayScene` uses `on_game_fixed_update(tick, delta)`; a `PhysicsStepParticipant` registered with the physics world uses `fixed_update(double)`. Merely adding a same-named method to an ordinary `object` does not register it. See [physics guide](systems/physics.md).
 
-A simplified guide:
+Do not advance the same physics state in both frame and fixed updates; this causes double movement or desynchronization.
 
-| Requirement | Usually use |
+Simplified choices:
+
+| Need | Typical choice |
 | --- | --- |
-| Ordinary timers and typical ability cooldowns | `update` |
-| General presentation state not driven by physics | `update` |
-| Physics simulation | The corresponding fixed-step physics system |
-| Gameplay rules synchronized with physics simulation | `fixed_update` or the stage prescribed by the physics module |
+| Ordinary timers and cooldowns | update |
+| Non-physics presentation state | update |
+| Physics simulation | Corresponding fixed-step physics system |
+| Rules synchronized with physics | `Scene` fixed-step hook or `PhysicsStepParticipant::fixed_update` |
 
 ### 6.3 Rendering Only Presents State
 
-`GameObject::submit_render_commands(...)` and `UiElement::submit_ui_render_commands(...)` assemble rendering commands. They should not also grant rewards, deduct health, consume input, advance timers, or modify state that affects gameplay rules. Otherwise, gameplay behavior would depend on whether rendering occurs and on the rendering frame rate.
+World `submit_render_commands(...)` and UI `submit_ui_render_commands(...)` assemble drawing commands. They must not grant rewards, deduct health, consume input, advance timers, or modify game-rule state as side effects. Otherwise game logic depends on whether rendering runs and its frame rate.
 
 Basic principle:
 
 ```text
-Update phase: compute and modify game state
-Render phase: submit rendering commands based on the current state
+Update: calculate and modify game state
+Render: submit drawing commands from current state
 ```
 
-## 7. Object States and Pausing: Common Points of Confusion
+## 7. Commonly Confused Object States and Pause
 
-### 7.1 `_visible`: Visibility
+### 7.1 Visibility
 
-`_visible` controls the corresponding rendering process. It does not mean updates, collisions, timers, or input stop. Hiding an item does not automatically pick it up or destroy it.
+Set with `set_visible()`, query with `is_visible()`. Visibility controls drawing, not updates, collision, timers, or input. Hiding an item neither picks it up nor destroys it.
 
-### 7.2 `_active`: Active State
+### 7.2 Activity
 
-`_active` is used to filter the corresponding update and input processes; it does not mean the object is invisible. For an ordinary `GameObject`, scene rendering checks states such as visibility and destruction rather than using the active state directly as the rendering switch.
+Set with `set_active()`, query with `is_active()`. Activity filters relevant updates/input, not visibility. For ordinary `GameObject`, drawing checks visibility/destruction and does not use activity directly as its drawing switch.
 
-### 7.3 `_destroyed`: Destruction State
+### 7.3 Destruction State
 
-`_destroyed` indicates that an object is being prepared for removal. It differs from temporarily hiding or disabling it. An object that only needs to be invisible temporarily does not necessarily need destruction; a one-time item can enter the destruction process after being picked up.
+Mark with `destroy()`, query with `is_destroyed()`. This means an `object` is leaving use, distinct from temporary hiding/deactivation. Temporary invisibility need not require destruction; a consumed one-use item can enter destruction flow.
 
-### 7.4 Paused State
+### 7.4 Pause State
 
-While paused, the scene skips objects that are not permitted to update during a pause and stops that scene's physics simulation. Objects allowed to run while paused may continue. Input processing also has separate pause rules.
+Paused scenes skip objects not allowed to update during pause and stop scene physics. Objects permitted during pause still run. Input has separate pause rules.
 
-A pause menu may still need to handle button input and play UI animations. **Do not assume pausing a scene means the entire application has stopped.**
+`Scene` `on_before_update()` and `on_after_update()` still run. Explicitly check `is_paused()` when advancing business logic that should stop during pause in these hooks. Global time also continues.
+
+Pause menus still need button input and UI animation. **`Scene` pause does not imply the entire application is motionless.**
 
 ## 8. World Coordinates, UI Coordinates, and Render Positions
 
-### 8.1 Do Not Mix Coordinate Spaces Directly
+### 8.1 Do Not Mix Coordinate Spaces
 
-World coordinates describe the positions of characters, enemies, and items in the game world. Window coordinates must be distinguished from logical rendering coordinates: they do not necessarily correspond one-to-one after window scaling or logical presentation mapping. The engine's input system converts mouse window coordinates to logical rendering coordinates. `Camera::world_to_screen()` returns logical rendering coordinates in the camera viewport, which cannot be treated directly as actual window pixels. UI positions can also be affected by their parent containers' local coordinates and layout.
+World coordinates describe actors, enemies, and items. Distinguish window coordinates from logical render coordinates: window scaling or logical mapping can break one-to-one correspondence. Engine input converts mouse window coordinates into logical render coordinates. `Camera::world_to_screen()` returns logical render coordinates within the viewport, not physical window pixels. UI positions may also depend on container-local coordinates and layout.
 
-For example, if the mouse position is in screen coordinates while a potion's rectangle is in world coordinates, you cannot compare them directly for pickup detection:
+For example, a screen-coordinate mouse position cannot be compared directly with a world-coordinate `potion` rectangle:
 
 ```cpp
-// If mouse_position is in screen coordinates and potion_rect is in world coordinates,
+// If mouse_position uses screen coordinates and potion_rect world coordinates,
 // they cannot be compared directly:
 // potion_rect.contains(mouse_position);
 ```
 
-First use the appropriate camera or coordinate-conversion mechanism to convert the data into **the same coordinate space**, then compare them.
+Convert through the relevant camera or coordinate mechanism into **the same space** before comparing.
 
-For example:
+Place this fragment in a scene member function with a camera enabled; `object` is a valid world `object`:
 
 ```cpp
-// Screen position corresponding to the object's logical center.
-auto screen_center = camera().world_to_screen(object.center());
+// Screen position corresponding to the logical center
+const elysia::core::Vector2 screen_center = camera().world_to_screen(object.center());
 
-// Screen-space area corresponding to the object's rendered rectangle.
-auto screen_rect = camera().world_to_screen(object.render_rect());
+// Screen region corresponding to the object's displayed rectangle
+const elysia::core::Rect screen_rect = camera().world_to_screen(object.render_rect());
 ```
 
-### 8.2 `world_rect()` vs. `render_rect()`
+### 8.2 `world_rect()` and `render_rect()`
 
-`world_rect()` represents an object's rectangle in world space. `render_rect()` may include a display offset produced by physics interpolation.
+`world_rect()` is the `object`'s world rectangle; `render_rect()` may include display offsets from physics interpolation.
 
-When the corresponding interpolation mechanism is operating normally, the engine calculates this display offset automatically. **You do not need to update it manually.**
+When the corresponding interpolation mechanism works, the engine computes display offsets automatically; **manual updates are unnecessary**.
 
-**Use logical state for gameplay rules and the appropriate presentation state for rendering.** Do not write an interpolated position intended for visual smoothing back into gameplay or physics state.
+**Game rules use logical state; drawing uses presentation state.** Never write interpolated display positions back to business or physics state.
 
-## 9. Complete Example: An In-Game Pickup, `HealthPotion`
+## 9. Conceptual Example: A Dropped `HealthPotion`
 
-Suppose the game needs the following behavior: the player sees a health potion on the map, meets the pickup conditions, restores health, and the potion disappears from the world. If the game has an inventory, the pickup could instead add the item to it.
+Suppose a player sees a health `potion`, meets pickup conditions, restores health, and removes the `potion` from the world. An inventory system could instead store the item.
 
-### Step 1: Define the Object
+These fragments omit headers, drawing resources, player types, and pickup detection, showing only responsibility divisions. See [game objects and rendering](scene/game-objects.md) for compilable `object` types.
+
+### Step One: Define the Object
 
 ```cpp
-class HealthPotion : public GameObject
+class HealthPotion : public elysia::core::GameObject
 {
 public:
     HealthPotion()
@@ -423,94 +435,94 @@ public:
     {
     }
 
-    // Implement rendering, pickup-related behavior, etc. as needed.
+    // Implement drawing and pickup behavior as needed.
 };
 ```
 
-It inherits from `GameObject` because it is an item in the game world. This does **not automatically create** a pickup collider, input interaction, or per-frame updates. Integrate these capabilities explicitly according to the chosen implementation. A stationary item that only waits for interaction might not need per-frame updates at all.
+It inherits `GameObject` because it is a world item. Pickup colliders, input interaction, and frame updates **do not appear automatically**; integrate the chosen capabilities explicitly. A stationary item awaiting interaction may need no frame update.
 
-### Step 2: Add the Object to a Scene
+### Step Two: Add It to the Scene
 
-Using the default constructor defined above:
+Using the no-argument constructor above:
 
 ```cpp
 HealthPotion* potion =
     scene.create_and_add_object<HealthPotion>();
 ```
 
-Use the current, official `GameObject` interfaces to configure its world rectangle, rendering settings, and so on. Once successfully added, the scene owns the object; the returned pointer is only an access point.
+After checking `potion` for null, set position/size with `set_world_rect()` and implement drawing below. The scene must explicitly enable a camera to display world objects. After insertion the scene owns it; the returned pointer is access only.
 
-### Step 3: Implement Rendering and Interaction as Needed
+### Step Three: Implement Drawing and Interaction as Needed
 
-The potion can submit the appropriate rendering commands. The game layer chooses how to detect pickups, such as using a trigger area, interaction system, or object query.
+The `potion` can submit its drawing commands. Game code chooses pickup detection, such as trigger regions, an interaction system, or `object` queries.
 
-If the item needs behaviors such as bobbing up and down or disappearing after a timer expires, implement and register the appropriate update capability as needed. There is no reason to enable per-frame updates unconditionally for every item.
+For floating motion or timed disappearance, implement/register the corresponding update capability as needed. Do not unconditionally enable frame updates for every item.
 
-### Step 4: Handle the Pickup
+### Step Four: Handle Pickup
 
 ```text
-Confirm that the player meets the pickup conditions
+Confirm pickup conditions
         ↓
 Restore health or update inventory data
         ↓
-Prevent the same potion from granting its effect more than once
+Prevent duplicate effects from the same potion
         ↓
-Mark the potion for destruction: potion->destroy()
+Mark destruction: potion->destroy()
 ```
 
-Pickup logic should prevent an object from being processed more than once. After applying its effect, mark the potion for destruction and leave cleanup to the scene.
+Pickup logic should prevent duplicate processing; after granting the effect, mark the `potion` for scene cleanup.
 
-### Step 5: Release the Object and Clean Up References
+### Step Five: Release and Reference Cleanup
 
-Follow the lifetime rules in Section 4. Check whether interaction targets, selected-object references, or deferred callbacks hold references to the potion, and clear associations that would become invalid before the object is freed.
+Following section 4's lifetime rules, check references in interaction targets, selection, and deferred callbacks, and detach invalid associations before release.
 
-### Step 6: Update the Inventory UI (If Applicable)
+### Step Six: Update Inventory UI (If Present)
 
-The following responsibilities should be kept separate:
+Separate these responsibilities:
 
 ```text
-HealthPotion     Item instance in the game world
-Inventory        Stores game data such as item types and quantities
-InventoryPanel   Displays the inventory
-InventorySlot    Displays an individual item
+HealthPotion     World item instance
+Inventory        Game data such as item types and counts
+InventoryPanel   Inventory display
+InventorySlot    Individual item display
 ```
 
-When the item is picked up, update the player's inventory data first, then mark the world potion for destruction. The UI reads the inventory data and updates its display. Do not use a world object's `HealthPotion*` directly as a long-lived inventory record; doing so can leave dangling pointers after scene cleanup.
+Update inventory data first, then mark the world `potion` destroyed; UI reads inventory data to refresh. Do not keep `HealthPotion*` as a long-term inventory record, which can dangle after scene cleanup.
 
-## 10. Quick Reference: Common Misconceptions
+## 10. Common Misconceptions
 
 | Misconception | Correct understanding |
 | --- | --- |
-| Inheriting from `GameObject` automatically enables updates | Implement and register the appropriate update capability |
-| Inheriting from `GameObject` automatically enables collisions | Configure and integrate the physics or interaction system |
-| `destroy()` immediately frees the object | It only marks the object; scene objects are freed at a cleanup point that subsequently runs |
-| A non-null raw pointer means the object is valid | It can remain non-null and become dangling after the object is freed |
-| Hiding an object stops all its behavior | `_visible` primarily controls the corresponding rendering process |
-| An inactive object must be invisible | `_active` and `_visible` are separate states |
-| Pausing stops the entire application | Some updates and UI input may continue |
-| Exactly one fixed update runs per frame | Zero, one, or multiple fixed updates may run |
-| Every timer must use fixed updates | Ordinary timers can generally accumulate `delta` |
-| Gameplay rules can be modified during rendering | Separate state updates from visual presentation |
-| Mouse coordinates can be compared directly to a world rectangle | First bring them into the same coordinate space |
-| `render_rect()` is the physical position | It may include an interpolation offset used only for display |
-| Leaving a scene always reinitializes it | A scene may be cached, reused, or reset |
+| Inheriting `GameObject` enables updates | Implement and register update capabilities |
+| Inheriting `GameObject` enables collision | Configure and integrate physics or interaction |
+| `destroy()` releases immediately | Marks only; release occurs at a subsequent executed cleanup point |
+| Non-null raw pointers are valid | Freed objects can leave non-null dangling pointers |
+| Hiding stops all behavior | Visibility mainly controls drawing |
+| Inactive means invisible | Activity and visibility are distinct |
+| Pause stops the entire program | Some updates and UI input can continue |
+| Each frame has exactly one fixed update | It can have zero, one, or multiple |
+| All timers need fixed updates | Ordinary timers can generally accumulate `delta` |
+| Rendering can also modify game rules | Separate state updates from presentation |
+| Mouse coordinates compare directly with world rectangles | Unify coordinate spaces |
+| `render_rect()` is the physics position | It may contain display-only interpolation offsets |
+| Leaving a scene reinitializes it | Scenes may be cached, reused, or reset |
 
-## 11. Checklist Before Development
+## 11. Before-Development Checklist
 
-Before adding an object or implementing a feature, confirm:
+Before adding objects or features, confirm:
 
-- Does the object belong to the game world or the UI?
+- Does the `object` belong to the world or UI?
 - Which `Scene` or UI container owns it?
-- Do its update, input, or physics capabilities need explicit integration?
-- Should its logic run during regular updates, fixed updates, or another system stage?
-- When is the object destroyed, and who actually cleans it up?
-- Are there raw pointers kept across frames or callbacks that may run after the object is gone?
+- Must update, input, or physics capabilities be explicitly integrated?
+- Should the logic run in ordinary update, fixed update, or another phase?
+- When is it destroyed, and who actually cleans it up?
+- Are there raw pointers across frames or callbacks that may run after the `object`?
 - Do all position comparisons use the same coordinate space?
 
 ## 12. Summary
 
-`Scene` organizes and owns objects, while `GameObject` and `UiElement` serve the game world and UI, respectively. Update, input, and physics capabilities must be explicitly integrated as needed; inheritance alone does not imply that they are available.
+`Scene` organizes and owns objects; `GameObject` and `UiElement` represent the world and UI respectively. Integrate update, input, and physics explicitly as needed rather than inferring them from inheritance.
 
-Scenes and UI containers manage the lifetimes of the objects they own. Developers must still maintain the validity of references kept across frames and callbacks.
+Scenes/containers manage owned lifetimes; users must still maintain cross-frame references and callback validity.
 
-Regular and fixed updates serve different timing models. Rendering should present state, not advance gameplay rules. World, screen, and UI coordinates must be distinguished, and logical positions must not be confused with interpolated display positions.
+Ordinary and fixed updates serve different time models. Rendering presents state rather than advancing rules. Distinguish world, screen, and UI coordinates as well as logical positions and interpolated display positions.

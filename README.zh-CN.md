@@ -42,6 +42,7 @@ Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引�
 | --- | --- |
 | 配置环境、构建运行与排查问题 | [构建、运行与测试](docs/zh-CN/user-guide/build-and-run.md) |
 | 查找使用引擎与公开接口的说明 | [使用指南](docs/zh-CN/user-guide/README.md) |
+| 查询完整公开契约与配置格式 | [接口与格式参考](docs/zh-CN/reference/README.md) |
 | 了解子系统边界与运行机制 | [架构与模块设计](docs/zh-CN/architecture/README.md) |
 | 参与开发，了解代码规范、测试与文档维护 | [开发与贡献指南](docs/zh-CN/contributing/README.md) |
 | 查看计划中的能力、技术讨论与迁移设计 | [设计与路线图](docs/zh-CN/design/README.md) |
