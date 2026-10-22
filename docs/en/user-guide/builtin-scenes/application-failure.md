@@ -4,6 +4,8 @@ This document explains when the built-in error interface can be displayed, how t
 
 `ApplicationFailure` displays diagnostics for startup resource failures or fatal runtime errors and provides exit flow. It is not general retry, save rollback, or gameplay recovery; recoverable business failures belong to game flows.
 
+For an error during startup, first use [startup failures and troubleshooting](../game-initialization.md#7-startup-failures-and-troubleshooting) to identify the stage, find logs, and check project configuration. This document focuses on integrating the failure scene and its capability boundaries.
+
 ## Requesting Error Display from a Scene
 
 This derived scene has no business state. Call `show_fatal_error()` only during normal input/update, after engine and built-in UI resources are available. Routes accept `FailureDiagnostic`; explicitly convert strings to diagnostics.
@@ -64,7 +66,7 @@ Do not recursively request switching in `on_enter()`, `on_exit()`, `on_reset()`,
 
 After game logic exceptions, the manager can clean up the faulted scene and enter another through a failure route. Recovery here means reaching a flow that can handle errors, not undoing damage, restoring saves, or resuming the original scene.
 
-Failed scene cleanup or recovery enters `Faulted` without recursively constructing more recovery scenes. A throwing `on_enter()` receives no compensating `on_exit()`; detach external subscriptions/callbacks through RAII or local rollback. See [scene system](../scene/scene.md#entry-exit-failure-and-shutdown-order).
+If cleanup of the faulted scene fails, or the recovery scene also fails, the manager enters `Faulted` without recursively constructing more recovery scenes. A throwing `on_enter()` receives no compensating `on_exit()`; detach external subscriptions/callbacks through RAII or local rollback. See [scene system](../scene/scene.md#entry-exit-failure-and-shutdown-order).
 
 ## Underlying Rendering Failures
 

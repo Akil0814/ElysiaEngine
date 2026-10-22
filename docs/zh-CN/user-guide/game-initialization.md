@@ -4,6 +4,8 @@
 
 程序入口把运行交给引擎，游戏模块提供配置并注册游戏场景，引擎负责初始化子系统和驱动场景。下面先介绍这一分工，再给出最小模块和启动加载路由示例。示例沿用仓库的 CMake 包含路径配置；模块代码可编译，但运行仍需要有效的项目配置与资源目录。
 
+如果程序已经能构建，但启动报错、加载失败或没有进入目标场景，可直接阅读[启动失败与排查](#7-启动失败与排查)。
+
 ## 1. 初始化流程
 
 引擎通过 `IGameModule` 获取应用描述并注册游戏场景。`ELYSIA_INITIALIZE_APP` 不只是保存描述：它还准备运行环境并启动初始场景。成功后，`ELYSIA_RUN_APP` 才开始持续处理输入、更新和绘制。资源中的只读游戏配置另由内容加载流程发布，见[配置指南](content/configuration.md)。
@@ -232,7 +234,122 @@ GameModule::create_development_overlay() const
 
 注册与注销面板的完整场景示例见[开发面板指南](tools/development-panels.md)。
 
-## 7. 完整参考实现
+## 7. 启动失败与排查
+
+排查时先保留本次启动的控制台输出、日志和错误提示，再判断失败发生在哪个阶段。下面列出接入项目时常见的问题；错误码表示失败类别，具体原因仍需结合其后的诊断条目判断。
+
+### 7.1 先判断启动停在哪里
+
+| 阶段 | 此时正在准备什么 | 优先查看的位置 |
+| --- | --- | --- |
+| 配置准备 | 游戏模块描述、项目根目录、注册表、应用与用户配置 | 控制台、启动弹窗、配置诊断 |
+| 平台初始化 | SDL、音频设备、字体库、窗口和 GPU 渲染器 | `platform`、`audio` 分类日志与启动提示 |
+| 基础资源与场景准备 | 开发覆盖层、内置资源、本地化、字体、预加载、场景注册 | `builtin`、`localization`、`typography`、`scene` 等分类日志 |
+| 项目内容加载 | 清单与加载计划、项目配置、纹理、动画、音频、字体 | `CONTENT-…` 诊断、启动加载失败界面 |
+| 进入目标场景 | 等待条件、成功路由、目标场景构造与进入 | 加载状态、路由配置、场景原始异常 |
+
+这些阶段用于阅读，不是源码中的统一状态枚举。若初始路由使用 `StartupLoading`，内容清单解析和请求组装会在它的 `on_enter()` 中启动，后续加载由主循环继续推进。因此，`ELYSIA_INITIALIZE_APP` 返回成功不代表项目内容已加载成功，也不保证此时显示的是游戏目标场景。
+
+加载成功后仍停在启动画面，先检查 `wait_for_confirmation` 和 `wait_for_logo_sequence`。按配置等待确认或 Logo 结束是正常流程，详见[启动加载场景](builtin-scenes/startup-loading.md)。
+
+### 7.2 按阶段排查常见错误
+
+下表中的英文文本是可搜索的错误码或日志片段，省略了动态路径、资源键和异常详情。“终止初始化”表示记录失败、尝试提示并清理，最终返回 `false`；“加载失败路由”和“场景错误边界”的行为见下一节。
+
+#### 配置准备
+
+| 错误码或日志关键词 | 常见原因 | 引擎处理 | 优先检查项 |
+| --- | --- | --- | --- |
+| `BOOTSTRAP-PROJECT-ROOT` | 从启动路径向上搜索时找不到项目标记 | 终止初始化 | 检查诊断列出的搜索路径与 `assets/.elysia_root`。应用优先传入可执行文件路径；相对路径还受工作目录影响，不要只调整 IDE 工作目录而忽略发布目录结构。 |
+| `BOOTSTRAP-ASSET-DIRECTORY`、`BOOTSTRAP-PATH-ACCESS` | 必需资源目录缺失，或无法访问路径 | 终止初始化 | 检查诊断中的实际路径及权限；`assets/` 下必须有 `audio/`、`textures/`、`fonts/`、`configs/`，目录完整不代表其中资源文件已齐全。 |
+| `BOOTSTRAP-RUNTIME-DIRECTORY`、`SAVE-INITIALIZE` | 运行数据目录创建或存档服务初始化失败 | 终止初始化 | 检查项目根目录下 `player_data/`、`player_data/saves/`、`logs/` 的权限，以及目标是否被同名文件占用；保留存档与诊断。 |
+| `BOOTSTRAP-CONTENT-REGISTRY`、`BOOTSTRAP-APP-CONFIG` | 注册表或应用配置缺失、JSON 无效、字段不符合格式 | 终止初始化 | 从 `assets/content_registry.json` 的 `bootstrap.app_config` 追到实际文件，按诊断的 JSON Pointer 检查字段。不要把后续项目内容清单与启动应用配置混为一处。 |
+| `BOOTSTRAP-USER-CONFIG` | 用户配置读取、恢复或写回遇到问题 | 可能恢复并警告，也可能终止初始化 | 查看日志级别及恢复条目，检查 `player_data/user_config.json` 和诊断列出的恢复副本；未来版本格式、访问失败和恢复写回失败不能按普通损坏自动忽略。 |
+| `Game module descriptor failed`、`Game module logical viewport must be positive`、`Application default UI theme is invalid` | `descriptor()` 抛异常、逻辑尺寸非正数或默认主题无效 | 终止初始化 | 检查模块描述和 `presentation` 配置；尺寸应大于零，主题须为受支持的值。 |
+
+配置关系见[配置指南](content/configuration.md)，注册表字段见[启动与注册表参考](../reference/resources/bootstrap-and-registry.md)。路径与配置错误码分别由 [PathManager](../../../engine/io/path/path_manager.cpp) 和 [BootstrapFailure](../../../engine/bootstrap/bootstrap_types.h) 的实现提供依据。
+
+#### 平台初始化
+
+| 错误码或日志关键词 | 常见原因 | 引擎处理 | 优先检查项 |
+| --- | --- | --- | --- |
+| `SDL3 Error`、`SDL_ttf Error` | SDL 子系统或字体库初始化失败 | 终止初始化 | 检查运行时依赖、系统环境及控制台信息；需要进一步定位时查看对应初始化调用，不能仅凭总提示推断具体设备原因。 |
+| `SDL_mixer Error`、`AudioService initialization failed` | 混音库、音频设备或轨道准备失败 | 终止初始化 | 检查系统播放设备、驱动和运行依赖。这发生在项目音频加载前，不应先更改音效资源键。 |
+| `SDL_CreateWindow Error`、`SDL GPU renderer creation failed`、`SDL VSync configuration failed` | 窗口、GPU 后端或呈现设置不可用 | 终止初始化，不自动退回软件渲染 | 检查显示环境、图形驱动、GPU 后端支持和用户窗口设置；设备要求见[构建指南](build-and-run.md#运行测试)。 |
+| `STARTUP-WINDOW` | 启动窗口设置无法完整应用 | 按结果警告继续或终止初始化 | 阅读具体窗口操作及底层原因，区分可回退的设置与必需操作失败；不要仅凭同一诊断码判断是否退出。 |
+
+这些提示来自 [Application 的启动流程](../../../engine/application/application.cpp)。它们不是项目素材解码错误；项目音频和字体文件的失败在内容加载阶段排查。
+
+#### 基础资源与场景准备
+
+| 错误码或日志关键词 | 常见原因 | 引擎处理 | 优先检查项 |
+| --- | --- | --- | --- |
+| `Development overlay creation failed`、`Development overlay initialization failed` | 模块覆盖层工厂或覆盖层初始化失败 | 终止初始化 | 检查 `create_development_overlay()`、实际启用的 ImGui 构建选项及自定义实现；接入方式见[开发面板](tools/development-panels.md)。 |
+| `Built-in asset initialization failed`、`Built-in music player initialization failed` | 必需内置素材、字体或内置音乐播放设施不可用 | 终止初始化 | 按原始错误定位内置资源和运行依赖，不要把内置资源键补到项目清单中作为替代。 |
+| `LOCALIZATION-MANIFEST`、`LOCALIZATION-LOCALE`、`LOCALIZATION-LANGUAGE` | 本地化清单、语言文件或语言配置不符合要求 | 终止初始化 | 从注册表的 `manifests.required.i18n` 检查语言清单与诊断指向的文件；不要把每一次语言回退都视为致命失败。 |
+| `typography` 分类中的字体诊断 | 字体来源、字号或语言所需字体配置无效 | 终止初始化 | 检查 `descriptor.presentation.fonts` 和具体诊断；这个分类本身不是完整错误原因。项目字体的加载与激活还需检查下一张表。 |
+| `BOOTSTRAP-PRELOAD` | 预加载清单或其纹理加载失败 | 终止初始化 | 从注册表的 `bootstrap.preload_manifest` 检查文件与路径；项目 Logo 必须引用预加载键，不能只放进后续项目纹理清单。 |
+
+#### 项目内容加载
+
+以下失败由启动加载场景处理；即使画面已经出现，也不能继续进入依赖未完成资源的游戏场景。
+
+| 错误码或日志关键词 | 常见原因 | 引擎处理 | 优先检查项 |
+| --- | --- | --- | --- |
+| `CONTENT-CONFIG`、`CONTENT-MANIFEST` | 项目配置或内容清单无效 | 停止加载、清理项目内容，再走加载失败路由 | 从注册表引用追到诊断中的声明文件，按 JSON Pointer 检查字段；完整格式见[资源参考](../reference/resources/README.md)。 |
+| `CONTENT-PLAN`，并含 `Duplicate` | 同一资源注册表生成了重复键 | 拒绝加载计划，走加载失败路由 | 同时查看首次和重复声明的位置，检查核心清单与附加模块、实体 ID 和命名空间；不同资源注册表可以使用同名键。 |
+| `CONTENT-MISSING` | 请求生成后发现源文件缺失 | 停止加载，走加载失败路由 | 查看每项 `expected` 与 `declared_at`，检查模板展开后的目录、文件名、动画分段和帧编号，不只检查目录是否存在。 |
+| `CONTENT-TEXTURE`、`CONTENT-ATLAS`、`CONTENT-FONT`、`CONTENT-AUDIO` | 文件读取、解码或对应运行资源创建失败 | 清理已加载项目内容，走加载失败路由 | 对照具体资源键、路径和底层原因检查文件格式及有效性；文件存在不代表能成功解码。 |
+| `CONTENT-PLAN`、`CONTENT-ANIMATION`、`CONTENT-EFFECT` | 动画或特效的组装、校验、注册失败 | 停止加载，走加载失败路由 | 结合原因检查布局、帧数、分段、资源引用和特效映射；阶段码不能单独确定哪个字段错误，格式见[动画与特效参考](../reference/resources/animation-and-effects.md)。 |
+| `Startup font activation failed` | 内容加载后，项目字体仍不能按配置激活 | 不执行成功切换，走加载失败路由 | 检查呈现配置要求的字体来源、资源键及字号与已加载字体是否匹配；不要仅用加载进度判断可进入游戏。 |
+
+错误码与加载清理行为可对照 [ContentLoadFailure](../../../engine/loading/content_load_failure.h) 和 [GameContentLoader](../../../engine/loading/game_content_loader.cpp)。
+
+#### 注册与进入目标场景
+
+场景接入问题既可能发生在初始化末尾，也可能发生在加载完成后的成功切换中。
+
+| 错误码或日志关键词 | 常见原因 | 引擎处理 | 优先检查项 |
+| --- | --- | --- | --- |
+| `Scene composition failed`，并含 `duplicate SceneKey`、`outside the game range` 或 `unregistered game SceneKey` | 重复注册、使用保留键，或初始目标未注册 | 初始化中的装配异常终止初始化 | 对照 `register_scenes()` 与 `initial_route`；游戏键使用 `1–999`，有效数字仍须注册。加载后才切换的未注册目标走运行期错误边界，不能依赖初始化提前发现。 |
+| `StartupLoadingScene requires StartupLoadingScenePayload`、`StartupLoadingScene requires a valid success route`、`StartupLoadingScene failure route is invalid` | 加载场景 Payload 类型或路由无效 | 进入回调抛出接入错误，由场景错误边界处理 | 对照本文的路由示例，分别检查初始路由、成功路由和自定义失败路由。 |
+| `scene` 分类中的原始异常 | 目标场景构造或 `on_enter()` 失败 | 按场景错误边界清理并尝试错误展示；无法恢复时故障退出 | 阅读异常原因及来源，检查 Payload、资源准备顺序和进入时的外部订阅；不要只看到错误场景就重新进入原场景。 |
+
+### 7.3 理解引擎已经做了什么
+
+**初始化失败**时，应用记录错误、尝试显示启动提示并关闭已建立的资源，`ELYSIA_INITIALIZE_APP` 返回 `false`；入口直接返回失败，不能继续调用 `ELYSIA_RUN_APP`。弹窗受环境和具体错误路径影响，不保证每次都能显示。
+
+**启动内容加载失败**时，加载器停止后续工作并清理项目内容；启动加载场景优先请求 `failure_route`，未提供时使用内置 `ApplicationFailure`。自定义失败路由不会自动补充任意 Payload 的诊断字段。字体激活等展示失败同样转入失败流程，但不应假定每条失败路径都执行了相同的加载器回滚。具体行为见[启动加载场景](builtin-scenes/startup-loading.md#失败与重新进入)。
+
+**场景进入异常**由场景管理器的错误边界处理；清理成功且错误展示可用时，应用可能进入错误场景，因此初始化成功也可能意味着已经进入错误处理流程。故障场景清理失败、错误场景再次失败或底层渲染无法继续时，不会无限重试。恢复到错误展示不等于恢复游戏状态，详见[应用错误场景](builtin-scenes/application-failure.md)。
+
+**警告可以伴随成功启动**。例如，启动展示时发现可选项目 Logo 的键为空、纹理不可用，会记录警告并跳过；这不豁免预加载清单中的文件要求，已列入清单的文件加载失败仍会阻止初始化。必需的引擎启动 Logo 也不属于这项可选回退。
+
+用户配置损坏后，成功归档并从有效副本恢复或按应用默认值重建，可能只留下 `BOOTSTRAP-USER-CONFIG` 警告。首次没有配置文件通常是正常创建，不是失败；无法读取、未来版本格式或恢复写回失败则可能阻止启动。保留原始诊断及恢复文件，按实际结果处理，不要把删除配置作为统一修复步骤。
+
+### 7.4 读取完整诊断
+
+默认文件日志位于**已识别项目根目录的 `logs/`**，每次运行创建类似 `Elysia-日期-时间-进程号.log` 的文件；并非固定在可执行文件旁。自定义 `LoggerConfig` 可以改变文件模式或禁用文件输出。
+
+控制台日志先于文件日志建立。应用在启动配置解析成功后才初始化文件日志；早期目录或配置失败可能没有本次日志文件，文件打开失败也不会保证落盘。此时应从终端启动程序并保留控制台和启动提示；之后打开的文件日志不会补写早期控制台消息。Release 的启动提示和错误界面可能省略原始诊断，不能只凭界面短句定位问题。
+
+下面是按诊断字段组织的**阅读示意**，不是实际运行记录；资源键、缺失文件及源码行号均为假设值：
+
+```text
+CONTENT-MISSING [startup]
+某项纹理源文件缺失
+[1] type=texture key=ui.example
+    expected=assets/textures/ui/example.png
+    declared_at=assets/configs/manifests/textures_manifest.json#/textures/ui.example/path
+    reason=文件不存在
+    source=resource_load_plan_preflight.cpp:123
+```
+
+先用错误码和分类确定加载阶段，再查看 `key` 对应哪个逻辑资源。`expected` 是需要存在的文件；`declared_at` 指向声明它的配置，`#` 后的 JSON Pointer 定位字段，示例表示 `textures` 对象中 `ui.example` 的 `path` 字段。`reason` 说明失败原因，`source` 是产生诊断的源码位置，不是要修改的 JSON 行号。重复键等问题会有多条诊断，应同时保留首次声明、重复声明及附加失败信息。
+
+诊断字段并非每次都齐全，路径也可能按项目根目录缩短。向维护者报告时保留完整消息和相关条目，比只截取最后一行“启动失败”更有用。日志接口见[工具指南](tools/utilities.md#日志)，格式实现见 [FailureDiagnostic](../../../engine/core/diagnostics/failure_diagnostic.cpp)。
+
+## 8. 完整参考实现
 
 本文给出的空场景模块用于说明最小接线，不包含仓库示例游戏的全部配置。需要核对实际启动方式时，可从以下文件继续阅读：
 

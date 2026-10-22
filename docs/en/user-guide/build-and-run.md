@@ -110,6 +110,6 @@ Use separate build directories and toolchains for macOS or MinGW. Builds and run
 
 - Missing `cmake`, `ninja`, or MSVC standard headers: check installation/PATH and use an x64 developer command prompt for MSVC + Ninja.
 - Generator or architecture mismatch: use a new directory when changing generators, toolchains, or architecture.
-- GPU creation failure: check graphics drivers and SDL GPU backend support. The `application` reports failure and cleans up; it does not automatically fall back to software rendering.
-- Missing resources or project root: check working directory, `assets/.elysia_root`, and resource directory completeness.
+- GPU creation failure: check graphics drivers and SDL GPU backend support; see [startup failures and troubleshooting](game-initialization.md#7-startup-failures-and-troubleshooting) for messages, handling, and checks.
+- Missing resources, missing project root, or startup loading failure: [troubleshoot by startup stage](game-initialization.md#72-troubleshoot-common-errors-by-stage), distinguishing startup configuration, preloads, and project content loading.
 - Missing SDL3 DLL: finish building and keep the DLL beside the executable; use the matching Debug or Release output.

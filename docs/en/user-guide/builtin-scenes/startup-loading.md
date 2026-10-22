@@ -57,6 +57,8 @@ Project preload textures release on exit; reentry does not automatically repeat 
 
 ## Loading Failure Diagnostics
 
+To locate configuration, platform, or resource problems from a startup message, see [startup failures and troubleshooting](../game-initialization.md#7-startup-failures-and-troubleshooting). It also explains how to preserve diagnostics before file logging is available.
+
 Preparation-thread failures return to the main thread, stop further loading, clean incomplete resources, then follow failure routing. Games need no thread management; retain `ContentLoadFailure` stage/resource diagnostics to identify files, manifests, or loading steps. Loader reset capability does not automatically restore game objects depending on old resources.
 
 ## References
