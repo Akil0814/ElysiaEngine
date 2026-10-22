@@ -104,7 +104,21 @@
       "labeled_check": "標籤核取方塊",
       "labeled_radio": "標籤單選項",
       "labeled_radio_far": "遠端單選標籤",
-      "placeholder": "最多輸入十六個字元"
+      "placeholder": "最多輸入十六個字元",
+      "selector": {
+        "title": "選項切換器",
+        "description": "確認或點擊名稱進入調整；取消退出，保留目前選擇。",
+        "bounded": "橫向／邊界停止",
+        "looped": "縱向／首尾循環",
+        "disabled": "整體停用",
+        "single": "單一選項",
+        "empty": "空清單",
+        "easy": "簡單",
+        "locked": "已鎖定（略過）",
+        "normal": "普通",
+        "long_name": "一個用於驗證長名稱適配的較長選項",
+        "only": "唯一選項"
+      }
     },
     "states": {
       "buttons_title": "按鈕內容與角色",

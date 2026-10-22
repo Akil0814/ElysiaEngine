@@ -7,6 +7,7 @@
 #include "../containers/ui_scroll_container.h"
 #include "../composites/ui_dialog.h"
 #include "../composites/ui_dropdown.h"
+#include "../composites/ui_option_selector.h"
 #include "../composites/ui_labeled_checkbox.h"
 #include "../composites/ui_labeled_radio_button.h"
 #include "../widgets/label/ui_label.h"
@@ -68,6 +69,13 @@ void register_builtin_ui_theme_adapters(UiThemeStyleResolver& r)
             scroll,
             apply_theme_colors(UiButtonStyle{},t.button(UiButtonVisualRole::Default))
         });
+    },UiThemeStyleTraversal::Stop);
+    (void)r.register_adapter<UiOptionSelector>([](UiOptionSelector& e,const UiTheme& t) {
+        UiOptionSelectorStyle style;
+        style.arrow = apply_theme_colors(UiButtonStyle{},t.button(UiButtonVisualRole::Default));
+        style.chrome = style.arrow.chrome;
+        style.text = {t.label(UiLabelVisualRole::Default).text,style.arrow.text.disabled};
+        e.set_base_style(style);
     },UiThemeStyleTraversal::Stop);
     (void)r.register_adapter<UiLabeledCheckbox>([](UiLabeledCheckbox& e,const UiTheme& t) {
         const UiLabelStyle label = apply_theme_colors(UiLabelStyle{},t.label(UiLabelVisualRole::Default));

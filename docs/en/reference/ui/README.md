@@ -41,6 +41,7 @@ Each topic presents common contracts before specific types. Links below locate e
 | `UiButtonGroup`、`UiRadioGroup` | [View contract](controls-and-selection.md#selection-groups) |
 | `UiDragHandle`、`UiSlider` | [View contract](controls-and-selection.md#drag-value-controls) |
 | `UiLabeledCheckbox`、`UiLabeledRadioButton` | [View contract](controls-and-selection.md#labeled-controls) |
+| `UiOptionSelector`、`UiOptionSelectorOrientation`、`UiOptionSelectorOption` | [View contract](controls-and-selection.md#ui-option-selector) |
 | `UiTabBar`、`UiTabView`、`UiTabContainer` | [View contract](controls-and-selection.md#tabs) |
 | `UiTextContent`、`UiTypographyRole` | [View contract](text-and-values.md#text-content) |
 | `UiLabel` | [View contract](text-and-values.md#ui-label) |

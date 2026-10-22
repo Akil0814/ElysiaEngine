@@ -104,7 +104,21 @@
       "labeled_check": "ラベル付きチェックボックス",
       "labeled_radio": "ラベル付きラジオ項目",
       "labeled_radio_far": "端寄せラジオラベル",
-      "placeholder": "16 文字まで入力"
+      "placeholder": "16 文字まで入力",
+      "selector": {
+        "title": "選択項目の切り替え",
+        "description": "決定または名前をクリックして調整。キャンセルで選択を保持して終了。",
+        "bounded": "横向き／端で停止",
+        "looped": "縦向き／ループ",
+        "disabled": "無効",
+        "single": "項目が一つ",
+        "empty": "項目なし",
+        "easy": "簡単",
+        "locked": "ロック中（スキップ）",
+        "normal": "通常",
+        "long_name": "長い名前の表示を確認するための選択項目",
+        "only": "唯一の項目"
+      }
     },
     "states": {
       "buttons_title": "ボタンの内容とロール",

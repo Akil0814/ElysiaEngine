@@ -104,7 +104,21 @@
       "labeled_check": "Labeled checkbox",
       "labeled_radio": "Labeled radio option",
       "labeled_radio_far": "Far-edge radio label",
-      "placeholder": "Type up to sixteen characters"
+      "placeholder": "Type up to sixteen characters",
+      "selector": {
+        "title": "Option selectors",
+        "description": "Confirm / click name: adjust. Cancel: exit, keep changes.",
+        "bounded": "Horizontal / bounded",
+        "looped": "Vertical / wrapping",
+        "disabled": "Disabled",
+        "single": "One option",
+        "empty": "No options",
+        "easy": "Easy",
+        "locked": "Locked (skipped)",
+        "normal": "Normal",
+        "long_name": "A deliberately long option name",
+        "only": "Only option"
+      }
     },
     "states": {
       "buttons_title": "Button Content and Roles",

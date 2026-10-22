@@ -41,6 +41,7 @@
 | `UiButtonGroup`、`UiRadioGroup` | [查看契约](controls-and-selection.md#selection-groups) |
 | `UiDragHandle`、`UiSlider` | [查看契约](controls-and-selection.md#drag-value-controls) |
 | `UiLabeledCheckbox`、`UiLabeledRadioButton` | [查看契约](controls-and-selection.md#labeled-controls) |
+| `UiOptionSelector`、`UiOptionSelectorOrientation`、`UiOptionSelectorOption` | [查看契约](controls-and-selection.md#ui-option-selector) |
 | `UiTabBar`、`UiTabView`、`UiTabContainer` | [查看契约](controls-and-selection.md#tabs) |
 | `UiTextContent`、`UiTypographyRole` | [查看契约](text-and-values.md#text-content) |
 | `UiLabel` | [查看契约](text-and-values.md#ui-label) |

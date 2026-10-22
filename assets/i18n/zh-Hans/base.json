@@ -104,7 +104,21 @@
       "labeled_check": "带标签复选框",
       "labeled_radio": "带标签单选项",
       "labeled_radio_far": "远端单选标签",
-      "placeholder": "最多输入十六个字符"
+      "placeholder": "最多输入十六个字符",
+      "selector": {
+        "title": "选项切换器",
+        "description": "确认或点击名称进入调整；取消退出，保留当前选择。",
+        "bounded": "横向／边界停止",
+        "looped": "纵向／首尾循环",
+        "disabled": "整体禁用",
+        "single": "单个选项",
+        "empty": "空列表",
+        "easy": "简单",
+        "locked": "已锁定（跳过）",
+        "normal": "普通",
+        "long_name": "一个用于验证长名称适配的较长选项",
+        "only": "唯一选项"
+      }
     },
     "states": {
       "buttons_title": "按钮内容与角色",

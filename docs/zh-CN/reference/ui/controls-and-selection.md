@@ -10,7 +10,7 @@
 `set_on_<event>` 替换此前回调，不累加。回调可修改同一 UI 树的状态，但涉及销毁当前对象、切换场景或替换父内容时应在当前事件结束后执行或使用更高层调度。
 
 - `set_on_click`: 无参数。
-- `set_on_selection_changed`: `UiRadioGroup` 或页签回调是 `std::optional<std::size_t>`；下拉控件是 `std::size_t`；单个单选按钮回调无参数。`UiButtonGroup` 没有这个回调接口。
+- `set_on_selection_changed`: `UiRadioGroup` 或页签回调是 `std::optional<std::size_t>`；下拉控件和 `UiOptionSelector` 是 `std::size_t`；单个单选按钮回调无参数。`UiButtonGroup` 没有这个回调接口。
 - `set_on_toggled`: `UiCheckboxState`。
 - `set_on_value_changed`: `float`。
 - 文本输入控件的 `std::string_view` 只在回调调用期间可用，需要保存时复制为 `std::string`。
@@ -206,6 +206,21 @@ pause_button.set_on_interaction([this](const UiActionButtonInteraction& event)
 
 - LabeledCheckbox：`set_state`、`set_checked`、`toggle`、`set_on_toggled`；文本点击也会路由到选择标记。
 - LabeledRadioButton：`set_selected`、`is_selected`、`set_on_selection_changed`；放入 `UiRadioGroup` 获得互斥。
+
+<a id="ui-option-selector"></a>
+## UiOptionSelector：横纵选项切换
+
+头文件：[ui_option_selector.h](../../../../engine/ui/composites/ui_option_selector.h)。用于名称居中、两端箭头切换的离散选项，例如难度或角色名称。整个组件只占一个焦点，内部按钮和标签由组件持有。
+
+`set_options` 接受 `UiOptionSelectorOption` 列表，每项包含 `UiTextContent content` 与 `bool enabled`。`selected_index()` 返回可选索引；`set_selected_index` 拒绝越界及禁用项，有效赋值返回 `true`，仅实际变化通知 `set_on_selection_changed`，包括程序赋值。`select_previous`、`select_next` 跳过禁用项，仅切换成功时返回 `true`。
+
+列表更新静默保留仍有效且启用的当前索引，否则选中第一个启用项；空列表或全禁用时显示 `--`。`clear_options()` 清空列表。`set_wrap_selection(true)` 开启首尾循环，默认关闭；只有一个启用项时两侧箭头均禁用，不会循环到自身。选项的业务数据由宿主按索引映射。
+
+`set_orientation` 使用 `UiOptionSelectorOrientation::Horizontal`（默认）或 `Vertical`。横向左／右切换，纵向上／下切换，左／上表示前一项。未调整时方向键用于父级导航；确认或点击中央名称进入调整，调整时消费四个方向键，非当前轴和端点按键不会转移焦点。`is_adjusting()` 查询当前状态。
+
+再次确认、取消或点击中央名称退出调整，保留已即时生效的选择。鼠标箭头在同侧按下并释放后直接切换，不要求先进入调整，也不改变当前调整状态。失焦、禁用、Tab、取消交互、改变方向和替换列表会结束调整；`reset()` 还会清空列表、回调及样式覆盖，并恢复默认横向、不循环状态。
+
+`UiOptionSelectorStyle` 与 Overrides 遵循共同样式契约：`chrome` 控制整体背景和焦点／调整态边框，`arrow` 控制按钮及箭头颜色，`text` 控制名称颜色。`arrow_extent`、`spacing`、`padding` 默认分别为 `40`、`8`、`4`，沿当前主轴布局；窄区域压缩两端与间距，中央文字居中且只缩小适配。箭头由几何线条绘制，不依赖字体特殊字符。现有主题管理器会同步整体样式，局部覆盖继续保留。
 
 <a id="tabs"></a>
 ## 页签与页面：UiTabBar、UiTabView 和 UiTabContainer

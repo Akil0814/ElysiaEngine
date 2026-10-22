@@ -104,7 +104,21 @@
       "labeled_check": "레이블 체크 상자",
       "labeled_radio": "레이블 라디오 항목",
       "labeled_radio_far": "가장자리 라디오 레이블",
-      "placeholder": "최대 열여섯 글자 입력"
+      "placeholder": "최대 열여섯 글자 입력",
+      "selector": {
+        "title": "옵션 선택기",
+        "description": "확인 또는 이름 클릭으로 조정. 취소하면 선택을 유지하고 종료합니다.",
+        "bounded": "가로 / 끝에서 정지",
+        "looped": "세로 / 순환",
+        "disabled": "비활성화",
+        "single": "옵션 하나",
+        "empty": "옵션 없음",
+        "easy": "쉬움",
+        "locked": "잠김 (건너뜀)",
+        "normal": "보통",
+        "long_name": "긴 이름의 표시를 확인하기 위한 옵션",
+        "only": "유일한 옵션"
+      }
     },
     "states": {
       "buttons_title": "버튼 콘텐츠와 역할",

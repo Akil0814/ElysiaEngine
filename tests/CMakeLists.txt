@@ -476,6 +476,8 @@ foreach(UI_TEST_TARGET IN ITEMS
     ui_popup_lifecycle_tests
     ui_tooltip_visibility_tests
     ui_selection_controls_tests
+    ui_option_selector_tests
+    ui_option_selector_rendering_tests
     ui_focus_lifecycle_tests
     ui_focus_tree_tests
     ui_focus_routing_tests
@@ -495,6 +497,7 @@ foreach(UI_TEST_TARGET IN ITEMS
 endforeach()
 
 target_compile_definitions(ui_theme_surface_render_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+target_compile_definitions(ui_option_selector_rendering_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 add_elysia_test(logging_tests
     LABEL tools

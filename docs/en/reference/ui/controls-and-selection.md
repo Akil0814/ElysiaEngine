@@ -10,7 +10,7 @@ See [UI guide](../../user-guide/ui/README.md#create-window) for integration and 
 set_on_<event> replaces callbacks rather than accumulating them. Callbacks may modify tree state; destruction of current objects, scene switching, or parent replacement should defer until event completion or use higher-level scheduling.
 
 - `set_on_click`: no arguments.
-- `set_on_selection_changed`: `UiRadioGroup`/tabs use std::optional<std::size_t>; dropdown uses std::size_t; individual radio buttons no arguments. `UiButtonGroup` has no such callback.
+- `set_on_selection_changed`: `UiRadioGroup`/tabs use std::optional<std::size_t>; dropdown and `UiOptionSelector` use std::size_t; individual radio buttons no arguments. `UiButtonGroup` has no such callback.
 - `set_on_toggled`: `UiCheckboxState`.
 - `set_on_value_changed`: `float`.
 - Text input std::string_view is valid only during callbacks; copy to `std::string` if retained.
@@ -206,6 +206,21 @@ Construct Config or `set_labeled_*_config` for text/placement/spacing/base style
 
 - LabeledCheckbox: `set_state`/`set_checked`/`toggle`/`set_on_toggled`; text clicks route to marks.
 - LabeledRadioButton: `set_selected`/`is_selected`/`set_on_selection_changed`; group for exclusivity.
+
+<a id="ui-option-selector"></a>
+## UiOptionSelector: Horizontal and Vertical Options
+
+Header: [ui_option_selector.h](../../../../engine/ui/composites/ui_option_selector.h). Displays a centered option name between two arrows, for discrete choices such as difficulty or character names. The selector owns its buttons and label and exposes one focus target.
+
+`set_options` accepts `UiOptionSelectorOption` entries with `UiTextContent content` and `bool enabled`. `selected_index()` returns an optional index. `set_selected_index` rejects out-of-range or disabled entries and returns `true` for valid assignments; only actual changes invoke `set_on_selection_changed`, including programmatic assignments. `select_previous`/`select_next` skip disabled entries and return `true` only when selection changes.
+
+Replacing options silently preserves a usable selected index or selects the first enabled entry. Empty/all-disabled lists display `--`; `clear_options()` empties the list. `set_wrap_selection(true)` enables wrapping, disabled by default. With one enabled option both arrows remain disabled, including in wrapping mode. The host maps indices to business data.
+
+`set_orientation` chooses `UiOptionSelectorOrientation::Horizontal` (default) or `Vertical`. Left/up selects the previous entry and right/down selects the next entry on the configured axis. Outside adjustment, directions navigate the parent. Confirm or clicking the name enters adjustment; while adjusting all four directions are consumed, and the other axis or an endpoint does not move focus. Query `is_adjusting()` for the state.
+
+Confirm, Cancel, or another center click exits adjustment without reverting the immediately applied selection. Mouse arrows step on a same-arrow press/release without requiring or changing adjustment mode. Focus loss, disabling, Tab, interaction cancellation, orientation changes and list replacement end adjustment. `reset()` also clears options, callbacks and style overrides and restores horizontal, non-wrapping defaults.
+
+`UiOptionSelectorStyle` and Overrides follow the common style contract: `chrome` styles the outer surface and focused/adjusting border, `arrow` styles buttons and arrow colors, and `text` styles names. `arrow_extent`, `spacing`, and `padding` default to `40`, `8`, and `4` along the configured axis. Small bounds compress end regions and gaps; centered text only shrinks to fit. Geometric arrows do not require special font characters. Theme changes update the composite while preserving local overrides.
 
 <a id="tabs"></a>
 ## Tabs and Pages: UiTabBar, UiTabView, UiTabContainer

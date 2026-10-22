@@ -44,6 +44,8 @@ else
 主要 API：
 
 - 样式：`set_base_style`、`set_style_overrides`、`set_hover_focus_enabled`、`set_on_cancel`。
+
+Cancel 先交给当前焦点控件退出局部调整，未消费时再执行窗口取消回调；覆盖层也先允许其焦点控件处理，再按 `close_on_cancel` 关闭，事件不继续传给背后窗口。瞬时弹出层仍优先处理自己的取消。
 - 焦点：`register_focus_scope`、`unregister_focus_scope`、`set_scope_neighbors`、`set_focused_scope`、`focus_first_available_scope`。
 - 覆盖层：`register_overlay`、`unregister_overlay`、`open_overlay`、`close_overlay`、`is_overlay_open`、`overlay_options`。
 - 弹出层与提示：`register_transient_popup`、`unregister_transient_popup`、`activate_transient_popup`、`register_tooltip`、`unregister_tooltip`。

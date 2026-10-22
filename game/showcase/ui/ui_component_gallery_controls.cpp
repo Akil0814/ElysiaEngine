@@ -2,6 +2,7 @@
 
 #include "engine/ui/composites/ui_labeled_checkbox.h"
 #include "engine/ui/composites/ui_labeled_radio_button.h"
+#include "engine/ui/composites/ui_option_selector.h"
 #include "engine/ui/containers/ui_button_group.h"
 #include "engine/ui/containers/ui_list_container.h"
 #include "engine/ui/containers/ui_panel.h"
@@ -302,6 +303,58 @@ UiGalleryPages::build_controls_page()
     using namespace elysia::ui;
     UiListContainer* page_content = nullptr;
     auto page = make_page_scroll(page_content);
+    auto* selectors = add_section(*page_content,
+        "ui_component_gallery.controls.selector.title",
+        "ui_component_gallery.controls.selector.description");
+    const std::vector<UiOptionSelectorOption> selector_options{
+        {ui_text_key("ui_component_gallery.controls.selector.easy")},
+        {ui_text_key("ui_component_gallery.controls.selector.locked"),false},
+        {ui_text_key("ui_component_gallery.controls.selector.normal")},
+        {ui_text_key("ui_component_gallery.controls.selector.long_name")}
+    };
+    const auto make_selector = [&](elysia::core::Vector2 size)
+    {
+        auto selector = std::make_unique<UiOptionSelector>(elysia::core::Rect{{},size});
+        selector->set_options(selector_options);
+        selector->set_on_selection_changed([this](std::size_t)
+        {
+            set_status_key("ui_component_gallery.status.interaction");
+        });
+        return selector;
+    };
+    // Only the selector is a focus target; its buttons remain private implementation parts.
+    auto selector_modes = horizontal_row(790.0f,190.0f);
+    auto bounded_column = std::make_unique<UiListContainer>(elysia::core::Rect{0,0,380,180});
+    bounded_column->set_item_spacing(8);
+    bounded_column->add_back(sample_label("ui_component_gallery.controls.selector.bounded",360,28));
+    bounded_column->add_back(make_selector({360,48}));
+    selector_modes->add_back(std::move(bounded_column));
+    auto vertical_column = std::make_unique<UiListContainer>(elysia::core::Rect{0,0,380,180});
+    vertical_column->set_item_spacing(8);
+    vertical_column->add_back(sample_label("ui_component_gallery.controls.selector.looped",360,28));
+    auto vertical_selector = make_selector({300,144});
+    vertical_selector->set_orientation(UiOptionSelectorOrientation::Vertical);
+    vertical_selector->set_wrap_selection(true);
+    vertical_column->add_back(std::move(vertical_selector));
+    selector_modes->add_back(std::move(vertical_column));
+    selectors->add_back(std::move(selector_modes));
+    auto selector_states = horizontal_row(790.0f,90.0f);
+    for (int state = 0; state < 3; ++state)
+    {
+        auto column = std::make_unique<UiListContainer>(elysia::core::Rect{0,0,250,86});
+        column->set_item_spacing(8);
+        const char* labels[]{"ui_component_gallery.controls.selector.disabled",
+            "ui_component_gallery.controls.selector.single","ui_component_gallery.controls.selector.empty"};
+        column->add_back(sample_label(labels[state],250,28));
+        auto selector = make_selector({250,48});
+        if (state == 0) selector->set_enabled(false);
+        else if (state == 1) selector->set_options({{ui_text_key("ui_component_gallery.controls.selector.only")}});
+        else selector->clear_options();
+        column->add_back(std::move(selector));
+        selector_states->add_back(std::move(column));
+    }
+    selectors->add_back(std::move(selector_states));
+
     UiListContainer* section = add_section(
         *page_content,
         "ui_component_gallery.pages.controls",

@@ -44,6 +44,8 @@ Header: [ui_window.h](../../../../engine/ui/window/ui_window.h). Owns root subtr
 Main APIs:
 
 - Style: `set_base_style`, `set_style_overrides`, `set_hover_focus_enabled`, `set_on_cancel`.
+
+Cancel first lets the focused control end local adjustment, then invokes the window cancel callback if unhandled. Overlays likewise dispatch to their focused control before applying `close_on_cancel`, without forwarding Cancel to the background window. Transient popups retain their own cancellation priority.
 - Focus: `register_focus_scope`, `unregister_focus_scope`, `set_scope_neighbors`, `set_focused_scope`, `focus_first_available_scope`.
 - Overlays: `register_overlay`, `unregister_overlay`, `open_overlay`, `close_overlay`, `is_overlay_open`, `overlay_options`.
 - Popups/tooltips: `register_transient_popup`, `unregister_transient_popup`, `activate_transient_popup`, `register_tooltip`, `unregister_tooltip`.
