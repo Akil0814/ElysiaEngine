@@ -1,3 +1,4 @@
+#include "game/showcase/shared/collider_render.h"
 #include "game/showcase/scenarios/showcase_scenario_internal.h"
 #include "game/navigation/showcase_scene_keys.h"
 #include <algorithm>
@@ -12,6 +13,16 @@ namespace
 {
 using C = ScenarioCategory;
 constexpr ScenarioDescriptor catalog[] = {
+    {"edges", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"target_pose", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"joint_weld", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"joint_prismatic", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"joint_wheel", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"joint_mouse", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"joint_motor", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"joint_filter", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"geometry", C::Physics, example::scene_keys::Box2DLab, 360},
+    {"shape_queries", C::Physics, example::scene_keys::Box2DLab, 10},
     {"motion", C::Physics, example::scene_keys::Box2DLab, 180},
     {"materials", C::Physics, example::scene_keys::Box2DLab, 900},
     {"ccd", C::Physics, example::scene_keys::Box2DLab, 10},
@@ -68,10 +79,6 @@ void ScenarioBody::submit_render_commands(std::vector<elysia::core::RenderComman
     auto state = physics_state();
     if (!state || !state->enabled) return;
     auto pose = physics_world()->render_pose(physics_handle()).value();
-    const auto rotate = [&](Vector2 v) {
-        const float c = std::cos(pose.angle), s = std::sin(pose.angle);
-        return pose.position + Vector2{c*v.x-s*v.y, s*v.x+c*v.y};
-    };
     using namespace elysia::core;
     for (const auto& shape : colliders)
     {
@@ -79,19 +86,7 @@ void ScenarioBody::submit_render_commands(std::vector<elysia::core::RenderComman
         Color color = shape.response == CollisionResponse::Overlap ? Color{168,105,210,150}
                       : definition.type == BodyType::Static ? Color{105,120,140}
                       : state->awake ? Color{240,180,75} : Color{70,145,180};
-        std::visit([&](const auto& s) {
-            using T = std::decay_t<decltype(s)>;
-            if constexpr (std::is_same_v<T,CircleShape>)
-                out.push_back(make_world_fill_circle_command(rotate(s.local_center), s.radius, color));
-            else
-            {
-                const auto r = s.local_rect;
-                auto a = rotate({r.left(),r.top()}), b = rotate({r.right(),r.top()}),
-                     c = rotate({r.right(),r.bottom()}), d = rotate({r.left(),r.bottom()});
-                out.push_back(make_world_fill_triangle_command(a,b,c,color));
-                out.push_back(make_world_fill_triangle_command(a,c,d,color));
-            }
-        }, shape.shape);
+        example::showcase::submit_collider_shape(shape.shape,pose,color,out);
     }
 }
 ShowcaseScenario::Impl::Impl(const ScenarioDescriptor& d, int t)
@@ -118,7 +113,7 @@ ScenarioBody& ShowcaseScenario::Impl::body(Vector2 p, Vector2 size, BodyType typ
     Collider c;
     c.filter.category = collision_layers::Body;
     c.shape = circle ? ColliderShape{CircleShape{size * 0.5f,size.x * 0.5f}}
-                     : ColliderShape{AabbShape{{0,0,size.x,size.y}}};
+                     : ColliderShape{BoxShape::from_rect({0,0,size.x,size.y})};
     return add<ScenarioBody>(p,d,std::vector<Collider>{c});
 }
 DemoTileMap& ShowcaseScenario::Impl::tile_map(int cols, int rows, Vector2 size, Vector2 origin, TileOutOfBoundsPolicy policy)
@@ -162,8 +157,8 @@ void ShowcaseScenario::Impl::step()
     if (descriptor.category == ScenarioCategory::Stress && n > 120)
         timings.push_back(result.stats.step_milliseconds);
     if (after) after(n);
-    if (n >= finish_at || result.status == ScenarioStatus::Failed) complete();
-    else if (n >= descriptor.max_steps)
+    if (!manual_joint_control && (n >= finish_at || result.status == ScenarioStatus::Failed)) complete();
+    else if (!manual_joint_control && n >= descriptor.max_steps)
     {
         truth("timeout",false);
         complete();
@@ -174,7 +169,12 @@ void ShowcaseScenario::Impl::step()
 void ShowcaseScenario::Impl::build()
 {
     const auto id = descriptor.id;
-    if (id == "motion") build_motion();
+    if(id=="edges")build_edges();
+    else if(id=="target_pose")build_target_pose();
+    else if(id.starts_with("joint_"))build_joint_extensions();
+    else if (id == "geometry") build_geometry();
+    else if (id == "shape_queries") build_shape_queries();
+    else if (id == "motion") build_motion();
     else if (id == "materials") build_materials();
     else if (id == "ccd") build_ccd();
     else if (id == "filters") build_filters();
@@ -233,8 +233,41 @@ void ShowcaseScenario::submit_render_commands(std::vector<elysia::core::RenderCo
 {
     for (const auto& o : _impl->objects)
         if (!o->is_destroyed() && o->is_visible()) o->submit_render_commands(out);
+    out.insert(out.end(),_impl->query_commands.begin(),_impl->query_commands.end());
     for (const auto h : _impl->joints)
         if (auto state = _impl->world.joint_state(h))
-            out.push_back(elysia::core::make_world_draw_line_command(state->anchor_first,state->anchor_second,{110,210,220},2));
+        {
+            if(std::holds_alternative<FilterJointState>(state->details))
+                for(int i=0;i<10;i+=2)out.push_back(elysia::core::make_world_draw_line_command(
+                    state->anchor_first+(state->anchor_second-state->anchor_first)*(i/10.f),
+                    state->anchor_first+(state->anchor_second-state->anchor_first)*((i+1)/10.f),{150,160,180},1));
+            else out.push_back(elysia::core::make_world_draw_line_command(state->anchor_first,state->anchor_second,{110,210,220},2));
+        }
+}
+}
+
+namespace example::showcase::scenarios
+{
+void ShowcaseScenario::control_joints()
+{
+    if (_impl->descriptor.id!="joints"&&!_impl->descriptor.id.starts_with("joint_")) return;
+    if (_impl->result.status==ScenarioStatus::Passed || _impl->result.status==ScenarioStatus::Failed)
+        _impl=std::make_unique<Impl>(_impl->descriptor,_impl->tier);
+    auto& p=*_impl;p.manual_joint_control=true;
+    p.paused=false;p.result.status=ScenarioStatus::Running;
+    if(p.descriptor.id.starts_with("joint_")){p.toggle_extension_joint();return;}
+    for(auto h:p.joints) if(auto state=p.world.joint_state(h))
+    {
+        if(auto* distance=std::get_if<elysia::physics::DistanceJointState>(&state->details))
+        {
+            auto settings=distance->settings;settings.length=settings.length>85?70:100;
+            settings.enable_spring=true;p.world.update_distance_joint(h,settings);
+        }
+        else if(auto* hinge=std::get_if<elysia::physics::RevoluteJointState>(&state->details))
+        {
+            auto settings=hinge->settings;
+            settings.motor_speed=-settings.motor_speed;p.world.update_revolute_joint(h,settings);
+        }
+    }
 }
 }

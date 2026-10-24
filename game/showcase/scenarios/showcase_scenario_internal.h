@@ -41,7 +41,10 @@ struct ShowcaseScenario::Impl : ICollisionListener
     std::function<void(unsigned)> before, after;
     elysia::core::Rect view{0, 0, 1000, 600};
     elysia::scene::FixedStepRuntime fixed_step{{}};
-    bool paused = false;
+    bool paused = false, manual_joint_control=false;
+    bool extension_toggle=false;
+    PhysicsObjectHandle joint_anchor{},joint_body{};
+    std::vector<elysia::core::RenderCommand> query_commands;
     unsigned finish_at = 120;
     std::size_t expected_objects = 0;
     explicit Impl(const ScenarioDescriptor&, int);
@@ -69,6 +72,12 @@ struct ShowcaseScenario::Impl : ICollisionListener
     void step();
     void complete();
     void build();
+    void build_edges();
+    void build_target_pose();
+    void build_joint_extensions();
+    void toggle_extension_joint();
+    void build_geometry();
+    void build_shape_queries();
     void build_motion();
     void build_materials();
     void build_ccd();

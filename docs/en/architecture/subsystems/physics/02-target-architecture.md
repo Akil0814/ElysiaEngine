@@ -10,10 +10,12 @@ Scenes own game objects and unregister physics before destruction. The world bor
 
 ## Module Responsibilities
 
-Internals separate world lifecycle, queries, maps, joints, and debug capture. A shared internal unit-conversion type prevents inconsistent scales across features.
+Internals separate world lifecycle, queries, maps, Chain resources, target poses, joints, and debug capture. A shared internal unit-conversion type prevents inconsistent scales across features. A shared geometry layer validates shapes and constructs native geometry and query proxies. Eight joint types use fixed connection definitions and typed states; seven have mutable settings, while Filter has none.
 
 Default fixed steps are 1/60 second with four Box2D substeps. Elysia manages accumulation and render interpolation; Box2D owns simulation state. Scene ordering is in the [input architecture](../input/architecture.md#a-frame-and-a-fixed-step).
 
 ## Third-Party Dependency
 
 Box2D 3.1.1 is pinned under `thirdparty/box2d`, with the source-archive checksum recorded there. Builds use checked-in source without downloads. This minimal snapshot excludes upstream examples, standalone tests, benchmarks, and documentation.
+
+A Chain is an independent resource attached to a registered Static/Kinematic owner. Private mappings connect its handle, child ColliderIds and full native shape generations. Target-pose commands hold one submitted value, without persistent cross-step tracking state.

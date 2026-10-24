@@ -59,6 +59,18 @@ int main(int argc,char** argv)
         require(recent_scenario_result(d->id,tier)->status==ScenarioStatus::Passed,"Session history retains results");
         std::cout<<d->id<<" passed "<<first.checks.size()<<" checks in "<<first.steps<<" steps\n";
     }else{
+        ShowcaseScenario controlled("joints");
+        controlled.control_joints();
+        controlled.start();
+        for(int i=0;i<420;++i)controlled.advance(1.0/60);
+        require(controlled.result().status==ScenarioStatus::Running&&controlled.world().last_step_stats().joints==3,"Manual joint controls keep all joints alive throughout continuous simulation");
+        ShowcaseScenario completed_joints("joints");completed_joints.start();
+        for(int i=0;i<420;++i)completed_joints.advance(1.0/60);
+        require(completed_joints.result().status==ScenarioStatus::Passed,"Automatic joint verification completes");
+        completed_joints.control_joints();
+        for(int i=0;i<30;++i)completed_joints.advance(1.0/60);
+        require(completed_joints.result().status==ScenarioStatus::Running&&completed_joints.world().last_step_stats().joints==3,
+            "Controls after completion rebuild the fixture and enter live manual simulation");
         ShowcaseScenario timeout("motion");timeout.start();timeout.finish_timeout();
         require(timeout.result().status==ScenarioStatus::Failed&&timeout.result().failure=="timeout","Timeout is a visible failure");
         ShowcaseScenario debug("stress_bodies");debug.start();for(int i=0;i<122;++i)debug.advance(1.0/60);

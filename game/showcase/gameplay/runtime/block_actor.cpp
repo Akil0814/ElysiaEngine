@@ -19,7 +19,7 @@ elysia::physics::Collider make_actor_collider(
     const char* tag)
 {
     elysia::physics::Collider collider;
-    collider.shape = elysia::physics::AabbShape{local_rect};
+    collider.shape = elysia::physics::BoxShape::from_rect(local_rect);
     collider.filter = {category, mask, 0};
     collider.response = response;
     collider.tag = tag;
@@ -247,7 +247,7 @@ void BlockCombatActor::update_hit_box_shape() noexcept
     case Facing::Down:
         rect = {size.x * 0.15f, size.y, size.x * 0.70f, range}; break;
     }
-    _colliders[2].shape = elysia::physics::AabbShape{rect};
+    _colliders[2].shape = elysia::physics::BoxShape::from_rect(rect);
     update_physics_collider(2, _colliders[2]);
 }
 

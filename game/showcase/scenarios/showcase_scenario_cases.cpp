@@ -1,3 +1,4 @@
+#include "game/showcase/shared/collider_render.h"
 #include "game/showcase/scenarios/showcase_scenario_internal.h"
 #include <algorithm>
 #include <array>
@@ -15,7 +16,7 @@ void ShowcaseScenario::Impl::build_motion()
     auto falling=body({150,30},{20,20},BodyType::Dynamic,true).physics_handle();
     BodyDefinition d;
     d.gravity_scale=0; d.mass_policy=MassPolicy::ExplicitMass; d.mass=2;
-    Collider c; c.shape=AabbShape{{0,0,20,20}};
+    Collider c; c.shape=BoxShape::from_rect({0,0,20,20});
     auto force=add<ScenarioBody>(Vector2{250,40},d,std::vector<Collider>{c}).physics_handle();
     auto impulse=add<ScenarioBody>(Vector2{250,100},d,std::vector<Collider>{c}).physics_handle();
     d.linear_damping=5;
@@ -151,11 +152,11 @@ void ShowcaseScenario::Impl::build_queries()
         truth("segment.first",hit&&hit->target==CollisionTarget::from_collider(world.collider_id(a,0)));
         hit=world.raycast({{110,110},{1,0},200,{}});truth("ray.starts_inside",hit&&hit->fraction==0);
         std::vector<CollisionOverlapQueryHit> overlaps;
-        world.overlap_aabb({{420,148,4,4},{}},overlaps);truth("rotated.narrow_overlap",overlaps.empty());
-        world.overlap_circle({{110,110},12,{}},overlaps);check("circle.overlap",overlaps.size(),1);
-        world.overlap_aabb({{90,90,40,40},{}},overlaps);check("aabb.overlap",overlaps.size(),1);
-        hit=world.sweep_aabb({{0,100,10,10},{300,0},{}});truth("sweep.hit",hit&&hit->fraction>0&&hit->fraction<1);
-        world.raycast_all({{0,110},{1,0},300,{1,0,0}},hits);truth("query.mask",hits.empty());
+        world.overlap_shape({elysia::physics::BoxShape::from_rect({420,148,4,4}), {}, {}},overlaps);truth("rotated.narrow_overlap",overlaps.empty());
+        world.overlap_shape({elysia::physics::CircleShape{{110,110},12}, {}, {}},overlaps);check("circle.overlap",overlaps.size(),1);
+        world.overlap_shape({elysia::physics::BoxShape::from_rect({90,90,40,40}), {}, {}},overlaps);check("aabb.overlap",overlaps.size(),1);
+        hit=world.shape_cast({elysia::physics::BoxShape::from_rect({0,100,10,10}), {}, {300,0}, {}});truth("sweep.hit",hit&&hit->fraction>0&&hit->fraction<1);
+        world.raycast_all({{0,110},{1,0},300,{{1,0,0}}},hits);truth("query.mask",hits.empty());
         world.teleport_object(a,{600,100});world.teleport_object(b,{700,100});
         truth("query.teleport_immediate",!world.raycast({{0,110},{1,0},300,{}}));
     };
@@ -222,23 +223,23 @@ void ShowcaseScenario::Impl::build_joints()
     finish_at=420;
     auto anchor=body({180,120},{12,12},BodyType::Static).physics_handle();
     auto bob=body({180,220},{20,20},BodyType::Dynamic,true,true).physics_handle();
-    auto distance=world.create_distance_joint({anchor,bob,{},{},100});joints.push_back(distance);
+    auto distance=world.create_distance_joint({anchor, bob, {}, {}, {.length = 100}});joints.push_back(distance);
     auto sa=body({420,120},{12,12},BodyType::Static).physics_handle();
     auto sb=body({420,280},{20,20},BodyType::Dynamic,true,true).physics_handle();
-    auto spring=world.create_distance_joint({sa,sb,{},{},100,true,3,.7f});joints.push_back(spring);
+    auto spring=world.create_distance_joint({sa, sb, {}, {}, {.length = 100, .enable_spring = true, .frequency_hz = 3, .damping_ratio = .7f}});joints.push_back(spring);
     BodyDefinition d;d.gravity_scale=0;d.fixed_rotation=false;
-    Collider c;c.shape=AabbShape{{-40,-5,80,10}};
+    Collider c;c.shape=BoxShape::from_rect({-40,-5,80,10});
     auto ma=body({700,220},{12,12},BodyType::Static).physics_handle();
     auto mb=add<ScenarioBody>(Vector2{700,220},d,std::vector<Collider>{c}).physics_handle();
-    RevoluteJointDefinition motor;motor.first=ma;motor.second=mb;motor.enable_motor=true;motor.motor_speed=1;
-    motor.max_motor_torque=200000;motor.enable_limit=true;motor.lower_angle=0;motor.upper_angle=.5f;
+    RevoluteJointDefinition motor;motor.first=ma;motor.second=mb;motor.settings.enable_motor=true;motor.settings.motor_speed=1;
+    motor.settings.max_motor_torque=200000;motor.settings.enable_limit=true;motor.settings.lower_angle=0;motor.settings.upper_angle=.5f;
     auto mj=world.create_revolute_joint(motor);joints.push_back(mj);
-    before=[=,this](unsigned n){if(n==400){truth("joint.destroy",world.destroy_joint(distance));world.unregister_object(sb);}};
+    before=[=,this](unsigned n){if(n==400 && !manual_joint_control){truth("joint.destroy",world.destroy_joint(distance));world.unregister_object(sb);}};
     after=[=,this](unsigned n){
-        if(n==350){auto j=world.joint_state(distance);check("distance.length",(j->anchor_second-j->anchor_first).length(),100,1);
+        if(n==350 && !manual_joint_control){auto j=world.joint_state(distance);check("distance.length",(j->anchor_second-j->anchor_first).length(),100,1);
             j=world.joint_state(spring);check("spring.converges",(j->anchor_second-j->anchor_first).length(),100,8);
             check("motor.limit",world.body_state(mb)->angle,.5,.08);}
-        if(n==420){truth("joint.invalid_after_destroy",!world.joint_state(distance));truth("joint.invalid_after_body_removed",!world.joint_state(spring));}
+        if(n==420 && !manual_joint_control){truth("joint.invalid_after_destroy",!world.joint_state(distance));truth("joint.invalid_after_body_removed",!world.joint_state(spring));}
     };
 }
 void ShowcaseScenario::Impl::build_lifecycle()
@@ -301,7 +302,7 @@ void ShowcaseScenario::Impl::build_stress()
         world.set_tile_world(map);view={0,0,float(size*8),float(size*8)};
         for(int i=0;i<100;++i)body({float(i%10)*32+12,float(i/10)*32+12},{4,4});
         before=[=,this](unsigned n){if(n%30==0){int x=int(n/30)%size;(void)tiles->set_cell({x,1},n%60?block_tile():TileCollisionCell{});truth("stress.tile_update",world.update_tiles({x,1},{x,1}));}
-            for(int i=0;i<32;++i){std::vector<CollisionOverlapQueryHit> hits;world.overlap_aabb({{float((n+i)%size)*8,0,8,float(size)*8},{}},hits);}
+            for(int i=0;i<32;++i){std::vector<CollisionOverlapQueryHit> hits;world.overlap_shape({elysia::physics::BoxShape::from_rect({float((n+i)%size)*8,0,8,float(size)*8}), {}, {}},hits);}
         };
     }else{
         const bool dense=descriptor.id=="stress_contacts";
@@ -323,6 +324,58 @@ void ShowcaseScenario::Impl::build_stress()
         check("stress.samples",timings.size(),600);
         if(descriptor.id=="stress_contacts")truth("stress.contacts_observed",*contact_seen);
         // Destroy/recreate cleanup is additionally checked by the shared runner tests.
+    };
+}
+}
+
+namespace example::showcase::scenarios
+{
+void ShowcaseScenario::Impl::build_geometry()
+{
+    finish_at=240;
+    body({60,530},{880,30},BodyType::Static);
+    Collider slope;slope.shape=ConvexPolygonShape{{Vector2{-180,80},Vector2{180,-80},Vector2{180,80}},3};
+    BodyDefinition fixed;fixed.type=BodyType::Static;
+    add<ScenarioBody>(Vector2{500,350},fixed,std::vector<Collider>{slope});
+    Collider capsule;capsule.shape=CapsuleShape{{0,-20},{0,20},16};capsule.material.friction=.5f;
+    BodyDefinition falling;falling.fixed_rotation=true;
+    auto actor=add<ScenarioBody>(Vector2{420,120},falling,std::vector<Collider>{capsule}).physics_handle();
+    Collider octagon;ConvexPolygonShape polygon;polygon.vertex_count=8;
+    for(int i=0;i<8;++i){float a=i*0.78539816339f;polygon.local_vertices[i]={30*std::cos(a),30*std::sin(a)};}
+    octagon.shape=polygon;falling.fixed_rotation=false;
+    auto stone=add<ScenarioBody>(Vector2{750,120},falling,std::vector<Collider>{octagon}).physics_handle();
+    after=[=,this](unsigned n){if(n==240){
+        truth("capsule.contacts_slope_or_floor",world.contact_state(actor).grounded);
+        truth("polygon.contacts_floor",world.contact_state(stone).grounded);
+        truth("capsule.stays_above_floor",world.body_state(actor)->position.y<530);
+    }};
+}
+void ShowcaseScenario::Impl::build_shape_queries()
+{
+    finish_at=1;
+    for(int i=0;i<4;++i) body({500,35.f+i*120},{12,70},BodyType::Static);
+    after=[this](unsigned){
+        using namespace elysia::core;
+        const ColliderShape shapes[]={BoxShape{{},{16,12},.3f},CircleShape{{},16},
+            CapsuleShape{{0,-16},{0,16},10},ConvexPolygonShape{{Vector2{-16,12},Vector2{16,12},Vector2{0,-16}},3}};
+        for(int i=0;i<4;++i)
+        {
+            float y=70.f+i*120;
+            ShapeCastQuery q{shapes[i],{{100,y},.15f},{700,0}};
+            auto hit=world.shape_cast(q);
+            truth("shape_cast.hit_"+std::to_string(i),hit&&!hit->initial_overlap);
+            example::showcase::submit_collider_shape(shapes[i],q.pose,{80,150,220,180},query_commands);
+            query_commands.push_back(make_world_draw_line_command(q.pose.position,q.pose.position+q.displacement,{90,150,180},2));
+            if(hit){
+                auto pose=q.pose;pose.position+=q.displacement*hit->fraction;
+                example::showcase::submit_collider_shape(shapes[i],pose,{240,190,80,180},query_commands);
+                query_commands.push_back(make_world_draw_line_command(hit->point,hit->point+hit->normal*45,{240,80,80},3));
+                check("shape_cast.fraction_"+std::to_string(i),hit->fraction,.55,.06);
+            }
+            q.pose.position={506,y};q.displacement={};
+            auto initial=world.shape_cast(q);
+            truth("shape_cast.initial_overlap_"+std::to_string(i),initial&&initial->initial_overlap&&initial->normal==Vector2{});
+        }
     };
 }
 }

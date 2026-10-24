@@ -52,7 +52,7 @@ void catalog()
         if(entry.category==scenarios::ScenarioCategory::Gameplay){++gameplay;require(entry.scene==17,"combat checks use the Gameplay verification scene");}
         else {require(entry.scene==12,"physics checks use the physics verification scene");if(entry.category==scenarios::ScenarioCategory::Stress)++stress;else ++physical;}
     }
-    require(physical==10 && gameplay==3 && stress==3,"all existing simulation cases remain available");
+    require(physical==20 && gameplay==3 && stress==3,"existing and new geometry simulation cases remain available");
     ui::HudDemoState state;state.cast();state.paused=true;state.advance(5);state.use(0);require(state.cooldown==3 && state.item_counts[0]==8,"pause freezes example actions");state.paused=false;state.advance(3);state.use(1);require(state.cooldown==0 && state.item_counts[1]==2,"example resumes correctly");
 }
 }

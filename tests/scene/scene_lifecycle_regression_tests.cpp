@@ -36,7 +36,7 @@ class Body final : public core::GameObject, public physics::PhysicsParticipant,
 public:
     Body() : GameObject(core::DepthLayer::Item)
     {
-        collider.shape = physics::AabbShape{{0, 0, 10, 10}};
+        collider.shape = physics::BoxShape::from_rect({0, 0, 10, 10});
         collider.response = physics::CollisionResponse::Overlap;
     }
     ~Body() override

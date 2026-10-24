@@ -57,6 +57,9 @@ public:
     ShowcaseScenario(const ShowcaseScenario&) = delete;
     ShowcaseScenario& operator=(const ShowcaseScenario&) = delete;
     void start();
+    void control_joints();
+    void drag_joint_target(elysia::core::Vector2 world_point);
+    std::string joint_status() const;
     void advance(double display_delta);
     void single_step();
     void set_paused(bool paused);

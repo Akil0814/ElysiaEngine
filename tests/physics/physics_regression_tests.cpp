@@ -40,7 +40,7 @@ Vector2 run_one_way_case(PassThroughDirection directions, Vector2 start, Vector2
     Probe platform;
     platform.definition.type = BodyType::Static;
     platform.set_position({100, 100});
-    platform.collider.shape = AabbShape{{0, 0, 20, 20}};
+    platform.collider.shape = BoxShape::from_rect({0, 0, 20, 20});
     platform.collider.one_way = OneWayCollision{directions, 1};
 
     Probe actor;
@@ -59,7 +59,7 @@ void runtime_continuous_detection()
     auto run = [](bool initial_continuous, bool final_continuous, bool explicit_bullet,
                   bool other_continuous) {
         Probe target, projectile;
-        target.collider.shape = AabbShape{{0, 0, 2, 40}};
+        target.collider.shape = BoxShape::from_rect({0, 0, 2, 40});
         target.set_position({50, -20});
         projectile.definition.velocity = {6000, 0};
         projectile.definition.bullet = explicit_bullet;
@@ -200,7 +200,7 @@ int main()
         std::vector<CollisionOverlapQueryHit> tile_hits;
         const auto tile_count = [&] {
             tile_hits.clear();
-            material_world.overlap_aabb({{10, 105, 10, 10}, {}}, tile_hits);
+            material_world.overlap_shape({elysia::physics::BoxShape::from_rect({10, 105, 10, 10}), {}, {}}, tile_hits);
             return tile_hits.size();
         };
         require(tile_count() == 1, "Tile creation accepts restitution above one");
@@ -281,7 +281,7 @@ int main()
     PhysicsWorld sweeps;
     auto s = sensor.add(sweeps);
     moving.add(sweeps);
-    auto hit = sweeps.sweep_aabb({{20, 0, 10, 10}, {200, 0}, {1, 1, 0}});
+    auto hit = sweeps.shape_cast({elysia::physics::BoxShape::from_rect({20, 0, 10, 10}), {}, {200, 0}, {{1, 1, 0}}});
     require(hit && hit->target == CollisionTarget::from_collider(sweeps.collider_id(s, 0)),
             "Explicit cast catches thin sensor");
     std::cout << "physics regression tests passed\n";

@@ -47,10 +47,10 @@ public:
     {
         set_world_rect({position, {32.0f, 32.0f}});
         // Index 0 is hurt, 1 attack; filter bits must match both ways.
-        _colliders[0].shape = ph::AabbShape{{0, 0, 32, 32}};
+        _colliders[0].shape = ph::BoxShape::from_rect({0, 0, 32, 32});
         _colliders[0].filter = {.category = 2u, .mask = 1u};
         _colliders[0].response = ph::CollisionResponse::Overlap;
-        _colliders[1].shape = ph::AabbShape{{24, 0, 40, 32}};
+        _colliders[1].shape = ph::BoxShape::from_rect({24, 0, 40, 32});
         _colliders[1].filter = {.category = 1u, .mask = 2u};
         _colliders[1].response = ph::CollisionResponse::Overlap;
         // Register the disabled attack area first; enable when a fixed-step attack request arrives.

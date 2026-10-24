@@ -12,6 +12,7 @@
 #include <cstring>
 #include <exception>
 #include <new>
+#include <cmath>
 #include <functional>
 
 namespace
@@ -38,7 +39,7 @@ class OwnedBody final : public elysia::core::GameObject, public elysia::physics:
 {
 public:
     explicit OwnedBody(int& destroyed) : GameObject(elysia::core::DepthLayer::Character), destroyed(destroyed)
-    { for (auto& collider : colliders) collider.shape = elysia::physics::AabbShape{{0,0,20,20}}; }
+    { for (auto& collider : colliders) collider.shape = elysia::physics::BoxShape::from_rect({0,0,20,20}); }
     ~OwnedBody() override { ++destroyed; }
     std::span<const elysia::physics::Collider> collider_definitions() const override { return colliders; }
 private:
@@ -62,7 +63,7 @@ class DeferredBody final : public elysia::core::GameObject,
 {
 public:
     DeferredBody() : GameObject(elysia::core::DepthLayer::Character)
-    { collider.shape = elysia::physics::AabbShape{{0,0,20,20}}; }
+    { collider.shape = elysia::physics::BoxShape::from_rect({0,0,20,20}); }
     void fixed_update(double) override { if (tick) tick(); }
     std::function<void()> tick;
     elysia::physics::Collider collider;
@@ -76,44 +77,67 @@ int main(int argc,char** argv)
     const long index = argc > 2 ? std::strtol(argv[2],nullptr,10) : 0;
     if (!std::strcmp(mode,"registration"))
     {
-        elysia::core::GameObject owner(elysia::core::DepthLayer::Character);
-        elysia::physics::PhysicsWorld world;
-        std::array<elysia::physics::Collider,2> colliders{};
-        for (auto& collider : colliders) collider.shape = elysia::physics::AabbShape{{0,0,20,20}};
-        fail_after = index;
-        bool caught = false;
-        try { (void)world.register_object(owner,{},colliders); }
-        catch (const std::bad_alloc&) { caught = true; }
-        fail_after = -1;
-        require(caught && world.registered_object_count() == 0 && world.registered_collider_count() == 0,
-            "failed registration leaves no owner or collider record");
-        const auto recovered = world.register_object(owner,{},colliders);
-        require(recovered.is_valid() && world.registered_object_count() == 1
-                && world.registered_collider_count() == colliders.size(),
-            "PhysicsWorld accepts a fresh registration after rollback");
-        world.step(1.0 / 60.0);
+        bool completed=false;int failures=0;
+        for(long budget=0;budget<64&&!completed;++budget)
+        {
+            elysia::core::GameObject owner(elysia::core::DepthLayer::Character);
+            elysia::physics::PhysicsWorld world;
+            std::array<elysia::physics::Collider,2> colliders{};
+            for(auto& collider:colliders)collider.shape=elysia::physics::BoxShape::from_rect({0,0,20,20});
+            fail_after=budget;bool caught=false;
+            try{(void)world.register_object(owner,{},colliders);}
+            catch(const std::bad_alloc&){caught=true;}
+            fail_after=-1;
+            if(caught)
+            {
+                ++failures;
+                require(world.registered_object_count()==0&&world.registered_collider_count()==0,
+                    "every failed registration allocation leaves no owner or collider record");
+                require(world.register_object(owner,{},colliders).is_valid(),
+                    "registration succeeds after rollback at every allocation point");
+            }
+            else completed=true;
+            require(world.registered_object_count()==1&&world.registered_collider_count()==2,
+                "successful or recovered registration owns the complete collider set");
+            world.step(1.0/60);
+        }
+        require(completed&&failures>0,"registration sweep covers allocation failures through first success");
     }
     else if (!std::strcmp(mode,"ownership"))
     {
-        int destroyed = 0;
-        OwnershipScene scene;
-        auto object = std::make_unique<OwnedBody>(destroyed);
-        auto* address = object.get();
-        fail_after = index;
-        bool caught = false;
-        try { (void)scene.add_object(std::move(object)); }
-        catch (const std::exception&) { caught = true; }
-        fail_after = -1;
-        require(caught && destroyed == 1 && !scene.contains_object_address(address)
-                && scene.registrations() == 0,
-            "failed Scene registration releases object and all PhysicsWorld references");
+        bool completed=false;int failures=0;
+        for(long budget=0;budget<64&&!completed;++budget)
+        {
+            int destroyed=0;
+            {
+                OwnershipScene scene;auto object=std::make_unique<OwnedBody>(destroyed);auto* address=object.get();
+                fail_after=budget;bool caught=false;
+                try{(void)scene.add_object(std::move(object));}
+                catch(const std::exception&){caught=true;}
+                fail_after=-1;
+                if(caught)
+                {
+                    ++failures;
+                    require(destroyed==1&&!scene.contains_object_address(address)&&scene.registrations()==0,
+                        "every failed Scene allocation releases the object and physics references");
+                }
+                else
+                {
+                    completed=true;
+                    require(scene.contains_object_address(address)&&scene.registrations()==1,
+                        "successful Scene registration retains object ownership");
+                }
+            }
+            require(destroyed==1,"each ownership-sweep fixture destroys its object exactly once");
+        }
+        require(completed&&failures>0,"ownership sweep covers allocation failures through first success");
     }
     else if (!std::strcmp(mode,"debug"))
     {
         elysia::core::GameObject owner(elysia::core::DepthLayer::Character);
         elysia::physics::PhysicsWorld world;
         std::array<elysia::physics::Collider,1> colliders{};
-        colliders[0].shape = elysia::physics::AabbShape{{0,0,20,20}};
+        colliders[0].shape = elysia::physics::BoxShape::from_rect({0,0,20,20});
         (void)world.register_object(owner,{},colliders);
         fail_after = 0;
         bool caught = false;
@@ -147,6 +171,117 @@ int main(int argc,char** argv)
                 && !world.contains_object(created) && world.registered_object_count() == (remove_source ? 0u : 1u),
             "deferred native registration failure removes pending and abandoned owners");
         world.step(1.0 / 60.0);
+    }
+    else if (!std::strcmp(mode,"shape_update"))
+    {
+        using namespace elysia::physics;
+        int failures=0;
+        for(long budget=0;budget<4;++budget)
+        {
+            DeferredBody owner;PhysicsWorld world;
+            auto h=world.register_object(owner,{}, {&owner.collider,1});auto id=world.collider_id(h,0);
+            auto replacement=owner.collider;replacement.shape=CapsuleShape{{100,0},{100,20},8};
+            fail_after=budget;bool caught=false;
+            try{world.update_collider(id,replacement);}catch(const std::bad_alloc&){caught=true;}
+            fail_after=-1;
+            if(caught)
+            {
+                ++failures;
+                require(world.contains_collider(id)&&world.raycast({{-10,10},{1,0},40}),
+                    "allocation failure during replacement preserves old collider and native mapping");
+                require(!world.raycast({{80,10},{1,0},40}),"failed replacement leaves no orphan shape");
+            }
+            world.step(1.0/60);
+        }
+        require(failures>0,"shape replacement fault injection reaches an allocation");
+    }
+    else if (!std::strcmp(mode,"joint_queue"))
+    {
+        using namespace elysia::physics;
+        for(int action=0;action<3;++action)
+        {
+            DeferredBody anchor,bob;PhysicsWorld world;
+            auto a=world.register_object(anchor,{.type=BodyType::Static},{&anchor.collider,1});
+            auto b=world.register_object(bob,{}, {&bob.collider,1});
+            auto h=world.create_distance_joint({a,b,{}, {},{.length=30}});
+            bool caught=false;
+            bob.tick=[&] {
+                fail_after=0;
+                try
+                {
+                    if(action==0)(void)world.create_distance_joint({a,b});
+                    if(action==1)(void)world.update_distance_joint(h,{.length=60});
+                    if(action==2)(void)world.destroy_joint(h);
+                }
+                catch(const std::bad_alloc&){caught=true;}
+                fail_after=-1;
+            };
+            world.step(1.0/60);bob.tick={};
+            require(caught&&world.joint_state(h)&&world.last_step_stats().joints==1,
+                "failed joint command allocation leaves the existing joint usable and no pending record");
+            require(std::abs(std::get<DistanceJointState>(world.joint_state(h)->details).settings.length-30)<.001f,
+                "failed joint settings allocation preserves original settings");
+            require(world.destroy_joint(h),"joint can be destroyed after failed queue operation");
+        }
+    }
+    else if (!std::strcmp(mode,"chain") || !std::strcmp(mode,"chain_deferred"))
+    {
+        using namespace elysia::physics;
+        const bool deferred=!std::strcmp(mode,"chain_deferred");bool completed=false;int failures=0;
+        for(long budget=0;budget<256&&!completed;++budget)
+        {
+            DeferredBody owner;PhysicsWorld world;auto a=world.register_object(owner,{.type=BodyType::Static},{&owner.collider,1});
+            ChainDefinition d;d.local_vertices={{0,100},{100,100},{200,100}};d.tag=std::string(80,'t');ChainHandle h;
+            bool caught=false;
+            auto create=[&]{h=world.create_chain(a,d);};
+            if(deferred)owner.tick=[&]{fail_after=budget;create();};else fail_after=budget;
+            try{if(deferred)world.step(1./60);else create();}catch(const std::bad_alloc&){caught=true;}
+            fail_after=-1;owner.tick={};
+            if(caught&&!world.chain_state(h)){++failures;require(world.registered_collider_count()==1,"Every chain allocation failure retires pending/native children and mappings");
+                require(!world.segment_cast({{50,50},{50,150}}),"Failed chain leaves no query proxy");h=world.create_chain(a,d);}
+            else completed=true;
+            require(world.chain_state(h)&&world.registered_collider_count()==3,"Chain succeeds after rollback");
+            world.destroy_chain(h);world.step(1./60);require(world.last_step_stats().chains==0,"No orphan native chain remains after destruction");
+        }
+        require(completed&&failures>0,"Chain sweep covers every allocation through first success");
+    }
+    else if (!std::strcmp(mode,"chain_destroy"))
+    {
+        using namespace elysia::physics;
+        bool completed=false;int failures=0;
+        for(long budget=0;budget<64&&!completed;++budget)
+        {
+            DeferredBody owner,sensor;PhysicsWorld world;auto a=world.register_object(owner,{.type=BodyType::Static},{&owner.collider,1});
+            ChainDefinition d;d.local_vertices={{0,100},{100,100},{200,100}};auto h=world.create_chain(a,d);
+            sensor.set_position({50,90});sensor.collider.response=CollisionResponse::Overlap;auto b=world.register_object(sensor,{}, {&sensor.collider,1});world.step(1./60);
+            auto child=world.chain_collider(h,0);fail_after=budget;bool caught=false;
+            try{world.destroy_chain(h);}catch(const std::bad_alloc&){caught=true;}fail_after=-1;
+            if(caught){++failures;require(world.chain_state(h)&&world.contains_collider(child),"Failed chain destruction keeps the entire group usable");require(world.destroy_chain(h),"Destruction retries after allocation failure");}
+            else completed=true;
+            world.step(1./60);require(!world.chain_state(h)&&world.registered_collider_count()==2,"No children survive chain destruction");
+        }
+        require(completed&&failures>0,"Chain destruction sweeps invalidation allocations");
+    }
+    else if (!std::strcmp(mode,"stage2_joints"))
+    {
+        using namespace elysia::physics;
+        for(int type=0;type<6;++type)for(int action=0;action<3;++action)
+        {
+            bool completed=false;int failures=0;
+            for(long budget=0;budget<64&&!completed;++budget)
+            {
+                DeferredBody anchor,bob;PhysicsWorld world;auto a=world.register_object(anchor,{.type=BodyType::Static},{&anchor.collider,1});auto b=world.register_object(bob,{}, {&bob.collider,1});JointHandle h;
+                auto create=[&]{switch(type){case 0:return world.create_weld_joint({a,b});case 1:return world.create_prismatic_joint({a,b});case 2:return world.create_wheel_joint({a,b});case 3:return world.create_mouse_joint({a,b});case 4:return world.create_motor_joint({a,b});default:return world.create_filter_joint({a,b});}};
+                auto update=[&]{switch(type){case 0:return world.update_weld_joint(h,{.linear_frequency_hz=5});case 1:return world.update_prismatic_joint(h,{.target_translation=50});case 2:return world.update_wheel_joint(h,{.frequency_hz=5});case 3:return world.update_mouse_joint(h,{{50,0}});case 4:return world.update_motor_joint(h,{{50,0}});default:return world.destroy_joint(h);}};
+                if(action!=0)h=create();bool caught=false;
+                bob.tick=[&]{fail_after=budget;try{if(action==0)h=create();else if(action==1)update();else world.destroy_joint(h);}catch(const std::bad_alloc&){caught=true;}fail_after=-1;};
+                world.step(1./60);bob.tick={};
+                if(caught){++failures;require(world.joint_state(h).has_value()==(action!=0),"Failed joint allocation leaves no pending record and preserves existing joint");}
+                else completed=true;
+                world.reset();
+            }
+            require(completed&&failures>0,"Each new joint command sweeps allocation failures");
+        }
     }
     else if (!std::strcmp(mode,"shutdown"))
     {

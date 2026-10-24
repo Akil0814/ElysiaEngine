@@ -13,6 +13,8 @@ Worlds, participants, definitions, and events separate runtime state from game i
 | `ContactCache` | Engine Begin/Stay/End state, including logical invalidation |
 | `GameplayCollisionRuntime` | Team/actor routing and attack-instance deduplication |
 | `ITileCollisionWorld` | Borrowed map description and explicit dirty-region refresh |
-| `JointHandle` | Engine identity for a distance or revolute joint |
+| `JointHandle` | Engine identity for any of eight joint types |
+| `ChainDefinition` / `ChainHandle` | Own terrain vertices, ghosts and tags / manage grouped edge lifetime |
+| `PhysicsWorld::set_target_transform` | Submit one kinematic velocity target from the execution-time pose |
 
 To change character movement, modify control logic or submit physics commands. To change how attacks choose targets, examine gameplay roles, filtering, and explicit queries. Removed detection/solver strategies are not extension points.

@@ -9,3 +9,5 @@ Adjacent solid cells with matching filters suppress shared internal contacts whi
 One-way decisions use frozen current/previous bounds, contact normals, and accepted supports. Previous bounds retain approach direction, including when discrete contact appears after crossing a surface. Existing support survives penetration correction; slight solver velocity reversal does not immediately disable it.
 
 Replacing/clearing maps invalidates old contacts and retires native IDs. Dirty updates rebuild only the selected region, without scanning the entire map every step.
+
+Tiles remain rectangles. Native contours use separate Chain resources and are not extracted automatically from Tile data. Chain edges retain Collider targets; map cells retain Tile targets.

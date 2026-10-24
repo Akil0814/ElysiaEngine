@@ -72,7 +72,7 @@ function(elysia_add_scene_documentation_examples_language language target)
     elysia_extract_documentation_cpp("${documentation_root}/content/configuration.md"
         "${generated_directory}/configuration.cpp" 2)
     elysia_extract_documentation_cpp("${documentation_root}/systems/physics.md"
-        "${generated_directory}/physics.cpp" 4 FallingBox ConfiguredPhysicsScene)
+        "${generated_directory}/physics.cpp" 7 FallingBox ConfiguredPhysicsScene)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/collision.md"
         "${generated_directory}/collision.cpp" 3 CollisionExampleScene)
     elysia_extract_documentation_cpp("${documentation_root}/content/resources.md"

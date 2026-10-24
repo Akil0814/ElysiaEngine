@@ -50,3 +50,11 @@ Default outlines share ordinary drawing's interpolated positions/shortest-angle 
 Inspector `Native AABB (physics step)` separately shows yellow axis-aligned bounds, neither rotated outlines nor CCD trajectories. `Previous / current physics poses` shows previous gray/latest white, both off by default.
 
 Contacts/normals/velocity represent the latest completed step intentionally without interpolation. Deferred commits/debug mode changes refresh capture even during pause. Render-only frames still update collider interpolation factors.
+
+## Terrain and Target Commands
+
+Chain vertices/ghosts and Segment endpoints also use EU. The local front `(dy,-dx)` rotates with the body. Chain children cannot be edited as Colliders; resolve identity with `chain_collider` and `chain_segment_info`. `set_target_transform(handle, pose, dt)` accepts Kinematic bodies only and is submitted each fixed step. Without submissions current velocity persists; identical or natively sleepy targets clear old velocity.
+
+Eight `JointState.details` alternatives expose typed settings/measurements and common `first`/`second` endpoint identities. Filter has no settings or reaction force/torque. Motor position targets/errors use body A local coordinates; Mouse targets/errors use world coordinates.
+
+Filter and `collide_connected` follow the bundled Box2D solid-contact rules. They do not suppress native Sensor overlaps or change stateless queries. Use Collider filters or `CollisionQueryFilter` to exclude sensor/query targets.

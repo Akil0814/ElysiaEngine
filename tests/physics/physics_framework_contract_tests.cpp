@@ -33,7 +33,7 @@ int main()
     for (float scale : {50.f, 100.f, 200.f})
     {
         Probe o;
-        o.collider.shape = AabbShape{{0, 0, scale, scale}};
+        o.collider.shape = BoxShape::from_rect({0, 0, scale, scale});
         o.definition.fixed_rotation = false;
         o.definition.mass_policy = MassPolicy::ExplicitMass;
         o.definition.mass = 3;

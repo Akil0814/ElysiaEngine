@@ -37,7 +37,7 @@ void ScenarioScene::on_enter(const elysia::scene::ScenePayload& payload)
         debug->set_enabled_categories(elysia::tools::DebugDrawCategory::All);
         const auto layout=make_scenario_layout(float(runtime_context().logical_width()),float(runtime_context().logical_height()));
         _window=create_and_add_object<elysia::ui::UiWindow>(layout.viewport,101);
-        _hud.build(*_window,*_scenario,{[this]{run();},[this]{pause_case();},[this]{step();},[this]{restart();},[this]{back();}});
+        _hud.build(*_window,*_scenario,{[this]{run();},[this]{pause_case();},[this]{step();},[this]{restart();},[this]{back();},[this]{_scenario->control_joints();}});
         _inspector.attach(runtime_context().development_panels(),_entry.scenario_id,
             [this]() -> const elysia::physics::PhysicsWorld& {return _scenario->world();},
             [this]{return _scenario->result().fixed_step_stats;},elysia::scene::FixedStepConfig{});
@@ -63,6 +63,7 @@ void ScenarioScene::clear_presentation() noexcept
     _window=nullptr;
     _presentation=nullptr;
     _scenario.reset();
+    _dragging_joint=false;
 }
 void ScenarioScene::release_global_state() noexcept
 {
@@ -85,6 +86,22 @@ void ScenarioScene::pause_case() { _scenario->set_paused(!_scenario->paused()); 
 void ScenarioScene::step() { _scenario->set_paused(true); _scenario->single_step(); }
 void ScenarioScene::restart() { request_scene_switch(_key,_entry,elysia::scene::SceneReloadMode::Recreate); }
 void ScenarioScene::back() { request_scene_switch(_entry.return_route); }
+void ScenarioScene::on_routed_input(const elysia::input::InputSnapshot& input)
+{
+    using namespace elysia::input;
+    if(!_scenario||_entry.scenario_id!="joint_mouse")return;
+    if(input.focus_lost||captures_input(input.capture,InputCapture::Pointer)){_dragging_joint=false;return;}
+    for(const auto& event:input.events)
+    {
+        if(event.device!=InputDevice::Mouse)continue;
+        if(event.control==RawInputControl::MouseLeft&&event.type==RawInputEventType::ControlPressed)_dragging_joint=true;
+        if(event.control==RawInputControl::MouseLeft&&event.type==RawInputEventType::ControlReleased){_dragging_joint=false;continue;}
+        if(!_dragging_joint)continue;
+        const auto point=camera_runtime().slot_camera(elysia::camera::CameraSlot::Main).screen_to_world(elysia::core::Vector2{float(event.mouse_x),float(event.mouse_y)});
+        _scenario->drag_joint_target(point);
+    }
+    if(const auto* mouse=input.find(InputSourceId::mouse());mouse&&!mouse->frame.state.is_pressed(RawInputControl::MouseLeft))_dragging_joint=false;
+}
 void ScenarioScene::on_shortcuts(const elysia::input::RawInputFrame&,const std::vector<elysia::input::RawInputEvent>& events)
 {
     using namespace elysia::input;

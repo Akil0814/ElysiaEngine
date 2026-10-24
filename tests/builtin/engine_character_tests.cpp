@@ -185,9 +185,9 @@ void test_collider_and_debug_draw()
     const auto colliders = character.colliders();
     require(colliders.size() == 1,
         "EngineCharacter must expose one debug collider");
-    const auto* aabb = std::get_if<elysia::physics::AabbShape>(
+    const auto* aabb = std::get_if<elysia::physics::BoxShape>(
         &colliders.front().shape);
-    require(aabb && aabb->local_rect == elysia::core::Rect{24.0f, 16.0f, 48.0f, 72.0f}
+    require(aabb && aabb->local_bounds() == elysia::core::Rect{24.0f, 16.0f, 48.0f, 72.0f}
             && colliders.front().filter.category == 0
             && colliders.front().filter.mask == 0
             && colliders.front().response == elysia::physics::CollisionResponse::Ignore,

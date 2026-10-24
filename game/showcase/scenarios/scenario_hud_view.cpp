@@ -47,10 +47,11 @@ void ScenarioHudView::build(elysia::ui::UiWindow& window_ref,const ShowcaseScena
     const float y=l.actions[0].y();
     auto toolbar=std::make_unique<UiListContainer>(elysia::core::Rect{16,y,l.viewport.width()-32,38});
     toolbar->set_direction(UiListDirection::Horizontal); toolbar->set_item_spacing(8);
-    const char* keys[]={"run","pause","single_step","reset","back"};
-    std::function<void()> callbacks[]={actions.run,actions.pause,actions.step,actions.reset,actions.back};
-    for(int i=0;i<5;++i) {
-        auto button=std::make_unique<UiButton>(elysia::core::Rect{0,0,(l.viewport.width()-64)/5,38});
+    const char* keys[]={"run","pause","single_step","reset","back","control_joints"};
+    std::function<void()> callbacks[]={actions.run,actions.pause,actions.step,actions.reset,actions.back,actions.control_joints};
+    const int button_count=(scenario.descriptor().id=="joints"||scenario.descriptor().id.starts_with("joint_"))?6:5;
+    for(int i=0;i<button_count;++i) {
+        auto button=std::make_unique<UiButton>(elysia::core::Rect{0,0,(l.viewport.width()-72)/button_count,38});
         button->set_text_content(ui_text_key("physics_tests."+std::string(keys[i])));
         button->set_on_click(std::move(callbacks[i])); toolbar->add_back(std::move(button));
     }
@@ -64,6 +65,16 @@ void ScenarioHudView::update(const ShowcaseScenario& scenario)
     using namespace example::scene;
     using namespace elysia::ui;
     const auto& r=scenario.result();
+    if(r.checks.size()<_displayed)
+    {
+        const float width=_checks->screen_rect().width();
+        _checks->clear_children();
+        for(int i=0;i<9;++i)
+        {
+            auto row=label({0,0,width,24});_labels[i]=row.get();_checks->add_back(std::move(row));
+        }
+        _displayed=0;
+    }
     _labels[0]->set_text_content(ui_raw_text(tr(scenario_status_key(r.status))+(scenario.paused()?" | "+tr("physics_tests.paused"):"")));
     _labels[1]->set_text_content(ui_raw_text(tr("physics_tests.steps")+": "+std::to_string(r.steps)+" / "+std::to_string(scenario.descriptor().max_steps)));
     _labels[2]->set_text_content(ui_raw_text(tr("physics_tests.objects")+": "+std::to_string(r.stats.registered_objects)+" / "+std::to_string(r.stats.registered_colliders)));
@@ -71,7 +82,7 @@ void ScenarioHudView::update(const ShowcaseScenario& scenario)
     _labels[4]->set_text_content(ui_raw_text(tr("physics_tests.dropped")+": "+std::to_string(r.fixed_step_stats.dropped_steps)));
     std::ostringstream timing;timing<<std::fixed<<std::setprecision(3)<<tr("physics_tests.timing")<<": "<<r.median_ms<<" / "<<r.p95_ms<<" / "<<r.max_ms;
     _labels[5]->set_text_content(ui_raw_text(timing.str()));
-    _labels[6]->set_text_content(ui_raw_text(tr("physics_tests.samples")+": "+std::to_string(r.samples)));
+    _labels[6]->set_text_content(ui_raw_text(scenario.joint_status().empty()?tr("physics_tests.samples")+": "+std::to_string(r.samples):scenario.joint_status()));
     _labels[7]->set_text_content(ui_raw_text(tr("physics_tests.debug")+": "+tr(r.mixed_debug_samples?"physics_tests.mixed":r.debug_geometry?"physics_tests.on":"physics_tests.off")));
     _labels[8]->set_text_content(ui_raw_text(tr("physics_tests.failure")+": "+(r.failure.empty()?"—":r.failure)));
     while(_displayed<r.checks.size())

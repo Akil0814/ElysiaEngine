@@ -13,7 +13,7 @@ struct ObstacleConfig
 {
     elysia::core::Rect rect{};
     elysia::core::Color color{};
-    elysia::physics::ColliderShape shape{elysia::physics::AabbShape{}};
+    elysia::physics::ColliderShape shape{elysia::physics::BoxShape{}};
     elysia::physics::CollisionResponse response = elysia::physics::CollisionResponse::Block;
     elysia::physics::CollisionDetectionMode detection = elysia::physics::CollisionDetectionMode::Discrete;
     std::optional<elysia::physics::OneWayCollision> one_way;

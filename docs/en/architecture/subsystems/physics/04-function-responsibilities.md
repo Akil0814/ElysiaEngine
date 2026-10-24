@@ -21,3 +21,5 @@ Objects registered during participant fixed-update callbacks are absent from thi
 Pre-solve reads only frozen snapshots and the supplied contact manifold and decides acceptance through its return value. It does not query/mutate the native world, dereference game objects, dispatch gameplay callbacks, or execute commands.
 
 Use explicit teleport operations for discontinuous position changes, resetting position and interpolation together. World reset silently clears state; reset requested from a participant skips the pending simulation. It does not reset or stop remaining independent `FixedStepRuntime` scheduling. Exceptions propagate; completed steps are not rolled back.
+
+Target poses, Chains and joint creation/update/destruction use the same FIFO. Targets read the execution-time native pose and fixed rotation ignores target angles. Before simulation, Motor targets are resolved from body A local offsets. Updates immediately following creation execute in order. Chains reserve child identities before committing native edges/mappings; partial failures clean unfinished resources without rolling back completed simulation.

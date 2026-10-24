@@ -24,8 +24,8 @@ public:
     {
         set_world_rect({100, 100, 32, 32});
         // Shapes are body-local; world placement comes from the object's world_rect.
-        _colliders[0].shape = elysia::physics::AabbShape{
-            elysia::core::Rect{0, 0, 32, 32}};
+        _colliders[0].shape = elysia::physics::BoxShape::from_rect(
+            elysia::core::Rect{0, 0, 32, 32});
     }
 
     elysia::physics::BodyDefinition body_definition() const override
@@ -118,13 +118,23 @@ Units are EU (engine units): position/length EU, velocity EU/s, gravity EU/s², 
 
 ## Colliders, Filtering, and Response
 
-`Collider` supports `AabbShape{ Rect local_rect }` and `CircleShape{ Vector2 local_center, float radius }`. Bodies may have multiple colliders; `collider_id(handle, index)` / `PhysicsParticipant::physics_collider(index)` returns stable IDs.
+`Collider` supports `BoxShape`, `CircleShape`, `CapsuleShape`, `ConvexPolygonShape` and `SegmentShape`. All geometry uses body-local coordinates. Multiple colliders per body have stable IDs through `collider_id(handle, index)` or `PhysicsParticipant::physics_collider(index)`.
+
+| Shape | Definition |
+| --- | --- |
+| Box | `BoxShape{local_center, half_extents, local_angle}` with positive half extents; `BoxShape::from_rect(rect)` creates an unrotated local box |
+| Circle | `CircleShape{local_center, radius}` with a positive radius |
+| Capsule | `CapsuleShape{local_first, local_second, radius}`; coincident endpoints behave as a circle; capsules below native length precision collapse to a midpoint circle |
+| Convex polygon | `ConvexPolygonShape::local_vertices` holds at most 8 vertices; `vertex_count` is 3–8, ordered along the boundary in either winding |
+| Segment | `SegmentShape{local_first, local_second}`, zero-thickness and two-sided, Static/Kinematic only |
+
+Concave, self-intersecting, duplicate, collinear/degenerate and non-finite vertices are rejected. Concave decomposition is not automatic. Registration and queries share validation and unit conversion; geometry must also meet native precision and finite mass/inertia requirements. `update_collider` preserves `ColliderId`; invalid replacements preserve the original shape. Independent static convex polygons can form slopes; Tile cells remain rectangular.
 
 Local shapes use the body origin corresponding to object position. This fragment belongs in construction code including `engine/physics/physics_world.h`. Bits 1, 2, 4 are game-assigned and unrelated to `DepthLayer`.
 
 ```cpp
 elysia::physics::Collider body_collider{
-    .shape = elysia::physics::AabbShape{{-16.0f, -28.0f, 32.0f, 56.0f}},
+    .shape = elysia::physics::BoxShape::from_rect({-16.0f, -28.0f, 32.0f, 56.0f}),
     .filter = {.category = std::uint32_t{1}, .mask = std::uint32_t{2} | std::uint32_t{4}},
     .response = elysia::physics::CollisionResponse::Block,
     .material = {.friction = 0.4f, .restitution = 0.0f},
@@ -150,17 +160,20 @@ One-way rules use `Collider::one_way` / `TileCollisionCell::one_way`, with `OneW
 
 ## Stateless Spatial Queries
 
-Queries apply `CollisionFilter` and ignore disabled/`Ignore` shapes. `raycast`, `segment_cast`, `sweep_aabb` return nearest optional hits. `*_all` writes caller vectors sorted by `distance` and deduplicated by `target`.
+All queries use `CollisionQueryFilter`: `collision` holds categories, masks and groups; `ignored_object` excludes every collider on one object; `include_sensors` defaults to `true`. Disabled and `Ignore` shapes are always excluded. Queries do not apply directional-platform movement response rules; game logic decides how to use each hit.
 
-| Need | Structure/interface | Result |
+| Need | Interface | Result |
 | --- | --- | --- |
-| Laser/line of sight | `RayCastQuery` + `raycast` / `raycast_all` | `CollisionQueryHit` |
+| Ray | `RayCastQuery` + `raycast` / `raycast_all` | `CollisionQueryHit` |
 | Start/end line | `SegmentCastQuery` + `segment_cast` / `segment_cast_all` | `CollisionQueryHit` |
-| Rectangular region | `AabbOverlapQuery` + `overlap_aabb` | `CollisionOverlapQueryHit` |
-| Circular region | `CircleOverlapQuery` + `overlap_circle` | `CollisionOverlapQueryHit` |
-| Fast bullet/actor box prediction | `AabbSweepQuery` + `sweep_aabb` | Nearest `CollisionQueryHit` |
+| Any supported overlap shape | `ShapeOverlapQuery{shape, pose, filter}` + `overlap_shape` | Output `CollisionOverlapQueryHit` vector |
+| Translating shape | `ShapeCastQuery{shape, pose, displacement, filter}` + `shape_cast` / `shape_cast_all` | Nearest or all `CollisionQueryHit` results |
 
-`CollisionQueryHit` contains `target` (`Collider` or Tile), `point`, `normal`, `distance`, 0–1 `fraction`, and `response`. Queries create no collision events, damage, or `response`; game rules explicitly decide fast-attack hit timing.
+`shape` uses the four area-bearing `ColliderShape` alternatives (Segment query sources are rejected), `pose` is a world pose, and `displacement` is a world translation. The angle stays fixed during a cast; rotational sweeps are not supported. The closest result matches the first all-hit result. All hits are sorted by `fraction`, then target ID, and deduplicated by target; separate colliders on one body remain separate hits.
+
+Hits contain `target` (Collider or Tile), `point`, `normal`, `distance`, `fraction`, `response` and `initial_overlap`. Starting inside a target reports `initial_overlap=true`, zero distance/fraction, the query origin or pose origin as the point, and a zero normal. These sentinel values are not a contact manifold. A zero-translation shape cast only checks initial overlap. Invalid queries return no hits and clear output vectors.
+
+Queries generate no collision events, damage or physical response. Fast Sensor/HitBox detection still requires explicit gameplay casts and result consumption; rigid-body CCD does not automatically provide continuous attack detection.
 
 ## TileMap Collision
 
@@ -170,12 +183,28 @@ After entry with valid map data, `physics_world().set_tile_world(map)` and check
 
 TileMap is borrowed and must outlive binding. `TileOutOfBoundsPolicy::Block` creates four perimeter walls; `Empty` none. Adjacent solid cells with identical filters suppress internal faces; exposed faces collide. Slopes, partial cells, chunk streaming, and merged contours are absent.
 
-## Joints
+## Eight Joint Types and Runtime Settings
 
-`create_distance_joint(const DistanceJointDefinition&)` creates fixed-`distance`/`spring` joints; `create_revolute_joint(const RevoluteJointDefinition&)` hinges with optional limits/motor. Successful creation returns `JointHandle`; `joint_state(handle)` reads anchors/reaction force/torque; `destroy_joint(handle)` removes.
+Creation returns `JointHandle`. Definitions fix bodies, local anchors, reference angles and local axes; finite nonzero axes are normalized. Mechanical joints require at least one Dynamic endpoint. Mouse requires Static first and Dynamic second. Filter requires two distinct valid bodies only. Each mutable settings type is fully replaced by its matching `update_*_joint(handle, settings)`, preserving the native joint and waking its bodies. Filter has no empty settings API.
 
-Both definitions use local anchors and default `collide_connected=false`. Distance settings include `spring`/`frequency_hz`/`damping_ratio`. Revolute settings include `enable_limit`/`lower_angle`/`upper_angle`/`enable_motor`/`motor_speed`/`max_motor_torque`.
+| Type / creation API | Main Settings fields | `JointState.details` |
+| --- | --- | --- |
+| `create_distance_joint` | `length`, spring, length limits, linear motor | `DistanceJointState`: current length, speed, motor force |
+| `create_revolute_joint` | `target_angle`, spring, angle limits, rotary motor | `RevoluteJointState`: angle, angular velocity, motor torque |
+| `create_weld_joint` | `linear_frequency_hz`, `angular_frequency_hz`, matching `*_damping_ratio` | `WeldJointState`: `linear_error`, `angular_error` |
+| `create_prismatic_joint` | `enable_spring`, `target_translation`, frequency/damping, `enable_limit`, `lower_translation`/`upper_translation`, `enable_motor`, `motor_speed`/`max_motor_force` | `PrismaticJointState`: `translation`, `speed`, `motor_force` |
+| `create_wheel_joint` | Suspension `enable_spring`, frequency/damping, translation limits, rotary `motor_speed`/`max_motor_torque` | `WheelJointState`: suspension `translation`/`speed`, `angular_velocity`, `motor_torque` |
+| `create_mouse_joint` | World `target`, `frequency_hz`/`damping_ratio`, `max_force` | `MouseJointState`: `drag_point`, `error`; the initial target fixes the drag anchor |
+| `create_motor_joint` | Body A local `linear_offset`, relative `angular_offset`, `max_force`/`max_torque`, `correction_factor` | `MotorJointState`: local displacement and angle errors |
+| `create_filter_joint` | None | `FilterJointState`: pair collision disabled |
 
+Settings default to `collide_connected=false`. Length, translation speed, force and torque use EU units; angles use radians. Frequency, damping and maximum output must be nonnegative, limits ordered, and correction factor within `[0,1]`. Distance lengths must be positive; disabling its spring makes limits and the motor ineffective. Revolute limits lie within ±0.99π.
+
+Prismatic defaults to no spring, limits or motor; Wheel enables suspension by default. General springs use 2 Hz and damping ratio 0.7; Weld uses zero frequencies and damping ratios 1. Mouse defaults to maximum force 1000, 4 Hz and damping ratio 1. Motor defaults to maximum force 100, maximum torque 10000 and correction factor 0.3. Other motors default off with zero speed/output.
+
+Common `joint_state` fields include endpoint identities `first`/`second`, world anchors, `reaction_force` and `reaction_torque`. Filter imposes no mechanical constraint and reports zero reaction force/torque. Its dotted debug line marks filtering only; destroying it restores normal collision rules. Bounded constraints can retain error; measurements show the actual result.
+
+Invalid parameters, wrong types and invalid handles return `false` or an empty `optional`, preserving old settings. Callback values enter the FIFO queue by copy. Updates can immediately follow deferred creation; execution rechecks endpoint validity and type. Pending creation, destruction, endpoint removal and Reset have no readable state. Six `joint_*` physics pages expose controls and state; Mouse supports left-button target dragging and Filter toggles pair collision.
 ## Gameplay Collision
 
 `Contacts` do not automatically deduct health. See [gameplay collision](../gameplay/collision.md) for actors, teams, HitBox/HurtBox, and deduplication.
@@ -212,7 +241,7 @@ No hit (`nullopt`) is `normal`. Configure filters for relevant layers. Region ve
 
 Listeners derive `ICollisionListener`/implement `on_collision_event`. On entry add/check `add_listener(*listener)`; before exit/destruction remove. Worlds borrow listeners. Record pending actions during callbacks; destroy listeners/reorganize objects afterward. Event handles can invalidate after removal.
 
-After both bodies register, create `DistanceJointDefinition{.first = a, .second = b, .length = 100.0f}`, pass to create_distance_joint, and check is_valid(). Destroy when finished and still check optional `joint_state` afterward. `Joints` cannot connect different worlds.
+After both bodies register, create `DistanceJointDefinition{.first = a, .second = b, .settings = {.length = 100.0f}}`, pass to create_distance_joint, and check is_valid(). Destroy when finished and still check optional `joint_state` afterward. `Joints` cannot connect different worlds.
 
 `TileCollisionCell` tag is std::string_view; both map and tag storage must span binding. World reset clears registration; do not reset independently while scene objects depend on it. Recreate can reset a whole level.
 
@@ -226,3 +255,93 @@ See [tile map guide](tilemap-collision.md) for binding, dirty regions, and one-w
 
 - [Physics API](../../../../engine/physics/physics_world.h), [query parameters](../../../../engine/physics/collision/collision_query.h)
 - [Gameplay collision](../gameplay/collision.md), [object queries](object-query.md), [back to user guide](../README.md)
+
+## Shape Cast Example
+
+```cpp
+#include "engine/physics/physics_world.h"
+
+std::optional<elysia::physics::CollisionQueryHit> cast_capsule(
+    const elysia::physics::PhysicsWorld& world,
+    elysia::physics::PhysicsObjectHandle actor,
+    elysia::core::Vector2 position, elysia::core::Vector2 displacement)
+{
+    return world.shape_cast({
+        .shape = elysia::physics::CapsuleShape{{0, -12}, {0, 12}, 8},
+        .pose = {position, 0},
+        .displacement = displacement,
+        .filter = {.ignored_object = actor}});
+}
+```
+
+## Adjusting a Joint at Runtime
+
+The physics test center joint page can change lengths and reverse motors. Its control button enters continuous manual simulation; reset returns to automatic verification.
+
+```cpp
+#include "engine/physics/physics_world.h"
+
+bool reverse_joint_motor(elysia::physics::PhysicsWorld& world,
+                         elysia::physics::JointHandle handle)
+{
+    auto state = world.joint_state(handle);
+    if (!state)
+        return false;
+    const auto* hinge = std::get_if<elysia::physics::RevoluteJointState>(&state->details);
+    if (!hinge)
+        return false;
+    auto settings = hinge->settings;
+    settings.motor_speed = -settings.motor_speed;
+    return world.update_revolute_joint(handle, settings);
+}
+```
+
+## Segment and Chain Terrain
+
+`SegmentShape{local_first, local_second}` describes a two-sided, zero-thickness local edge on Static or Kinematic objects only. It uses normal Collider filtering, material, response, enablement and stable IDs, contributes no mass, and preserves the old shape on invalid updates. Edge-edge physical solving is not promised. Overlap/cast sources remain boxes, circles, capsules and convex polygons only.
+
+For connected terrain, call `create_chain(owner, definition)` on a registered Static/Kinematic object. `ChainDefinition` copies and owns `local_vertices` and `tag`, uses one `filter` and `material`, and always represents solid terrain detectable by sensors. An open chain needs at least two actual vertices; endpoint ghosts extrapolate the end edges unless `ghost_before`/`ghost_after` are supplied. Ghosts generate no collision edges. A closed chain (`loop=true`) needs at least four vertices without repeating the first. Edges must be at least 0.005 meters after unit conversion. Repeated, degenerate, intersecting, non-finite or immediately reversing geometry is rejected. Input order is preserved.
+
+The front normal of local edge `a→b` is `(dy, -dx)`, then rotated with its body. In Y-down coordinates, a horizontal left-to-right edge blocks its upper side. Debug drawing shows edges and front arrows. Chain physical contacts and rays are one-sided; `overlap_shape` and `shape_cast` are geometric and can also hit the back. Gameplay consuming casts for movement must choose how to handle this difference.
+
+`chain_state(handle)` reports owner, open/closed mode, vertex count and segment count. `chain_collider(handle, index)` returns the ColliderId of an actual edge; `chain_segment_info(id)` resolves its Chain, owner and zero-based index. Queries/events still use `CollisionTarget::Collider`. Owner contact state includes Chain children, and ignoring the owner excludes all its edges. Ordinary `collider_id(owner, index)` addresses only declared Colliders.
+
+Geometry, filters and materials are immutable after creation; destroy and recreate to replace them. `update_collider` and `set_collider_enabled` reject individual children; `set_body_enabled` toggles the group. `destroy_chain`, owner removal and Reset reclaim every child and mapping. Callback creation/destruction uses FIFO commands with copied definitions; pending creation has no `chain_state`. Invalid creation returns an invalid handle; allocation exceptions propagate while unfinished resources are cleaned up. Native IDs stay private.
+
+## Submit a Kinematic Target Each Fixed Step
+
+`set_target_transform(handle, PhysicsPose target, double fixed_delta_seconds)` computes velocity from the native pose when the command executes. `PhysicsParticipant` provides the same shortcut. Only Kinematic bodies, finite poses and valid positive steps are accepted; invalid requests return `false`. Fixed rotation tracks position only. Rotation takes the shortest path; identical or natively sleepy targets clear old velocities.
+
+Submit a target in every `fixed_update(dt)`. This does not teleport, retain a persistent tracking controller, or guarantee exact arrival within one step. Stopping submissions leaves current velocity in effect; explicitly set velocity to stop. Callback parameters are copied and queued, rechecking live/enabled objects at execution. Velocity, angular velocity, teleports and targets follow FIFO order; rendering still reads `render_pose`. The physics center's `target_pose` page demonstrates a platform.
+
+These helpers use registered objects to create terrain, command a platform and create a slider. Callers check invalid handles and bool results.
+
+```cpp
+#include "engine/physics/physics_world.h"
+
+elysia::physics::ChainHandle add_terrain(
+    elysia::physics::PhysicsWorld& world, elysia::physics::PhysicsObjectHandle owner)
+{
+    elysia::physics::ChainDefinition chain;
+    chain.local_vertices = {{0, 0}, {200, 0}, {300, -50}};
+    chain.tag = "terrain";
+    return world.create_chain(owner, chain); // owner must be Static or Kinematic
+}
+
+bool command_platform(elysia::physics::PhysicsWorld& world,
+    elysia::physics::PhysicsObjectHandle platform, double dt)
+{
+    return world.set_target_transform(platform, {{200, 100}, 0.15f}, dt);
+}
+
+elysia::physics::JointHandle add_slider(elysia::physics::PhysicsWorld& world,
+    elysia::physics::PhysicsObjectHandle anchor, elysia::physics::PhysicsObjectHandle body)
+{
+    elysia::physics::PrismaticJointDefinition joint{anchor, body};
+    joint.local_axis = {1, 0};
+    joint.settings.enable_motor = true;
+    joint.settings.motor_speed = 30;
+    joint.settings.max_motor_force = 1000;
+    return world.create_prismatic_joint(joint);
+}
+```

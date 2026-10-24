@@ -18,6 +18,17 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <iostream>
+#include <functional>
+#include "tests/support/scene_test_access.h"
+#include "engine/ui/widgets/ui_button.h"
+#include "engine/ui/core/ui_child_host.h"
+// Observe the real ScenarioScene lifecycle without adding a production scene accessor.
+class InspectableLabScene final : public example::scene::ScenarioScene
+{
+public:
+    explicit InspectableLabScene(example::scene::ScenarioScene** active)
+        : ScenarioScene(example::scene_keys::Box2DLab,false) { *active=this; }
+};
 int main(int argc, char **argv)
 {
     using elysia::tests::require;
@@ -31,12 +42,13 @@ int main(int argc, char **argv)
         elysia::scene::SceneRuntimeContext context(renderer, registry, 1280, 720);
         elysia::scene::SceneManager scene;
         scene.initialize(context);
-        scene.register_game_scene<example::scene::Box2DLabScene>(example::scene_keys::Box2DLab);
+        example::scene::ScenarioScene* active_lab=nullptr;
+        scene.register_game_scene<InspectableLabScene>(example::scene_keys::Box2DLab,&active_lab);
         if (!elysia::gameplay::ControllerService::instance()->session_active())
             (void)elysia::gameplay::ControllerService::instance()->begin_session();
         scene.start({.target = example::scene_keys::Box2DLab,
                      .payload = example::scene::ScenarioEnterPayload{
-                         .return_route = {.target = example::scene_keys::PhysicsGallery},.scenario_id="motion"}});
+                         .return_route = {.target = example::scene_keys::PhysicsGallery},.scenario_id=argc>2?argv[2]:"motion"}});
         using example::showcase::scenarios::ShowcaseScenarioPresentation;
         auto find_presentation=[](){
             for(auto* o:ELYSIA_OBJECT_QUERY->find_objects<>())
@@ -57,7 +69,7 @@ int main(int argc, char **argv)
         scene.on_input(
             elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyP,
                                                 .type = elysia::input::RawInputEventType::ControlPressed}}));
-        for(int i=0;i<120;++i)scene.on_update(1.0/60);
+        for(unsigned i=0;i<presentation->scenario().descriptor().max_steps;++i)scene.on_update(1.0/60);
         require(presentation->scenario().result().status==example::showcase::scenarios::ScenarioStatus::Passed,
                 "Scene runs the same behavioral checks as the headless runner");
         auto objects = ELYSIA_OBJECT_QUERY->find_objects<>();
@@ -82,8 +94,51 @@ int main(int argc, char **argv)
         require(!overlay.empty(), "Debug overlay projects into the preview");
         elysia::core::require_render_success(elysia::core::execute_render_commands(renderer, overlay));
         SDL_RenderPresent(renderer);
-        if (argc > 1)
+        if (argc > 1 && std::string_view(argv[1])!="-")
             require(IMG_SavePNG(surface, argv[1]), "Lab preview saved");
+        if (argc>2 && (std::string_view(argv[2])=="joints"||std::string_view(argv[2]).starts_with("joint_")))
+        {
+            std::function<elysia::ui::UiButton*(elysia::ui::UiElement&)> find_control;
+            find_control=[&](elysia::ui::UiElement& element)->elysia::ui::UiButton* {
+                if(auto* button=dynamic_cast<elysia::ui::UiButton*>(&element);
+                    button&&button->text_content().value=="physics_tests.control_joints") return button;
+                if(auto* host=dynamic_cast<elysia::ui::UiChildHost*>(&element))
+                    for(std::size_t i=0;i<host->child_count();++i)
+                        if(auto* found=find_control(*host->child_at(i)))return found;
+                return nullptr;
+            };
+            auto* root=elysia::scene::SceneTestAccess::ui_root(*active_lab,0);
+            auto* button=find_control(*root);
+            require(button,"Joint scene exposes the runtime control button");
+            const auto point=button->presentation_screen_rect().center();
+            for(auto phase:{elysia::input::RawInputEventType::ControlPressed,elysia::input::RawInputEventType::ControlReleased})
+                scene.on_input(elysia::tests::events_snapshot({{
+                    .control=elysia::input::RawInputControl::MouseLeft,.type=phase,
+                    .device=elysia::input::InputDevice::Mouse,.mouse_x=int(point.x),.mouse_y=int(point.y)}}));
+            scene.on_update(1.0/60);
+            require(presentation->scenario().result().status==example::showcase::scenarios::ScenarioStatus::Running
+                &&presentation->scenario().world().last_step_stats().joints==(std::string_view(argv[2])=="joints"?3u:std::string_view(argv[2])=="joint_filter"?0u:1u),
+                "Clicking controls after verification starts a fresh live joint simulation");
+            scene.on_update(1.0/60);
+            if(std::string_view(argv[2])=="joint_mouse")
+            {
+                using namespace elysia::input;
+                auto& camera=elysia::camera::CameraManager::instance()->camera(elysia::camera::CameraSlot::Main);
+                auto target=camera.world_to_screen(elysia::core::Vector2{600,320});
+                scene.on_input(elysia::tests::events_snapshot({{.control=RawInputControl::MouseLeft,.type=RawInputEventType::ControlPressed,.device=InputDevice::Mouse,.mouse_x=int(target.x),.mouse_y=int(target.y)}}));
+                target.x+=20;
+                scene.on_input(elysia::tests::events_snapshot({{.type=RawInputEventType::MouseMoved,.device=InputDevice::Mouse,.mouse_x=int(target.x),.mouse_y=int(target.y)}}));
+                scene.on_input(elysia::tests::events_snapshot({{.control=RawInputControl::MouseLeft,.type=RawInputEventType::ControlReleased,.device=InputDevice::Mouse,.mouse_x=int(target.x),.mouse_y=int(target.y)}}));
+                scene.on_update(1.0/60);
+                const auto& snapshot=presentation->scenario().world().debug_snapshot();
+                require(snapshot.joints.size()==1,"Mouse drag keeps its joint alive");
+                const auto state=presentation->scenario().world().joint_state(snapshot.joints[0].handle);
+                const auto desired=camera.screen_to_world(elysia::core::Vector2{float(int(target.x)),float(int(target.y))});
+                require((std::get<elysia::physics::MouseJointState>(state->details).settings.target-desired).length()<2,"Actual scene pointer input updates the world target");
+            }
+            for(int i=0;i<240;++i)scene.on_update(1.0/60);
+            require(presentation->scenario().result().status==example::showcase::scenarios::ScenarioStatus::Running,"Runtime controls keep continuous manual simulation active");
+        }
         scene.on_input(
             elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyR,
                                                 .type = elysia::input::RawInputEventType::ControlPressed}}));

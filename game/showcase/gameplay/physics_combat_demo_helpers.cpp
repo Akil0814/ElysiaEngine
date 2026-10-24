@@ -22,8 +22,8 @@ example::showcase::gameplay::ObstacleConfig make_aabb_obstacle(
     example::showcase::gameplay::ObstacleConfig config;
     config.rect = rect;
     config.color = color;
-    config.shape = elysia::physics::AabbShape{
-        {0, 0, rect.width(), rect.height()}};
+    config.shape = elysia::physics::BoxShape::from_rect(
+        {0, 0, rect.width(), rect.height()});
     return config;
 }
 

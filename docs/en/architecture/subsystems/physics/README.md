@@ -17,4 +17,6 @@ This directory is for physics maintainers. Integration examples are in the [phys
 
 The old integrator, broad phase, detection strategies, and impulse solver were removed. There is no selectable backend or solver-strategy injection. Extend Gameplay through control, filtering, one-way rules, and explicit queries.
 
-Box2D Physics Lab demonstrates rotating stacks, sleeping, springs, limited pendulums, motors, and fast circles. Space applies an impulse, R rebuilds, Esc returns. Demos aid observation and do not replace automated tests or movement-feel acceptance.
+The physics test center includes capsule slopes, eight-sided falling bodies, four-shape casts, joints and existing regression scenarios. Run starts verification; P pauses, N steps, R resets and Esc returns. The joint control button enters continuous manual simulation. Demos aid observation and do not replace automated tests or movement-feel acceptance.
+
+Stage two adds two-sided Segments, open/closed Chains, per-fixed-step kinematic targets and Weld/Prismatic/Wheel/Mouse/Motor/Filter joints. The center adds `edges`, `target_pose` and six `joint_*` control pages. Mouse drags its target; Filter uses a dotted filtering link.

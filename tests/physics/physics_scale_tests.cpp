@@ -9,7 +9,7 @@ int main()
     for (float scale : {50.f, 100.f, 200.f})
     {
         Probe body;
-        body.collider.shape = AabbShape{{-scale / 2, -scale / 2, scale, scale}};
+        body.collider.shape = BoxShape::from_rect({-scale / 2, -scale / 2, scale, scale});
         body.collider.density = {2};
         body.definition.fixed_rotation = false;
         PhysicsWorldConfig c;
@@ -68,7 +68,7 @@ int main()
         fixed.definition.type = BodyType::Static;
         auto anchor = fixed.add(world);
         world.set_transform(h, {{scale, 0}, 0}, TeleportVelocityMode::Clear);
-        auto spring = world.create_distance_joint({anchor, h, {}, {}, scale, true, 2, 0.7f});
+        auto spring = world.create_distance_joint({anchor, h, {}, {}, {.length = scale, .enable_spring = true, .frequency_hz = 2, .damping_ratio = 0.7f}});
         world.apply_impulse(h, {scale, 0});
         step(world, 20);
         auto joint = world.joint_state(spring);

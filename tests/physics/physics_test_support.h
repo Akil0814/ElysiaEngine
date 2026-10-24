@@ -12,7 +12,7 @@ struct Probe : elysia::core::GameObject, PhysicsStepParticipant
 {
     Probe() : GameObject(elysia::core::DepthLayer::Item)
     {
-        collider.shape = AabbShape{{0, 0, 20, 20}};
+        collider.shape = BoxShape::from_rect({0, 0, 20, 20});
     }
     BodyDefinition definition;
     Collider collider;

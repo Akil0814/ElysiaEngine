@@ -1,3 +1,4 @@
+#include "game/showcase/shared/collider_render.h"
 #include "game/showcase/gameplay/runtime/demo_obstacle.h"
 
 #include "engine/core/render/render_command.h"
@@ -31,20 +32,7 @@ void submit_obstacle_shape(
     elysia::core::Color color,
     std::vector<elysia::core::RenderCommand>& out_commands)
 {
-    std::visit([&](const auto& shape)
-    {
-        using Shape = std::decay_t<decltype(shape)>;
-        if constexpr (std::is_same_v<Shape, elysia::physics::AabbShape>)
-        {
-            out_commands.push_back(elysia::core::make_world_fill_rect_command(
-                shape.local_rect.translated(owner_origin), color));
-        }
-        else
-        {
-            out_commands.push_back(elysia::core::make_world_fill_circle_command(
-                owner_origin + shape.local_center, shape.radius, color));
-        }
-    }, collider.shape);
+    example::showcase::submit_collider_shape(collider.shape,{owner_origin,0},color,out_commands);
 }
 }
 

@@ -1,4 +1,4 @@
-﻿#include "engine/tools/debug_draw.h"
+#include "engine/tools/debug_draw.h"
 #include "engine/gameplay/control/controller_service.h"
 #include "tests/support/input_snapshot_builder.h"
 #define SDL_MAIN_HANDLED
@@ -296,7 +296,7 @@ void test_input_is_latched_until_a_fixed_step()
     using namespace example::showcase::gameplay;
     using namespace elysia::physics;
     PlatformPlayerCharacter player({0, 0, 34, 56});
-    StaticBlockObstacle floor({.rect = {0, 56, 200, 20}, .shape = AabbShape{{0, 0, 200, 20}}});
+    StaticBlockObstacle floor({.rect = {0, 56, 200, 20}, .shape = BoxShape::from_rect({0, 0, 200, 20})});
     PhysicsWorldConfig config;
     config.gravity = {0, 1200};
     PhysicsWorld world(config);
@@ -338,7 +338,7 @@ void test_moving_obstacle_rendering_uses_interpolation()
     using namespace example::showcase::gameplay;
     ObstacleConfig config;
     config.rect = {0, 0, 40, 10};
-    config.shape = elysia::physics::AabbShape{{0, 0, 40, 10}};
+    config.shape = elysia::physics::BoxShape::from_rect({0, 0, 40, 10});
     KinematicMovingPlatform platform(config, -100, 100, 120);
     elysia::physics::PhysicsWorld world;
     elysia::scene::FixedStepRuntime clock({});
@@ -357,7 +357,7 @@ void test_obstacle_material_and_kinematic_platform()
     using namespace example::showcase::gameplay;
     ObstacleConfig config;
     config.rect = {20, 30, 80, 12};
-    config.shape = elysia::physics::AabbShape{{0, 0, 80, 12}};
+    config.shape = elysia::physics::BoxShape::from_rect({0, 0, 80, 12});
     config.material = {0.8f, 0.25f};
     DynamicBlockObstacle dynamic(config);
     require(dynamic.collider_definitions().front().material == config.material,

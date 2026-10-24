@@ -17,7 +17,7 @@ class ColliderObject final
 public:
     ColliderObject() : GameObject(elysia::core::DepthLayer::Character)
     {
-        collider.shape = elysia::physics::AabbShape{{0, 0, 10, 10}};
+        collider.shape = elysia::physics::BoxShape::from_rect({0, 0, 10, 10});
         collider.response = elysia::physics::CollisionResponse::Overlap;
     }
     std::span<elysia::physics::Collider> colliders() noexcept

@@ -206,7 +206,7 @@ int main()
     right.set_position({100, 0});
     PhysicsWorld joints;
     auto l = left.add(joints), r = right.add(joints);
-    auto joint = joints.create_distance_joint({l, r, {}, {}, 100});
+    auto joint = joints.create_distance_joint({l, r, {}, {}, {.length = 100}});
     require(joints.joint_state(joint).has_value(), "Joint created");
     joints.unregister_object(r);
     require(!joints.joint_state(joint), "Destroy body invalidates joint");

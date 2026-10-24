@@ -62,7 +62,7 @@ add_elysia_test(physics_scenario_tests
     SOURCES game/physics_scenario_tests.cpp
     LIBRARIES game_lib
 )
-foreach(SCENARIO IN ITEMS motion materials ccd filters queries one_way tiles joints lifecycle timing combat_collider combat_platform combat_topdown stress_bodies stress_contacts stress_tiles)
+foreach(SCENARIO IN ITEMS edges target_pose joint_weld joint_prismatic joint_wheel joint_mouse joint_motor joint_filter geometry shape_queries motion materials ccd filters queries one_way tiles joints lifecycle timing combat_collider combat_platform combat_topdown stress_bodies stress_contacts stress_tiles)
     add_test(NAME scenario_${SCENARIO} COMMAND physics_scenario_tests ${SCENARIO} 0)
     set_tests_properties(scenario_${SCENARIO} PROPERTIES LABELS "physics;physics_scenario" TIMEOUT 180)
 endforeach()
@@ -386,20 +386,14 @@ add_elysia_test(physics_exception_safety_tests
     LIBRARIES ${ELYSIA_SDL_LIBRARIES}
     SDL
 )
-foreach(INDEX IN ITEMS 1 3 7)
-    add_test(NAME physics_exception_safety_registration_${INDEX}
-        COMMAND physics_exception_safety_tests registration ${INDEX})
-endforeach()
-foreach(INDEX IN ITEMS 8 10 11)
-    add_test(NAME physics_exception_safety_ownership_${INDEX}
-        COMMAND physics_exception_safety_tests ownership ${INDEX})
-endforeach()
+add_test(NAME physics_exception_safety_registration COMMAND physics_exception_safety_tests registration)
+add_test(NAME physics_exception_safety_ownership COMMAND physics_exception_safety_tests ownership)
 add_test(NAME physics_exception_safety_debug
     COMMAND physics_exception_safety_tests debug)
 add_test(NAME physics_exception_safety_deferred
-    COMMAND physics_exception_safety_tests deferred 1)
+    COMMAND physics_exception_safety_tests deferred 0)
 add_test(NAME physics_exception_safety_deferred_removed
-    COMMAND physics_exception_safety_tests deferred_removed 1)
+    COMMAND physics_exception_safety_tests deferred_removed 0)
 add_test(NAME physics_exception_safety_shutdown
     COMMAND physics_exception_safety_tests shutdown)
 
@@ -648,3 +642,31 @@ add_elysia_test(error_boundary_tests
     SDL
 )
 set_tests_properties(error_boundary_tests PROPERTIES RUN_SERIAL TRUE TIMEOUT 30)
+
+add_elysia_test(physics_geometry_tests LABEL physics SOURCES physics/physics_geometry_tests.cpp)
+
+add_test(NAME physics_exception_safety_shape_update COMMAND physics_exception_safety_tests shape_update)
+add_test(NAME physics_exception_safety_joint_queue COMMAND physics_exception_safety_tests joint_queue)
+set_tests_properties(physics_exception_safety_shape_update physics_exception_safety_joint_queue
+    PROPERTIES LABELS physics)
+
+foreach(SCENARIO IN ITEMS edges target_pose joint_weld joint_prismatic joint_wheel joint_mouse joint_motor joint_filter geometry shape_queries joints)
+    add_test(NAME box2d_lab_${SCENARIO}_scene COMMAND box2d_lab_tests - ${SCENARIO})
+    set_tests_properties(box2d_lab_${SCENARIO}_scene PROPERTIES LABELS physics)
+endforeach()
+
+set_tests_properties(physics_exception_safety_registration physics_exception_safety_ownership
+    physics_exception_safety_debug physics_exception_safety_deferred
+    physics_exception_safety_deferred_removed physics_exception_safety_shutdown
+    PROPERTIES LABELS physics)
+
+add_elysia_test(physics_stage2_tests LABEL physics SOURCES physics/physics_stage2_tests.cpp)
+foreach(CASE IN ITEMS terrain target joints)
+    add_test(NAME physics_stage2_${CASE} COMMAND physics_stage2_tests ${CASE})
+    set_tests_properties(physics_stage2_${CASE} PROPERTIES LABELS physics)
+endforeach()
+
+foreach(CASE IN ITEMS chain chain_deferred chain_destroy stage2_joints)
+    add_test(NAME physics_exception_safety_${CASE} COMMAND physics_exception_safety_tests ${CASE})
+    set_tests_properties(physics_exception_safety_${CASE} PROPERTIES LABELS physics)
+endforeach()

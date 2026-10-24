@@ -33,7 +33,7 @@ int main()
     Probe floor, ball;
     floor.definition.type = BodyType::Static;
     floor.set_position({0, 200});
-    floor.collider.shape = AabbShape{{0, 0, 400, 5}};
+    floor.collider.shape = BoxShape::from_rect({0, 0, 400, 5});
     ball.collider.shape = CircleShape{{10, 10}, 10};
     ball.definition.bullet = true;
     ball.definition.velocity = {0, 9000};
@@ -51,14 +51,14 @@ int main()
     require(w.body_state(b)->awake, "Impulse wakes body");
     // Rotation and actual narrow overlap against rotated rectangle.
     Probe rotated;
-    rotated.collider.shape = AabbShape{{-50, -5, 100, 10}};
+    rotated.collider.shape = BoxShape::from_rect({-50, -5, 100, 10});
     rotated.definition.angle = 1.57079632679f;
     rotated.definition.fixed_rotation = false;
     rotated.definition.type = BodyType::Static;
     PhysicsWorld queries;
     auto h = rotated.add(queries);
     std::vector<CollisionOverlapQueryHit> hits;
-    queries.overlap_aabb({{20, -2, 4, 4}, {}}, hits);
+    queries.overlap_shape({elysia::physics::BoxShape::from_rect({20, -2, 4, 4}), {}, {}}, hits);
     require(hits.empty(), "Rotated box query does not use its unrotated bounds");
     auto ray = queries.raycast({{-100, 0}, {1, 0}, 200, {}});
     require(ray && near(ray->distance, 95, 0.5f), "Ray sees rotated shape");
@@ -71,13 +71,13 @@ int main()
     bob.definition.fixed_rotation = false;
     PhysicsWorld pendulum(c);
     auto ah = anchor.add(pendulum), bh = bob.add(pendulum);
-    auto j = pendulum.create_distance_joint({ah, bh, {}, {}, 100});
+    auto j = pendulum.create_distance_joint({ah, bh, {}, {}, {.length = 100}});
     step(pendulum, 120);
     auto js = pendulum.joint_state(j);
     require(js && near((js->anchor_second - js->anchor_first).length(), 100, 1),
             "Distance constraint holds");
     pendulum.destroy_joint(j);
-    auto spring = pendulum.create_distance_joint({ah, bh, {}, {}, 100, true, 3, 0.7f});
+    auto spring = pendulum.create_distance_joint({ah, bh, {}, {}, {.length = 100, .enable_spring = true, .frequency_hz = 3, .damping_ratio = 0.7f}});
     step(pendulum, 120);
     require(pendulum.joint_state(spring).has_value(), "Spring remains valid");
     // Clockwise motor with limits.
@@ -89,12 +89,12 @@ int main()
     RevoluteJointDefinition rd;
     rd.first = p;
     rd.second = a;
-    rd.enable_motor = true;
-    rd.motor_speed = 1;
-    rd.max_motor_torque = 100;
-    rd.enable_limit = true;
-    rd.lower_angle = 0;
-    rd.upper_angle = 0.5f;
+    rd.settings.enable_motor = true;
+    rd.settings.motor_speed = 1;
+    rd.settings.max_motor_torque = 100;
+    rd.settings.enable_limit = true;
+    rd.settings.lower_angle = 0;
+    rd.settings.upper_angle = 0.5f;
     auto rj = motor.create_revolute_joint(rd);
     step(motor, 120);
     auto state = motor.body_state(a);

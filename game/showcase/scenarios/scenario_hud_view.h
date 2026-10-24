@@ -7,7 +7,7 @@
 #include <array>
 namespace example::showcase::scenarios
 {
-struct ScenarioActions { std::function<void()> run, pause, step, reset, back; };
+struct ScenarioActions { std::function<void()> run, pause, step, reset, back, control_joints; };
 class ScenarioHudView final
 {
 public:

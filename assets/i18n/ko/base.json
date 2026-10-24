@@ -199,6 +199,7 @@
     }
   },
   "physics_tests": {
+    "control_joints": "Change joint settings",
     "title": "물리 테스트 센터",
     "physics": "기초 물리·회귀",
     "combat": "전투 통합",
@@ -231,6 +232,16 @@
     "medium": "중간",
     "high": "높음",
     "cases": {
+      "geometry": {
+        "title": "Polygons and capsules",
+        "purpose": "Observe a capsule on a convex slope and an eight-sided falling body.",
+        "expected": "Both shapes contact the terrain and stay above the floor."
+      },
+      "shape_queries": {
+        "title": "Four-shape cast comparison",
+        "purpose": "Blue starts, yellow hit poses and red hit normals compare four casts.",
+        "expected": "Every shape hits; initial overlap reports zero fraction and normal."
+      },
       "motion": {
         "title": "강체·힘·질량",
         "purpose": "강체 3종과 중력, 감쇠, 회전, 질량 응답을 비교합니다.",
@@ -310,6 +321,46 @@
         "title": "타일 세계 부하",
         "purpose": "64² / 128² / 256² 셀, 희소 장애물, 부분 갱신과 일괄 쿼리.",
         "expected": "타일 업데이트와 쿼리가 성공하고 상태가 유한하며 600 스텝을 측정합니다."
+      },
+      "edges": {
+        "title": "Segment / Chain terrain",
+        "purpose": "Compare two-sided segments, one-sided connected chains and seams.",
+        "expected": "Arrows show the chain front. Back rays miss; geometric casts can hit the back."
+      },
+      "target_pose": {
+        "title": "Target pose platform",
+        "purpose": "Submit a kinematic position and angle every fixed step.",
+        "expected": "The platform follows with velocity and interpolation; the rider uses normal contacts."
+      },
+      "joint_weld": {
+        "title": "Weld joint",
+        "purpose": "Switch between rigid welding and soft spring coupling.",
+        "expected": "Use the control button to change compliance and apply an impulse."
+      },
+      "joint_prismatic": {
+        "title": "Prismatic joint",
+        "purpose": "Observe linear motor movement along a fixed local axis.",
+        "expected": "The button reverses the motor; travel remains between the limits."
+      },
+      "joint_wheel": {
+        "title": "Wheel joint",
+        "purpose": "Combine suspension, translation limits and a rotating motor.",
+        "expected": "Reverse rotation with the button and watch suspension and torque."
+      },
+      "joint_mouse": {
+        "title": "Mouse joint",
+        "purpose": "Drag in the arena to move the world target of a dynamic body.",
+        "expected": "Drag with the left mouse button; the force limit allows a visible error."
+      },
+      "joint_motor": {
+        "title": "Motor joint",
+        "purpose": "Correct a relative position and angle with bounded output.",
+        "expected": "The button switches the relative pose; error and reaction remain observable."
+      },
+      "joint_filter": {
+        "title": "Filter joint",
+        "purpose": "Toggle collision for a pair without a mechanical constraint.",
+        "expected": "The button creates or destroys the Filter; the dotted line only marks filtering."
       }
     }
   },

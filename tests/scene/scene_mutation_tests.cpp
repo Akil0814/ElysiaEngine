@@ -103,7 +103,7 @@ class BodyProbe final : public core::GameObject, public physics::PhysicsParticip
 public:
     BodyProbe() : GameObject(core::DepthLayer::Item)
     {
-        collider.shape = physics::AabbShape{{0, 0, 10, 10}};
+        collider.shape = physics::BoxShape::from_rect({0, 0, 10, 10});
         collider.response = physics::CollisionResponse::Overlap;
     }
     physics::BodyDefinition body_definition() const override

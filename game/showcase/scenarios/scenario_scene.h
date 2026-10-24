@@ -16,6 +16,7 @@ protected:
     void on_exit() override;
     void on_reset() override;
     void on_before_update(double) override;
+    void on_routed_input(const elysia::input::InputSnapshot&) override;
     void on_shortcuts(const elysia::input::RawInputFrame&,const std::vector<elysia::input::RawInputEvent>&) override;
 private:
     void run(); void pause_case(); void step(); void restart(); void back();
@@ -23,6 +24,7 @@ private:
     void clear_presentation() noexcept;
     elysia::scene::SceneKey _key;
     bool _gameplay;
+    bool _dragging_joint=false;
     ScenarioEnterPayload _entry;
     std::unique_ptr<example::showcase::scenarios::ShowcaseScenario> _scenario;
     elysia::core::GameObject* _presentation=nullptr;
