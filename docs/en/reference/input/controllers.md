@@ -6,6 +6,8 @@ This document separates the service, receivers, and scheduling manager. Creation
 
 [ControllerService](../../../../engine/gameplay/control/controller_service.h) is the game singleton entry. Manager is sole owner; Service stores/schedules no duplicate instances.
 
+Include `engine/gameplay/control/controller_service.h` to call the service through `ELYSIA_CONTROLLERS->method(...)`. The macro expands to `(::elysia::gameplay::ControllerService::instance())`; it does not start a session or change return types or result-handling requirements.
+
 | Interface | Purpose |
 | --- | --- |
 | begin_session / end_session / session_active | Explicit local game sessions |

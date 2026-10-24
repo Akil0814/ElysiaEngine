@@ -2,7 +2,9 @@
 
 This guide introduces actor control in session, creation, binding, and command-consumption order. Distinguish controller handles, binding operation results, and `target` lifetimes.
 
-Controllers convert local input/custom intent to fixed-step `ControlCommand`. Games use `ControllerService::instance()`; `ControllerManager` implements scheduling and is not the game entry point. Sessions here are game sessions, not network connections.
+Controllers convert local input/custom intent to fixed-step `ControlCommand`. Games access the controller service through `ELYSIA_CONTROLLERS` to manage sessions, create controllers, and bind targets. Sessions here are game sessions, not network connections.
+
+Include `engine/gameplay/control/controller_service.h` to use `ELYSIA_CONTROLLERS->method(...)`. This convenience macro is equivalent to `::elysia::gameplay::ControllerService::instance()` and only shortens service access. Sessions still require an explicit start, and callers must handle creation errors and binding operation results. `ControllerManager` handles internal scheduling; game code operates on controllers through the service.
 
 Define actions/device maps through the [input guide](../systems/input.md), then integrate targets here. Repository wrappers live in `game/gameplay/control/` and `game/input/` under `example`; helpers/action IDs are not an engine-defined gameplay protocol.
 
@@ -35,7 +37,7 @@ create_player_control(elysia::gameplay::GameplayScene& scene,
 {
     using namespace elysia::gameplay;
     // Scope associates the scene context; creation arguments transfer map ownership to the controller.
-    return ControllerService::instance()->create<LocalPlayerController>(
+    return ELYSIA_CONTROLLERS->create<LocalPlayerController>(
         ControllerCreateInfo{ControllerScope::Scene,
                              scene.control_context().token()},
         player, std::move(map));
@@ -50,8 +52,7 @@ Do not extract failed creation results. Save successful handles and call `bind_t
 
 ```cpp
 // Place in a void integration function; scene and target satisfy the prerequisites.
-elysia::gameplay::ControllerService* service =
-    elysia::gameplay::ControllerService::instance();
+elysia::gameplay::ControllerService* service = ELYSIA_CONTROLLERS;
 const std::expected<elysia::gameplay::ControllerHandle,
     elysia::gameplay::ControllerError> created =
     create_player_control(scene, player, std::move(map));
@@ -129,7 +130,7 @@ Custom AI and other sources derive `Controller` and submit `ActionInputResult` t
 
 ## Custom Controllers
 
-This complete type demonstrates device-independent constant axes. Create through `ControllerService::create<ConstantController>` and bind a `target` that recognizes the Axis1D ID. No AI decisions or network synchronization are implemented.
+This complete type demonstrates device-independent constant axes. Create it through `ELYSIA_CONTROLLERS->create<ConstantController>(...)`, passing an Axis1D action ID recognized by the target, then bind the target. No AI decisions or network synchronization are implemented.
 
 ```cpp
 #include "engine/gameplay/control/controller.h"

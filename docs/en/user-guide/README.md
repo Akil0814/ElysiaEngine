@@ -79,7 +79,7 @@ The following table lists their purpose, related documentation, and interface he
 | `ELYSIA_RESOURCES` | Loaded resource queries | [Resource loading and use](content/resources.md) | [resource_service.h](../../../engine/resources/resource_service.h) |
 | `ELYSIA_SAVE` | Save management | [Save service](content/save.md) | [save_service.h](../../../engine/save/save_service.h) |
 | `ELYSIA_DEBUG_DRAW` | Debug drawing | [Debug drawing](tools/debug-draw.md) | [debug_draw.h](../../../engine/tools/debug_draw.h) |
-| `elysia::gameplay::ControllerService::instance()` | Control sessions, controllers, and target binding | [Controllers and control commands](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
+| `ELYSIA_CONTROLLERS` | Control sessions, controllers, and target binding | [Controllers and control commands](gameplay/control.md) | [controller_service.h](../../../engine/gameplay/control/controller_service.h) |
 | `elysia::gameplay::collision::GameplayCollisionService::instance()` | Gameplay collision binding, event listeners, attack instance cleanup | [Gameplay collision](gameplay/collision.md) | [gameplay_collision_service.h](../../../engine/gameplay/collision/gameplay_collision_service.h) |
 
 ### Logging Macros
