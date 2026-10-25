@@ -362,7 +362,8 @@
         "purpose": "切换一对物体的碰撞，不添加机械约束。",
         "expected": "按钮创建或销毁 Filter，虚线仅表示过滤关系。"
       }
-    }
+    },
+    "debug_details_keys": "F2 關節 | F3 地形 | F4 目標"
   },
   "showcase": {
     "back": "返回",

@@ -61,8 +61,7 @@ public:
     {
         ph::BodyDefinition body;
         body.type = ph::BodyType::Dynamic;
-        body.mass_policy = ph::MassPolicy::ExplicitMass;
-        body.mass = 1.0f;
+        body.mass_properties = ph::ExplicitMass{1.0f};
         body.gravity_scale = 0.0f;
         return body;
     }

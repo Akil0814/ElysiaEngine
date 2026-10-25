@@ -69,8 +69,7 @@ BlockCombatActor::BlockCombatActor(ActorConfig config)
     _colliders[2].enabled = false;
     _body.type = elysia::physics::BodyType::Dynamic;
     _body.gravity_scale = config.gravity_enabled ? 1.0f : 0.0f;
-    _body.mass_policy = elysia::physics::MassPolicy::ExplicitMass;
-    _body.mass = 1.0f;
+    _body.mass_properties = elysia::physics::ExplicitMass{1.0f};
     _body.linear_damping = config.gravity_enabled ? 0.0f : 7.0f;
     update_hit_box_shape();
 }

@@ -60,8 +60,7 @@ DynamicBlockObstacle::DynamicBlockObstacle(
         collision_layers::World | collision_layers::Body, 0};
     _body.type = elysia::physics::BodyType::Dynamic;
     _body.velocity = velocity;
-    _body.mass_policy = elysia::physics::MassPolicy::ExplicitMass;
-    _body.mass = 1.0f;
+    _body.mass_properties = elysia::physics::ExplicitMass{1.0f};
 }
 
 void DynamicBlockObstacle::submit_render_commands(

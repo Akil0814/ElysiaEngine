@@ -86,8 +86,7 @@ void ShowcaseScenario::Impl::build_joint_extensions()
     BodyDefinition dynamic;
     dynamic.fixed_rotation = false;
     dynamic.gravity_scale = 0;
-    dynamic.mass_policy = MassPolicy::ExplicitMass;
-    dynamic.mass = 1;
+    dynamic.mass_properties = ExplicitMass{1};
     Collider c;
     c.shape = BoxShape{{}, {30, 20}, 0};
     joint_body = add<ScenarioBody>(Vector2{450, 260}, dynamic, std::vector<Collider>{c}).physics_handle();

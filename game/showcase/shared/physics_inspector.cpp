@@ -74,10 +74,26 @@ void PhysicsInspector::draw()
     }
 
     const auto& snapshot = inspected.debug_snapshot();
+    if (ImGui::CollapsingHeader("Body mass properties"))
+    {
+        for (const auto &body : snapshot.bodies)
+        {
+            const auto &state = body.state;
+            const auto &properties = body.mass_properties;
+            const char *mode = std::holds_alternative<elysia::physics::DensityMass>(properties) ? "Density" :
+                std::holds_alternative<elysia::physics::ExplicitMass>(properties) ? "Explicit mass" : "Custom mass data";
+            ImGui::Text("Body %llu: %s | mass %.4g kg | inertia %.4g kg*EU^2",
+                body.owner.value, mode, state.mass, state.rotational_inertia);
+            ImGui::Text("Local COM %.3f, %.3f | world COM %.3f, %.3f",
+                state.local_center.x, state.local_center.y, state.world_center.x, state.world_center.y);
+        }
+    }
     if (ImGui::CollapsingHeader("Joint state", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        for (const auto& joint:snapshot.joints) if (auto state=inspected.joint_state(joint.handle))
+        for (const auto& joint:snapshot.joints)
         {
+            const auto* state=&joint.state;
+            ImGui::Text("Joint %llu: %llu / %llu",joint.handle.value,state->first.value,state->second.value);
             std::visit([&](const auto& value){
                 using T=std::decay_t<decltype(value)>;
                 if constexpr(std::is_same_v<T,elysia::physics::DistanceJointState>)ImGui::Text("Length %.2f | speed %.2f | force %.2f",value.current_length,value.speed,value.motor_force);
@@ -88,15 +104,56 @@ void PhysicsInspector::draw()
                 else if constexpr(std::is_same_v<T,elysia::physics::MouseJointState>)ImGui::Text("Mouse target %.1f, %.1f | error %.2f",value.settings.target.x,value.settings.target.y,value.error.length());
                 else if constexpr(std::is_same_v<T,elysia::physics::MotorJointState>)ImGui::Text("Motor pose error %.2f / %.3f",value.linear_error.length(),value.angular_error);
                 else ImGui::TextUnformatted("Filter: pair collision disabled (no mechanical constraint)");
+                if constexpr(requires {value.settings;})
+                {
+                    const auto& s=value.settings;
+                    ImGui::Text("Collide connected: %s",s.collide_connected?"yes":"no");
+                    if constexpr(requires {s.enable_spring;})ImGui::Text("Spring: %s",s.enable_spring?"on":"off");
+                    if constexpr(requires {s.frequency_hz;})ImGui::Text("Frequency %.2f Hz | damping %.2f",s.frequency_hz,s.damping_ratio);
+                    if constexpr(requires {s.enable_limit;})ImGui::Text("Limits: %s",s.enable_limit?"on":"off");
+                    if constexpr(requires {s.enable_motor;})ImGui::Text("Motor: %s | speed %.2f",s.enable_motor?"on":"off",s.motor_speed);
+                    if constexpr(requires {s.max_motor_force;})ImGui::Text("Max motor force %.2f",s.max_motor_force);
+                    if constexpr(requires {s.max_motor_torque;})ImGui::Text("Max motor torque %.2f",s.max_motor_torque);
+                    if constexpr(requires {s.length;})ImGui::Text("Rest length %.2f | range %.2f / %.2f",s.length,s.min_length,s.max_length);
+                    if constexpr(requires {s.target_angle;})ImGui::Text("Target angle %.3f | range %.3f / %.3f",s.target_angle,s.lower_angle,s.upper_angle);
+                    if constexpr(requires {s.lower_translation;})ImGui::Text("Travel range %.2f / %.2f",s.lower_translation,s.upper_translation);
+                    if constexpr(requires {s.target_translation;})ImGui::Text("Target translation %.2f",s.target_translation);
+                    if constexpr(requires {s.linear_frequency_hz;})ImGui::Text("Linear %.2f Hz / damping %.2f | angular %.2f Hz / damping %.2f",s.linear_frequency_hz,s.linear_damping_ratio,s.angular_frequency_hz,s.angular_damping_ratio);
+                    if constexpr(requires {s.max_force;})ImGui::Text("Max force %.2f",s.max_force);
+                    if constexpr(requires {s.linear_offset;})ImGui::Text("Offset %.2f, %.2f / %.3f | max torque %.2f | correction %.2f",s.linear_offset.x,s.linear_offset.y,s.angular_offset,s.max_torque,s.correction_factor);
+                }
             },state->details);
             ImGui::Text("Reaction %.2f, %.2f | torque %.2f",state->reaction_force.x,state->reaction_force.y,state->reaction_torque);
         }
     }
+    if(ImGui::CollapsingHeader("Chain terrain"))
+        for(const auto& chain:snapshot.chains)
+        {
+            ImGui::PushID(static_cast<int>(chain.handle.value));
+            if(ImGui::TreeNode("Chain","Chain %llu | owner %llu | %zu edges",chain.handle.value,chain.owner.value,chain.colliders.size()))
+            {
+                ImGui::Text("%s | %zu actual vertices",chain.loop?"Closed":"Open",chain.local_vertices.size());
+                if(chain.ghost_before)ImGui::Text("Ghost before %.2f, %.2f",chain.ghost_before->x,chain.ghost_before->y);
+                if(chain.ghost_after)ImGui::Text("Ghost after %.2f, %.2f",chain.ghost_after->x,chain.ghost_after->y);
+                for(std::size_t n=0;n<chain.colliders.size();++n)ImGui::Text("Edge %zu: Collider %llu",n,chain.colliders[n]);
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+    if(ImGui::CollapsingHeader("Kinematic targets"))
+        for(const auto& target:snapshot.targets)
+        {
+            ImGui::Text("Owner %llu | %s | dt %.6f",target.owner.value,target.pending?"Pending next step":"Last completed step",target.fixed_delta_seconds);
+            ImGui::Text("At command: %.2f, %.2f / %.3f",target.pose_at_command.position.x,target.pose_at_command.position.y,target.pose_at_command.angle);
+            ImGui::Text("Requested: %.2f, %.2f / %.3f",target.requested_pose.position.x,target.requested_pose.position.y,target.requested_pose.angle);
+            ImGui::Text("Effective: %.2f, %.2f / %.3f",target.effective_pose.position.x,target.effective_pose.position.y,target.effective_pose.angle);
+        }
     if (ImGui::CollapsingHeader("Debug Snapshot"))
     {
         ImGui::Text("Shapes: %zu", snapshot.shapes.size());
         ImGui::Text("Contacts: %zu", snapshot.contacts.size());
         ImGui::Text("Velocities: %zu", snapshot.velocities.size());
+        ImGui::Text("Chains: %zu | Targets: %zu",snapshot.chains.size(),snapshot.targets.size());
     }
 
     if (ImGui::CollapsingHeader(
@@ -111,7 +168,7 @@ void PhysicsInspector::draw()
             const char* label,
             elysia::tools::DebugDrawCategory category)
         {
-            bool selected = debug_draw->is_enabled(category);
+            bool selected = (debug_draw->enabled_categories() & category) != elysia::tools::DebugDrawCategory::None;
             if (!ImGui::Checkbox(label, &selected))
                 return;
             auto categories = debug_draw->enabled_categories();
@@ -135,6 +192,9 @@ void PhysicsInspector::draw()
             elysia::tools::DebugDrawCategory::PhysicsVelocity);
         category_checkbox("Joint anchors",
             elysia::tools::DebugDrawCategory::PhysicsJoint);
+        category_checkbox("Joint details (F2)",elysia::tools::DebugDrawCategory::PhysicsJointDetails);
+        category_checkbox("Chain vertices / ghosts (F3)",elysia::tools::DebugDrawCategory::PhysicsChainDetails);
+        category_checkbox("Kinematic targets (F4)",elysia::tools::DebugDrawCategory::PhysicsTarget);
         ImGui::TextWrapped("Green: awake | Blue: asleep/static | Purple: sensor. Contacts and AABBs show the latest physics step.");
         category_checkbox("Gameplay",
             elysia::tools::DebugDrawCategory::Gameplay);

@@ -15,7 +15,7 @@ public:
     void update(const ShowcaseScenario&);
     void clear() noexcept { _labels.fill(nullptr); _checks=nullptr; _displayed=0; }
 private:
-    std::array<elysia::ui::UiLabel*,9> _labels{};
+    std::array<elysia::ui::UiLabel*,10> _labels{};
     elysia::ui::UiListContainer* _checks=nullptr;
     std::size_t _displayed=0;
 };

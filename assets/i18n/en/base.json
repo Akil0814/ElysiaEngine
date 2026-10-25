@@ -362,7 +362,8 @@
         "purpose": "Toggle collision for a pair without a mechanical constraint.",
         "expected": "The button creates or destroys the Filter; the dotted line only marks filtering."
       }
-    }
+    },
+    "debug_details_keys": "F2 Joints | F3 Chain | F4 Targets"
   },
   "showcase": {
     "back": "Back",

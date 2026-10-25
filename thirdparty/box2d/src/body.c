@@ -525,6 +525,23 @@ b2AABB b2Body_ComputeAABB( b2BodyId bodyId )
 	return aabb;
 }
 
+// Shared by density recomputation and explicit body mass data. Extents must be
+// measured from the effective center of mass for sleeping and continuous collision.
+static void b2UpdateBodyExtents( b2World* world, b2Body* body, b2BodySim* bodySim )
+{
+	bodySim->minExtent = B2_HUGE;
+	bodySim->maxExtent = 0.0f;
+	int shapeId = body->headShapeId;
+	while ( shapeId != B2_NULL_INDEX )
+	{
+		const b2Shape* shape = b2ShapeArray_Get( &world->shapes, shapeId );
+		b2ShapeExtent extent = b2ComputeShapeExtent( shape, bodySim->localCenter );
+		bodySim->minExtent = b2MinFloat( bodySim->minExtent, extent.minExtent );
+		bodySim->maxExtent = b2MaxFloat( bodySim->maxExtent, extent.maxExtent );
+		shapeId = shape->nextShapeId;
+	}
+}
+
 void b2UpdateBodyMassData( b2World* world, b2Body* body )
 {
 	b2BodySim* bodySim = b2GetBodySim( world, body );
@@ -547,17 +564,7 @@ void b2UpdateBodyMassData( b2World* world, b2Body* body )
 		// Need extents for kinematic bodies for sleeping to work correctly.
 		if ( body->type == b2_kinematicBody )
 		{
-			int shapeId = body->headShapeId;
-			while ( shapeId != B2_NULL_INDEX )
-			{
-				const b2Shape* s = b2ShapeArray_Get( &world->shapes, shapeId );
-
-				b2ShapeExtent extent = b2ComputeShapeExtent( s, b2Vec2_zero );
-				bodySim->minExtent = b2MinFloat( bodySim->minExtent, extent.minExtent );
-				bodySim->maxExtent = b2MaxFloat( bodySim->maxExtent, extent.maxExtent );
-
-				shapeId = s->nextShapeId;
-			}
+			b2UpdateBodyExtents( world, body, bodySim );
 		}
 
 		return;
@@ -617,17 +624,7 @@ void b2UpdateBodyMassData( b2World* world, b2Body* body )
 	}
 
 	// Compute body extents relative to center of mass
-	shapeId = body->headShapeId;
-	while ( shapeId != B2_NULL_INDEX )
-	{
-		const b2Shape* s = b2ShapeArray_Get( &world->shapes, shapeId );
-
-		b2ShapeExtent extent = b2ComputeShapeExtent( s, localCenter );
-		bodySim->minExtent = b2MinFloat( bodySim->minExtent, extent.minExtent );
-		bodySim->maxExtent = b2MaxFloat( bodySim->maxExtent, extent.maxExtent );
-
-		shapeId = s->nextShapeId;
-	}
+	b2UpdateBodyExtents( world, body, bodySim );
 }
 
 b2Vec2 b2Body_GetPosition( b2BodyId bodyId )
@@ -1379,6 +1376,7 @@ void b2Body_SetMassData( b2BodyId bodyId, b2MassData massData )
 
 	bodySim->invMass = body->mass > 0.0f ? 1.0f / body->mass : 0.0f;
 	bodySim->invInertia = body->inertia > 0.0f ? 1.0f / body->inertia : 0.0f;
+	b2UpdateBodyExtents( world, body, bodySim );
 }
 
 b2MassData b2Body_GetMassData( b2BodyId bodyId )

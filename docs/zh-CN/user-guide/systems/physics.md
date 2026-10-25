@@ -54,7 +54,7 @@ private:
 };
 ```
 
-`BodyDefinition` 在注册时复制。Static 用于地面等静态形状，Kinematic 用于主动设速的运动物体，Dynamic 参与力与重力模拟。角色通常禁用旋转；质量可由密度计算，或使用 ExplicitMass 和正 mass。修改对象中的原始定义不会自动更新已注册刚体，应调用公开修改接口。
+`BodyDefinition` 在注册时复制。Static 用于地面等静态形状，Kinematic 用于主动设速的运动物体，Dynamic 参与力与重力模拟。角色通常禁用旋转；`mass_properties` 默认使用 `DensityMass{}`；`ExplicitMass{正质量}` 按总质量缩放惯量，`BodyMassData` 则独立指定质量、质心和惯量。修改对象中的原始定义不会自动更新已注册刚体，应调用公开修改接口。
 
 默认世界重力为零。固定步时长和每帧最大步数属于 `elysia::scene::FixedStepConfig`，字段为 `delta_seconds` 和 `max_steps_per_frame`；Box2D 子步、单位比例与重力属于 `PhysicsWorldConfig`。不能将物理配置直接作为 Scene 构造参数，应通过 `SceneRuntimeFeatures` 组合两种配置。
 
@@ -345,3 +345,35 @@ elysia::physics::JointHandle add_slider(elysia::physics::PhysicsWorld& world,
     return world.create_prismatic_joint(joint);
 }
 ```
+
+物理细节默认关闭：示例中 F2 显示关节轴／限位，F3 显示 Chain ghost，F4 显示本步运动学目标；无 ImGui 时同样可用。关节采用类型化快照，禁用端会使整条调试关节隐藏；目标诊断不保存持续追踪行为。完整开关与时态说明见[调试绘制](../tools/debug-draw.md)。
+
+## 独立配置质量与惯量
+
+需要改变质量而保留角响应时，使用 `BodyMassData`。下面的创建配置适用于 256 × 8 EU、密度 0.5 kg/m²、32 EU/m 的居中矩形：密度质量为 1 kg、绕质心惯量约为 5466.67 kg·EU²。把质量改为 0.5 kg 时，可以保持该惯量；`ExplicitMass{0.5f}` 则会把惯量同比减半。
+
+```cpp
+#include "engine/physics/physics_world.h"
+namespace mass_example {
+namespace ph = elysia::physics;
+ph::BodyDefinition seesaw_body() {
+    ph::BodyDefinition body;
+    body.fixed_rotation = false;
+    body.mass_properties = ph::BodyMassData{0.5f, {}, 5466.666667f};
+    return body;
+}
+bool preserve_inertia_with_new_mass(ph::PhysicsWorld& world, ph::PhysicsObjectHandle handle) {
+    const auto state = world.body_state(handle);
+    if (!state) return false;
+    return world.set_mass_properties(handle,
+        ph::BodyMassData{0.5f, state->local_center, state->rotational_inertia});
+}
+bool restore_density(ph::PhysicsWorld& world, ph::PhysicsObjectHandle handle) {
+    return world.set_mass_properties(handle, ph::DensityMass{});
+}
+}
+```
+
+创建时将返回的定义交给注册流程；运行时示例先读取实际数据，再完整替换配置。`body_state().velocity` 是质心速度，改变质心时引擎调整它以保持原点速度连续。固定旋转使有效惯量为零；读取此值再复制不会恢复被固定旋转屏蔽的请求惯量，需要时从 `mass_properties` 获取原配置。
+
+配置会在碰撞体变化后重新应用。需要返回自动质量时提交 `DensityMass{}`。数值校验、延迟执行与单位规则见[物理单位与状态](../../reference/physics/units-and-state.md)，游戏接入说明见[对接回执](../../integration/006-explicit-inertia-receipt.md)。

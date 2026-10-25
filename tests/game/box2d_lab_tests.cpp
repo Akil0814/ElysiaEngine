@@ -59,6 +59,11 @@ int main(int argc, char **argv)
         require(presentation!=nullptr,"Lab exposes the shared scenario presentation");
         scene.on_update(1.0/60);
         require(presentation->scenario().result().steps==0,"Lab waits for explicit run");
+        using DrawCategory=elysia::tools::DebugDrawCategory;
+        auto* debug_controls=elysia::tools::DebugDraw::instance();
+        require(!debug_controls->is_enabled(DrawCategory::PhysicsJointDetails)&&!debug_controls->is_enabled(DrawCategory::PhysicsChainDetails)&&!debug_controls->is_enabled(DrawCategory::PhysicsTarget),"Optional details start disabled");
+        auto shortcut=[&](elysia::input::RawInputControl key){for(auto phase:{elysia::input::RawInputEventType::ControlPressed,elysia::input::RawInputEventType::ControlReleased})scene.on_input(elysia::tests::events_snapshot({{.control=key,.type=phase}}));scene.on_update(0);};
+
         scene.on_input(
             elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyN,
                                                 .type = elysia::input::RawInputEventType::ControlPressed}}));
@@ -66,6 +71,19 @@ int main(int argc, char **argv)
         require(presentation->scenario().result().steps==1&&presentation->scenario().paused(),"N executes one paused tick");
         scene.on_update(1.0);
         require(presentation->scenario().result().steps==1,"Pause prevents catch-up simulation");
+        const auto detail_keys={elysia::input::RawInputControl::KeyF2,elysia::input::RawInputControl::KeyF3,elysia::input::RawInputControl::KeyF4};
+        for(auto key:detail_keys)shortcut(key);
+        const auto& detailed=presentation->scenario().world();
+        require(debug_controls->is_enabled(DrawCategory::PhysicsJointDetails|DrawCategory::PhysicsChainDetails|DrawCategory::PhysicsTarget)&&elysia::physics::captures_physics_debug(detailed.debug_capture(),elysia::physics::PhysicsDebugCapture::Chains|elysia::physics::PhysicsDebugCapture::Targets),"F2/F3/F4 independently enable snapshot capture while paused");
+        if(argc>2&&std::string_view(argv[2])=="edges")require(detailed.debug_snapshot().chains.size()==2,"F3 exposes actual chain data");
+        if(argc>2&&std::string_view(argv[2])=="target_pose")require(detailed.debug_snapshot().targets.size()==1,"F4 reveals the last completed target without another physics step");
+        for(auto key:detail_keys)shortcut(key);
+        require(!elysia::physics::captures_physics_debug(detailed.debug_capture(),elysia::physics::PhysicsDebugCapture::Chains)&&!elysia::physics::captures_physics_debug(detailed.debug_capture(),elysia::physics::PhysicsDebugCapture::Targets),"Disabling detail keys drops optional capture");
+        for(const auto& command:debug_controls->commands())require(command.category!=DrawCategory::PhysicsJointDetails&&command.category!=DrawCategory::PhysicsChainDetails&&command.category!=DrawCategory::PhysicsTarget,"Disabled categories leave no retained commands");
+        for(auto key:detail_keys)shortcut(key);
+        shortcut(elysia::input::RawInputControl::KeyF1);require(detailed.debug_capture()==elysia::physics::PhysicsDebugCapture::None&&debug_controls->commands().empty(),"F1 clears all detail capture and commands");shortcut(elysia::input::RawInputControl::KeyF1);
+        require(presentation->scenario().result().steps==1,"Debug controls never advance the paused simulation");
+
         scene.on_input(
             elysia::tests::events_snapshot({{.control = elysia::input::RawInputControl::KeyP,
                                                 .type = elysia::input::RawInputEventType::ControlPressed}}));
@@ -146,6 +164,7 @@ int main(int argc, char **argv)
         presentation=find_presentation();
         require(presentation&&presentation->scenario().result().steps==0,
                 "R recreates the fixture and clears the old result");
+        require(!debug_controls->is_enabled(DrawCategory::PhysicsJointDetails)&&!debug_controls->is_enabled(DrawCategory::PhysicsChainDetails)&&!debug_controls->is_enabled(DrawCategory::PhysicsTarget),"Reentry restores the default detail selection");
         scene.shutdown();
     }
     SDL_DestroyRenderer(renderer);

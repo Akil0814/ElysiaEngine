@@ -42,6 +42,46 @@ void show_interaction_area(const elysia::core::Rect& world_rect)
 
 Dear ImGui 开发覆盖层可提供调试面板，`DebugDraw` 本身是独立服务，不要求游戏自行调用 ImGui 来绘制这些图元。
 
+## 物理细节开关
+
+调试总开关初始关闭。`DebugDrawCategory::Default` 保留基础物理轮廓、锚点等原有类别，排除新增的三种细节；`All` 才包含全部类别。物理示例默认采用 `Default`，可在 Inspector 或快捷键中单独开启：
+
+| 类别 | 示例快捷键 | 展示 |
+| --- | --- | --- |
+| `PhysicsJointDetails` | F2 | 八类关节的轴、参考角、启用的限位、弹簧与目标；Filter 没有机械约束细节 |
+| `PhysicsChainDetails` | F3 | 实际顶点、边段及开放链首尾 ghost；基础轮廓仍显示正面箭头 |
+| `PhysicsTarget` | F4 | 运动学目标轮廓、朝向和当前位置到目标的连线 |
+
+快捷键在关闭 ImGui 的物理示例中也可用；滚动状态栏末尾提供提示。关闭类别立即移除已有命令，场景退出和重新进入会清理旧图元。禁用、失活、销毁和未完成注册的对象不进入几何与速度快照；关节任一端不可见时整条隐藏，休眠对象仍显示。
+
+关节锚点、局部轴、限位、Chain 顶点根据前后刚体姿态插值。Mouse 的世界目标保持世界坐标；Motor 的局部目标随第一端姿态重建。反作用力、接触和测量值表示最近物理状态，不进行显示插值。辅助轴长为 0.25 米对应的 EU、角弧半径为 0.2 米、箭头头长为 0.04 米；点直径和线宽继续使用逻辑屏幕单位。
+
+运动学目标只保存待模拟命令和最近完成步的诊断数据：暂停或没有固定步时保留；下一固定步没有新目标时清除。步后回调的新目标标记为等待下一步。同一队列中后提交的目标覆盖前一个，显式设速、角速度、传送、禁用、移除与 Reset 清除展示。固定旋转保存请求角度，但轮廓使用实际生效角度。这些记录不驱动持续追踪；目标轮廓使用半透明青色，ghost 使用橙色虚线。
+
+独立管理世界时，使用共享映射选择捕获类别；以下提交函数应在该世界的 `finalize_frame` 之后调用，并由调用方独占物理调试类别的清理。场景自身的物理世界已经执行这些步骤，不要再次提交。
+
+```cpp
+#include "engine/physics/physics_world.h"
+#include "engine/physics/physics_debug_draw.h"
+
+void enable_physics_details()
+{
+    using C = elysia::tools::DebugDrawCategory;
+    auto* draw = ELYSIA_DEBUG_DRAW;
+    draw->set_enabled(true);
+    draw->set_enabled_categories(C::Default | C::PhysicsJointDetails |
+        C::PhysicsChainDetails | C::PhysicsTarget);
+}
+
+void submit_owned_physics_debug(elysia::physics::PhysicsWorld& world)
+{
+    auto* draw = ELYSIA_DEBUG_DRAW;
+    world.set_debug_capture(elysia::physics::physics_debug_capture_for(*draw));
+    draw->clear_categories(elysia::physics::kPhysicsDebugCategories);
+    elysia::physics::submit_physics_debug_snapshot(world.debug_snapshot(), *draw);
+}
+```
+
 ## 参考
 
 - [图元与类别定义](../../../../engine/tools/debug_draw.h)

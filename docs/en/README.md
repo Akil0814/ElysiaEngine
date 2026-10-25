@@ -21,3 +21,7 @@ The [Development and Contribution Guide](contributing/README.md) describes codin
 ## Explore Designs and Plans
 
 [Designs and Roadmap](design/README.md) records future capabilities and historical design discussions. A proposal does not mean an interface is implemented. For existing functionality, use the user guides, current architecture, and source code.
+
+## Read Game Integration Receipts
+
+[Integration receipts](integration/README.md) record engine interfaces delivered for game requests, migration steps, and actual validation results.

@@ -35,8 +35,7 @@ int main()
         Probe o;
         o.collider.shape = BoxShape::from_rect({0, 0, scale, scale});
         o.definition.fixed_rotation = false;
-        o.definition.mass_policy = MassPolicy::ExplicitMass;
-        o.definition.mass = 3;
+        o.definition.mass_properties = ExplicitMass{3};
         PhysicsWorldConfig c;
         c.units_per_meter = scale;
         PhysicsWorld w(c);

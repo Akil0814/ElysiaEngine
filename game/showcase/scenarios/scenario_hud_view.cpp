@@ -40,7 +40,7 @@ void ScenarioHudView::build(elysia::ui::UiWindow& window_ref,const ShowcaseScena
         auto list=std::make_unique<UiListContainer>(elysia::core::Rect{0,0,l.details.width()-20,1});
         list->set_item_spacing(6);
         _checks=list.get();
-        for(int i=0;i<9;++i){auto row=label({0,0,l.details.width()-20,24});_labels[i]=row.get();list->add_back(std::move(row));}
+        for(int i=0;i<10;++i){auto row=label({0,0,l.details.width()-20,24});_labels[i]=row.get();list->add_back(std::move(row));}
         scroll->set_content(std::move(list));
         auto* scope=scroll.get();window->add_child(std::move(scroll),showcase_layout_options(l.details));window->register_focus_scope(*scope);
     }
@@ -69,7 +69,7 @@ void ScenarioHudView::update(const ShowcaseScenario& scenario)
     {
         const float width=_checks->screen_rect().width();
         _checks->clear_children();
-        for(int i=0;i<9;++i)
+        for(int i=0;i<10;++i)
         {
             auto row=label({0,0,width,24});_labels[i]=row.get();_checks->add_back(std::move(row));
         }
@@ -85,6 +85,7 @@ void ScenarioHudView::update(const ShowcaseScenario& scenario)
     _labels[6]->set_text_content(ui_raw_text(scenario.joint_status().empty()?tr("physics_tests.samples")+": "+std::to_string(r.samples):scenario.joint_status()));
     _labels[7]->set_text_content(ui_raw_text(tr("physics_tests.debug")+": "+tr(r.mixed_debug_samples?"physics_tests.mixed":r.debug_geometry?"physics_tests.on":"physics_tests.off")));
     _labels[8]->set_text_content(ui_raw_text(tr("physics_tests.failure")+": "+(r.failure.empty()?"—":r.failure)));
+    _labels[9]->set_text_content(ui_text_key("physics_tests.debug_details_keys"));
     while(_displayed<r.checks.size())
     {
         const auto& c=r.checks[_displayed++];

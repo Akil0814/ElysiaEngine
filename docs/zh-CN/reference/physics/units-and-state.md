@@ -37,7 +37,15 @@
 
 ## 3. 质量与关节
 
-`FromDensity` 根据以米计的形状面积求质量。`ExplicitMass` 保留形状计算的质心，并按请求的总质量缩放转动惯量。传感器默认不贡献质量，只有显式启用时才参与；现有角色使用显式质量和固定旋转。
+`BodyDefinition::mass_properties` 是三种互斥配置：默认 `DensityMass{}` 根据以米计的形状面积与密度计算质量数据；`ExplicitMass{mass}` 保留密度质心，并按总质量同比缩放惯量；`BodyMassData{mass, local_center, rotational_inertia}` 独立指定质量、局部质心与绕质心惯量。传感器默认不贡献质量，只有 `sensor_contributes_mass` 开启时才参与密度计算。
+
+`PhysicsWorld::set_mass_properties(handle, properties)` 完整替换配置；传入 `DensityMass{}` 恢复密度计算。`mass_properties(handle)` 返回已执行的配置，`body_state(handle)` 返回实际质量、有效惯量与 `local_center` / `world_center`。两种查询在原生创建尚未完成或身份失效时返回空。`PhysicsParticipant` 提供同名配置读写快捷接口。
+
+仅 Dynamic 接受质量覆盖；Static / Kinematic 只接受 `DensityMass`。覆盖质量必须有限且为正，质心有限，惯量有限且非负；换算结果及所需倒数必须可表示。零惯量不响应力矩；固定旋转的有效惯量始终为零，但配置保留请求值。碰撞体替换、密度或质量贡献变化、启停后会重新应用当前配置，完整自定义数据不会被形状自动计算覆盖。
+
+运行时改变质心保留刚体原点位姿、角速度和原点瞬时速度；引擎按 `v_new = v_old + angular_velocity × (world_center_new - world_center_old)` 调整质心线速度，不保证动量或能量守恒。关节局部锚点不变；已启用刚体被唤醒，禁用刚体仍禁用。回调中的配置按值复制进入 FIFO；`true` 表示校验通过并接受，执行前再次校验身份和当时形状，失效或不再有效的命令跳过。队列分配异常沿用现有异常契约，入队失败不修改配置。
+
+惯量单位为 kg·EU²，参考点为质心；这与部分旧 Box2D 形状质量数据绕局部原点的惯量不同。迁移说明和转杆示例见[独立质量属性回执](../../integration/006-explicit-inertia-receipt.md)。
 
 距离关节提供刚性静止长度，或带频率与阻尼比的弹簧。旋转关节提供局部锚点、参考角、角度限位、马达速度和最大力矩；相连刚体默认不互相碰撞。原生约束刚度有限，极大马达力矩可能越过名义角度限位。
 
@@ -47,7 +55,7 @@
 
 默认碰撞体轮廓与普通绘制使用相同的插值位置和最短角度旋转。绿色表示清醒刚体，蓝色表示休眠或静态刚体，紫色表示传感器；禁用刚体不显示。关节锚点也使用插值姿态。
 
-Inspector 的 `Native AABB (physics step)` 单独显示黄色轴对齐原生边界。它不是旋转碰撞体轮廓，也不是 CCD 扫掠路径。`Previous / current physics poses` 用灰色显示前一姿态、白色显示最新模拟姿态；两项默认关闭。
+Inspector 的 `Native AABB (physics step)` 单独显示黄色轴对齐原生边界。它不是旋转碰撞体轮廓，也不是 CCD 扫掠路径。`Previous / current physics poses` 用灰色显示前一姿态、白色显示最新模拟姿态；两项都有独立类别开关。
 
 接触点、法线和速度矢量表示最近完成的物理步，刻意不做插值。延迟修改提交后或调试模式变化时会刷新捕获，暂停时也一样。没有物理步的渲染帧仍更新碰撞体的插值系数。
 
@@ -58,3 +66,11 @@ Chain 顶点、ghost 与 Segment 端点也使用 EU，正面为局部 `(dy,-dx)`
 八类 `JointState.details` 提供类型化设置与测量，公共 `first`、`second` 标识两端；Filter 无设置，反作用力／扭矩为零。Motor 的位置目标在第一端局部坐标中，Mouse 的目标在世界坐标中，二者误差按各自坐标表达。
 
 Filter 与 `collide_connected` 遵循内置 Box2D 的实体接触规则；它们不屏蔽原生 Sensor 重叠，也不改变无状态查询。需要排除传感器或查询目标时，使用 Collider 过滤器或 `CollisionQueryFilter`。
+
+## 类型化物理调试快照
+
+`PhysicsDebugCapture` 新增 `Chains` 和 `Targets`。`PhysicsDebugJoint` 拥有 `JointState`、两端前后姿态、局部锚点、局部轴和参考角；`PhysicsDebugChain` 拥有实际顶点、子段 ColliderId、ghost、owner 与前后姿态；`PhysicsDebugTarget` 保存命令执行时姿态、请求／生效目标、时间步、待模拟标记和目标轮廓。`PhysicsDebugSnapshot` 包含 `chains`、`targets` 和 `units_per_meter`，不借用世界或原生数据。绘制可在世界销毁后继续消费已有快照。
+
+捕获按类别选择，关节基础与细节共用 `Joints`；关闭细节不构建对应 Chain／目标轮廓。捕获失败保留上一完整快照及配置，异常向上传播，不修改原生运动状态。目标命令本身只更新固定大小诊断记录。开关、插值及记录生命周期见[调试绘制](../../user-guide/tools/debug-draw.md)。
+
+`PhysicsDebugSnapshot::bodies` 随 Shapes 或 BroadPhase 捕获，包含每个可见刚体的已提交质量配置与 `BodyState`，无碰撞体的刚体也包含在内。Inspector 使用这些拥有数据的快照；数值表示捕获时的物理状态，不做插值。

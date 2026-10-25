@@ -340,6 +340,9 @@ add_elysia_test(physics_framework_contract_tests
     LABEL physics
     SOURCES physics/physics_framework_contract_tests.cpp
 )
+add_elysia_test(physics_mass_properties_tests LABEL physics SOURCES physics/physics_mass_properties_tests.cpp LIBRARIES box2d)
+add_test(NAME physics_exception_safety_mass_properties COMMAND physics_exception_safety_tests mass_properties)
+set_tests_properties(physics_exception_safety_mass_properties PROPERTIES LABELS physics)
 
 add_elysia_test(physics_scale_tests
     LABEL physics
@@ -670,3 +673,8 @@ foreach(CASE IN ITEMS chain chain_deferred chain_destroy stage2_joints)
     add_test(NAME physics_exception_safety_${CASE} COMMAND physics_exception_safety_tests ${CASE})
     set_tests_properties(physics_exception_safety_${CASE} PROPERTIES LABELS physics)
 endforeach()
+
+add_elysia_test(physics_debug_visualization_tests LABEL physics SOURCES physics/physics_debug_visualization_tests.cpp)
+
+add_test(NAME physics_exception_safety_debug_extended COMMAND physics_exception_safety_tests debug_extended)
+set_tests_properties(physics_exception_safety_debug_extended PROPERTIES LABELS physics)

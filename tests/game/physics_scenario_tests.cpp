@@ -74,7 +74,7 @@ int main(int argc,char** argv)
         ShowcaseScenario timeout("motion");timeout.start();timeout.finish_timeout();
         require(timeout.result().status==ScenarioStatus::Failed&&timeout.result().failure=="timeout","Timeout is a visible failure");
         ShowcaseScenario debug("stress_bodies");debug.start();for(int i=0;i<122;++i)debug.advance(1.0/60);
-        debug.set_debug_geometry(true);require(debug.result().mixed_debug_samples,"Changing debug mode labels mixed timing samples");
+        debug.set_debug_capture(elysia::physics::PhysicsDebugCapture::Shapes);require(debug.result().mixed_debug_samples,"Changing debug mode labels mixed timing samples");
         bool rejected=false;try{ShowcaseScenario invalid("missing");}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Unknown IDs are rejected");
     }

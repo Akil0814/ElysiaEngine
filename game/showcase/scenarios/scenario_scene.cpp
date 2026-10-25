@@ -34,7 +34,7 @@ void ScenarioScene::on_enter(const elysia::scene::ScenePayload& payload)
         _scenario=std::make_unique<ShowcaseScenario>(_entry.scenario_id,_entry.pressure_tier);
         _presentation=create_and_add_object<ShowcaseScenarioPresentation>(*_scenario);
         debug->set_enabled(descriptor->category!=ScenarioCategory::Stress);
-        debug->set_enabled_categories(elysia::tools::DebugDrawCategory::All);
+        debug->set_enabled_categories(elysia::tools::DebugDrawCategory::Default);
         const auto layout=make_scenario_layout(float(runtime_context().logical_width()),float(runtime_context().logical_height()));
         _window=create_and_add_object<elysia::ui::UiWindow>(layout.viewport,101);
         _hud.build(*_window,*_scenario,{[this]{run();},[this]{pause_case();},[this]{step();},[this]{restart();},[this]{back();},[this]{_scenario->control_joints();}});
@@ -76,7 +76,7 @@ void ScenarioScene::release_global_state() noexcept
 void ScenarioScene::on_before_update(double delta)
 {
     if (!_scenario) return;
-    auto* debug=elysia::tools::DebugDraw::instance(); _scenario->set_debug_geometry(debug->enabled());
+    auto* debug=elysia::tools::DebugDraw::instance(); _scenario->set_debug_capture(elysia::physics::physics_debug_capture_for(*debug));
     _scenario->advance(delta);
     if (debug->enabled()) elysia::physics::submit_physics_debug_snapshot(_scenario->world().debug_snapshot(),*debug);
     _hud.update(*_scenario);
@@ -113,6 +113,17 @@ void ScenarioScene::on_shortcuts(const elysia::input::RawInputFrame&,const std::
         case RawInputControl::KeyP: consume_input(event); pause_case(); return;
         case RawInputControl::KeyN: consume_input(event); step(); return;
         case RawInputControl::KeyF1: consume_input(event); elysia::tools::DebugDraw::instance()->set_enabled(!elysia::tools::DebugDraw::instance()->enabled()); return;
+        case RawInputControl::KeyF2:
+        case RawInputControl::KeyF3:
+        case RawInputControl::KeyF4:
+        {
+            consume_input(event);
+            using C=elysia::tools::DebugDrawCategory;
+            const auto category=event.control==RawInputControl::KeyF2?C::PhysicsJointDetails:event.control==RawInputControl::KeyF3?C::PhysicsChainDetails:C::PhysicsTarget;
+            auto* debug=elysia::tools::DebugDraw::instance();
+            debug->set_enabled_categories(static_cast<C>(static_cast<std::uint32_t>(debug->enabled_categories())^static_cast<std::uint32_t>(category)));
+            return;
+        }
         default: break;
         }
     }

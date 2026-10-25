@@ -149,6 +149,29 @@ int main(int argc,char** argv)
         world.set_debug_capture(elysia::physics::PhysicsDebugCapture::Shapes);
         require(world.debug_snapshot().shapes.size() == 1,"capture succeeds after transient allocation failure");
     }
+    else if (!std::strcmp(mode,"debug_extended"))
+    {
+        using namespace elysia::physics;
+        bool completed=false;int failures=0;
+        for(long budget=0;budget<512&&!completed;++budget)
+        {
+            std::array<DeferredBody,4> owners;PhysicsWorld world;
+            std::array<PhysicsObjectHandle,4> handles;
+            for(std::size_t n=0;n<owners.size();++n){owners[n].set_position({float(n*300),0});handles[n]=world.register_object(owners[n],{.type=n==0?BodyType::Dynamic:BodyType::Kinematic},{&owners[n].collider,1});}
+            for(std::size_t n=1;n<owners.size();++n){ChainDefinition d;d.local_vertices={{0,100},{100,100},{200,120}};world.create_chain(handles[n],d);world.set_target_transform(handles[n],{{float(n*300+1),0},.1f},1./60);}
+            world.create_weld_joint({handles[1],handles[0]});
+            world.set_debug_capture(PhysicsDebugCapture::Shapes);const auto previous=world.debug_snapshot();
+            const auto state=world.body_state(handles[1]);
+            fail_after=budget;bool caught=false;
+            try{world.set_debug_capture(PhysicsDebugCapture::All);}catch(const std::bad_alloc&){caught=true;}
+            fail_after=-1;
+            if(caught){++failures;require(world.debug_capture()==PhysicsDebugCapture::Shapes&&world.debug_snapshot().chains.empty()&&world.debug_snapshot().targets.empty()&&world.debug_snapshot().joints.empty()&&world.debug_snapshot().shapes.size()==previous.shapes.size()&&world.debug_snapshot().bodies.size()==previous.bodies.size()&&world.debug_snapshot().bodies.front().state.mass==previous.bodies.front().state.mass,"Every extended capture allocation failure preserves old snapshot and mode");require(world.body_state(handles[1])->velocity==state->velocity,"Capture failure cannot change native motion");world.set_debug_capture(PhysicsDebugCapture::All);}
+            else completed=true;
+            require(world.debug_snapshot().chains.size()==3&&world.debug_snapshot().targets.size()==3&&world.debug_snapshot().joints.size()==1,"Extended capture succeeds after every failed allocation");
+            world.set_debug_capture(PhysicsDebugCapture::None);require(world.debug_snapshot().chains.empty()&&world.debug_snapshot().targets.empty()&&world.debug_snapshot().bodies.empty(),"Capture shutdown clears nested data without stale records");
+        }
+        require(completed&&failures>0,"Extended capture sweeps all allocations through first success");
+    }
     else if (!std::strcmp(mode,"deferred") || !std::strcmp(mode,"deferred_removed"))
     {
         const bool remove_source = !std::strcmp(mode,"deferred_removed");
@@ -194,6 +217,61 @@ int main(int argc,char** argv)
             world.step(1.0/60);
         }
         require(failures>0,"shape replacement fault injection reaches an allocation");
+    }
+    else if (!std::strcmp(mode,"mass_properties"))
+    {
+        using namespace elysia::physics;
+        for (bool deferred : {false, true})
+        {
+            bool completed = false;
+            int failures = 0;
+            for (long budget = 0; budget < 64 && !completed; ++budget)
+            {
+                DeferredBody owner;
+                PhysicsWorld world;
+                BodyDefinition definition;
+                definition.fixed_rotation = false;
+                definition.mass_properties = BodyMassData{2, {2, 3}, 400};
+                PhysicsObjectHandle h;
+                bool caught = false;
+                if (deferred)
+                {
+                    h = world.register_object(owner, definition, {&owner.collider, 1});
+                    owner.tick = [&] {
+                        fail_after = budget;
+                        try { (void)world.set_mass_properties(h, BodyMassData{3, {4, 5}, 600}); }
+                        catch (const std::bad_alloc &) { caught = true; }
+                        fail_after = -1;
+                        require(std::get<BodyMassData>(*world.mass_properties(h)).mass == 2,
+                            "queue allocation does not commit requested mass properties early");
+                    };
+                    world.step(1. / 60);
+                    owner.tick = {};
+                    require(std::get<BodyMassData>(*world.mass_properties(h)).mass == (caught ? 2 : 3),
+                        "failed mass command keeps original config and successful command commits at FIFO flush");
+                    require(std::abs(world.body_state(h)->mass - (caught ? 2 : 3)) < .001f,
+                        "native mass agrees with committed config after queue allocation failure");
+                }
+                else
+                {
+                    fail_after = budget;
+                    try { h = world.register_object(owner, definition, {&owner.collider, 1}); }
+                    catch (const std::bad_alloc &) { caught = true; }
+                    fail_after = -1;
+                    if (caught)
+                    {
+                        require(world.registered_object_count() == 0 && world.registered_collider_count() == 0,
+                            "failed custom-mass registration retires every partial resource");
+                        h = world.register_object(owner, definition, {&owner.collider, 1});
+                    }
+                    require(h.is_valid() && world.body_state(h)->mass == 2,
+                        "custom-mass registration succeeds after each rollback");
+                }
+                if (caught) ++failures;
+                else completed = true;
+            }
+            require(completed && failures > 0, "mass registration and command sweep covers each allocation to success");
+        }
     }
     else if (!std::strcmp(mode,"joint_queue"))
     {

@@ -42,6 +42,46 @@ Scene updates refresh Physics categories from physics debug snapshots. Use Gamep
 
 The Dear ImGui overlay may supply a debug panel, but `DebugDraw` is independent and needs no game-side ImGui drawing calls.
 
+## Physics Detail Toggles
+
+The global switch starts disabled. `DebugDrawCategory::Default` retains existing base categories, including physics outlines and anchors, while excluding the three new details. `All` includes every category. Physics examples start with `Default`; enable details separately in the Inspector or with shortcuts:
+
+| Category | Example shortcut | Display |
+| --- | --- | --- |
+| `PhysicsJointDetails` | F2 | Eight joint types: axes, reference angles, active limits, springs and targets; Filter has no mechanical details |
+| `PhysicsChainDetails` | F3 | Actual vertices, edges and open-chain endpoint ghosts; base outlines retain front arrows |
+| `PhysicsTarget` | F4 | Kinematic target contours, orientation and current-to-target connection |
+
+Shortcuts also work in no-ImGui physics examples, with a hint at the end of the scrolling status panel. Disabling a category removes retained commands immediately. Exit/reentry clears old geometry. Disabled, inactive, destroyed and pending objects are excluded from geometry/velocity snapshots. A joint is hidden if either endpoint is ineligible; sleeping bodies remain visible.
+
+Joint anchors, local axes, limits and Chain vertices are rebuilt from interpolated body poses. Mouse targets stay in world coordinates; Motor local targets follow the first body. Reactions, contacts and measurements describe the latest physics state without display interpolation. Auxiliary axes span 0.25 meters in EU, angle arcs use a 0.2-meter radius, and arrowheads use 0.04 meters. Marker diameter and stroke width remain logical screen units.
+
+Kinematic targets retain only pending-command and last-completed-step diagnostics. Pause/render-only frames retain them; the next fixed step without another target clears them. Post-step callback targets are marked pending. Later targets overwrite earlier ones in FIFO order; explicit velocity, angular velocity, teleport, disablement, removal and Reset clear the display. Fixed rotation retains the requested angle but draws the effective angle. Records do not drive persistent tracking. Targets use translucent cyan and ghosts use orange dashes.
+
+For an independently owned world, use the shared category-to-capture mapping. Call this submission helper after that world's `finalize_frame`, with exclusive ownership of physics-category cleanup. Scene-owned physics already performs these steps; do not submit it twice.
+
+```cpp
+#include "engine/physics/physics_world.h"
+#include "engine/physics/physics_debug_draw.h"
+
+void enable_physics_details()
+{
+    using C = elysia::tools::DebugDrawCategory;
+    auto* draw = ELYSIA_DEBUG_DRAW;
+    draw->set_enabled(true);
+    draw->set_enabled_categories(C::Default | C::PhysicsJointDetails |
+        C::PhysicsChainDetails | C::PhysicsTarget);
+}
+
+void submit_owned_physics_debug(elysia::physics::PhysicsWorld& world)
+{
+    auto* draw = ELYSIA_DEBUG_DRAW;
+    world.set_debug_capture(elysia::physics::physics_debug_capture_for(*draw));
+    draw->clear_categories(elysia::physics::kPhysicsDebugCategories);
+    elysia::physics::submit_physics_debug_snapshot(world.debug_snapshot(), *draw);
+}
+```
+
 ## References
 
 - [Primitives and categories](../../../../engine/tools/debug_draw.h)

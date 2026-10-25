@@ -33,7 +33,7 @@
 
 完整物理对象、碰撞体初始化和固定步示例见[物理指南](../../user-guide/systems/physics.md#最小物理对象)。
 
-`PhysicsParticipant` 已提供常用快捷接口：`physics_handle()`、`physics_collider(index)`、`physics_state()`、`velocity()`、`set_velocity(...)`、`set_velocity_x(...)`、`set_velocity_y(...)` 和 `update_physics_collider(index, definition)`。
+`PhysicsParticipant` 已提供常用快捷接口：`physics_handle()`、`physics_collider(index)`、`physics_state()`、`velocity()`、`set_velocity(...)`、`set_velocity_x(...)`、`set_velocity_y(...)` 和 `update_physics_collider(index, definition)`、`mass_properties()` 和 `set_mass_properties(properties)`。
 
 需要直接操作世界时，使用下列 `PhysicsWorld` 接口。所有对象、碰撞体和关节 ID 都是不透明句柄；传入失效句柄的命令返回 `false`，状态读取返回 `std::nullopt`。
 
@@ -41,6 +41,7 @@
 | --- | --- |
 | 注册/查询/注销 | `register_object(owner, body, colliders)`、`unregister_object(handle)`、`object_handle(owner)`、`collider_id(handle, index)` |
 | 读模拟状态 | `body_state(handle)`；读渲染状态用 `render_pose(handle)` |
+| 质量配置与质心 | `set_mass_properties`、`mass_properties`；`BodyState` 提供质量、绕质心惯量及局部／世界质心 |
 | 线速度与角速度 | `set_velocity`、`set_velocity_x`、`set_velocity_y`、`set_angular_velocity` |
 | 重力、启用、唤醒 | `set_gravity_scale`、`set_body_enabled`、`set_awake` |
 | 力与冲量 | `apply_force`、`apply_impulse`、`apply_torque`、`apply_angular_impulse`；可选 `world_point` 是世界坐标施力点 |
@@ -178,3 +179,11 @@ Chain 几何、过滤和材质在创建后固定，修改时销毁再创建。`u
 在 `fixed_update(dt)` 中每步提交一个目标。它不瞬移，不保存持续追踪状态，也不保证单步精确到位；停止提交后仍沿用当前速度，需要停止时显式设速。回调参数按值复制，执行前检查对象仍有效且启用，与设速、角速度和传送命令遵循 FIFO；渲染继续读取 `render_pose`。平台示例见物理测试中心的 `target_pose` 页。
 
 Filter 与 `collide_connected` 遵循内置 Box2D 的实体接触规则；它们不屏蔽原生 Sensor 重叠，也不改变无状态查询。需要排除传感器或查询目标时，使用 Collider 过滤器或 `CollisionQueryFilter`。
+
+## 类型化物理调试快照
+
+`PhysicsDebugCapture` 新增 `Chains` 和 `Targets`。`PhysicsDebugJoint` 拥有 `JointState`、两端前后姿态、局部锚点、局部轴和参考角；`PhysicsDebugChain` 拥有实际顶点、子段 ColliderId、ghost、owner 与前后姿态；`PhysicsDebugTarget` 保存命令执行时姿态、请求／生效目标、时间步、待模拟标记和目标轮廓。`PhysicsDebugSnapshot` 包含 `chains`、`targets` 和 `units_per_meter`，不借用世界或原生数据。绘制可在世界销毁后继续消费已有快照。
+
+捕获按类别选择，关节基础与细节共用 `Joints`；关闭细节不构建对应 Chain／目标轮廓。捕获失败保留上一完整快照及配置，异常向上传播，不修改原生运动状态。目标命令本身只更新固定大小诊断记录。开关、插值及记录生命周期见[调试绘制](../../user-guide/tools/debug-draw.md)。
+
+质量的三种互斥配置、单位与时序见[物理单位、命令与状态快照](units-and-state.md)，迁移示例见[独立质量属性回执](../../integration/006-explicit-inertia-receipt.md)。

@@ -15,7 +15,7 @@ void reset_debug_draw()
     tools::DebugDraw* debug_draw = tools::DebugDraw::instance();
     debug_draw->clear();
     debug_draw->set_enabled(false);
-    debug_draw->set_enabled_categories(tools::DebugDrawCategory::All);
+    debug_draw->set_enabled_categories(tools::DebugDrawCategory::Default);
 }
 
 void test_global_and_category_visibility()
@@ -26,8 +26,8 @@ void test_global_and_category_visibility()
     reset_debug_draw();
 
     require(!debug_draw->enabled(), "DebugDraw must default to disabled");
-    require(debug_draw->enabled_categories() == DebugDrawCategory::All,
-        "DebugDraw must default to every category selected");
+    require(debug_draw->enabled_categories() == DebugDrawCategory::Default,
+        "DebugDraw defaults to base categories with optional details off");
     require(!debug_draw->is_enabled(DebugDrawCategory::PhysicsCollider),
         "the global switch must gate category visibility");
 

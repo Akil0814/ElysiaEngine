@@ -173,8 +173,7 @@ int main()
     for (int fps : {30, 60, 120, 144})
     {
         Probe o;
-        o.definition.mass_policy = MassPolicy::ExplicitMass;
-        o.definition.mass = 1;
+        o.definition.mass_properties = ExplicitMass{1};
         PhysicsWorld w;
         elysia::scene::FixedStepRuntime clock({});
         auto h = o.add(w);

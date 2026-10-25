@@ -445,8 +445,7 @@ struct Pair
         anchor.definition.type = BodyType::Static;
         bob.collider.shape = BoxShape{{}, {10, 10}, 0};
         bob.definition.fixed_rotation = false;
-        bob.definition.mass_policy = MassPolicy::ExplicitMass;
-        bob.definition.mass = 1;
+        bob.definition.mass_properties = ExplicitMass{1};
         a = anchor.add(w);
         b = bob.add(w);
     }

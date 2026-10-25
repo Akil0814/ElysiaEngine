@@ -217,12 +217,14 @@ void ShowcaseScenario::single_step()
 }
 void ShowcaseScenario::set_paused(bool p) { _impl->paused=p; }
 bool ShowcaseScenario::paused() const { return _impl->paused; }
-void ShowcaseScenario::set_debug_geometry(bool enabled)
+void ShowcaseScenario::set_debug_capture(PhysicsDebugCapture capture)
 {
     auto& p = *_impl;
-    if (enabled != p.result.debug_geometry && !p.timings.empty()) p.result.mixed_debug_samples=true;
-    p.result.debug_geometry=enabled;
-    p.world.set_debug_capture(enabled ? PhysicsDebugCapture::All : PhysicsDebugCapture::None);
+    const auto previous=p.world.debug_capture();
+    p.world.set_debug_capture(capture);
+    const auto effective=p.world.debug_capture();
+    if (effective != previous && !p.timings.empty()) p.result.mixed_debug_samples=true;
+    p.result.debug_geometry=effective!=PhysicsDebugCapture::None;
 }
 void ShowcaseScenario::finish_timeout() { _impl->truth("timeout",false); _impl->complete(); }
 const ScenarioDescriptor& ShowcaseScenario::descriptor() const { return _impl->descriptor; }

@@ -64,7 +64,7 @@ public:
     void single_step();
     void set_paused(bool paused);
     bool paused() const;
-    void set_debug_geometry(bool enabled);
+    void set_debug_capture(elysia::physics::PhysicsDebugCapture);
     void finish_timeout();
     const ScenarioDescriptor& descriptor() const;
     const ScenarioResult& result() const;

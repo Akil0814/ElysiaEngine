@@ -494,6 +494,7 @@ const std::set<std::string> expected_keys = {
     "physics_tests.cases.shape_queries.purpose",
     "physics_tests.cases.shape_queries.title",
     "physics_tests.control_joints",
+    "physics_tests.debug_details_keys",
     "physics_tests.cases.edges.title",
     "physics_tests.cases.edges.purpose",
     "physics_tests.cases.edges.expected",

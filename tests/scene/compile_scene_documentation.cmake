@@ -72,7 +72,7 @@ function(elysia_add_scene_documentation_examples_language language target)
     elysia_extract_documentation_cpp("${documentation_root}/content/configuration.md"
         "${generated_directory}/configuration.cpp" 2)
     elysia_extract_documentation_cpp("${documentation_root}/systems/physics.md"
-        "${generated_directory}/physics.cpp" 7 FallingBox ConfiguredPhysicsScene)
+        "${generated_directory}/physics.cpp" 8 FallingBox ConfiguredPhysicsScene)
     elysia_extract_documentation_cpp("${documentation_root}/gameplay/collision.md"
         "${generated_directory}/collision.cpp" 3 CollisionExampleScene)
     elysia_extract_documentation_cpp("${documentation_root}/content/resources.md"
@@ -88,7 +88,7 @@ function(elysia_add_scene_documentation_examples_language language target)
     elysia_extract_documentation_cpp("${documentation_root}/systems/localization.md"
         "${generated_directory}/localization.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/tools/debug-draw.md"
-        "${generated_directory}/debug_draw.cpp" 1)
+        "${generated_directory}/debug_draw.cpp" 2)
     elysia_extract_documentation_cpp("${documentation_root}/systems/time-and-timers.md"
         "${generated_directory}/time_and_timers.cpp" 2)
     elysia_extract_documentation_cpp("${documentation_root}/tools/utilities.md"
@@ -109,6 +109,8 @@ function(elysia_add_scene_documentation_examples_language language target)
         "${generated_directory}/custom_controller.cpp" 1 ConstantController START_BLOCK 4)
     elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/${language}/reference/input/action-mapping.md"
         "${generated_directory}/delta_mapping.cpp" 1)
+    elysia_extract_documentation_cpp("${PROJECT_SOURCE_DIR}/docs/${language}/integration/006-explicit-inertia-receipt.md"
+        "${generated_directory}/mass_receipt.cpp" 1)
     add_library(${target} OBJECT
         "${generated_directory}/game_initialization.cpp"
         "${generated_directory}/scene.cpp"
@@ -122,6 +124,7 @@ function(elysia_add_scene_documentation_examples_language language target)
         "${generated_directory}/application_failure.cpp"
         "${generated_directory}/configuration.cpp"
         "${generated_directory}/physics.cpp"
+        "${generated_directory}/mass_receipt.cpp"
         "${generated_directory}/collision.cpp"
         "${generated_directory}/resources.cpp"
         "${generated_directory}/user_save.cpp"

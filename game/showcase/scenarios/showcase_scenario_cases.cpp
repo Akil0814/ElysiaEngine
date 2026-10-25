@@ -15,7 +15,7 @@ void ShowcaseScenario::Impl::build_motion()
     auto kin=body({30,100},{20,20},BodyType::Kinematic).physics_handle();
     auto falling=body({150,30},{20,20},BodyType::Dynamic,true).physics_handle();
     BodyDefinition d;
-    d.gravity_scale=0; d.mass_policy=MassPolicy::ExplicitMass; d.mass=2;
+    d.gravity_scale=0; d.mass_properties = ExplicitMass{2};
     Collider c; c.shape=BoxShape::from_rect({0,0,20,20});
     auto force=add<ScenarioBody>(Vector2{250,40},d,std::vector<Collider>{c}).physics_handle();
     auto impulse=add<ScenarioBody>(Vector2{250,100},d,std::vector<Collider>{c}).physics_handle();

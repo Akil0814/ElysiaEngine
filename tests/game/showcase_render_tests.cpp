@@ -222,9 +222,9 @@ int main()
         for(const auto key:{example::scene_keys::ColliderCombatDemo,example::scene_keys::PlatformTileCombatDemo,example::scene_keys::TopDownTileCombatDemo}){
             manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route={.target=key,.payload=example::scene::ShowcaseEnterPayload{gallery},.reload_mode=elysia::scene::SceneReloadMode::Recreate}});manager.on_update(0);capture("gameplay_"+std::to_string(key));
         }
-        for(const auto& pair:{std::pair{example::scene_keys::Box2DLab,"motion"},std::pair{example::scene_keys::GameplayVerification,"combat_collider"},std::pair{example::scene_keys::Box2DLab,"edges"},std::pair{example::scene_keys::Box2DLab,"target_pose"},std::pair{example::scene_keys::Box2DLab,"joint_weld"},std::pair{example::scene_keys::Box2DLab,"joint_prismatic"},std::pair{example::scene_keys::Box2DLab,"joint_wheel"},std::pair{example::scene_keys::Box2DLab,"joint_mouse"},std::pair{example::scene_keys::Box2DLab,"joint_motor"},std::pair{example::scene_keys::Box2DLab,"joint_filter"}}){
+        for(const auto& pair:{std::pair{example::scene_keys::Box2DLab,"motion"},std::pair{example::scene_keys::GameplayVerification,"combat_collider"},std::pair{example::scene_keys::Box2DLab,"edges"},std::pair{example::scene_keys::Box2DLab,"target_pose"},std::pair{example::scene_keys::Box2DLab,"joint_weld"},std::pair{example::scene_keys::Box2DLab,"joint_prismatic"},std::pair{example::scene_keys::Box2DLab,"joint_wheel"},std::pair{example::scene_keys::Box2DLab,"joint_mouse"},std::pair{example::scene_keys::Box2DLab,"joint_motor"},std::pair{example::scene_keys::Box2DLab,"joint_filter"},std::pair{example::scene_keys::Box2DLab,"joints"}}){
             manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route={.target=pair.first,.payload=example::scene::ScenarioEnterPayload{gallery,pair.second,0},.reload_mode=elysia::scene::SceneReloadMode::Recreate}});manager.on_update(0);capture("verification_"+std::string(pair.second));
-            if(std::string_view(pair.second)=="edges"||std::string_view(pair.second)=="target_pose"||std::string_view(pair.second).starts_with("joint_"))
+            if(std::string_view(pair.second)=="edges"||std::string_view(pair.second)=="target_pose"||std::string_view(pair.second)=="joints"||std::string_view(pair.second).starts_with("joint_"))
             {
                 require(ELYSIA_LOCALIZATION->set_language("zh-Hans").has_value(),"physics labels switch to Chinese");manager.on_update(0);capture("physics_"+std::string(pair.second)+"_zh");
                 require(ELYSIA_LOCALIZATION->set_language("en").has_value(),"physics labels switch to English");
@@ -232,6 +232,11 @@ int main()
                 manager.on_input(elysia::tests::events_snapshot({{.control=elysia::input::RawInputControl::KeyP,.type=elysia::input::RawInputEventType::ControlPressed}}));
                 for(int i=0;i<60;++i)manager.on_update(1./60);
                 capture("physics_"+std::string(pair.second)+"_running");
+                for(const auto key:{elysia::input::RawInputControl::KeyF2,elysia::input::RawInputControl::KeyF3,elysia::input::RawInputControl::KeyF4})
+                    for(const auto phase:{elysia::input::RawInputEventType::ControlPressed,elysia::input::RawInputEventType::ControlReleased})manager.on_input(elysia::tests::events_snapshot({{.control=key,.type=phase}}));
+                manager.on_update(0);capture("physics_"+std::string(pair.second)+"_details");
+                require(ELYSIA_LOCALIZATION->set_language("zh-Hans").has_value(),"physics detail hints switch language");manager.on_update(0);capture("physics_"+std::string(pair.second)+"_details_zh");
+                require(ELYSIA_LOCALIZATION->set_language("en").has_value(),"physics detail language restores");
             }
             for(const auto reload:{elysia::scene::SceneReloadMode::Reuse,elysia::scene::SceneReloadMode::Reset}){
                 manager.on_scene_request({.type=elysia::scene::SceneRequestType::Switch,.route=gallery});manager.on_update(0);

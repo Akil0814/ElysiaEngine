@@ -41,6 +41,7 @@ Direct world APIs follow. Object/collider/joint IDs are opaque handles; invalid 
 | --- | --- |
 | Register/query/unregister | `register_object(owner, body, colliders)`, `unregister_object(handle)`, `object_handle(owner)`, `collider_id(handle, index)` |
 | Simulation/presentation state | `body_state(handle)` / `render_pose(handle)` |
+| Mass configuration and center | `set_mass_properties`, `mass_properties`; `BodyState` exposes mass, center inertia, and local/world center |
 | Linear/angular velocity | `set_velocity`, `set_velocity_x`, `set_velocity_y`, `set_angular_velocity` |
 | Gravity/enablement/wake | `set_gravity_scale`, `set_body_enabled`, `set_awake` |
 | Force/impulse | `apply_force`, `apply_impulse`, `apply_torque`, `apply_angular_impulse`; optional `world_point` uses world coordinates |
@@ -178,3 +179,11 @@ Geometry, filters and materials are immutable after creation; destroy and recrea
 Submit a target in every `fixed_update(dt)`. This does not teleport, retain a persistent tracking controller, or guarantee exact arrival within one step. Stopping submissions leaves current velocity in effect; explicitly set velocity to stop. Callback parameters are copied and queued, rechecking live/enabled objects at execution. Velocity, angular velocity, teleports and targets follow FIFO order; rendering still reads `render_pose`. The physics center's `target_pose` page demonstrates a platform.
 
 Filter and `collide_connected` follow the bundled Box2D solid-contact rules. They do not suppress native Sensor overlaps or change stateless queries. Use Collider filters or `CollisionQueryFilter` to exclude sensor/query targets.
+
+## Typed Physics Debug Snapshots
+
+`PhysicsDebugCapture` adds `Chains` and `Targets`. `PhysicsDebugJoint` owns `JointState`, endpoint pose history, local anchors, local axis and reference angle. `PhysicsDebugChain` owns actual vertices, child ColliderIds, ghosts, owner identity and pose history. `PhysicsDebugTarget` contains command-time pose, requested/effective target, step duration, pending flag and target contours. `PhysicsDebugSnapshot` adds `chains`, `targets` and `units_per_meter`, borrowing no world/native data; existing snapshots can still be drawn after world destruction.
+
+Capture follows selected categories; base/detail joints share `Joints`. Disabled details do not build Chain/target contour data. Capture failure preserves the previous complete snapshot and mode, propagates the exception and leaves native motion unchanged. Target commands only update fixed-size diagnostic records. See [debug drawing](../../user-guide/tools/debug-draw.md) for toggles, interpolation and record lifetime.
+
+See [physics units, commands and snapshots](units-and-state.md) for the three exclusive configurations, units, and timing, and the [independent mass properties receipt](../../integration/006-explicit-inertia-receipt.md) for migration.

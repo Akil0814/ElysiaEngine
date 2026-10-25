@@ -17,7 +17,7 @@ int main()
         Collider collider;
         collider.shape = BoxShape::from_rect({0, 0, 10, 10});
         BodyDefinition definition;
-        definition.mass_policy = MassPolicy::ExplicitMass;
+        definition.mass_properties = ExplicitMass{1};
         definition.velocity = {1, 0};
         for (int i = 0; i < count; ++i)
         {
@@ -96,7 +96,7 @@ int main()
             body.type = type;
             body.fixed_rotation = false;
             body.gravity_scale = 0;
-            body.mass_policy = MassPolicy::ExplicitMass;
+            if (type == BodyType::Dynamic) body.mass_properties = ExplicitMass{1};
             Collider shape;
             shape.shape = CapsuleShape{{0, -5}, {0, 5}, 5};
             auto h = world.register_object(*owner, body, {&shape, 1});

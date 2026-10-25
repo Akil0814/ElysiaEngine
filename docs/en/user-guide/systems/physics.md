@@ -54,7 +54,7 @@ private:
 };
 ```
 
-Registration copies `BodyDefinition`. Static suits ground, Kinematic explicitly driven objects, Dynamic forces/gravity. Actors generally disable rotation. Density can calculate mass, or ExplicitMass supplies positive mass. Editing the original definition does not modify registered bodies; use mutation APIs.
+Registration copies `BodyDefinition`. Static suits ground, Kinematic explicitly driven objects, Dynamic forces/gravity. Actors generally disable rotation. `mass_properties` defaults to `DensityMass{}`. `ExplicitMass{positive_mass}` scales inertia with total mass, while `BodyMassData` independently specifies mass, center, and inertia. Editing the original definition does not modify registered bodies; use mutation APIs.
 
 Default world gravity is zero. Step size/max steps belong to `elysia::scene::FixedStepConfig` fields `delta_seconds` / `max_steps_per_frame`; Box2D subdivisions, scale, and gravity belong to `PhysicsWorldConfig`. Compose them through `SceneRuntimeFeatures`, not a physics configuration directly passed to Scene.
 
@@ -345,3 +345,35 @@ elysia::physics::JointHandle add_slider(elysia::physics::PhysicsWorld& world,
     return world.create_prismatic_joint(joint);
 }
 ```
+
+Physics details start off: F2 shows joint axes/limits, F3 Chain ghosts and F4 the step target, including no-ImGui builds. Typed snapshots hide a joint when either endpoint is disabled; target diagnostics do not create persistent tracking. See [debug drawing](../tools/debug-draw.md) for toggles and timing.
+
+## Configure Mass and Inertia Independently
+
+Use `BodyMassData` to change mass while retaining rotational response. The creation configuration below describes a centered 256 × 8 EU rectangle at 0.5 kg/m² and 32 EU/m: density mass is 1 kg and inertia about its center is approximately 5466.67 kg·EU². Mass can become 0.5 kg while retaining that inertia; `ExplicitMass{0.5f}` instead halves inertia proportionally.
+
+```cpp
+#include "engine/physics/physics_world.h"
+namespace mass_example {
+namespace ph = elysia::physics;
+ph::BodyDefinition seesaw_body() {
+    ph::BodyDefinition body;
+    body.fixed_rotation = false;
+    body.mass_properties = ph::BodyMassData{0.5f, {}, 5466.666667f};
+    return body;
+}
+bool preserve_inertia_with_new_mass(ph::PhysicsWorld& world, ph::PhysicsObjectHandle handle) {
+    const auto state = world.body_state(handle);
+    if (!state) return false;
+    return world.set_mass_properties(handle,
+        ph::BodyMassData{0.5f, state->local_center, state->rotational_inertia});
+}
+bool restore_density(ph::PhysicsWorld& world, ph::PhysicsObjectHandle handle) {
+    return world.set_mass_properties(handle, ph::DensityMass{});
+}
+}
+```
+
+Pass the returned definition through registration. The runtime example reads actual data before replacing the complete configuration. `body_state().velocity` is center-of-mass velocity; when the center changes the engine adjusts it to keep origin velocity continuous. Fixed rotation makes effective inertia zero. Copying that value does not recover the masked requested inertia; read the original configuration through `mass_properties` when needed.
+
+Collider changes reapply the configuration. Submit `DensityMass{}` to restore automatic mass. See [physics units and state](../../reference/physics/units-and-state.md) for validation, deferred execution, and units, and the [integration receipt](../../integration/006-explicit-inertia-receipt.md) for game integration.
