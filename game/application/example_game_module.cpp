@@ -43,7 +43,7 @@ elysia::application::ApplicationDescriptor GameModule::descriptor() const
         //elysia::ui::UiBuiltinTheme::ElysiaDark;
         elysia::ui::UiBuiltinTheme::ElysiaLight;
     descriptor.presentation.startup.engine_logo =
-        elysia::application::ApplicationEngineLogoVariant::White;
+        elysia::application::ApplicationEngineLogoVariant::LightEdge;
     descriptor.presentation.fonts.ui.source =
         elysia::typography::FontSource::Project;
     descriptor.presentation.fonts.floating_number.source =

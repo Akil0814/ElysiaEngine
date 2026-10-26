@@ -80,7 +80,7 @@ function(elysia_add_scene_documentation_examples_language language target)
     elysia_extract_documentation_cpp("${documentation_root}/content/save.md"
         "${generated_directory}/user_save.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/startup-loading.md"
-        "${generated_directory}/startup_loading.cpp" 1)
+        "${generated_directory}/startup_loading.cpp" 2)
     elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/settings.md"
         "${generated_directory}/settings.cpp" 1 SettingsExampleScene)
     elysia_extract_documentation_cpp("${documentation_root}/systems/audio.md"

@@ -288,6 +288,14 @@ add_elysia_test(startup_loading_scene_tests
     SDL
 )
 
+add_elysia_test(startup_loading_background_tests
+    LABEL scene
+    SOURCES scene/startup_loading_background_tests.cpp
+    LIBRARIES ${ELYSIA_SDL_LIBRARIES}
+    SDL
+)
+target_compile_definitions(startup_loading_background_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
 add_elysia_test(settings_scene_tests
     LABEL scene
     SOURCES scene/settings_scene_tests.cpp

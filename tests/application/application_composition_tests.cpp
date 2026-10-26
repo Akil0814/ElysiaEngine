@@ -1,6 +1,8 @@
 #define SDL_MAIN_HANDLED
 
 #include "engine/application/composition/application_scene_composition.h"
+#include "engine/builtin/builtin_scene_keys.h"
+#include "engine/builtin/scenes/startup_loading_scene_payload.h"
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
@@ -101,6 +103,41 @@ void request_scene(
     });
     scene_manager.on_update(0.0);
 }
+
+void test_startup_logo_option_reaches_registered_scene()
+{
+    FakeGameModule module;
+    auto descriptor = module.descriptor();
+    // An invalid selection must reach the startup scene constructor instead of
+    // silently falling back to its default. Valid selections are checked with
+    // real textures in startup_loading_background_tests.
+    descriptor.presentation.startup.engine_logo =
+        static_cast<elysia::application::ApplicationEngineLogoVariant>(255);
+    descriptor.initial_route = {
+        .target = elysia::builtin::SceneKeys::StartupLoading,
+        .payload = elysia::builtin::StartupLoadingScenePayload{
+            .success_route = {.target = 1}
+        }
+    };
+    const elysia::io::ContentRegistry registry{};
+    const elysia::scene::SceneRuntimeContext context{nullptr,registry,960,540};
+    elysia::scene::SceneManager manager;
+    bool rejected_selected_logo = false;
+    manager.initialize(context,[&](const elysia::scene::SceneBoundaryFailure& failure)
+    {
+        rejected_selected_logo =
+            failure.scene == elysia::builtin::SceneKeys::StartupLoading
+            && failure.diagnostic.message.find("Unsupported startup engine logo variant")
+                != std::string::npos;
+        return elysia::scene::SceneRoute{
+            .target = 1,.payload = InitialPayload{.marker = 73}
+        };
+    });
+    elysia::application::compose_application_scenes(manager,module,descriptor);
+    require(rejected_selected_logo && manager.current_scene_key() == 1,
+        "application composition must forward the selected engine logo into the startup scene builder");
+    manager.shutdown();
+}
 }
 
 int main()
@@ -156,5 +193,6 @@ int main()
         "Application composition must register the public Elysia Realm entry and route its invalid-payload enter failure through the SceneManager boundary");
 
     scene_manager.shutdown();
+    test_startup_logo_option_reaches_registered_scene();
     return EXIT_SUCCESS;
 }
