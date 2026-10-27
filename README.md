@@ -29,6 +29,7 @@ This repository contains both the reusable engine implementation and a sample ap
 | Project | Description | Status |
 | --- | --- | --- |
 | [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | A 2D top-down multiplayer shooter built with this engine | In development |
+| [FlyMe2TheMoon](https://github.com/Akil0814/FlyMe2TheMoon) | An unofficial recreation of miHoYo's FlyMe2TheMoon, built with ElysiaEngine | First Playable Version Completed |
 | [Moonline](https://github.com/Akil0814/Moonline) | A 2D side-view fighting game featuring characters from MELTY BLOOD | Development stalled |
 
 ### Project History

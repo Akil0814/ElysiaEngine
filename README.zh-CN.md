@@ -29,7 +29,8 @@ Elysia Engine 是一个使用 C++23 与 SDL3 构建的模块化二维游戏引�
 | 项目 | 简介 | 状态 |
 | --- | --- | --- |
 | [Codex Zero](https://github.com/ZacharyOllivierre/Codex-Zero) | 基于该引擎的 2D 俯视角多人射击游戏 | 开发中 |
-| [Moonline](https://github.com/Akil0814/Moonline) | 基于 MELTY BLOOD 中出现的角色开发的 2D 横版战斗游戏 | 停滞中 |
+| [FlyMe2TheMoon](https://github.com/Akil0814/FlyMe2TheMoon) | 基于该引擎的《FlyMe2TheMoon》非官方 2D 游戏复刻项目 | 首个可玩版本已完成 |
+| [Moonline](https://github.com/Akil0814/Moonline) | 基于 MELTY BLOOD 中出现的角色开发的 2D 横版战斗游戏 | 暂停开发 |
 
 ### 项目历史
 
