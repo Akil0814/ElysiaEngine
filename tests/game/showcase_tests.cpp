@@ -85,6 +85,23 @@ int main()
         require(unrelated.handle.has_value(),"external delayed sound schedules");
         click(scene,"showcase.audio.delay");
         click(scene,"showcase.audio.loop");
+        click(scene,"showcase.audio.spatial_start");
+        click(scene,"showcase.audio.spatial_toggle");
+        bool source_paused=false;
+        for(auto* track:elysia::audio::detail::mixer_backend().tracks) source_paused|=MIX_TrackPaused(track);
+        require(source_paused,"spatial toggle pauses its source");
+        click(scene,"showcase.audio.scene_pause");require(scene.is_paused(),"demo pauses scene");
+        click(scene,"showcase.audio.pause_ui");
+        bool ui_playing=false;
+        for(auto* track:elysia::audio::detail::mixer_backend().tracks) ui_playing|=MIX_TrackPlaying(track);
+        require(ui_playing,"UI tone can play during scene pause");
+        click(scene,"showcase.audio.scene_pause");require(!scene.is_paused(),"demo resumes scene");
+        int slider_count=0;
+        auto* listener=dynamic_cast<elysia::ui::UiSlider*>(find(*ui_root,[&](auto& element){
+            return dynamic_cast<elysia::ui::UiSlider*>(&element)!=nullptr && ++slider_count==5;
+        }));
+        require(listener!=nullptr,"listener distance slider exists");listener->set_value(500);
+        elysia::scene::SceneTestAccess::update(scene,0);
         click(scene,"showcase.audio.music_a");
         audio->update(0.1);
         require(elysia::tests::music_playing(),"music action starts playback");

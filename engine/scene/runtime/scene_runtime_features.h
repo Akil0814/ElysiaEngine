@@ -2,6 +2,7 @@
 
 #include "../../physics/physics_world_config.h"
 #include "scene_camera_config.h"
+#include "scene_audio_config.h"
 
 #include <cstdint>
 #include <optional>
@@ -19,5 +20,6 @@ struct SceneRuntimeFeatures
     std::optional<FixedStepConfig> fixed_step;
     std::optional<elysia::physics::PhysicsWorldConfig> physics;
     std::optional<CameraSceneConfig> camera;
+    std::optional<SceneAudioConfig> audio;
 };
 } // namespace elysia::scene

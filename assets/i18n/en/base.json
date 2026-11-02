@@ -562,7 +562,12 @@
       "unavailable": "Audio is unavailable",
       "accepted": "Playback request accepted",
       "rejected": "Playback request rejected",
-      "scheduled": "Playback scheduled"
+      "scheduled": "Playback scheduled",
+        "spatial_start": "Start spatial loop",
+        "spatial_toggle": "Enable / disable spatial source",
+        "scene_pause": "Pause / resume scene",
+        "pause_ui": "Play UI tone during pause",
+        "listener": "Listener distance (EU): audible 0–320, release beyond 480"
     }
   }
 }

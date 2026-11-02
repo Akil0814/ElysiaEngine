@@ -16,6 +16,7 @@
 #include "routing/scene_request_observer.h"
 #include "runtime/fixed_step_runtime.h"
 #include "runtime/scene_camera_runtime.h"
+#include "runtime/scene_audio_runtime.h"
 #include "runtime/scene_runtime_context.h"
 #include "runtime/scene_runtime_features.h"
 #include "scene_boundary_failure.h"
@@ -86,6 +87,7 @@ public:
     [[nodiscard]] bool has_fixed_step() const noexcept { return static_cast<bool>(_fixed_step); }
     [[nodiscard]] bool has_physics() const noexcept { return static_cast<bool>(_physics_world); }
     [[nodiscard]] bool has_camera() const noexcept { return static_cast<bool>(_camera_runtime); }
+    [[nodiscard]] bool has_audio() const noexcept { return static_cast<bool>(_audio_runtime); }
     [[nodiscard]] const FixedStepStats* fixed_step_stats() const noexcept
     {
         return _fixed_step ? &_fixed_step->stats() : nullptr;
@@ -226,6 +228,10 @@ protected:
     }
     [[nodiscard]] SceneCameraRuntime& camera_runtime();
     [[nodiscard]] const SceneCameraRuntime& camera_runtime() const;
+    [[nodiscard]] SceneAudioRuntime* try_audio_runtime() noexcept { return _audio_runtime.get(); }
+    [[nodiscard]] const SceneAudioRuntime* try_audio_runtime() const noexcept { return _audio_runtime.get(); }
+    [[nodiscard]] SceneAudioRuntime& audio_runtime();
+    [[nodiscard]] const SceneAudioRuntime& audio_runtime() const;
 
     virtual void on_camera_blend_completed(
         [[maybe_unused]] elysia::camera::CameraBlendId id,
@@ -320,6 +326,7 @@ private:
     };
 
     std::unique_ptr<SceneCameraRuntime> _camera_runtime;
+    std::unique_ptr<SceneAudioRuntime> _audio_runtime;
     std::unique_ptr<FixedStepRuntime> _fixed_step;
     std::unique_ptr<elysia::physics::PhysicsWorld> _physics_world;
 

@@ -7,9 +7,12 @@ namespace example::scene
 using namespace elysia::audio;
 using namespace elysia::ui;
 using namespace std::chrono_literals;
+AudioShowcaseScene::AudioShowcaseScene()
+    : Scene(elysia::scene::SceneRuntimeFeatures{.audio=elysia::scene::SceneAudioConfig{}}) {}
 AudioShowcaseScene::~AudioShowcaseScene() { cleanup(); }
 void AudioShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
 {
+    resume();
     const auto* entry=elysia::scene::try_scene_payload<ShowcaseEnterPayload>(payload);
     if (!entry || !elysia::scene::SceneKeys::is_supported(entry->return_route.target)) throw std::logic_error("AudioShowcaseScene requires a valid ShowcaseEnterPayload.");
     _return_route=entry->return_route;
@@ -27,6 +30,21 @@ void AudioShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
         add("showcase.audio.delay",[this]{play({.group=SoundGroup::Gameplay,.start_delay=500ms});});
         add("showcase.audio.loop",[this]{play({.loops=-1,.group=SoundGroup::Ambient,.fade_in=400ms});});
         add("showcase.audio.stop",[this]{stop_sounds();report(true);});
+        add("showcase.audio.spatial_start",[this]{
+            if(_spatial_loop) audio_runtime().destroy_loop(*_spatial_loop);
+            _spatial_enabled=true;
+            _spatial_loop=audio_runtime().create_loop({.key="showcase.tone",.distance={80,320,480,1}});
+            report(_spatial_loop.has_value());
+        });
+        add("showcase.audio.spatial_toggle",[this]{
+            _spatial_enabled=!_spatial_enabled;
+            report(_spatial_loop&&audio_runtime().set_loop_enabled(*_spatial_loop,_spatial_enabled));
+        });
+        add("showcase.audio.scene_pause",[this]{if(is_paused())resume();else pause();report(true);});
+        add("showcase.audio.pause_ui",[this]{
+            report(audio_runtime().request_sound("showcase.tone",{.group=SoundGroup::Ui},
+                elysia::scene::SceneSoundPausePolicy::ContinueWhenPaused).handle.has_value());
+        });
         add("showcase.audio.limit",[this] {
             auto* audio=AudioService::instance();
             (void)audio->set_sound_group_config(SoundGroup::Gameplay,{.max_simultaneous=1,.cooldown=500ms,.overflow_policy=SoundOverflowPolicy::IgnoreNew});
@@ -43,23 +61,27 @@ void AudioShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload)
             slider->set_on_value_changed([i](float value){auto* audio=AudioService::instance();const int volume=int(value);if(i==0)audio->set_master_volume(volume);else if(i==1)audio->set_music_volume(volume);else if(i==2)audio->set_sound_volume(volume);else audio->set_sound_group_volume(SoundGroup::Gameplay,volume);});
             _view.content().add_back(std::move(slider));
         }
+        _view.content().add_back(std::make_unique<UiLabel>(elysia::core::Rect{0,0,800,26},0,ui_text_key("showcase.audio.listener")));
+        auto listener=std::make_unique<UiSlider>(elysia::core::Rect{0,0,800,44});
+        listener->set_range(0,560);listener->set_step(10);listener->set_value(0);listener->set_enabled(_captured);
+        listener->set_on_value_changed([this](float value){audio_runtime().set_listener_position({value,0});});
+        _view.content().add_back(std::move(listener));
         _view.set_status(ui_text_key(_captured?"showcase.audio.ready":"showcase.audio.unavailable"));
     } catch (...) { cleanup(); throw; }
 }
 void AudioShowcaseScene::report(bool success) { _view.set_status(ui_text_key(success?"showcase.audio.accepted":"showcase.audio.rejected")); }
 void AudioShowcaseScene::play(SoundPlayOptions options)
 {
-    const auto request=AudioService::instance()->request_sound("showcase.tone",options);
-    if (request.handle) {
-        try { _handles.push_back(*request.handle); }
-        catch (...) { (void)AudioService::instance()->stop_sound(*request.handle); throw; }
-    }
+    const auto request=audio_runtime().request_sound("showcase.tone",options);
     _view.set_status(ui_text_key(request.status==SoundRequestStatus::Scheduled?"showcase.audio.scheduled":request.status==SoundRequestStatus::Started?"showcase.audio.accepted":"showcase.audio.rejected"));
 }
 void AudioShowcaseScene::stop_sounds()
 {
-    for (auto handle:_handles) (void)AudioService::instance()->stop_sound(handle);
-    _handles.clear();
+    const auto listener=audio_runtime().listener_position();
+    audio_runtime().clear();
+    audio_runtime().set_listener_position(listener);
+    audio_runtime().set_paused(is_paused());
+    _spatial_loop.reset();_spatial_enabled=true;
 }
 void AudioShowcaseScene::cleanup()
 {

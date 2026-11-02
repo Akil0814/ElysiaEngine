@@ -562,7 +562,12 @@
       "unavailable": "音频未初始化",
       "accepted": "播放请求已接受",
       "rejected": "播放请求被拒绝",
-      "scheduled": "已安排延迟播放"
+      "scheduled": "已安排延迟播放",
+        "spatial_start": "播放空间循环声",
+        "spatial_toggle": "启用／禁用空间声源",
+        "scene_pause": "暂停／恢复场景",
+        "pause_ui": "暂停时播放 UI 提示音",
+        "listener": "监听距离（EU）：0–320 可听，超过 480 释放声道"
     }
   }
 }

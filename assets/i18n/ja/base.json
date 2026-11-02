@@ -562,7 +562,12 @@
       "unavailable": "オーディオを利用できません",
       "accepted": "再生要求を受理",
       "rejected": "再生要求を拒否",
-      "scheduled": "再生予約済み"
+      "scheduled": "再生予約済み",
+        "spatial_start": "空間ループ音を開始",
+        "spatial_toggle": "音源の有効／無効",
+        "scene_pause": "シーンを一時停止／再開",
+        "pause_ui": "停止中に UI 音を再生",
+        "listener": "リスナー距離（EU）：0～320 は可聴、480 超で解放"
     }
   }
 }

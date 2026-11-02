@@ -562,7 +562,12 @@
       "unavailable": "音訊未初始化",
       "accepted": "播放請求已接受",
       "rejected": "播放請求被拒絕",
-      "scheduled": "已安排延遲播放"
+      "scheduled": "已安排延遲播放",
+        "spatial_start": "播放空間循環聲",
+        "spatial_toggle": "啟用／停用空間聲源",
+        "scene_pause": "暫停／恢復場景",
+        "pause_ui": "暫停時播放 UI 提示音",
+        "listener": "監聽距離（EU）：0–320 可聽，超過 480 釋放聲道"
     }
   }
 }

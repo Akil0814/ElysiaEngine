@@ -8,6 +8,7 @@ namespace example::scene
 class AudioShowcaseScene final : public elysia::scene::Scene
 {
 public:
+    AudioShowcaseScene();
     ~AudioShowcaseScene() override;
 protected:
     void on_enter(const elysia::scene::ScenePayload&) override;
@@ -26,7 +27,8 @@ private:
     elysia::audio::AudioSettings _saved{};
     std::array<elysia::audio::SoundGroupConfig,elysia::audio::kSoundGroupCount> _groups{};
     std::array<int,elysia::audio::kSoundGroupCount> _volumes{};
-    std::vector<elysia::audio::SoundHandle> _handles;
+    std::optional<elysia::scene::LoopSoundId> _spatial_loop;
+    bool _spatial_enabled=true;
     bool _captured=false,_owns_music=false;
 };
 }

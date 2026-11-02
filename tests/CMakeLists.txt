@@ -28,6 +28,19 @@ endfunction()
 
 find_package(Threads REQUIRED)
 
+add_elysia_test(sound_instance_control_tests
+    LABEL audio
+    SOURCES audio/sound_instance_control_tests.cpp
+    SDL
+)
+target_compile_definitions(sound_instance_control_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_elysia_test(scene_audio_runtime_tests
+    LABEL audio
+    SOURCES audio/scene_audio_runtime_tests.cpp
+    SDL
+)
+target_compile_definitions(scene_audio_runtime_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
 add_elysia_test(showcase_tests
     LABEL scene
     SOURCES game/showcase_tests.cpp

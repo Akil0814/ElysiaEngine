@@ -127,6 +127,63 @@ if (rain_handle)
 
 场景退出、技能取消或宿主销毁前，停止自己保存的句柄。需要清空全局音效时，要分别处理活跃声音和待播放队列；两者的接口区别见[停止与取消](../../reference/audio.md#cancel_all_scheduled_sounds)。
 
+## 控制一个声音的增益与暂停
+
+`SoundPlayOptions::gain` 是独立于玩家音量的非负实例增益，默认 1。保存返回句柄后，可用 `set_sound_gain` 动态修改，用 `set_sound_paused(handle, true/false)` 暂停或恢复。`sound_active` 包含预约、暂停和渐出状态；它不能作为“此刻可听见”的判断。
+
+暂停会冻结该声音的播放位置与渐变；预约尚未开始时冻结剩余等待时间。停止一个暂停的声音会立即释放，无需先恢复。全局服务仍由应用更新，游戏不要手动再推进一次。
+
+## 让场景管理声音
+
+需要随场景暂停和退出清理时，通过 `SceneRuntimeFeatures::audio` 启用运行时，再从派生 Scene 调用 `audio_runtime()`。普通声音使用 `request_sound`；指定世界位置的声音使用 `request_sound_at`；需要距离休眠与重新启动的循环源使用 `create_loop`。前两者返回普通播放结果，循环源返回 `LoopSoundId`。
+
+下面的完整类要求清单已经加载 `ambient.wind` 音效。参数中的位置和距离使用 EU，监听器由游戏更新，不自动跟随相机。示例参数由项目选择，并非引擎默认距离。
+
+```cpp
+#include "engine/scene/scene.h"
+
+class WindScene final : public elysia::scene::Scene
+{
+public:
+    WindScene() : Scene(elysia::scene::SceneRuntimeFeatures{
+        .audio = elysia::scene::SceneAudioConfig{}}) {}
+
+    void move_listener(elysia::core::Vector2 position)
+    {
+        (void)audio_runtime().set_listener_position(position);
+    }
+
+protected:
+    void on_enter(const elysia::scene::ScenePayload&) override
+    {
+        (void)audio_runtime().set_listener_position({0, 0});
+        wind = audio_runtime().create_loop({
+            .key = "ambient.wind",
+            .position = {100, 0},
+            .distance = {50, 400, 480, 1.4},
+            .gain = 0.5
+        });
+    }
+    void on_exit() override { wind.reset(); }
+    void on_reset() override { wind.reset(); }
+
+private:
+    std::optional<elysia::scene::LoopSoundId> wind;
+};
+```
+
+运行时在 `on_after_update` 后刷新监听距离。一次性声音持续调整增益，结束后不重新播放。循环声超过可听截止距离 400 时暂停并保留位置，超过释放距离 480 时释放声道；返回可听范围后从头播放。`set_loop_enabled` 与场景暂停分别记录，恢复场景不会启用已禁用源。
+
+默认声音跟随场景暂停；UI 提示可向 `request_sound` 传入 `SceneSoundPausePolicy::ContinueWhenPaused`。运行时只清理通过它创建的声音，不停止其他场景、全局声音或音乐。退出、重置、进入失败和销毁均自动清理；复用场景时在 `on_enter` 重新创建声音源。
+
+`loop_state` 是最近一次更新或声音源 setter 后的快照，不触发播放。`WaitingForVoice` 表示尚未取得声道，运行时最多每 250 ms 重试一次；`MissingResource` 表示资源缺失，同一缺失阶段只记录一次诊断。总声道仍为 24，Ambient 组默认最多 4 个实际音轨，逻辑源不额外预留声道。
+
+## 从 FlyMe2TheMoon 接入
+
+项目的声音初始增益、`set_sound_gain`、`set_sound_paused` 和 `sound_active` 可直接对应公开服务接口。将 `World::set_listener` 改为设置场景监听器；将 `World::at` 映射到 `request_sound_at`，将按 owner 维护的循环声映射到游戏保存的 `LoopSoundId`，更新位置、增益和启用状态即可。
+
+距离模型由项目转换成 `SoundDistanceConfig`，角色语音、水晶连吃规则、资源键映射和原作参数仍留在游戏。旧项目需要先移除同一声音的重复手动暂停与清理路径；全局音乐仍由项目决定何时停止。本次未修改 FlyMe2TheMoon，也未扩大引擎声道预算。
+
 ## 继续阅读
 
 - [音频接口与播放契约](../../reference/audio.md)：完整参数、结果和能力边界。

@@ -38,6 +38,8 @@ Scene::Scene(SceneRuntimeFeatures features)
         throw std::invalid_argument("Scene physics requires a fixed-step runtime.");
     if (features.camera)
         _camera_runtime = std::make_unique<SceneCameraRuntime>(*features.camera);
+    if (features.audio)
+        _audio_runtime = std::make_unique<SceneAudioRuntime>(*features.audio);
     if (features.fixed_step)
         _fixed_step = std::make_unique<FixedStepRuntime>(*features.fixed_step);
     if (features.physics)
@@ -47,6 +49,7 @@ Scene::Scene(SceneRuntimeFeatures features)
 Scene::~Scene()
 {
     release_owned_objects_noexcept();
+    if (_audio_runtime) _audio_runtime->clear();
 }
 
 Scene::ObjectMutationScope::ObjectMutationScope(
@@ -141,6 +144,7 @@ void Scene::pause()
         return;
     _paused = true;
     _input_router.reset();
+    if (_audio_runtime) _audio_runtime->set_paused(true);
     on_pause_changed(true);
 }
 
@@ -149,6 +153,7 @@ void Scene::resume()
     if (!_paused)
         return;
     _paused = false;
+    if (_audio_runtime) _audio_runtime->set_paused(false);
     on_pause_changed(false);
 }
 
@@ -159,12 +164,14 @@ void Scene::lifecycle_enter(const ScenePayload& payload)
     _lifecycle_state = SceneLifecycleState::Entering;
     try
     {
+        if (_audio_runtime) _audio_runtime->set_paused(_paused);
         on_enter(payload);
         _lifecycle_state = SceneLifecycleState::Active;
     }
     catch (...)
     {
         cancel_camera_activity();
+        if (_audio_runtime) _audio_runtime->clear();
         _lifecycle_state = SceneLifecycleState::Inactive;
         throw;
     }
@@ -195,6 +202,7 @@ void Scene::lifecycle_exit()
 
     cancel_camera_activity();
 
+    if (_audio_runtime) _audio_runtime->clear();
     _lifecycle_state = SceneLifecycleState::Inactive;
     failures.rethrow_if_failed();
 }
@@ -204,11 +212,13 @@ void Scene::lifecycle_reset()
     if (_lifecycle_state != SceneLifecycleState::Inactive)
         throw std::logic_error("Scene can only reset while inactive.");
     _lifecycle_state = SceneLifecycleState::Resetting;
+    if (_audio_runtime) _audio_runtime->clear();
     detail::SceneFailureCollector failures;
     try
     {
         reset_input_routing();
         _paused = false;
+        if (_audio_runtime) _audio_runtime->set_paused(false);
         if (_fixed_step)
             _fixed_step->reset();
         reset_camera_runtime();
@@ -228,6 +238,7 @@ void Scene::lifecycle_reset()
         failures.capture_cleanup(SceneKeys::Invalid,SceneBoundary::Reset,"Reset object retirement");
     }
 
+    if (_audio_runtime) _audio_runtime->clear();
     _lifecycle_state = SceneLifecycleState::Inactive;
     failures.rethrow_if_failed();
 }
@@ -309,6 +320,7 @@ void Scene::lifecycle_update(double delta)
             _camera_runtime->advance(delta, _paused, *this);
 
         on_after_update(delta);
+        if (_audio_runtime) _audio_runtime->update(delta);
     }
     catch (...)
     {
@@ -404,6 +416,7 @@ void Scene::attach_runtime_services()
         detail::SceneFailureCollector failures;
         failures.capture(SceneKeys::Invalid,SceneBoundary::Attach,"Runtime attach");
         failures.attempt_cleanup(SceneKeys::Invalid,SceneBoundary::Detach,"Runtime attach rollback",[&] { on_runtime_detach(); });
+        if (_audio_runtime) _audio_runtime->clear();
         _runtime_services_attached = false;
         failures.rethrow_if_failed();
     }
@@ -414,7 +427,9 @@ void Scene::detach_runtime_services()
     if (!_runtime_services_attached)
         return;
     _runtime_services_attached = false;
-    on_runtime_detach();
+    try { on_runtime_detach(); }
+    catch (...) { if (_audio_runtime) _audio_runtime->clear(); throw; }
+    if (_audio_runtime) _audio_runtime->clear();
 }
 
 void Scene::prepare_for_destruction()
@@ -446,6 +461,7 @@ void Scene::prepare_for_destruction()
         failures.capture(SceneKeys::Invalid,SceneBoundary::ObjectRemoval,"Destruction input reset");
     }
     clear_runtime_context();
+    if (_audio_runtime) _audio_runtime->clear();
     _lifecycle_state = SceneLifecycleState::PreparedForDestruction;
     failures.rethrow_if_failed();
 }
@@ -807,6 +823,18 @@ void Scene::cancel_camera_activity() noexcept
 {
     if (_camera_runtime)
         _camera_runtime->cancel_activity();
+}
+
+SceneAudioRuntime& Scene::audio_runtime()
+{
+    if (!_audio_runtime) throw std::logic_error("Scene does not have an audio runtime.");
+    return *_audio_runtime;
+}
+
+const SceneAudioRuntime& Scene::audio_runtime() const
+{
+    if (!_audio_runtime) throw std::logic_error("Scene does not have an audio runtime.");
+    return *_audio_runtime;
 }
 
 void Scene::reset_camera_runtime() noexcept

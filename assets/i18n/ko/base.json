@@ -562,7 +562,12 @@
       "unavailable": "오디오를 사용할 수 없습니다",
       "accepted": "재생 요청 승인",
       "rejected": "재생 요청 거부",
-      "scheduled": "재생 예약됨"
+      "scheduled": "재생 예약됨",
+        "spatial_start": "공간 반복음 시작",
+        "spatial_toggle": "음원 활성화 / 비활성화",
+        "scene_pause": "장면 일시 정지 / 재개",
+        "pause_ui": "정지 중 UI 소리 재생",
+        "listener": "청취 거리(EU): 0–320 가청, 480 초과 시 해제"
     }
   }
 }

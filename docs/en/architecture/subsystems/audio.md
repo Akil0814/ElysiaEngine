@@ -54,6 +54,16 @@ Schedulers manage instance fade coefficients; `AudioService` multiplies them by 
 
 Set initial gain before starting a track to avoid a full-volume first frame. Settings changes reapply active gains without changing fade progress. The music controller stores a pending key and looks up resources again at actual start. Missing resources or backend start failure log diagnostics and clear the target without automatic retries.
 
+## Scene Sound Ownership
+
+Optional `SceneAudioRuntime` sits between Scene and AudioService, owning resource keys, ordinary sound handles, logical loops and listener position. It holds no resource or game-object pointers; ResourceManager retains asset ownership. Scene refreshes distances after the game's `on_after_update`, before the application advances global audio scheduling.
+
+Scene pause changes synchronize to owned sounds, freezing reservations and active fades separately. Scene pause and loop disable are independent reasons; resuming the scene removes only the former. Global interfaces do not automatically inherit scene pause. Cleanup lives in nonvirtual lifecycle entrypoints, including reset and failure paths, so it does not rely on users calling base hooks.
+
+Logical loops are separate from actual tracks: the silent band retains paused tracks, while exceeding release distance stops and returns a channel; audible return acquires a new voice. Failed acquisition retries use the runtime clock at most once every 250 ms without bypassing scheduler budgets, cooldown or replacement rules. Missing-resource episodes suppress repeated diagnostics.
+
+SoundHandle and LoopSoundId use separate process-wide monotonic identifiers that are not reused on reset; foreign-scene and previous-service-lifecycle handles cannot hit new sounds. The backend treats paused tracks as occupied and applies instance gain before startup. New regressions are in `sound_instance_control_tests` and `scene_audio_runtime_tests`; dummy-device automation does not establish listening verification.
+
 ## Source and Tests
 
 - [audio_service.cpp](../../../../engine/audio/audio_service.cpp): validation, track operations, scheduler callbacks, and floating-point gain.

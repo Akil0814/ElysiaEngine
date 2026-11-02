@@ -39,6 +39,7 @@ struct SoundPlayOptions
     SoundGroup group = SoundGroup::Extra;
     std::chrono::milliseconds start_delay{0};
     std::chrono::milliseconds fade_in{0};
+    double gain = 1.0;
 };
 ```
 
@@ -77,6 +78,18 @@ bool stop_sound(SoundHandle handle, std::chrono::milliseconds fade_out = {});
 - 句柄已处于播放状态：接受停止请求，返回 `true`。正时长从当前增益渐出，到零后停止逻辑通道并移除活跃记录；期间句柄有效且仍占并发名额。
 - 渐入中停止会从当前增益渐出；重复渐出请求不重启计时，非正时长立即停止。自然结束会提前清理。
 - 句柄已自然结束、已被 `ReplaceOldest` 替换、无效，或服务未初始化：返回 `false`。
+
+### 单实例增益、暂停与查询
+
+```cpp
+bool set_sound_gain(SoundHandle handle, double gain);
+bool set_sound_paused(SoundHandle handle, bool paused);
+bool sound_active(SoundHandle handle);
+```
+
+`gain` 接受有限非负数，默认 1，允许大于 1；负数、NaN、Inf 被拒绝且保留原状态。增益可作用于预约或已启动声音，并与渐变和音量设置相乘。暂停冻结剩余预约时间、播放位置及渐变，继续占用活跃声道与组名额。重复暂停／恢复成功且不重新启动音轨；底层操作失败返回 `false`，不提交暂停状态。
+
+`sound_active` 对预约、播放、暂停、渐出返回 `true`；对完成、取消、替换或旧生命周期句柄返回 `false`。无效句柄的修改返回 `false`。句柄在不同调度器与服务生命周期之间不复用。停止暂停声音立即释放，即使指定正渐出时间；其他停止契约保持不变。
 
 ### `cancel_all_scheduled_sounds`
 
@@ -193,7 +206,7 @@ int sound_group_volume(SoundGroup group) const;
 音效逻辑通道的有效音量为：
 
 ```text
-sound_gain = master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_fade_gain
+sound_gain = master_volume / 100 × sound_volume / 100 × group_volume / 100 × instance_gain × instance_fade_gain
 ```
 
 以上除法按浮点数计算，最终通过 `MIX_SetTrackGain` 设置轨道增益，没有乘以整数音量上限或向下取整的步骤。渐变增益是独立的 `0..1` 线性系数；渐变过程中修改音量立即生效，渐变本身不修改音量设置。播放前先设置初始增益，避免渐入首帧满音量。
@@ -234,16 +247,34 @@ bool transition_music(const std::string_view& key,
 
 `settings()` 与 `sound_group_config()` 返回服务内部配置的只读借用引用；如需保存配置快照，应复制值。音量 setter 修改当前运行状态，持久化由[用户配置](../user-guide/content/configuration.md)处理。
 
+## 场景声音源接口
+
+类型与签名见 [scene_audio_runtime.h](../../../engine/scene/runtime/scene_audio_runtime.h) 和 [sound_distance.h](../../../engine/audio/sound_distance.h)。`ResourceService::has_sound(key)` 查询音效是否存在而不输出缺失诊断，运行时用它避免逐帧刷日志。实例增益提交到 SDL 时限制在底层 float 可表示的范围内。
+
+`SceneRuntimeFeatures::audio` 是可选 `SceneAudioConfig`；`has_audio()` 查询是否启用，派生场景通过 `try_audio_runtime()` 或 `audio_runtime()` 访问，未启用时后者抛出 `std::logic_error`。`loop_retry_interval_seconds` 默认 0.25，须有限且不小于 0.25；非法构造参数抛出 `std::invalid_argument`。
+
+`SceneAudioRuntime::request_sound(key, options, pause_policy)` 和 `request_sound_at(key, position, distance, options, pause_policy)` 返回 `SoundRequestResult`，支持现有预约与播放参数，并拥有返回句柄的清理责任。位置音效按当前监听器持续调整增益；结束后移除，不自动重播。
+
+修改所属普通／位置声音时，使用运行时的 `set_sound_gain(handle, gain)` 与 `set_sound_paused(handle, paused)`，外来或已结束句柄返回 false。运行时持续维护基础增益与暂停意图，直接调用全局 setter 修改托管声音可能被后续刷新覆盖。单实例暂停与场景暂停叠加，恢复场景不解除单实例暂停。全局 `stop_sound` 仍可停止或取消所属请求。
+
+`create_loop(const LoopSoundRequest&)` 返回可选 `LoopSoundId`。请求包含 key、position、distance、gain（默认 1）、group（默认 Ambient）、enabled（默认 true）和 pause_policy（默认 FollowScene）。缺失资源仍可创建逻辑源并报告 MissingResource。`set_loop_position`、`set_loop_gain`、`set_loop_enabled`、`destroy_loop` 对非法参数或外来／失效句柄返回 false，失败保留原配置。
+
+`SoundDistanceConfig` 必须显式给出正 reference_distance、不小于参考距离的 cutoff_distance、不小于截止距离的 release_distance，以及正 exponent；所有值必须有限。距离不超过参考距离时倍率为 1，否则为 `(reference_distance / distance)^exponent`，超过截止距离为 0。坐标与监听器必须有限；位置差以 double 计算。首次监听位置为原点，`set_listener_position` 不立即刷新音轨，下一次场景更新生效。
+
+`loop_state` 返回可选快照，含 status 与可选底层 voice。状态为 Playing、Disabled、ScenePaused、Inaudible、OutOfRange、WaitingForVoice 或 MissingResource；OutOfRange 优先于禁用与场景暂停。清理立即使逻辑句柄失效，跨运行时句柄无效。`clear()` 恢复监听原点和重试时钟，保留场景暂停状态。
+
+只有通过此运行时创建的声音自动管理：场景退出、重置、进入失败、脱离、销毁均清理，即使用户回调抛异常。ContinueWhenPaused 仅豁免暂停，不豁免清理。全局声音和音乐继续由调用方管理；首版没有声像、遮挡、多监听器或多普勒。
+
 ## 当前能力边界
 
 当前模块**不提供**：
 
-- 满槽后等待、自动重试或顺序播放队列。
+- 全局播放请求的满槽等待、自动重试或顺序播放队列（场景循环源有独立的有限频率重试）。
 - 跨组优先级与跨组逻辑通道抢占。
 - 自定义动态音效组。
-- 单实例暂停/恢复、声像、音高或随机变体。
+- 声像、音高或随机变体。
 - 多路音乐交叉淡化、音乐排队、组音量渐变，以及内置启动画面播放器的渐变扩展。
 - 组音量的用户设置持久化。
-- 自动按场景、实体或技能批量取消延迟请求。
+- 全局接口按实体或技能自动取消请求；场景运行时拥有的请求会自动清理。
 
 这些能力应在出现明确玩法或产品需求时单独设计，避免把资源加载、场景生命周期和运行时播放调度重新耦合。
