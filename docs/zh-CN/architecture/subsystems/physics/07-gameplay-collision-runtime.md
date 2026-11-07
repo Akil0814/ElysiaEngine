@@ -6,6 +6,10 @@
 
 攻击实例去重和伤害策略位于物理层之上。存在传感器不代表它一定能伤害目标。
 
+HitBox 在 `Begin` 时通过 `team_relation(hit_box.collider.team, hurt_box.team)` 判断敌我，再按攻击实例与受击 owner 去重。攻击队伍在登记时按值保存，不查询 instigator 的 ActorCollisionRig，也不随来源换队自动更新。instigator 是非零归属标识，允许来源 Actor 未登记或已注销；伤害计算、击杀归属和来源离场是否取消攻击由游戏决定。
+
+独立攻击使用自己的 collider.owner，无需登记 ActorCollisionRig 或增加身份 Collider。解绑来源 Actor 只清理以其为 owner 的绑定，不影响其他 owner 的攻击；攻击结束仍需 end_attack_instance 清理绑定与去重。每个 ColliderId 只登记一个玩法角色，HitBox 不同时路由 BodyContactEvent；物理响应及撞墙事件由物理层处理。
+
 运行时为活动对象对保留按值存储的绑定信息，因此角色解绑后仍能路由 `End`，不需要查找已销毁的 Box2D 对象。显式调用 `GameplayCollisionRuntime::clear()` 会清空角色绑定、攻击去重、缓存路由、玩法监听登记和自定义阵营解析器。Reset 路由先由基础 Scene 重置输入、暂停、固定步和相机；`GameplayScene::on_runtime_reset()` 只重置控制上下文，随后调用游戏的 `on_reset()`，不会自动调用碰撞运行时的 `clear()`。离开缓存场景只解绑活动服务；游戏仍须按业务清理攻击和监听。对象回收会解绑其碰撞体，实例销毁才释放运行时本身。
 
 ## 离散接触与回调

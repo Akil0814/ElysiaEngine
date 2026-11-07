@@ -107,9 +107,44 @@ Hits deduplicate by attack instance + victim `actor`. Multiple HurtBoxes do not 
 
 Default relation checks in order: same valid team is `Friendly` (including two `teams::Neutral`); otherwise any `Neutral`/invalid team gives `Neutral`; different valid teams are `Hostile`.
 
-Hit routing looks up `instigator` registered through `bind_actor` and uses its team. A nonzero source ID or HitBox team alone is insufficient.
+Hit routing compares `HitBoxBinding.collider.team` with the target HurtBox team without looking up the source Actor. The team is copied at registration; later changes to the caster's team do not automatically update attacks already launched.
+
+`instigator` is the original creator's nonzero attribution ID. Its Actor may never have been registered or may already be unregistered. It is not an object reference; games must check their own object registry before accessing a source object.
+
+When migrating older code, check the `team` registered on each HitBox. The previous implementation used the source Actor's team; when they differ, the HitBox team now takes precedence, with no fallback to the old rule.
 
 For custom relations, call `collision_runtime().set_team_relation_resolver(...)` in a derived scene and query `team_relation(...)`. These belong to `GameplayCollisionRuntime`, not the global service. The resolver is borrowed and must outlive the association; detach with `nullptr` before releasing it.
+
+### Independent Projectile Identity and Cleanup
+
+Projectiles, traps, and delayed attacks can register only a HitBox, without an `ActorCollisionRig` for either the carrier or source, or an extra Collider solely for identity. This function accepts an already registered physical collider; `projectile` is the projectile's own nonzero ActorId and must differ from the original caster's `instigator`, while `team` is this attack's team.
+
+```cpp
+#include "engine/gameplay/collision/gameplay_collision_service.h"
+
+bool begin_projectile_hit(elysia::physics::ColliderId hit,
+                          elysia::gameplay::collision::ActorId projectile,
+                          elysia::gameplay::collision::ActorId instigator,
+                          elysia::gameplay::collision::TeamId team,
+                          elysia::gameplay::collision::AttackInstanceId instance,
+                          elysia::gameplay::collision::AttackDefinitionId definition)
+{
+    using namespace elysia::gameplay::collision;
+    GameplayCollisionService* service = GameplayCollisionService::instance();
+    if (!service->has_active_runtime())
+        return false;
+    return service->bind_hit_box({
+        .collider = {hit, projectile, team, ColliderRole::HitBox},
+        .instigator = instigator,
+        .attack_instance = instance,
+        .attack_definition = definition
+    });
+}
+```
+
+`collider.owner` determines whose cleanup removes the binding; `instigator` preserves damage attribution. Calling `unbind_actor(instigator)` leaves projectiles with a different owner intact. When a projectile ends, call `end_attack_instance(instance)` to clear that attack's bindings and deduplication. `unbind_actor(projectile)` or `unbind_collider(hit)` also removes the corresponding bindings, but does not replace deduplication cleanup when the attack instance ends. Games still disable or destroy physical Colliders.
+
+Each ColliderId still has only one gameplay role. A HitBox does not also receive `BodyContactEvent`; a single-Collider projectile handles walls through [physical collision events](../systems/physics.md). HitBox registration does not change physical response configuration or automatically guarantee continuous hits at high speeds.
 
 ## Listening and Release
 

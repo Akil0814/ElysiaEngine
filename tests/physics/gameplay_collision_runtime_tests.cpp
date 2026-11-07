@@ -5,6 +5,7 @@
 #include "engine/core/game_object.h"
 
 #include <iostream>
+#include <memory>
 #include <vector>
 
 using elysia::tests::require;
@@ -46,6 +47,7 @@ public:
     {
         ++hit_events;
         last_hurt_owner = event.hurt_box.owner;
+        last_hit_box = event.hit_box;
     }
     void on_sensor_overlap(
         const elysia::gameplay::collision::SensorOverlapEvent& event) override
@@ -61,6 +63,7 @@ public:
     int sensor_events = 0;
     std::vector<elysia::physics::CollisionEventPhase> sensor_phases;
     elysia::gameplay::collision::ActorId last_hurt_owner = 0;
+    elysia::gameplay::collision::HitBoxBinding last_hit_box{};
     elysia::gameplay::collision::ColliderBinding last_sensor{};
     elysia::gameplay::collision::ColliderBinding last_sensor_body{};
 };
@@ -91,12 +94,239 @@ public:
 private:
     elysia::gameplay::collision::GameplayCollisionRuntime* _runtime = nullptr;
 };
+
+struct IndependentHitFixture
+{
+    IndependentHitFixture() : runtime(world)
+    {
+        require(add_physics(world, hit).is_valid()
+                && add_physics(world, hurt).is_valid(),
+            "Independent attack colliders must register");
+        move_hit({30, 0});
+        require(runtime.bind_collider({
+                    hurt.id, 20, elysia::gameplay::collision::teams::Enemy,
+                    elysia::gameplay::collision::ColliderRole::HurtBox})
+                && runtime.add_listener(listener),
+            "Independent attack target and listener must bind");
+    }
+
+    elysia::gameplay::collision::HitBoxBinding binding() const
+    {
+        using namespace elysia::gameplay::collision;
+        return {{hit.id, 30, teams::Player, ColliderRole::HitBox}, 10, 100, 1000};
+    }
+
+    void move_hit(elysia::core::Vector2 position)
+    {
+        require(world.teleport_object(*world.object_handle(hit), position),
+            "Independent attack must teleport");
+    }
+
+    void step() { world.step(1.0 / 60.0); }
+
+    elysia::physics::PhysicsWorld world;
+    ColliderObject hit;
+    ColliderObject hurt;
+    elysia::gameplay::collision::GameplayCollisionRuntime runtime;
+    Listener listener;
+};
+
+void test_independent_hit_lifetime_and_deduplication()
+{
+    using namespace elysia::gameplay::collision;
+    IndependentHitFixture fixture;
+    ColliderObject second_hurt;
+    require(add_physics(fixture.world, second_hurt).is_valid()
+            && fixture.runtime.bind_collider({
+                second_hurt.id, 20, teams::Enemy, ColliderRole::HurtBox})
+            && fixture.runtime.bind_hit_box(fixture.binding()),
+        "An independent HitBox must bind without any ActorCollisionRig");
+    fixture.move_hit({0, 0});
+    fixture.step();
+    require(fixture.listener.hit_events == 1
+            && fixture.listener.last_hit_box.collider.owner == 30
+            && fixture.listener.last_hit_box.instigator == 10
+            && fixture.listener.last_hit_box.attack_instance == 100
+            && fixture.listener.last_hit_box.attack_definition == 1000,
+        "An unregistered source must hit once across multiple HurtBoxes and retain attribution");
+    fixture.step();
+    require(fixture.listener.hit_events == 1, "Independent attack Stay must not hit again");
+    fixture.move_hit({30, 0});
+    fixture.step();
+    fixture.move_hit({0, 0});
+    fixture.step();
+    require(fixture.listener.hit_events == 1,
+        "Re-entering multiple HurtBoxes must retain per-instance victim deduplication");
+
+    fixture.move_hit({30, 0});
+    fixture.step();
+    fixture.runtime.end_attack_instance(100);
+    auto next_attack = fixture.binding();
+    next_attack.attack_instance = 101;
+    require(fixture.runtime.bind_hit_box(next_attack), "The next attack instance must bind");
+    fixture.move_hit({0, 0});
+    fixture.step();
+    require(fixture.listener.hit_events == 2
+            && fixture.listener.last_hit_box.attack_instance == 101,
+        "A new independent attack instance may hit the same victim again");
+
+    IndependentHitFixture orphan;
+    auto source = std::make_unique<ColliderObject>();
+    const auto source_handle = add_physics(orphan.world, *source);
+    require(source_handle.is_valid()
+            && orphan.world.teleport_object(source_handle, {100, 0})
+            && orphan.runtime.bind_actor({10, teams::Player, source->id})
+            && orphan.runtime.bind_hit_box(orphan.binding()),
+        "An independent projectile must launch while its source is registered");
+    orphan.step();
+    require(orphan.listener.hit_events == 0, "The projectile must not hit before arrival");
+    require(orphan.runtime.unbind_actor(10) && orphan.world.unregister_object(source_handle),
+        "The source must leave gameplay and physics before projectile arrival");
+    source.reset();
+    orphan.move_hit({0, 0});
+    orphan.step();
+    require(orphan.listener.hit_events == 1
+            && orphan.listener.last_hit_box.instigator == 10
+            && orphan.listener.last_hit_box.collider.owner == 30,
+        "A projectile must survive source destruction and preserve the original source ID");
+}
+
+class SameTeamHostileResolver final
+    : public elysia::gameplay::collision::TeamRelationResolver
+{
+public:
+    elysia::gameplay::collision::TeamRelation relation(
+        elysia::gameplay::collision::TeamId source,
+        elysia::gameplay::collision::TeamId target) const noexcept override
+    {
+        using namespace elysia::gameplay::collision;
+        return source == target ? TeamRelation::Hostile : TeamRelation::Friendly;
+    }
+};
+
+void test_independent_hit_teams()
+{
+    using namespace elysia::gameplay::collision;
+    for (const TeamId hit_team : {teams::Player, teams::Enemy, teams::Neutral})
+    {
+        IndependentHitFixture fixture;
+        ColliderObject source;
+        const auto source_handle = add_physics(fixture.world, source);
+        // Give the source the opposite relation to the target from the attack.
+        const TeamId source_team = hit_team == teams::Player ? teams::Enemy : teams::Player;
+        require(source_handle.is_valid()
+                && fixture.world.teleport_object(source_handle, {100, 0})
+                && fixture.runtime.bind_actor({10, source_team, source.id}),
+            "A source with a different team must register");
+        auto attack = fixture.binding();
+        attack.collider.team = hit_team;
+        require(fixture.runtime.bind_hit_box(attack), "Team test attack must bind");
+        fixture.move_hit({0, 0});
+        fixture.step();
+        require(fixture.listener.hit_events == (hit_team == teams::Player ? 1 : 0),
+            "Hostile, friendly, and neutral filtering must use the HitBox team, not its source");
+    }
+
+    IndependentHitFixture changed_source;
+    ColliderObject source;
+    require(add_physics(changed_source.world, source).is_valid()
+            && changed_source.world.teleport_object(*changed_source.world.object_handle(source), {100, 0})
+            && changed_source.runtime.bind_actor({10, teams::Player, source.id})
+            && changed_source.runtime.bind_hit_box(changed_source.binding())
+            && changed_source.runtime.unbind_actor(10)
+            && changed_source.runtime.bind_actor({10, teams::Enemy, source.id}),
+        "A source must be able to change teams after launching an attack");
+    changed_source.move_hit({0, 0});
+    changed_source.step();
+    require(changed_source.listener.hit_events == 1
+            && changed_source.listener.last_hit_box.collider.team == teams::Player,
+        "Changing the source team must not update an already bound attack's team");
+
+    SameTeamHostileResolver resolver;
+    IndependentHitFixture custom;
+    custom.runtime.set_team_relation_resolver(&resolver);
+    auto attack = custom.binding();
+    attack.collider.team = teams::Enemy;
+    require(custom.runtime.bind_hit_box(attack), "Custom relation attack must bind");
+    custom.move_hit({0, 0});
+    custom.step();
+    require(custom.listener.hit_events == 1,
+        "Independent attacks must use the custom resolver with their own team");
+    custom.move_hit({30, 0});
+    custom.step();
+    custom.runtime.end_attack_instance(100);
+    attack.collider.team = teams::Player;
+    attack.attack_instance = 101;
+    require(custom.runtime.bind_hit_box(attack), "Custom friendly attack must bind");
+    custom.move_hit({0, 0});
+    custom.step();
+    require(custom.listener.hit_events == 1,
+        "A custom non-hostile relation must suppress otherwise hostile independent hits");
+    custom.runtime.set_team_relation_resolver(nullptr);
+}
+
+void test_independent_hit_cleanup_and_validation()
+{
+    using namespace elysia::gameplay::collision;
+    for (int cleanup = 0; cleanup < 3; ++cleanup)
+    {
+        IndependentHitFixture fixture;
+        require(fixture.runtime.bind_hit_box(fixture.binding()), "Cleanup attack must bind");
+        fixture.step();
+        if (cleanup == 0)
+            require(fixture.runtime.unbind_actor(30), "Unregistered carrier owner must unbind its HitBox");
+        else if (cleanup == 1)
+            require(fixture.runtime.unbind_collider(fixture.hit.id), "HitBox collider must unbind");
+        else
+            fixture.runtime.end_attack_instance(100);
+        require(fixture.world.contains_collider(fixture.hit.id)
+                && !fixture.runtime.unbind_collider(fixture.hit.id),
+            "Attack cleanup must remove the gameplay binding without destroying physics");
+        fixture.move_hit({0, 0});
+        fixture.step();
+        require(fixture.listener.hit_events == 0, "A retired attack must not route new hits");
+    }
+
+    IndependentHitFixture fixture;
+    const auto valid = fixture.binding();
+    const auto rejects = [&](const HitBoxBinding& invalid)
+    {
+        require(!fixture.runtime.bind_hit_box(invalid), "Invalid independent HitBox must be rejected");
+    };
+    auto invalid = valid;
+    invalid.collider.collider = elysia::physics::InvalidColliderId;
+    rejects(invalid);
+    ColliderObject removed;
+    const auto removed_handle = add_physics(fixture.world, removed);
+    require(removed_handle.is_valid() && fixture.world.unregister_object(removed_handle),
+        "Stale collider validation probe must unregister");
+    invalid.collider.collider = removed.id;
+    rejects(invalid);
+    invalid = valid; invalid.collider.owner = InvalidActorId; rejects(invalid);
+    invalid = valid; invalid.collider.team = InvalidTeamId; rejects(invalid);
+    invalid = valid; invalid.collider.role = ColliderRole::Body; rejects(invalid);
+    invalid = valid; invalid.instigator = InvalidActorId; rejects(invalid);
+    invalid = valid; invalid.attack_instance = InvalidAttackInstanceId; rejects(invalid);
+    invalid = valid; invalid.attack_definition = InvalidAttackDefinitionId; rejects(invalid);
+    require(fixture.runtime.bind_actor({30, teams::Player, fixture.hit.id})
+            && !fixture.runtime.bind_hit_box(valid)
+            && fixture.runtime.unbind_actor(30)
+            && fixture.runtime.bind_hit_box(valid)
+            && !fixture.runtime.bind_hit_box(valid)
+            && !fixture.runtime.bind_actor({30, teams::Player, fixture.hit.id})
+            && !fixture.runtime.bind_collider({fixture.hit.id, 30, teams::Player, ColliderRole::Body}),
+        "Each collider must retain exactly one gameplay role in either binding order");
+}
 }
 
 int main()
 {
     using namespace elysia::physics;
     using namespace elysia::gameplay::collision;
+
+    test_independent_hit_lifetime_and_deduplication();
+    test_independent_hit_teams();
+    test_independent_hit_cleanup_and_validation();
 
     PhysicsWorld world;
     ColliderObject hit_object;
@@ -147,7 +377,7 @@ int main()
             && runtime.bind_actor(enemy_rig)
             && runtime.bind_actor(sensor_body_rig)
             && runtime.bind_hit_box({
-                {hit_object.id, 10, teams::Enemy, ColliderRole::HitBox},
+                {hit_object.id, 10, teams::Player, ColliderRole::HitBox},
                 10, 100, 1000}),
         "Gameplay bindings must commit valid core collider identities");
 

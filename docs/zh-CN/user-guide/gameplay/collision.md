@@ -107,9 +107,44 @@ HitBox 与 HurtBox 的命中按“攻击实例 + 受击角色”去重，同一�
 
 默认关系按顺序判断：同一有效阵营为 `Friendly`（包括双方都是 `teams::Neutral`）；其余情况中任一方为 Neutral 或无效阵营时为 `Neutral`；其他不同有效阵营为 `Hostile`。
 
-命中时会查找已通过 `bind_actor` 登记的 `instigator`，使用其阵营判断是否敌对。仅有非零来源标识或 HitBox 自身的 team，不足以产生攻击命中事件。
+命中时使用 `HitBoxBinding.collider.team` 与目标 HurtBox 的队伍判断敌我，不查询来源 Actor。队伍在登记时按值保存；施法者之后换队，不会自动更新已经发出的攻击。
+
+`instigator` 是原始创建者的非零归属标识，允许对应 Actor 从未登记或已经注销。它不是对象引用；游戏需要访问来源对象时，必须先检查自己的对象登记表。
+
+迁移旧代码时，检查 HitBox 登记的 `team` 是否正确。旧实现使用来源 Actor 的队伍；现在两者不一致时，以 HitBox 的队伍为准，不提供旧规则回退。
 
 需要自定义关系时，在派生场景中调用 `collision_runtime().set_team_relation_resolver(...)`，查询使用 `team_relation(...)`。这两个接口属于 `GameplayCollisionRuntime`，全局服务不直接提供。resolver 是借用指针，必须活过使用它的关联期；释放前先传入 `nullptr` 解除关联。
+
+### 独立弹丸的身份与清理
+
+弹丸、陷阱和延迟攻击可以只登记 HitBox，无需为攻击载体或来源登记 `ActorCollisionRig`，也无需增加一个仅用于承载身份的 Collider。下面函数接收已经注册的物理碰撞体；`projectile` 是弹丸自己的非零 ActorId，必须与原始施法者 `instigator` 不同，`team` 是本次攻击的队伍。
+
+```cpp
+#include "engine/gameplay/collision/gameplay_collision_service.h"
+
+bool begin_projectile_hit(elysia::physics::ColliderId hit,
+                          elysia::gameplay::collision::ActorId projectile,
+                          elysia::gameplay::collision::ActorId instigator,
+                          elysia::gameplay::collision::TeamId team,
+                          elysia::gameplay::collision::AttackInstanceId instance,
+                          elysia::gameplay::collision::AttackDefinitionId definition)
+{
+    using namespace elysia::gameplay::collision;
+    GameplayCollisionService* service = GameplayCollisionService::instance();
+    if (!service->has_active_runtime())
+        return false;
+    return service->bind_hit_box({
+        .collider = {hit, projectile, team, ColliderRole::HitBox},
+        .instigator = instigator,
+        .attack_instance = instance,
+        .attack_definition = definition
+    });
+}
+```
+
+`collider.owner` 决定绑定随谁清理，`instigator` 保留伤害归属。调用 `unbind_actor(instigator)` 不会清理 owner 不同的弹丸；弹丸结束时调用 `end_attack_instance(instance)` 清除该攻击的绑定与去重记录。`unbind_actor(projectile)` 或 `unbind_collider(hit)` 也能移除相应绑定，但不替代攻击实例结束时的去重清理。物理 Collider 的禁用或销毁仍由游戏负责。
+
+同一个 ColliderId 仍只能登记一个玩法角色。登记为 HitBox 的碰撞体不会同时获得 `BodyContactEvent`；单 Collider 弹丸需要通过[物理碰撞事件](../systems/physics.md)处理撞墙。HitBox 登记不改变物理响应配置，也不自动提供高速连续命中保障。
 
 ## 监听与释放
 

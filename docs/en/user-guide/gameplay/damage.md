@@ -337,13 +337,15 @@ The example uses its own `collision_runtime()` for reliable exit cleanup. Other 
 
 ## Why an Event Alone Is Not Enough to Deduct Health
 
-- **Physical/gameplay filters both apply**: category/mask must match in both directions, with registered actors, HitBox/HurtBox, and hostile teams. instigator must be registered via bind_actor; an attack `Collider` alone is insufficient.
+- **Physical/gameplay filters both apply**: category/mask must match in both directions, with registered HitBox/HurtBox bindings and hostility between the HitBox's registered team and the victim's team. instigator only needs a nonzero attribution ID; its Actor need not remain registered. Registering a physical `Collider` alone does not emit gameplay hits.
 - **Hits need not cause damage**: games decide invulnerability, death, blocking. Invulnerability rejects damage here, but the engine already deduplicates that instance/victim, so expiry does not automatically replay the hit.
 - **Only Begin notifies attacks**: replacing bindings/instance IDs while still overlapping need not create Begin. This example lets physics actually observe a disabled HitBox between attacks; disabling/re-enabling before one step does not guarantee another hit.
 - **Multiple colliders deduplicate**: one attack's HitBoxes share an instance; one victim's HurtBoxes share ActorId. An instance can hit multiple actors once each. Different listeners still receive the same event; assign one damage owner.
 - **Fast attacks**: Overlap does not guarantee continuous hits. For sweeps, games feed query results into the same damage rules and maintain deduplication; queries do not automatically emit `HitOverlapEvent`.
 
 ## Cancellation, Death, and Scene Exit
+
+This melee example cancels attacks when the source leaves and checks source liveness before applying damage; these are game rules. Independent projectiles may keep hitting after their creator leaves. Use their own owner, preserve the original instigator, and calculate damage from attack definitions or data saved at launch instead of requiring a live source object. See [independent projectile identity and cleanup](collision.md#independent-projectile-identity-and-cleanup).
 
 On completion/interruption, disable the physical HitBox and call `end_attack_instance`. The latter only clears semantic bindings/deduplication, without destroying/disabling physics. A window containing no actual step may produce no collision.
 
