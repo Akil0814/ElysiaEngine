@@ -238,6 +238,11 @@ add_elysia_test(scene_camera_runtime_tests
     SOURCES camera/scene_camera_runtime_tests.cpp
 )
 
+add_elysia_test(camera_service_tests
+    LABEL camera
+    SOURCES camera/camera_service_tests.cpp
+)
+
 add_elysia_test(camera_projection_tests
     LABEL camera
     SOURCES camera/camera_projection_tests.cpp
@@ -325,6 +330,8 @@ add_elysia_test(demo_scene_tests
 target_compile_definitions(demo_scene_tests
     PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
 )
+add_test(NAME camera_showcase_tests COMMAND demo_scene_tests --camera-only)
+set_tests_properties(camera_showcase_tests PROPERTIES LABELS camera)
 
 add_elysia_test(elysia_scene_tests
     LABEL elysia

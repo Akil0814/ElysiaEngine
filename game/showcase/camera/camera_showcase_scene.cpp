@@ -47,10 +47,10 @@ void CameraShowcaseScene::on_enter(const elysia::scene::ScenePayload& payload) {
         static_cast<CameraActor*>(_targets[1])->other=static_cast<CameraActor*>(_targets[0]);
         _state={};reset_page();build_controls();
         _overlay=create_and_add_object<CameraOverlayView>([this] {
-            CameraOverlayData data{.camera=camera(),.mode=_state.strategy,.dead_zone=_state.dead_zone};
-            if(const auto focus=resolve_camera_focus(CameraSlot::Main)){data.focus=camera().world_to_screen(focus->bounds);data.primary=camera().world_to_screen(focus->primary);}
-            if(_state.bounds)data.bounds=camera().world_to_screen(world_bounds);
-            for(std::size_t i=0;i<_state.node_count;++i)data.nodes.push_back(camera().world_to_screen(_state.nodes[i]));
+            CameraOverlayData data{.camera=ELYSIA_CAMERA->camera().value(),.mode=_state.strategy,.dead_zone=_state.dead_zone};
+            if(const auto focus=resolve_camera_focus(CameraSlot::Main)){data.focus=ELYSIA_CAMERA->camera().value().world_to_screen(focus->bounds);data.primary=ELYSIA_CAMERA->camera().value().world_to_screen(focus->primary);}
+            if(_state.bounds)data.bounds=ELYSIA_CAMERA->camera().value().world_to_screen(world_bounds);
+            for(std::size_t i=0;i<_state.node_count;++i)data.nodes.push_back(ELYSIA_CAMERA->camera().value().world_to_screen(_state.nodes[i]));
             return data;
         });
         using namespace elysia::input;
@@ -69,9 +69,11 @@ void CameraShowcaseScene::freeze(bool value) {
     for(auto* target:_targets)if(target)static_cast<CameraActor*>(target)->frozen=value;
 }
 void CameraShowcaseScene::cleanup_activity() {
-    camera_runtime().cancel_activity();
-    camera_runtime().clear_effects(CameraSlot::Main);camera_runtime().clear_effects(CameraSlot::Cinematic);
-    _state.motion.reset();_state.blend.reset();_state.paused=false;_state.full_show=false;_state.phase=CinematicPhase::Idle;
+    _cinematic.clear();
+    if(_state.motion)(void)ELYSIA_CAMERA->cancel_motion(*_state.motion);
+    if(_state.blend)(void)ELYSIA_CAMERA->cancel_blend(*_state.blend);
+    ELYSIA_CAMERA->clear_effects(CameraSlot::Main).value();ELYSIA_CAMERA->clear_effects(CameraSlot::Cinematic).value();
+    _state.motion.reset();_state.blend.reset();_state.paused=false;_state.phase=CinematicPhase::Idle;
     freeze(false);
 }
 void CameraShowcaseScene::reset_page() {
@@ -96,12 +98,12 @@ void CameraShowcaseScene::install_strategy() {
     switch(_state.strategy) {
     case FollowMode::Hard:strategy=std::make_unique<HardFollowStrategy>();break;
     case FollowMode::Smooth:strategy=std::make_unique<SmoothFollowStrategy>(480);break;
-    case FollowMode::DeadZone:strategy=std::make_unique<DeadZoneFollowStrategy>(Rect::from_center(camera().viewport_size()*.5f,camera().viewport_size()*.4f));break;
+    case FollowMode::DeadZone:strategy=std::make_unique<DeadZoneFollowStrategy>(Rect::from_center(ELYSIA_CAMERA->camera().value().viewport_size()*.5f,ELYSIA_CAMERA->camera().value().viewport_size()*.4f));break;
     case FollowMode::MultiTarget: {
         auto multi=std::make_unique<MultiTargetFollowStrategy>(MultiTargetFollowConfig{.dead_zone_enabled=_state.dead_zone});
         _strategy=multi.get();strategy=std::move(multi);break;
     }}
-    camera_runtime().set_follow_strategy(CameraSlot::Main,std::move(strategy));
+    ELYSIA_CAMERA->set_follow_strategy(CameraSlot::Main,std::move(strategy)).value();
 }
 void CameraShowcaseScene::request_primary(std::size_t index) {
     if(!_targets[index])return;
@@ -118,8 +120,8 @@ void CameraShowcaseScene::finish_primary_request() {
 void CameraShowcaseScene::on_exit() {
     // Reset synchronously: exit and failed-entry cleanup must not allocate a
     // deferred shake-clear request or obscure the original entry failure.
-    camera_runtime().reset();_state.motion.reset();_state.blend.reset();
-    _state.paused=false;_state.full_show=false;_state.phase=CinematicPhase::Idle;freeze(false);
+    _cinematic.clear();camera_runtime().reset();_state.motion.reset();_state.blend.reset();
+    _state.paused=false;_state.phase=CinematicPhase::Idle;freeze(false);
     _strategy=nullptr;_primary_request.reset();
     _view.clear();
     if(_controls)_controls->destroy();_controls=nullptr;
@@ -149,50 +151,48 @@ void CameraShowcaseScene::on_game_fixed_update(std::uint64_t,double delta) {
 void CameraShowcaseScene::perform(CameraAction action) {
     if(!camera_action_enabled(_state,action))return;
     using A=CameraAction;
-    const auto slot=_state.page==CameraPage::Cinematic?camera_runtime().presented_slot():CameraSlot::Main;
+    const auto slot=_state.page==CameraPage::Cinematic?ELYSIA_CAMERA->presented_slot().value():CameraSlot::Main;
     switch(action) {
     case A::Reset:reset_page();break;
     case A::Strategy:
         cleanup_activity();_state.strategy=static_cast<FollowMode>((static_cast<int>(_state.strategy)+1)%4);
-        camera_runtime().set_zoom(CameraSlot::Main,1);install_strategy();break;
+        ELYSIA_CAMERA->set_zoom(CameraSlot::Main,1).value();install_strategy();break;
     case A::DeadZone:_state.dead_zone=!_state.dead_zone;install_strategy();break;
     case A::Swap:request_primary(1-_state.primary);break;
     case A::Automatic:_state.automatic=!_state.automatic;_state.time=0;break;
     case A::Teleport:if(_targets[0] && _targets[1])_targets[1-_state.primary]->set_center(_targets[_state.primary]->center()+Vector2{3600,900});break;
-    case A::Bounds:_state.bounds=!_state.bounds;camera_runtime().set_world_bounds(CameraSlot::Main,_state.bounds?std::optional(world_bounds):std::nullopt);break;
+    case A::Bounds:_state.bounds=!_state.bounds;ELYSIA_CAMERA->set_world_bounds(CameraSlot::Main,_state.bounds?std::optional(world_bounds):std::nullopt).value();break;
     case A::Edge:
-        _state.bounds=true;camera_runtime().set_world_bounds(CameraSlot::Main,world_bounds);
+        _state.bounds=true;ELYSIA_CAMERA->set_world_bounds(CameraSlot::Main,world_bounds).value();
         if(_targets[0] && _targets[1]){_targets[_state.primary]->set_center({840,640});_targets[1-_state.primary]->set_center({700,520});}break;
     case A::Zoom:
-        _state.motion=camera_runtime().move_to(CameraSlot::Main,{.zoom=1.5f},1);_state.feedback="showcase.camera.playing";break;
+        _state.motion=ELYSIA_CAMERA->move_to(CameraSlot::Main,{.zoom=1.5f},1).value();_state.feedback="showcase.camera.playing";break;
     case A::Move:case A::Path: {
-        cleanup_activity();const auto start=camera().center();
+        cleanup_activity();const auto start=ELYSIA_CAMERA->camera().value().center();
         _state.nodes[0]=start;_state.nodes[1]=start+Vector2{400,0};_state.node_count=2;
-        if(action==A::Move)_state.motion=camera_runtime().move_to(slot,{.center=_state.nodes[1],.zoom=1.5f},1,_state.easing,_state.end);
+        if(action==A::Move)_state.motion=ELYSIA_CAMERA->move_to(slot,{.center=_state.nodes[1],.zoom=1.5f},1,_state.easing,_state.end).value();
         else {
             _state.nodes[2]=start+Vector2{400,240};_state.nodes[3]=start;_state.node_count=4;
-            _state.motion=camera_runtime().play_path(slot,{{
+            _state.motion=ELYSIA_CAMERA->play_path(slot,{{
                 {{.center=_state.nodes[1],.zoom=1.2f},1,_state.easing},
                 {{.center=_state.nodes[2],.zoom=1.5f},1,_state.easing},
-                {{.center=start,.zoom=1.0f},1,_state.easing}},_state.end});
+                {{.center=start,.zoom=1.0f},1,_state.easing}},_state.end}).value();
         }
         _state.feedback="showcase.camera.playing";break;
     }
     case A::Easing:_state.easing=static_cast<CameraEasing>((static_cast<int>(_state.easing)+1)%3);break;
     case A::EndBehavior:_state.end=_state.end==CameraMotionEndBehavior::Hold?CameraMotionEndBehavior::ResumeFollow:CameraMotionEndBehavior::Hold;break;
     case A::Pause:
-        if(_state.motion)(void)camera_runtime().pause_motion(*_state.motion);
-        if(_state.blend)(void)camera_runtime().pause_blend(*_state.blend);
-        _state.paused=true;break;
+        if(_state.page==CameraPage::Cinematic){_cinematic.pause();_cinematic.sync(_state);}
+        else {if(_state.motion)ELYSIA_CAMERA->pause_motion(*_state.motion).value();_state.paused=true;}break;
     case A::Resume:
-        if(_state.motion)(void)camera_runtime().resume_motion(*_state.motion);
-        if(_state.blend)(void)camera_runtime().resume_blend(*_state.blend);
-        _state.paused=false;break;
+        if(_state.page==CameraPage::Cinematic){_cinematic.resume();_cinematic.sync(_state);}
+        else {if(_state.motion)ELYSIA_CAMERA->resume_motion(*_state.motion).value();_state.paused=false;}break;
     case A::Cancel:case A::Follow:
-        if(_state.motion)(void)camera_runtime().cancel_motion(*_state.motion);
+        if(_state.motion)(void)ELYSIA_CAMERA->cancel_motion(*_state.motion);
         _state.motion.reset();_state.paused=false;_state.feedback="showcase.camera.cancelled";break;
-    case A::Shake:camera_runtime().request_shake(slot,{});break;
-    case A::ClearShake:camera_runtime().clear_effects(slot);break;
+    case A::Shake:ELYSIA_CAMERA->request_shake(slot,{}).value();break;
+    case A::ClearShake:ELYSIA_CAMERA->clear_effects(slot).value();break;
     case A::Cut:enter_cinematic(false,true);break;
     case A::Blend:enter_cinematic(false,false);break;
     case A::Play:case A::Replay:enter_cinematic(true,false);break;
@@ -202,58 +202,27 @@ void CameraShowcaseScene::perform(CameraAction action) {
     refresh_status();
 }
 void CameraShowcaseScene::enter_cinematic(bool full,bool cut) {
-    // Preserve the original automatic setting when replacing a running show.
-    cleanup_activity();freeze(true);_state.full_show=full;_state.anchor=_targets[_state.primary]?_targets[_state.primary]->center():Vector2{};
-    camera_runtime().set_center(CameraSlot::Cinematic,_state.anchor+Vector2{-400,-240});camera_runtime().set_zoom(CameraSlot::Cinematic,.75f);
-    _state.nodes={_state.anchor+Vector2{-400,-240},_state.anchor+Vector2{0,-160},_state.anchor,{}};_state.node_count=3;
-    _state.phase=cut?CinematicPhase::Manual:CinematicPhase::Entering;
-    if(cut)camera_runtime().cut_to(CameraSlot::Cinematic);
-    else {
-        // Replay always begins at the far establishing shot rather than a stale tour pose.
-        if(full)camera_runtime().cut_to(CameraSlot::Main);
-        _state.blend_target=CameraSlot::Cinematic;
-        _state.blend=camera_runtime().blend_to(CameraSlot::Cinematic,{.duration_seconds=.6});
-        if(!_state.blend)on_camera_blend_completed({},CameraSlot::Cinematic);
-    }
+    cleanup_activity();
+    _cinematic.start(_targets[_state.primary]?_targets[_state.primary]->center():Vector2{},full,cut);
+    _cinematic.sync(_state);freeze(_cinematic.controls_locked());
 }
 void CameraShowcaseScene::return_main() {
-    if(_state.motion)(void)camera_runtime().cancel_motion(*_state.motion);
-    _state.motion.reset();_state.paused=false;_state.full_show=false;
-    camera_runtime().clear_effects(CameraSlot::Cinematic);
-    _state.phase=CinematicPhase::Returning;_state.blend_target=CameraSlot::Main;
-    // blend_to samples the current blended presentation before replacing the old blend.
-    _state.blend=camera_runtime().blend_to(CameraSlot::Main,{.duration_seconds=.6});
-    if(!_state.blend){_state.phase=CinematicPhase::Idle;freeze(false);}
-}
-void CameraShowcaseScene::on_camera_blend_completed(CameraBlendId id,CameraSlot slot) {
-    if((!_state.blend && id.value!=0) || (_state.blend && *_state.blend!=id))return;
-    if(slot!=_state.blend_target)return;
-    _state.blend.reset();
-    if(slot==CameraSlot::Main && _state.phase==CinematicPhase::Returning){_state.phase=CinematicPhase::Idle;freeze(false);}
-    else if(slot==CameraSlot::Cinematic && _state.phase==CinematicPhase::Entering) {
-        if(!_state.full_show){_state.phase=CinematicPhase::Manual;return;}
-        _state.phase=CinematicPhase::Touring;
-        _state.motion=camera_runtime().play_path(CameraSlot::Cinematic,{{
-            {{.center=_state.nodes[1],.zoom=1.0f},1.5,CameraEasing::SmoothStep},
-            {{.center=_state.nodes[2],.zoom=1.6f},1.2,CameraEasing::SmoothStep}},CameraMotionEndBehavior::Hold});
-    }
-}
-void CameraShowcaseScene::on_camera_motion_completed(CameraMotionId id,CameraSlot slot) {
-    if(!_state.motion || *_state.motion!=id)return;
-    if(_state.page==CameraPage::Cinematic && slot==CameraSlot::Cinematic && _state.phase==CinematicPhase::Touring) {
-        _state.phase=CinematicPhase::Holding;_state.hold_time=0;_hold_started=true;camera_runtime().request_shake(slot,{});
-    } else {
-        const auto holding=camera_runtime().motion_state(id)==CameraMotionState::Holding;
-        _state.feedback=holding?"showcase.camera.holding":"showcase.camera.finished";
-        if(!holding)_state.motion.reset();
-    }
+    _cinematic.return_main();_cinematic.sync(_state);freeze(_cinematic.controls_locked());
 }
 void CameraShowcaseScene::on_after_update(double delta) {
     finish_primary_request();
-    if(_state.phase==CinematicPhase::Holding && !_state.paused) {
-        // Do not charge the completion frame's full delta to the newly entered hold.
-        if(_hold_started){_hold_started=false;}
-        else {_state.hold_time+=delta;if(_state.hold_time>=1)return_main();}
+    if(_state.page==CameraPage::Cinematic) {
+        _cinematic.update(is_paused()?0:delta);
+        _cinematic.sync(_state);freeze(_cinematic.controls_locked());
+    } else if(_state.motion && _state.motion->reached_target()) {
+        const bool holding=_state.motion->status()==CameraOperationStatus::Holding ||
+            _state.motion->status()==CameraOperationStatus::Paused;
+        _state.feedback=holding?"showcase.camera.holding":"showcase.camera.finished";
+        if(!holding)_state.motion.reset();
+    } else if(_state.motion && (_state.motion->status()==CameraOperationStatus::Cancelled ||
+        _state.motion->status()==CameraOperationStatus::Superseded ||
+        _state.motion->status()==CameraOperationStatus::SceneEnded)) {
+        _state.motion.reset();_state.paused=false;_state.feedback="showcase.camera.cancelled";
     }
     refresh_status();
 }
@@ -266,7 +235,7 @@ void CameraShowcaseScene::refresh_status() {
     static constexpr const char* modes[]={"showcase.camera.hard","showcase.camera.smooth","showcase.camera.single_dead_zone","showcase.camera.multi"};
     static constexpr const char* phases[]={"showcase.camera.ready","showcase.camera.entering","showcase.camera.touring","showcase.camera.holding","showcase.camera.returning","showcase.camera.manual"};
     static constexpr const char* easing[]={"showcase.camera.linear","showcase.camera.smoothstep","showcase.camera.cubic"};
-    const auto& pose=camera();
+    const auto pose=ELYSIA_CAMERA->camera().value();
     auto status=std::format("{} | {}: {} | {}: ({:.1f}, {:.1f}) | {}: {:.2f} | {}",
         tr(modes[static_cast<int>(_state.strategy)]),tr("showcase.camera.primary"),tr(_state.primary==0?"showcase.camera.blue":"showcase.camera.orange"),
         tr("showcase.camera.center"),pose.center().x,pose.center().y,tr("showcase.camera.zoom_label"),pose.zoom(),
@@ -279,8 +248,8 @@ void CameraShowcaseScene::refresh_status() {
     else if(_state.page==CameraPage::Motion)detail=std::format("{} | {} | {} | {}",tr("showcase.camera.help_motion"),tr(easing[static_cast<int>(_state.easing)]),
         tr(_state.end==CameraMotionEndBehavior::Hold?"showcase.camera.end_hold":"showcase.camera.end_follow"),tr(_state.paused?"showcase.camera.paused":"showcase.camera.active"));
     else detail=std::format("{} | {} | {}",tr("showcase.camera.help_cinematic"),
-        _state.blend?(std::string(camera_runtime().presented_slot()==CameraSlot::Main?"Main":"Cinematic")+" → "+(_state.blend_target==CameraSlot::Main?"Main":"Cinematic")):
-        std::string(camera_runtime().presented_slot()==CameraSlot::Main?"Main":"Cinematic"),tr(_state.paused?"showcase.camera.paused":"showcase.camera.active"));
+        _state.blend?(std::string(ELYSIA_CAMERA->presented_slot().value()==CameraSlot::Main?"Main":"Cinematic")+" → "+(_state.blend_target==CameraSlot::Main?"Main":"Cinematic")):
+        std::string(ELYSIA_CAMERA->presented_slot().value()==CameraSlot::Main?"Main":"Cinematic"),tr(_state.paused?"showcase.camera.paused":"showcase.camera.active"));
     _view.update(_state,elysia::ui::ui_raw_text(std::move(status)),elysia::ui::ui_raw_text(std::move(detail)));
 }
 void CameraShowcaseScene::on_shortcuts(const elysia::input::RawInputFrame&,const std::vector<elysia::input::RawInputEvent>& events) {

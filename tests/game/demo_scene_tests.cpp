@@ -28,6 +28,7 @@
 #include "game/showcase/ui/ui_component_gallery_scene.h"
 #include "engine/ui/widgets/ui_action_button.h"
 #include "engine/ui/composites/ui_tab_container.h"
+#include "engine/ui/containers/ui_scroll_container.h"
 #include "game/navigation/showcase_scene_keys.h"
 #include "engine/tools/debug_draw.h"
 #include "engine/typography/font_resolver.h"
@@ -48,6 +49,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <string_view>
 #include <functional>
 #include <iterator>
 #include <stdexcept>
@@ -148,6 +150,12 @@ void test_gallery_hud(const elysia::scene::SceneRuntimeContext& context,SDL_Rend
     scene::SceneTestAccess::update(scene,3);
     require(slots[0]->is_enabled() && slots[0]->overlay_ratio() == 0,"skill must become ready after its cooldown");
     const auto click = [&](ui::UiActionButton& slot) {
+        // The HUD sits below the initial controls-page viewport. Exercise a
+        // visible button rather than sending a click outside the clipped page.
+        for (auto* parent = slot.layout_parent(); parent; parent = parent->layout_parent())
+            if (auto* scroll = dynamic_cast<ui::UiScrollContainer*>(parent))
+                scroll->ensure_visible(slot.screen_rect());
+        scene::SceneTestAccess::update(scene,0);
         const auto center = slot.presentation_screen_rect().center();
         for (auto type : { input::RawInputEventType::ControlPressed,input::RawInputEventType::ControlReleased })
         {
@@ -501,7 +509,7 @@ void test_camera_showcase_controls()
             require(std::abs(pose.x-(start.x+400*fraction))<.01f,"move uses selected easing");
             scene.perform(CameraAction::Pause);step(.5);require(scene.camera().center()==pose,"paused move preserves its pose");
             scene.perform(CameraAction::Resume);step(.75);
-            require(runtime.motion_state(*scene.state().motion)==CameraMotionState::Holding,"move ends in an owned Hold");
+            require(scene.state().motion->status()==CameraOperationStatus::Holding,"move ends in an owned Hold");
             scene.perform(CameraAction::Cancel);require(!scene.state().motion,"cancel releases held movement");
         }
         scene.perform(CameraAction::Reset);scene.perform(CameraAction::EndBehavior);scene.perform(CameraAction::Path);
@@ -519,7 +527,7 @@ void test_camera_showcase_controls()
         for(const auto phase:{CinematicPhase::Entering,CinematicPhase::Touring,CinematicPhase::Holding,CinematicPhase::Returning}) {
             scene.perform(CameraAction::Reset);scene.perform(CameraAction::Play);
             for(int i=0;i<400 && scene.state().phase!=phase;++i)step(1.0/60);
-            require(scene.state().phase==phase,"cinematic reaches each phase via completion events");
+            require(scene.state().phase==phase,"cinematic reaches each phase via service operation queries");
             capture("cinematic_phase_"+std::to_string(static_cast<int>(phase)));
             scene.perform(CameraAction::Pause);const auto pose=scene.camera().center();const auto zoom=scene.camera().zoom();
             const auto actor=Access::game_object(scene,0)->center();
@@ -1181,13 +1189,18 @@ void test_runtime_demo_sources_do_not_retain_legacy_names()
 }
 }
 
-int main()
+int main(int argc, char** argv)
 {
 #ifdef _MSC_VER
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
     _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
+    if (argc == 2 && std::string_view(argv[1]) == "--camera-only")
+    {
+        test_camera_showcase_controls();
+        return EXIT_SUCCESS;
+    }
     test_engine_feature_overlay_cycle();
     test_payload_contract_names_each_scene();
     test_camera_showcase_controls();

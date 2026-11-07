@@ -4,9 +4,12 @@ This document explains how global slots and scene runtimes divide camera respons
 
 ## Module Structure
 
-The camera module has three layers:
+The public camera entry and runtime layers are:
 
 ```text
+CameraService (ELYSIA_CAMERA, active-scene routing and typed operation results)
+  → SceneCameraRuntime → CameraManager
+
 CameraManager (global sole owner and write entry point)
   ├─ Main       Camera + CameraController
   ├─ Cinematic  Camera + CameraController
@@ -20,6 +23,7 @@ SceneCameraRuntime (optional scene capability)
 - `Camera` stores the final rendering center, screen viewport size, and `zoom`, and converts between world and screen coordinates.
 - `CameraController` stores the logical center, focus, world bounds, follow strategy, shake, and single-slot pose motion.
 - `CameraManager` owns exactly four camera groups and offers no dynamic creation or destruction.
+- `CameraService` exposes snapshots and expected-based commands for objects and external choreography; it never owns or advances a scene.
 - `SceneCameraRuntime` stores the final presentation slot and optional inter-slot blend state, restricting scene operations to declared owned slots and handles.
 - `Scene` coordinates only focus resolution, lifetime, and completion event dispatch; it stores no camera playback state.
 
@@ -34,27 +38,15 @@ The four slots are:
 
 ## Access Rules
 
-`CameraManager` is the underlying camera service. The camera subsystem may use it directly; scene code should use `camera_runtime()` for slots declared as owned by that scene. External callers can obtain only `const Camera&` for rendering, visible-area queries, and projection:
+Game code uses `CameraService` (`ELYSIA_CAMERA`) to reach the current scene's declared slots. Scene-local `camera_runtime()` and completion hooks remain supported. `camera()` returns a final-presentation value snapshot; `camera(slot)` returns a slot snapshot. Low-level subsystem code can still use CameraManager directly; viewport synchronization stays there.
 
-```cpp
-const auto& camera = elysia::camera::CameraManager::instance()->camera(
-    elysia::camera::CameraSlot::Main
-);
-```
+Service binding belongs to the non-virtual Scene attach/detach flow. Attach increments a service generation before subclass attach/entry hooks; detach unbinds before subclass cleanup, invalidates live operations and discards pending requests. Attach rollback and the Scene destructor also unbind safely. A generation plus runtime-owned state identity prevents local blend ID collisions across scene instances. Errors are reported through `std::expected`, without swallowing unexpected exceptions.
 
-`Camera` state must be modified through Manager:
+Typed operation results share only status, reached-target history and generation. Runtime retains at most one live motion result per slot and one blend result; completed/cancelled state survives only as long as callers retain it. Runtime updates these states before dispatching existing Scene completion hooks. Legacy Runtime entry points also update results when replacing or cancelling activity. A paused Hold preserves reached-target history and resumes as Holding. No-op blends return completed results.
 
-```cpp
-auto* cameras = elysia::camera::CameraManager::instance();
+Transient requests use a Runtime-local FIFO, forwarded to Manager immediately before camera advancement. Pause defers consumption; cancel/reset/detach drops pending commands. This prevents a queued shake from leaking into a later scene activation. Direct Manager calls remain a low-level escape hatch outside service lifetime and ownership checks.
 
-cameras->set_viewport_size(CameraSlot::Main, { 1280.0f, 720.0f });
-cameras->set_zoom(CameraSlot::Main, 2.0f);
-cameras->set_world_bounds(CameraSlot::Main, world_bounds);
-cameras->set_follow_strategy(
-    CameraSlot::Main,
-    std::make_unique<SmoothFollowStrategy>(300.0)
-);
-```
+The [camera guide](../../user-guide/systems/camera.md) covers error handling, default shake targets and polling-based choreography. The showcase's independent CameraCinematicController owns its phase, operations and hold timer; Scene drives it after camera advancement and coordinates actor control.
 
 Configuration takes effect immediately, including center, viewport, `zoom`, focus, bounds, and follow strategy. Setting center or `zoom` directly cancels that slot's active pose motion and synchronizes `Controller` with the final `Camera`, avoiding simultaneous writes by two control sources.
 
@@ -73,6 +65,7 @@ world_viewport_size = viewport_size / zoom
 Shake, immediate focus snapping, and effect clearing are FIFO transient requests. Center and `zoom` animation use unified pose motion:
 
 ```cpp
+auto* cameras = elysia::camera::CameraManager::instance();
 cameras->request_shake(CameraSlot::Main, shake_params);
 cameras->request_snap_to_focus(CameraSlot::Cinematic);
 cameras->request_clear_effects(CameraSlot::Main);

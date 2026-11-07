@@ -4,9 +4,12 @@
 
 ## 模块结构
 
-相机模块由三个层次组成：
+相机公开入口与运行层次如下：
 
 ```text
+CameraService（ELYSIA_CAMERA，活动场景路由与操作结果）
+  → SceneCameraRuntime → CameraManager
+
 CameraManager（全局唯一拥有者和写入口）
   ├─ Main       Camera + CameraController
   ├─ Cinematic  Camera + CameraController
@@ -20,6 +23,7 @@ SceneCameraRuntime（可选的场景能力）
 - `Camera` 保存最终渲染中心、屏幕视口大小和缩放倍率，并负责世界坐标与屏幕坐标之间的转换。
 - `CameraController` 保存逻辑中心、焦点、世界边界、跟随策略、震屏和单槽姿态运动。
 - `CameraManager` 固定拥有四组相机，不提供动态创建或销毁接口。
+- `CameraService` 为对象和外部演出提供快照查询及 expected 请求入口，不拥有或推进场景。
 - `SceneCameraRuntime` 保存最终呈现槽和可选的槽间混合状态，并限制场景只能操作声明拥有的槽和句柄。
 - `Scene` 只协调焦点解析、生命周期和完成事件派发，不保存相机播放状态。
 
@@ -34,27 +38,15 @@ SceneCameraRuntime（可选的场景能力）
 
 ## 访问规则
 
-`CameraManager` 是底层相机服务。相机子系统可以直接使用它；场景代码应通过 `camera_runtime()` 操作本场景声明拥有的槽。外部只能取得 `const Camera&`，用于渲染、查询可见区域和坐标投影：
+游戏代码通过 `CameraService`（`ELYSIA_CAMERA`）访问当前场景声明拥有的槽。场景本地 `camera_runtime()` 和完成钩子继续保留。`camera()` 返回最终呈现相机的值快照，`camera(slot)` 返回指定槽快照。底层子系统仍可直接使用 CameraManager，视口同步也保留在底层。
 
-```cpp
-const auto& camera = elysia::camera::CameraManager::instance()->camera(
-    elysia::camera::CameraSlot::Main
-);
-```
+服务绑定接入 Scene 的非虚 attach/detach 流程。在子类挂载和进入钩子前绑定并生成新代次，解绑先于子类清理，结束存活操作并丢弃请求。挂载回滚和 Scene 析构同样安全解绑。服务代次加 Runtime 内操作状态身份检查，阻止不同场景实例的本地混合 ID 冲突。通过 `std::expected` 返回明确错误，非预期异常仍向上传播。
 
-相机状态必须通过 Manager 修改：
+类型明确的操作结果只共享状态、到达历史和代次。Runtime 每槽最多保留一个存活运动结果，以及一个混合结果；完成或取消后的状态仅由外部持有者保留。状态先于现有 Scene 完成钩子更新；旧 Runtime 入口替换或取消活动时同样更新结果。暂停 Hold 保留到达历史，恢复后仍为 Holding。无须切换的混合返回已完成结果。
 
-```cpp
-auto* cameras = elysia::camera::CameraManager::instance();
+瞬时请求进入 Runtime 本地 FIFO，在相机推进前转交 Manager。暂停延后消费；取消活动、重置和解绑丢弃未消费请求，避免震屏遗留到后一次场景激活。直接操作 Manager 仍属于绕过 Service 生命周期和权限检查的底层入口。
 
-cameras->set_viewport_size(CameraSlot::Main, { 1280.0f, 720.0f });
-cameras->set_zoom(CameraSlot::Main, 2.0f);
-cameras->set_world_bounds(CameraSlot::Main, world_bounds);
-cameras->set_follow_strategy(
-    CameraSlot::Main,
-    std::make_unique<SmoothFollowStrategy>(300.0)
-);
-```
+[相机使用指南](../../user-guide/systems/camera.md) 提供错误处理、默认震屏目标和查询式编排示例。展示中独立的 CameraCinematicController 保存阶段、操作结果和停留计时；Scene 在相机推进后驱动它，并协调角色控制。
 
 配置接口立即生效，包括中心、视口、缩放、焦点、边界和跟随策略。直接设置中心或缩放会取消该槽正在播放的姿态运动，并同步 `Controller` 与最终 `Camera`，避免两个控制源同时写入。
 
@@ -73,6 +65,7 @@ world_viewport_size = viewport_size / zoom
 震屏、立即对焦和清除效果是 FIFO 瞬时请求；中心与缩放动画使用统一的姿态运动：
 
 ```cpp
+auto* cameras = elysia::camera::CameraManager::instance();
 cameras->request_shake(CameraSlot::Main, shake_params);
 cameras->request_snap_to_focus(CameraSlot::Cinematic);
 cameras->request_clear_effects(CameraSlot::Main);

@@ -1,5 +1,5 @@
 #pragma once
-#include "engine/camera/camera_motion.h"
+#include "engine/camera/camera_service_types.h"
 #include <array>
 #include <optional>
 namespace example::showcase::camera {
@@ -15,14 +15,13 @@ struct CameraDemoState {
     CinematicPhase phase = CinematicPhase::Idle;
     elysia::camera::CameraEasing easing = elysia::camera::CameraEasing::SmoothStep;
     elysia::camera::CameraMotionEndBehavior end = elysia::camera::CameraMotionEndBehavior::ResumeFollow;
-    std::optional<elysia::camera::CameraMotionId> motion;
-    std::optional<elysia::camera::CameraBlendId> blend;
+    std::optional<elysia::camera::CameraMotionOperation> motion;
+    std::optional<elysia::camera::CameraBlendOperation> blend;
     elysia::camera::CameraSlot blend_target = elysia::camera::CameraSlot::Main;
     bool automatic = false, dead_zone = true, bounds = false, frozen = false, paused = false;
-    bool saved_automatic = false, full_show = false;
+    bool saved_automatic = false;
     std::size_t primary = 0;
-    double time = 0, hold_time = 0;
-    elysia::core::Vector2 anchor{};
+    double time = 0;
     std::array<elysia::core::Vector2,4> nodes{};
     std::size_t node_count = 0;
     const char* feedback = "showcase.camera.ready";

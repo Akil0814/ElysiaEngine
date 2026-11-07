@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "../camera/camera_service.h"
 
 #include "detail/scene_input_order.h"
 #include "detail/scene_failure_boundary.h"
@@ -48,6 +49,7 @@ Scene::Scene(SceneRuntimeFeatures features)
 
 Scene::~Scene()
 {
+    if (_camera_runtime) ELYSIA_CAMERA->detach_runtime(*_camera_runtime);
     release_owned_objects_noexcept();
     if (_audio_runtime) _audio_runtime->clear();
 }
@@ -410,11 +412,16 @@ void Scene::attach_runtime_services()
     if (_runtime_services_attached)
         throw std::logic_error("Scene runtime services are already attached.");
     _runtime_services_attached = true;
-    try { on_runtime_attach(); }
+    try
+    {
+        if (_camera_runtime) ELYSIA_CAMERA->attach_runtime(*_camera_runtime);
+        on_runtime_attach();
+    }
     catch (...)
     {
         detail::SceneFailureCollector failures;
         failures.capture(SceneKeys::Invalid,SceneBoundary::Attach,"Runtime attach");
+        if (_camera_runtime) ELYSIA_CAMERA->detach_runtime(*_camera_runtime);
         failures.attempt_cleanup(SceneKeys::Invalid,SceneBoundary::Detach,"Runtime attach rollback",[&] { on_runtime_detach(); });
         if (_audio_runtime) _audio_runtime->clear();
         _runtime_services_attached = false;
@@ -427,6 +434,7 @@ void Scene::detach_runtime_services()
     if (!_runtime_services_attached)
         return;
     _runtime_services_attached = false;
+    if (_camera_runtime) ELYSIA_CAMERA->detach_runtime(*_camera_runtime);
     try { on_runtime_detach(); }
     catch (...) { if (_audio_runtime) _audio_runtime->clear(); throw; }
     if (_audio_runtime) _audio_runtime->clear();

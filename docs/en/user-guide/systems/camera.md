@@ -58,6 +58,63 @@ protected:
 
 Override `resolve_camera_focus(CameraSlot)` and provide target `render_rect()` as both `CameraFocus` rectangles, or `std::nullopt` without a valid target. Declare slots in `CameraSceneConfig::owned_slots` and choose `CameraFocusMode::ResolveEachFrame`. Each owned slot resolves/advances independently. Clear borrowed target pointers on removal.
 
+## CameraService from Objects and External Controllers
+
+Include `engine/camera/camera_service.h` and use `ELYSIA_CAMERA`. It routes to the attached scene's camera runtime, so objects do not need a Scene pointer. Configuration, following, effects, cuts, blends and paths use the same parameters as the runtime. Viewport sizing remains application-owned.
+
+```cpp
+using namespace elysia::camera;
+auto result = ELYSIA_CAMERA->request_shake({}); // Scene's default request slot.
+if (!result) {
+    const CameraServiceError reason = result.error();
+    // For example, skip an optional effect when no camera runtime is active.
+    (void)reason;
+}
+auto cinematic_shake = ELYSIA_CAMERA->request_shake(CameraSlot::Cinematic, {});
+auto cut = ELYSIA_CAMERA->cut_to(CameraSlot::Cinematic);
+auto blend = ELYSIA_CAMERA->blend_to(CameraSlot::Main, {.duration_seconds = 0.6});
+```
+
+`CameraSceneConfig::default_request_slot` optionally overrides the default shake slot. Otherwise it uses `initial_slot` (normally Main), even while presenting another slot. An explicit target must be owned by the scene. Shaking a hidden slot does not shake the final picture; the fixed-source blend continues to use its captured source composition.
+
+`camera()` returns a value snapshot of the final presented view, including blending. `camera(slot)` returns a snapshot of that slot. `presented_slot()` names the source slot until a blend completes; it does not describe the interpolated pose. Queries and mutations return `std::expected<T, CameraServiceError>`; mutations without a value use `expected<void, ...>`. Errors distinguish NoActiveRuntime, InvalidSlot, SlotNotOwned, InvalidArgument, StaleOperation and OperationFinished. Existing zoom clamping and parameter validation still apply; unexpected failures propagate.
+
+External choreography stores operation results and polls them from its update, after scene camera advancement:
+
+```cpp
+class CameraSequence {
+    std::optional<elysia::camera::CameraBlendOperation> entering;
+    std::optional<elysia::camera::CameraMotionOperation> moving;
+public:
+    std::expected<void, elysia::camera::CameraServiceError> start() {
+        auto result = ELYSIA_CAMERA->blend_to(elysia::camera::CameraSlot::Cinematic);
+        if (!result) return std::unexpected(result.error());
+        entering = *result;
+        return {};
+    }
+    std::expected<void, elysia::camera::CameraServiceError> update() {
+        using namespace elysia::camera;
+        if (entering && entering->status() == CameraOperationStatus::Completed) {
+            auto result = ELYSIA_CAMERA->move_to(CameraSlot::Cinematic,
+                {.zoom = 1.5f}, 1.0, CameraEasing::SmoothStep, CameraMotionEndBehavior::Hold);
+            if (!result) return std::unexpected(result.error());
+            entering.reset();
+            moving = *result;
+        }
+        // Handle Cancelled, Superseded and SceneEnded as interruptions.
+        return {};
+    }
+};
+```
+
+Declare ownership of Main and Cinematic before running this example. A same-slot blend returns an already Completed operation. Operations are copyable main-thread result views: `status()` reports Playing, Paused, Holding, Completed, Cancelled, Superseded or SceneEnded. `reached_target()` stays true after natural arrival, including while pausing or cancelling a Hold. Use `pause_motion`, `resume_motion`, `cancel_motion` (and the corresponding blend methods) with the typed operation. Holding is still controllable; Completed is finished. New motion or direct center/zoom changes supersede old motion; cuts and new blends supersede old blends. No subscriptions or general sequence player are provided.
+
+Scene attaches the service before `on_runtime_attach` and `on_enter`. Detachment precedes exit callbacks, cancels remaining activity and marks live results SceneEnded; already terminal results remain unchanged. Old operations become stale after detachment/re-entry and cannot control a new scene. Retaining a result never retains a scene. Exit cleanup should clear local sequence state; Scene handles remaining camera activity. Constructors must not issue requests intended for a candidate scene: unscoped requests always target the currently attached scene.
+
+Shake, snap and clear requests are queued in the scene runtime and forwarded in FIFO order on its next permitted update. Paused scenes defer them unless `advance_when_paused` is enabled. Cancellation, reset and detach discard unconsumed requests. Setters apply immediately. All APIs are main-thread only; the service does not infer an object's owning scene or advance cameras itself.
+
+The showcase's `CameraCinematicController` demonstrates entering, touring, holding with shake, and returning to Main using only this service. Scene still owns actor freezing, automatic movement and UI.
+
 ## Common Operations
 
 | Task | Interface/behavior |

@@ -58,6 +58,63 @@ protected:
 
 在场景类中重写 `resolve_camera_focus(CameraSlot)`，将目标的 `render_rect()` 作为 `CameraFocus` 的两个矩形；没有有效目标时返回 `std::nullopt`。构造场景时把所用槽写入 `CameraSceneConfig::owned_slots`，并选择 `CameraFocusMode::ResolveEachFrame`。引擎会分别解析并推进每个 owned 槽位；场景持有的目标指针仍须在对象移除时清空。
 
+## 游戏对象与外部控制器使用 CameraService
+
+包含 `engine/camera/camera_service.h`，通过 `ELYSIA_CAMERA` 访问当前绑定场景的相机运行时。对象无需保存 Scene 指针，即可查询相机，配置姿态和跟随，提交效果、切镜及路径操作。视口尺寸仍由应用管理。
+
+```cpp
+using namespace elysia::camera;
+auto result = ELYSIA_CAMERA->request_shake({}); // 场景默认请求槽。
+if (!result) {
+    const CameraServiceError reason = result.error();
+    // 例如，没有活动相机时跳过可选的命中特效。
+    (void)reason;
+}
+auto cinematic_shake = ELYSIA_CAMERA->request_shake(CameraSlot::Cinematic, {});
+auto cut = ELYSIA_CAMERA->cut_to(CameraSlot::Cinematic);
+auto blend = ELYSIA_CAMERA->blend_to(CameraSlot::Main, {.duration_seconds = 0.6});
+```
+
+`CameraSceneConfig::default_request_slot` 可覆盖默认震屏槽；未指定时使用 `initial_slot`，普通场景为 Main，切镜期间也不会改变这个默认目标。显式指定的槽必须归当前场景所有。震动未呈现的槽不会震动最终画面；混合的源构图使用开始时的快照。
+
+`camera()` 返回最终呈现相机的值快照，包含混合结果；`camera(slot)` 返回指定槽的值快照。`presented_slot()` 在混合完成前仍表示来源槽，不能用它代表插值后的姿态。查询和修改返回 `std::expected<T, CameraServiceError>`，无返回值的修改使用 `expected<void, ...>`。错误区分 NoActiveRuntime、InvalidSlot、SlotNotOwned、InvalidArgument、StaleOperation 和 OperationFinished。沿用已有缩放钳制和参数校验，非预期异常继续传播。
+
+外部编排器保存操作结果，在相机推进后的更新阶段查询状态：
+
+```cpp
+class CameraSequence {
+    std::optional<elysia::camera::CameraBlendOperation> entering;
+    std::optional<elysia::camera::CameraMotionOperation> moving;
+public:
+    std::expected<void, elysia::camera::CameraServiceError> start() {
+        auto result = ELYSIA_CAMERA->blend_to(elysia::camera::CameraSlot::Cinematic);
+        if (!result) return std::unexpected(result.error());
+        entering = *result;
+        return {};
+    }
+    std::expected<void, elysia::camera::CameraServiceError> update() {
+        using namespace elysia::camera;
+        if (entering && entering->status() == CameraOperationStatus::Completed) {
+            auto result = ELYSIA_CAMERA->move_to(CameraSlot::Cinematic,
+                {.zoom = 1.5f}, 1.0, CameraEasing::SmoothStep, CameraMotionEndBehavior::Hold);
+            if (!result) return std::unexpected(result.error());
+            entering.reset();
+            moving = *result;
+        }
+        // 对 Cancelled、Superseded、SceneEnded 按演出中断处理。
+        return {};
+    }
+};
+```
+
+运行示例前，场景需要声明拥有 Main 和 Cinematic。切入已呈现的槽会返回立即 Completed 的操作。操作结果可复制且仅在主线程访问：`status()` 返回 Playing、Paused、Holding、Completed、Cancelled、Superseded 或 SceneEnded。`reached_target()` 在自然到达后保持为真，包括暂停或取消 Hold 后。通过 `pause_motion`、`resume_motion`、`cancel_motion` 及对应 blend 方法控制类型明确的操作。Holding 仍可控制，Completed 已结束。新运动或直接修改中心、缩放会替换原运动；直接切镜或新混合会替换原混合。首版不提供订阅和通用序列播放器。
+
+Scene 在 `on_runtime_attach` 和 `on_enter` 前绑定服务，在退出回调前解绑、取消剩余活动，并将仍存活的操作标为 SceneEnded；已结束的结果保持原状态。解绑和重新进入后旧操作失效，无法控制新场景。保留结果不会延长场景寿命。退出时清理编排器本地状态即可，剩余相机活动由 Scene 清理。候选场景构造函数不要通过全局服务配置自身：无场景参数的新请求始终作用于当前绑定场景。
+
+震屏、立即对焦和清除效果先进入 Runtime 的场景内 FIFO，在下一次允许的更新时转交 Manager。暂停时延后消费，除非启用 `advance_when_paused`。取消活动、重置和解绑均丢弃未消费请求；姿态配置立即生效。所有接口仅用于主线程，Service 不推断对象所属场景，也不独立推进相机。
+
+展示中的 `CameraCinematicController` 只通过 Service 完成切入、路径、停留震屏和返回 Main；角色冻结、自动运动及 UI 仍由 Scene 协调。
+
 ## 常用操作
 
 | 任务 | 接口与行为 |

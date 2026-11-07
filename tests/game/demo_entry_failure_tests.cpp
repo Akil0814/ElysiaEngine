@@ -88,12 +88,15 @@ int main()
     {
         example::scene::CameraShowcaseScene scene;
         elysia::scene::SceneTestAccess::bind(scene,context);
+        elysia::scene::SceneTestAccess::attach(scene);
         bool caught=false;
         try {elysia::scene::SceneTestAccess::enter(scene,example::scene::ShowcaseEnterPayload{{.target=example::scene_keys::MainMenu}});}
         catch(const std::logic_error&){caught=true;}
         require(caught && !scene.state().motion && !scene.state().blend && !scene.state().frozen,
             "camera entry failure without controller session cleans playback and actor gates");
         require(elysia::scene::SceneTestAccess::ui_root(scene,0)->is_destroyed(),"failed camera entry retires its controls");
+        elysia::scene::SceneTestAccess::detach(scene);
+        require(!ELYSIA_CAMERA->is_available(),"failed camera entry leaves no service binding after detach");
     }
     require(manager.shutdown(),"controller session shuts down after failed entry");
 
