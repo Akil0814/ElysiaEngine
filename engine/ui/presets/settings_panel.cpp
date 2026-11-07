@@ -13,7 +13,7 @@
 #include "../window/ui_window.h"
 
 #include "../../tools/logger.h"
-#include "../../localization/locale.h"
+#include "../../builtin/resources/builtin_resources.h"
 
 #include <algorithm>
 #include <array>
@@ -146,19 +146,26 @@ std::string target_fps_label(double value)
     return stream.str();
 }
 
-UiTextContent language_content(const std::string& language)
+UiDropdownOption language_option(const std::string& language)
 {
-    const std::string_view key_segment =
-        elysia::localization::locale_key_segment(language);
-    if (!key_segment.empty())
+    const auto locale = elysia::builtin::builtin_locale_id(language);
+    UiDropdownOption option{ ui_raw_text(language) };
+    if (locale != elysia::builtin::BuiltinLocaleId::Count)
     {
-        return ui_text_key("engine.settings.languages." + std::string(key_segment));
+        const auto* name = elysia::builtin::BuiltinResources::instance()->find_translation(
+            locale,"engine.settings.native_name");
+        if (name && !name->empty())
+            option.content = ui_raw_text(*name);
+        else
+            ELYSIA_LOG_WARN("UiSettingPanel","Missing native language name: " + language);
+        option.font_language_override = language;
+        option.font_source_override = elysia::typography::FontSource::EngineBuiltIn;
     }
     else
     {
-        ELYSIA_LOG_ERROR("UiSettingPanel","cant find language i18n:"+language);
-        return ui_raw_text(language);
+        ELYSIA_LOG_WARN("UiSettingPanel","Unknown language: " + language);
     }
+    return option;
 }
 }
 
@@ -782,7 +789,7 @@ void SettingsPanel::rebuild_language_options()
     std::vector<UiDropdownOption> options;
     options.reserve(_options.languages.size());
     for (const std::string& language : _options.languages)
-        options.push_back(UiDropdownOption{ language_content(language) });
+        options.push_back(language_option(language));
     _language_dropdown->set_options(std::move(options));
 }
 

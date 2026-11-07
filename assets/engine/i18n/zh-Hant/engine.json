@@ -70,13 +70,7 @@
       "hints": {
         "vsync_restart": "變更將在重新啟動遊戲後生效。"
       },
-      "languages": {
-        "en": "English",
-        "zh_hans": "简体中文",
-        "zh_hant": "繁體中文",
-        "ja": "日本語",
-        "ko": "한국어"
-      },
+      "native_name": "繁體中文",
       "status": {
         "save_failed": "設定儲存失敗",
         "saved": "設定已儲存。",

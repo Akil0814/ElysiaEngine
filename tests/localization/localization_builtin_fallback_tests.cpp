@@ -11,6 +11,14 @@
 #include "engine/resources/runtime/resource_manager.h"
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
+#include "engine/ui/composites/ui_dropdown.h"
+#include "engine/ui/presets/settings_panel.h"
+#include "engine/ui/containers/ui_scroll_container.h"
+#include "engine/ui/style/ui_style_defaults.h"
+#include "engine/ui/window/ui_window.h"
+#include "engine/ui/widgets/label/ui_label.h"
+#include "engine/ui/widgets/text/ui_text_block.h"
+#include "engine/core/render/sdl_render_command_executor.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -18,6 +26,7 @@
 #include <SDL3_ttf/SDL_ttf.h>
 
 #include <filesystem>
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <iostream>
@@ -26,6 +35,218 @@
 namespace
 {
 using elysia::tests::require;
+
+elysia::ui::UiDropdown* find_dropdown(elysia::ui::UiChildHost& host)
+{
+    for (std::size_t i = 0; i < host.child_count(); ++i)
+    {
+        if (auto* dropdown = dynamic_cast<elysia::ui::UiDropdown*>(host.child_at(i)))
+            return dropdown;
+        if (auto* child = dynamic_cast<elysia::ui::UiChildHost*>(host.child_at(i)))
+            if (auto* found = find_dropdown(*child)) return found;
+    }
+    return nullptr;
+}
+
+void test_native_language_dropdown(SDL_Renderer* renderer)
+{
+    using namespace elysia;
+    auto* localization = ELYSIA_LOCALIZATION;
+    auto* builtin = builtin::BuiltinResources::instance();
+    const auto languages = localization->supported_languages();
+    const std::array<std::string,5> names{ "English","简体中文","繁體中文","日本語","한국어" };
+    const std::array<std::string,5> locales{ "en","zh-Hans","zh-Hant","ja","ko" };
+    for (std::size_t i = 0; i < locales.size(); ++i)
+    {
+        const auto locale = builtin::builtin_locale_id(locales[i]);
+        const auto* name = builtin->find_translation(locale,"engine.settings.native_name");
+        require(name && *name == names[i],"each locale must store its own native name");
+        const char* cursor = name->c_str();
+        while (*cursor)
+            require(TTF_FontHasGlyph(builtin->find_font(builtin::builtin_font_id(locale),20),
+                SDL_StepUTF8(&cursor,nullptr)),"native-name fonts must contain every displayed glyph");
+    }
+
+    ui::SettingsPanel panel(core::Rect{0,0,700,500},{
+        .window_mode = false,.target_fps = false,.vsync = false,
+        .master_volume = false,.music_volume = false,.sound_volume = false,.language = true });
+    auto* scroll = dynamic_cast<ui::UiScrollContainer*>(panel.child_at(1));
+    require(scroll != nullptr,"settings must have a content scroll container");
+    auto* content = dynamic_cast<ui::UiChildHost*>(const_cast<ui::UiElement*>(scroll->content()));
+    require(content != nullptr,"settings must have content");
+    auto* dropdown = find_dropdown(*content);
+    require(dropdown != nullptr,"language-only settings must contain a language dropdown");
+    ui::UiWindow window(core::Rect{0,0,800,600});
+    dropdown->register_with_window(window);
+
+    for (const auto& current : languages)
+    {
+        require(localization->set_language(current),"native names must work in each UI language");
+        panel.set_options({ .languages = languages });
+        dropdown->set_screen_rect(core::Rect{20,20,300,44});
+        const auto& options = dropdown->options();
+        require(options.size() == languages.size(),"all supported language options must be present");
+        std::vector<SDL_Texture*> expected;
+        for (std::size_t i = 0; i < options.size(); ++i)
+        {
+            require(options[i].content.kind == ui::UiTextContentKind::RawText
+                && options[i].font_language_override == languages[i]
+                && options[i].font_source_override == typography::FontSource::EngineBuiltIn,
+                "language options must carry raw names and their own Engine font");
+            const auto* native = builtin->find_translation(builtin::builtin_locale_id(languages[i]),
+                "engine.settings.native_name");
+            require(native && options[i].content.value == *native,"names must be independent of the UI locale");
+            localization::LocalizedTextStyle style;
+            style.typography_role = typography::UiTypographyRole::Button;
+            style.font_source_override = typography::FontSource::EngineBuiltIn;
+            style.font_language_override = languages[i];
+            style.color = ui::UiStyleDefaults::button().text.enabled;
+            auto* texture = localization->get_raw_text_texture(*native,style);
+            require(texture != nullptr,"native names must render with project fonts active");
+            expected.push_back(texture);
+            require(dropdown->set_selected_index(i),"every native option must be selectable");
+            std::vector<core::UiRenderCommand> trigger;
+            dropdown->submit_ui_render_commands(trigger);
+            require(std::ranges::any_of(trigger,[texture](const auto& command) {
+                return command.texture == texture;
+            }),"the collapsed trigger must use the selected option's font");
+            int width = 0,height = 0,expected_width = 0,expected_height = 0;
+            require(localization->measure_raw_text(*native,style,width,height)
+                && TTF_GetStringSize(builtin->find_font(builtin::builtin_font_id(
+                    builtin::builtin_locale_id(languages[i])),20),native->c_str(),0,
+                    &expected_width,&expected_height)
+                && width == expected_width && height == expected_height,
+                "native-name measurement must use the same font as rendering");
+        }
+        dropdown->open();
+        require(dropdown->is_open(),"native language popup must open");
+        std::vector<core::UiRenderCommand> popup;
+        dropdown->submit_popup_render_commands(popup);
+        for (auto* texture : expected)
+            require(std::ranges::any_of(popup,[texture](const auto& command) {
+                return command.texture == texture;
+            }),"every popup row must use its own font");
+        require(localization->current_language() == current,"rendering options must not change the UI locale");
+        if (const char* directory = SDL_getenv("ELYSIA_LANGUAGE_QA_DIR"))
+        {
+            SDL_SetRenderDrawColor(renderer,22,26,36,255);
+            require(SDL_RenderClear(renderer),"language QA canvas must clear");
+            dropdown->submit_ui_render_commands(popup);
+            require(core::execute_render_commands(renderer,popup).has_value(),"language QA commands must render");
+            std::filesystem::create_directories(directory);
+            SDL_Surface* capture = SDL_RenderReadPixels(renderer,nullptr);
+            require(capture != nullptr,"language QA pixels must be readable");
+            require(IMG_SavePNG(capture,(std::filesystem::path(directory)/(current+".png")).string().c_str()),
+                "language QA image must save");
+            SDL_DestroySurface(capture);
+        }
+        dropdown->close();
+        dropdown->open();
+        require(dropdown->is_open(),"language popup must reopen after selection");
+        dropdown->clear_options();
+        std::vector<core::UiRenderCommand> cleared;
+        dropdown->submit_ui_render_commands(cleared);
+        require(!dropdown->is_open() && !dropdown->selected_index()
+            && std::ranges::none_of(cleared,[](const auto& command) { return command.texture != nullptr; }),
+            "clearing language options must clear the trigger and close the popup");
+        dropdown->set_options({ {ui::ui_raw_text("Moon")} });
+        localization::LocalizedTextStyle plain;
+        plain.typography_role = typography::UiTypographyRole::Button;
+        plain.color = ui::UiStyleDefaults::button().text.enabled;
+        auto* plain_texture = localization->get_raw_text_texture("Moon",plain);
+        cleared.clear();
+        dropdown->submit_ui_render_commands(cleared);
+        require(plain_texture && std::ranges::any_of(cleared,[plain_texture](const auto& command) {
+            return command.texture == plain_texture;
+        }),"ordinary options must clear previous font language and source overrides");
+    }
+    panel.set_options({.languages = {"unknown-locale"}});
+    require(dropdown->options().front().content.value == "unknown-locale"
+        && !dropdown->options().front().font_language_override
+        && !dropdown->options().front().font_source_override,
+        "unknown languages must show their identifier without an invalid font mapping");
+    require(localization->set_language("en"),"language tests must restore English");
+}
+
+void test_text_widgets_font_language()
+{
+    using namespace elysia;
+    auto* localization = ELYSIA_LOCALIZATION;
+    ui::UiLabel label(core::Rect{0,0,300,50});
+    ui::UiTextBlock block(core::Rect{0,0,80,10});
+    block.set_padding(4);
+    label.set_font_source_override(typography::FontSource::EngineBuiltIn);
+    block.set_font_source_override(typography::FontSource::EngineBuiltIn);
+    label.set_font_language_override("ko");
+    block.set_font_language_override("ko");
+
+    const auto check_render = [&](const auto& widget,const auto& style,const ui::UiTextContent& content)
+    {
+        auto* expected = content.kind == ui::UiTextContentKind::TextKey
+            ? localization->get_text_texture(content.value,style)
+            : localization->get_raw_text_texture(content.value,style);
+        std::vector<core::UiRenderCommand> commands;
+        widget.submit_ui_render_commands(commands);
+        require(expected && std::ranges::any_of(commands,[expected](const auto& command) {
+            return command.texture == expected;
+        }),"text widgets must render with their requested font language");
+    };
+
+    // Project fonts are active: source and language overrides must both reach rendering.
+    for (const auto& current : {"en","ja"})
+    {
+        require(localization->set_language(current),"text widget tests must switch UI languages");
+        for (const auto& content : {ui::ui_raw_text("한국어 한국어 한국어 한국어"),
+                ui::ui_text_key("engine.settings.title")})
+        {
+            label.set_text_content(content);
+            block.set_text_content(content);
+            localization::LocalizedTextStyle label_style;
+            label_style.typography_role = label.typography_role();
+            label_style.color = label.style().text;
+            label_style.font_source_override = typography::FontSource::EngineBuiltIn;
+            label_style.font_language_override = "ko";
+            check_render(label,label_style,content);
+            auto block_style = label_style;
+            block_style.typography_role = block.typography_role();
+            block_style.color = block.style().text;
+            block_style.wrap_width = 72;
+            check_render(block,block_style,content);
+
+            const std::string text = content.kind == ui::UiTextContentKind::TextKey
+                ? std::string(localization->tr(content.value)) : content.value;
+            int width = 0,height = 0;
+            require(localization->measure_raw_text(text,block_style,width,height),
+                "overridden multi-line text must be measurable");
+            require(block.content_extent().nearly_equals(core::Vector2(
+                    std::max(80.0f,static_cast<float>(width+8)),
+                    std::max(10.0f,static_cast<float>(height+8)))),
+                "text block wrapping and content extent must use the rendered font language");
+            require(localization->current_language() == current,
+                "font overrides must leave translation lookup and global locale unchanged");
+
+            label.clear_font_language_override();
+            block.clear_font_language_override();
+            label_style.font_language_override.reset();
+            block_style.font_language_override.reset();
+            check_render(label,label_style,content);
+            check_render(block,block_style,content);
+            label.set_font_language_override("ko");
+            block.set_font_language_override("ko");
+        }
+    }
+    label.set_font_language_override("");
+    block.set_font_language_override("");
+    require(!label.font_language_override() && !block.font_language_override(),
+        "empty font language must restore inheritance");
+    label.set_font_language_override("ja");
+    block.set_font_language_override("ja");
+    label.reset();
+    block.reset();
+    require(!label.font_language_override() && !block.font_language_override(),
+        "reset must clear text widget font language overrides");
+    require(localization->set_language("en"),"text widget tests must restore English");
+}
 
 std::size_t count_occurrences(std::string_view text,std::string_view needle)
 {
@@ -59,7 +280,7 @@ public:
         require(TTF_Init(), "localization fallback tests must initialize SDL_ttf");
         require(elysia::tests::open_test_mixer(),
             "localization fallback tests must open SDL_mixer audio");
-        _surface = SDL_CreateSurface(128, 128, SDL_PIXELFORMAT_RGBA32);
+	_surface = SDL_CreateSurface(800, 600, SDL_PIXELFORMAT_RGBA32);
         require(_surface != nullptr, "localization fallback tests must create a software surface");
         _renderer = SDL_CreateSoftwareRenderer(_surface);
         require(_renderer != nullptr, "localization fallback tests must create a software renderer");
@@ -328,6 +549,22 @@ int main()
             && overridden_width == engine_width
             && overridden_height == engine_height,
         "LocalizationService measurement must honor an explicit Engine font source");
+
+    auto korean_style = engine_override_style;
+    korean_style.font_language_override = "ko";
+    auto* korean_raw = localization->get_raw_text_texture("Moon",korean_style);
+    auto* korean_key = localization->get_text_texture("engine.settings.title",korean_style);
+    auto* engine_key = localization->get_text_texture("engine.settings.title",engine_override_style);
+    require(korean_raw && korean_raw != engine_raw_texture && korean_key && korean_key != engine_key,
+        "raw and translated caches must distinguish font language overrides");
+    require(localization->get_raw_text_texture("Moon",korean_style) == korean_raw
+        && localization->get_text_texture("engine.settings.title",korean_style) == korean_key,
+        "identical font-language requests must reuse their cached textures");
+    auto uncached = localization->create_uncached_raw_text_texture("한국어",korean_style);
+    require(uncached != nullptr,"uncached text must also support font language overrides");
+    uncached.reset();
+    test_native_language_dropdown(fixture.renderer());
+    test_text_widgets_font_language();
 
     localization_manager->shutdown();
 
