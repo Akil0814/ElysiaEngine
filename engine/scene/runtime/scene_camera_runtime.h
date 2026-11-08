@@ -111,6 +111,7 @@ private:
     void finish_motion(std::size_t index, Status status) noexcept;
     void finish_blend(Status status) noexcept;
     void end_service_activity() noexcept;
+    void clear_owned_transient_effects() noexcept;
     void flush_requests();
 
     struct ActiveBlend

@@ -27,6 +27,9 @@ bool active(CameraOperationStatus status) noexcept
 void CameraService::attach_runtime(elysia::scene::SceneCameraRuntime& runtime)
 {
     if (_runtime) throw std::logic_error("Another camera runtime is already attached.");
+    // Construct the Manager while attach can still report allocation failures,
+    // so synchronous detach cleanup never needs to initialize it.
+    (void)CameraManager::instance();
     ++_generation;
     _runtime = &runtime;
 }
@@ -37,6 +40,7 @@ void CameraService::detach_runtime(elysia::scene::SceneCameraRuntime& runtime) n
     _runtime = nullptr;
     ++_generation;
     runtime.end_service_activity();
+    runtime.clear_owned_transient_effects();
 }
 
 std::expected<void, CameraServiceError> CameraService::validate_slot(CameraSlot slot) const noexcept

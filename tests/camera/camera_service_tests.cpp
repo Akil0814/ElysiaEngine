@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <string_view>
 
 namespace
 {
@@ -29,6 +30,8 @@ struct State
     bool fail_attach = false, fail_detach = false, fail_enter = false, fail_exit = false, fail_update = false;
     bool auto_play = false, saw_attach = false, saw_enter = false, saw_detach = false, saw_exit = false;
     bool callback_saw_completion = false;
+    bool shake_on_attach_failure = false, shake_started = false;
+    Vector2 center_on_detach{}, center_on_exit{};
     int destroyed = 0;
     std::optional<CameraMotionOperation> motion;
     std::optional<CameraBlendOperation> blend;
@@ -53,12 +56,19 @@ private:
         if (_state.fail_attach)
         {
             _state.motion = ELYSIA_CAMERA->move_to(CameraSlot::Main, {.zoom = 2}, 1).value();
+            if (_state.shake_on_attach_failure)
+            {
+                ELYSIA_CAMERA->request_shake({}).value();
+                (void)camera_runtime().advance(.01);
+                _state.shake_started = CameraManager::instance()->camera(CameraSlot::Main).center() != Vector2{};
+            }
             throw std::runtime_error("attach failure");
         }
     }
     void on_runtime_detach() override
     {
         _state.saw_detach = !ELYSIA_CAMERA->is_available();
+        if (has_camera()) _state.center_on_detach = CameraManager::instance()->camera(CameraSlot::Main).center();
         if (_state.fail_detach) throw std::runtime_error("detach failure");
     }
     void on_enter(const scene::ScenePayload&) override
@@ -76,6 +86,7 @@ private:
     void on_exit() override
     {
         _state.saw_exit = !ELYSIA_CAMERA->is_available();
+        if (has_camera()) _state.center_on_exit = CameraManager::instance()->camera(CameraSlot::Main).center();
         if (_state.fail_exit) throw std::runtime_error("exit failure");
     }
     void on_reset() override {}
@@ -339,6 +350,170 @@ void pause_exit_and_destruction()
         "retaining a result neither retains the scene nor leaves a dangling binding");
 }
 
+void detach_removes_active_shake_without_resetting_configuration()
+{
+    for (const bool paused : {false, true})
+    {
+        Fixture fixture;
+        auto* manager = CameraManager::instance();
+        const Vector2 center{40, 30}, viewport{100, 80}, auxiliary_center{70, 60};
+        manager->set_viewport_size(CameraSlot::Main, viewport);
+        manager->set_center(CameraSlot::Auxiliary1, auxiliary_center);
+        ELYSIA_CAMERA->set_zoom(CameraSlot::Main, 2).value();
+        ELYSIA_CAMERA->set_center(CameraSlot::Main, center).value();
+        ELYSIA_CAMERA->set_world_bounds(CameraSlot::Main, core::Rect{0, 0, 400, 300}).value();
+        ELYSIA_CAMERA->set_follow_strategy(CameraSlot::Main, std::make_unique<SmoothFollowStrategy>(100)).value();
+        ELYSIA_CAMERA->set_focus(CameraSlot::Main, CameraFocus{{39, 29, 2, 2}, {39, 29, 2, 2}}).value();
+        ELYSIA_CAMERA->request_shake({}).value();
+        ELYSIA_CAMERA->request_shake(CameraSlot::Cinematic, {}).value();
+        manager->request_shake(CameraSlot::Auxiliary1, {});
+        fixture.step(.01);
+        (void)manager->update(CameraSlot::Auxiliary1, .01);
+        const auto auxiliary_shaken = manager->camera(CameraSlot::Auxiliary1).center();
+        require(ELYSIA_CAMERA->camera()->center() != center
+            && ELYSIA_CAMERA->camera(CameraSlot::Cinematic)->center() != Vector2{}
+            && auxiliary_shaken != auxiliary_center, "owned and unowned shakes must already be playing before detach");
+        // Keep a new follow target pending across detach without advancing it.
+        ELYSIA_CAMERA->set_focus(CameraSlot::Main, CameraFocus{{59, 29, 2, 2}, {59, 29, 2, 2}}).value();
+
+        // Exercise both queue layers. Old Manager snap requests must not cancel
+        // a new activation's motion, and foreign-slot requests must survive.
+        ELYSIA_CAMERA->request_shake({}).value();
+        manager->request_clear_effects(CameraSlot::Main);
+        manager->request_shake(CameraSlot::Main, {});
+        manager->request_snap_to_focus(CameraSlot::Main);
+        manager->request_clear_effects(CameraSlot::Auxiliary1);
+        if (paused) fixture.scene.pause();
+        Access::detach(fixture.scene);
+        require(manager->camera(CameraSlot::Main).center() == center
+            && manager->camera(CameraSlot::Cinematic).center() == Vector2{},
+            "detach synchronously removes active shake even while paused, without advancing another frame");
+        require(fixture.state.center_on_detach == center && fixture.state.saw_detach,
+            "subclass detach hook observes an unbound service and an unshaken pose");
+        require(manager->camera(CameraSlot::Main).zoom() == 2
+            && manager->camera(CameraSlot::Main).viewport_size() == viewport,
+            "effect cleanup preserves zoom and viewport");
+        require(manager->camera(CameraSlot::Auxiliary1).center() == auxiliary_shaken,
+            "detach does not touch an unowned slot's active effect");
+
+        Access::exit(fixture.scene);
+        Access::attach(fixture.scene);
+        Access::enter(fixture.scene);
+        fixture.scene.resume();
+        const auto motion = ELYSIA_CAMERA->move_to(CameraSlot::Main, {.zoom = 2}, 1).value();
+        fixture.step(0);
+        require(motion.status() == Status::Playing && ELYSIA_CAMERA->camera()->center() == center,
+            "old pending Manager and Runtime requests do not affect the next activation");
+        require(manager->camera(CameraSlot::Auxiliary1).center() == auxiliary_center,
+            "unowned pending clear request remains queued and is processed normally");
+        ELYSIA_CAMERA->cancel_motion(motion).value();
+        fixture.step(.1);
+        require(ELYSIA_CAMERA->camera()->center() == Vector2(50, 30),
+            "re-entry preserves focus, follow strategy and initialized acquisition state");
+        ELYSIA_CAMERA->set_center(CameraSlot::Main, {5000, 5000}).value();
+        require(ELYSIA_CAMERA->camera()->center() == Vector2(375, 280),
+            "re-entry preserves world bounds as well as zoom and viewport");
+    }
+}
+
+void reuse_drops_active_and_pending_shakes()
+{
+    State state;
+    io::ContentRegistry registry;
+    scene::SceneRuntimeContext context(nullptr, registry, 100, 100);
+    scene::SceneManager manager;
+    manager.initialize(context);
+    manager.register_game_scene<TestScene>(1, std::ref(state));
+    manager.start({.target = 1});
+    auto* original = TestScene::current;
+    const Vector2 center{100, 200};
+    ELYSIA_CAMERA->set_center(CameraSlot::Main, center).value();
+    ELYSIA_CAMERA->set_zoom(CameraSlot::Main, 1.75f).value();
+    ELYSIA_CAMERA->request_shake({}).value();
+    manager.on_update(.01);
+    require(ELYSIA_CAMERA->camera()->center() != center, "managed scene must have an active shake before Reuse");
+    ELYSIA_CAMERA->request_shake({}).value();
+    original->route(1);
+    manager.on_update(0);
+    require(TestScene::current == original && state.center_on_exit == center
+        && ELYSIA_CAMERA->camera()->center() == center && ELYSIA_CAMERA->camera()->zoom() == 1.75f,
+        "same-instance Reuse clears shake without relying on on_enter/on_exit to reset the camera");
+    manager.on_update(.01);
+    require(ELYSIA_CAMERA->camera()->center() == center, "old pending shake cannot restart after Reuse");
+    ELYSIA_CAMERA->request_shake({}).value();
+    manager.on_update(.01);
+    require(ELYSIA_CAMERA->camera()->center() != center, "new activation accepts fresh shake requests");
+}
+
+void stale_cleanup_preserves_new_scene_shake_and_destructor_cleans_current_scene()
+{
+    CameraManager::instance()->reset_all();
+    State old_state, current_state;
+    auto old = std::make_unique<TestScene>(old_state);
+    Access::attach(*old);
+    Access::enter(*old);
+    Access::detach(*old);
+    Access::exit(*old);
+    auto current = std::make_unique<TestScene>(current_state);
+    Access::attach(*current);
+    Access::enter(*current);
+    ELYSIA_CAMERA->request_shake({}).value();
+    ELYSIA_CAMERA->request_shake(CameraSlot::Cinematic, {}).value();
+    (void)Access::camera_runtime(*current).advance(.01);
+    const auto main = ELYSIA_CAMERA->camera(CameraSlot::Main)->center();
+    const auto cinematic = ELYSIA_CAMERA->camera(CameraSlot::Cinematic)->center();
+    require(main != Vector2{} && cinematic != Vector2{}, "new scene must already be shaking both shared slots");
+    Access::camera_runtime(*old).cancel_activity();
+    Access::camera_runtime(*old).cancel_activity();
+    Access::detach(*old);
+    old.reset();
+    require(ELYSIA_CAMERA->camera(CameraSlot::Main)->center() == main
+        && ELYSIA_CAMERA->camera(CameraSlot::Cinematic)->center() == cinematic,
+        "old runtime cancellation, repeated detach and destruction cannot clear the new scene's effects");
+    current.reset();
+    require(!ELYSIA_CAMERA->is_available() && CameraManager::instance()->camera(CameraSlot::Main).center() == Vector2{}
+        && CameraManager::instance()->camera(CameraSlot::Cinematic).center() == Vector2{},
+        "Scene destructor fallback synchronously clears the currently bound runtime's active effects");
+}
+
+void failure_cleanup_removes_active_shake()
+{
+    CameraManager::instance()->reset_all();
+    {
+        State state;
+        state.fail_attach = true;
+        state.shake_on_attach_failure = true;
+        TestScene scene(state);
+        bool caught = false;
+        try { Access::attach(scene); }
+        catch (const std::runtime_error& error) { caught = std::string_view(error.what()) == "attach failure"; }
+        require(caught && state.shake_started && state.saw_detach && state.center_on_detach == Vector2{}
+            && !ELYSIA_CAMERA->is_available() && state.motion->status() == Status::SceneEnded,
+            "attach rollback clears an already-started shake before the cleanup hook and preserves the original exception");
+    }
+    for (const bool fail_exit : {false, true})
+    {
+        State failing, recovery;
+        failing.fail_exit = fail_exit;
+        failing.fail_detach = !fail_exit;
+        io::ContentRegistry registry;
+        scene::SceneRuntimeContext context(nullptr, registry, 100, 100);
+        scene::SceneManager manager;
+        manager.initialize(context, [](const scene::SceneBoundaryFailure&) { return scene::SceneRoute{.target = 2}; });
+        manager.register_game_scene<TestScene>(1, std::ref(failing));
+        manager.register_game_scene<TestScene>(2, std::ref(recovery));
+        manager.start({.target = 1});
+        ELYSIA_CAMERA->request_shake({}).value();
+        manager.on_update(.01);
+        require(ELYSIA_CAMERA->camera()->center() != Vector2{}, "failing source must already be shaking");
+        TestScene::current->route(2);
+        manager.on_update(0);
+        require(manager.current_scene_key() == 2 && failing.saw_detach && failing.saw_exit
+            && failing.center_on_detach == Vector2{} && failing.center_on_exit == Vector2{},
+            "detach/exit exceptions cannot leave shake offsets visible to cleanup hooks");
+    }
+}
+
 void managed_transitions_and_failure_recovery()
 {
     State source, target, recovery;
@@ -425,5 +600,9 @@ int main()
     motion_results_and_legacy_interop();
     blend_results();
     pause_exit_and_destruction();
+    detach_removes_active_shake_without_resetting_configuration();
+    reuse_drops_active_and_pending_shakes();
+    stale_cleanup_preserves_new_scene_shake_and_destructor_cleans_current_scene();
+    failure_cleanup_removes_active_shake();
     managed_transitions_and_failure_recovery();
 }

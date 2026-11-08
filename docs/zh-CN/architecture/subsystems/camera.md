@@ -44,7 +44,11 @@ SceneCameraRuntime（可选的场景能力）
 
 类型明确的操作结果只共享状态、到达历史和代次。Runtime 每槽最多保留一个存活运动结果，以及一个混合结果；完成或取消后的状态仅由外部持有者保留。状态先于现有 Scene 完成钩子更新；旧 Runtime 入口替换或取消活动时同样更新结果。暂停 Hold 保留到达历史，恢复后仍为 Holding。无须切换的混合返回已完成结果。
 
-瞬时请求进入 Runtime 本地 FIFO，在相机推进前转交 Manager。暂停延后消费；取消活动、重置和解绑丢弃未消费请求，避免震屏遗留到后一次场景激活。直接操作 Manager 仍属于绕过 Service 生命周期和权限检查的底层入口。
+瞬时请求进入 Runtime 本地 FIFO，在相机推进前转交 Manager。暂停延后消费；普通 `cancel_activity()` 取消运动和混合并丢弃 Runtime 队列，`clear_effects(slot)` 等待下一次允许的推进。直接操作 Manager 仍属于绕过 Service 生命周期和权限检查的底层入口。
+
+Service 挂载在发布绑定前确保 Manager 已初始化。解绑先验证 Runtime 身份、取消服务绑定并使旧操作失效，再结束原有活动，并仅对当前 Runtime 的 owned 槽执行同步瞬时效果清理：删除 Manager 对应槽的所有待执行请求，调用 Controller::clear_effects() 去掉已生效震屏并恢复逻辑中心。该路径不分配内存、不等待更新、不重置视口或跟随等配置，暂停和同场景 Reuse 同样适用。Runtime 析构及普通取消只保留按句柄清理，旧 Runtime 后续析构、重复取消不会擦除新场景同槽效果。
+
+镜头控制权由游戏代码约定：普通对象请求效果，统一相机控制器配置姿态、跟随和切镜；覆盖仍通过 Superseded 反馈，不提供租约或优先级仲裁。ResolveEachFrame 的焦点以 Scene 每帧解析为准，手动焦点使用 Manual。延迟任务在解绑时取消，不能取消的回调检查业务对象存活和激活代次后在主线程执行；is_available() 不代表请求仍属于原场景。旧操作句柄失效不会自动阻止旧回调重新向当前场景提交新请求。
 
 [相机使用指南](../../user-guide/systems/camera.md) 提供错误处理、默认震屏目标和查询式编排示例。展示中独立的 CameraCinematicController 保存阶段、操作结果和停留计时；Scene 在相机推进后驱动它，并协调角色控制。
 

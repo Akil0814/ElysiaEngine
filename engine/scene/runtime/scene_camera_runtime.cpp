@@ -57,6 +57,13 @@ void SceneCameraRuntime::end_service_activity() noexcept
     cancel_activity();
 }
 
+void SceneCameraRuntime::clear_owned_transient_effects() noexcept
+{
+    // Only the service's currently bound runtime may perform slot-wide cleanup.
+    // cancel_activity() and destruction remain safe for stale runtime instances.
+    elysia::camera::CameraManager::instance()->clear_transient_effects(_config.owned_slots);
+}
+
 const elysia::camera::Camera& SceneCameraRuntime::presented_camera() const noexcept
 {
     if (_blend)
