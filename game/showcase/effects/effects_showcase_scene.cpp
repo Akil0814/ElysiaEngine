@@ -6,6 +6,7 @@
 #include "engine/builtin/object/engine_character.h"
 #include "engine/core/render/colors.h"
 #include "engine/effects/effect_service.h"
+#include "engine/tools/logger.h"
 #include "engine/input/raw_input_types.h"
 #include "engine/ui/widgets/image/ui_animation.h"
 #include "engine/ui/window/ui_window.h"
@@ -284,7 +285,13 @@ void EffectsShowcaseScene::trigger_screen_action(ScreenAction action)
         request.playback.fade_in_seconds = 0.3;
         request.playback.hold_seconds = 1;
         request.playback.fade_out_seconds = 0.5;
-        _screen_effect = service->request_screen_image_effect(request);
+        if (auto result = service->request_screen_image_effect(request); result)
+            _screen_effect = *result;
+        else
+        {
+            _screen_effect.reset();
+            ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
+        }
         _screen_action_key = action == ScreenAction::Stretch ? "showcase.effects.screen.stretch" : action == ScreenAction::Cover ? "showcase.effects.screen.cover" : "showcase.effects.screen.contain";
         if (!_screen_effect) _screen_action_key = "showcase.effects.screen.image_unavailable";
     }
@@ -308,7 +315,13 @@ void EffectsShowcaseScene::trigger_screen_action(ScreenAction action)
             request.playback.end = action == ScreenAction::HoldBlack ? ScreenEffectEnd::Manual : ScreenEffectEnd::Timed;
             _screen_action_key = action == ScreenAction::HoldBlack ? "showcase.effects.screen.hold_black" : "showcase.effects.screen.fade_black";
         }
-        _screen_effect = service->request_screen_color_effect(request);
+        if (auto result = service->request_screen_color_effect(request); result)
+            _screen_effect = *result;
+        else
+        {
+            _screen_effect.reset();
+            ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
+        }
         if (!_screen_effect) _screen_action_key = "showcase.effects.screen.failed";
     }
     refresh_screen_status();
@@ -355,14 +368,26 @@ void EffectsShowcaseScene::trigger_animation_action(AnimationAction action)
             image.texture_key = "demo.screen_effect"; image.fit = r.fit; image.placement = r.placement;
             image.playback.layer = _screen_layer; image.playback.hold_seconds = 1.5;
             image.playback.fade_out_seconds = 0.4;
-            _screen_effect = ELYSIA_EFFECTS->request_screen_image_effect(image);
+            if (auto result = ELYSIA_EFFECTS->request_screen_image_effect(image); result)
+                _screen_effect = *result;
+            else
+            {
+                _screen_effect.reset();
+                ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
+            }
             _screen_action_key = "showcase.effects.screen.layout_image";
         }
         else
         {
             r.effect_key = "effect.test"; r.playback.layer = _screen_layer;
             r.playback.fade_in_seconds = 0.2; r.playback.fade_out_seconds = 0.4; r.playback.hold_seconds = 1.5;
-            _screen_effect = ELYSIA_EFFECTS->request_screen_animation_effect(r);
+            if (auto result = ELYSIA_EFFECTS->request_screen_animation_effect(r); result)
+                _screen_effect = *result;
+            else
+            {
+                _screen_effect.reset();
+                ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
+            }
             _screen_action_key = "showcase.effects.screen.animation_play";
             if (_screen_effect)
             {
@@ -371,7 +396,8 @@ void EffectsShowcaseScene::trigger_animation_action(AnimationAction action)
                 world.position = _character ? _character->world_rect().center() : elysia::core::Vector2{0, 0};
                 // The shared sample loops; retire this comparison after one demonstration.
                 world.scheduled_callbacks.push_back({3.0, [](AnimationEffect& effect) { effect.destroy(); }});
-                (void)ELYSIA_EFFECTS->request_animation_effect(world);
+                if (auto result = ELYSIA_EFFECTS->request_animation_effect(world); !result)
+                    ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
             }
         }
         if (!_screen_effect) _screen_action_key = "showcase.effects.screen.failed";
@@ -513,7 +539,9 @@ void EffectsShowcaseScene::spawn_floating_number_effect(
         break;
     }
 
-    (void)ELYSIA_EFFECTS->request_floating_number_effect(request);
+    if (auto result = ELYSIA_EFFECTS->request_floating_number_effect(request); !result)
+
+        ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
 }
 
 void EffectsShowcaseScene::enable_character_debug_draw()

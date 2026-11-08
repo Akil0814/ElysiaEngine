@@ -11,6 +11,7 @@
 #include "engine/scene/scene.h"
 #include "engine/scene/scene_manager.h"
 #include "tests/support/test_assertions.h"
+#include "effect_request_assertions.h"
 
 #include <SDL3/SDL.h>
 
@@ -23,6 +24,7 @@
 namespace
 {
 using elysia::tests::require;
+using elysia::tests::require_effect_failure;
 
 class TestScene final : public elysia::scene::Scene
 {
@@ -129,8 +131,10 @@ void test_animation_effect_creation_playback_and_scene_lifecycle(AnimationEffect
     const effects::AnimationEffectDefinition* definition =
         effects::EffectManager::instance()->find_animation_effect_definition(request.effect_key);
     require(definition != nullptr,"animation effect definition must be available to the factory");
+    auto effect_result = effect_factory.create(request,*definition);
+    require(effect_result, "factory request must succeed");
     std::unique_ptr<effects::AnimationEffect> effect =
-        effect_factory.create(request,*definition);
+        std::move(*effect_result);
     require(effect != nullptr, "animation effect must be created");
     require(effect->size() == core::Vector2(20.0f, 10.0f), "definition default size must apply");
     require(effect->position() == core::Vector2(90.0f, 45.0f), "center anchor must resolve from final size");
@@ -152,10 +156,20 @@ void test_animation_effect_creation_playback_and_scene_lifecycle(AnimationEffect
     natural_request.effect_key = natural_effect_request.effect_key;
     definition = effects::EffectManager::instance()->find_animation_effect_definition(natural_request.effect_key);
     require(definition != nullptr,"natural-size effect definition must be available to the factory");
+    auto natural_effect_result = effect_factory.create(natural_request,*definition);
+    require(natural_effect_result, "factory request must succeed");
     std::unique_ptr<effects::AnimationEffect> natural_effect =
-        effect_factory.create(natural_request,*definition);
+        std::move(*natural_effect_result);
     require(natural_effect && natural_effect->size() == core::Vector2(20.0f, 10.0f),
         "first-frame dimensions must be the default-size fallback");
+
+    auto negative_delay_request = request;
+    negative_delay_request.start_delay_seconds = -1;
+    auto clamped_effect = effect_factory.create(negative_delay_request,
+        *effects::EffectManager::instance()->find_animation_effect_definition(request.effect_key));
+    require(clamped_effect, "negative animation delay remains accepted");
+    (*clamped_effect)->update(0);
+    require((*clamped_effect)->is_started(), "negative animation delay still clamps to zero");
 
     int started = 0;
     int finished = 0;
@@ -182,8 +196,10 @@ void test_animation_effect_creation_playback_and_scene_lifecycle(AnimationEffect
     loop_request.effect_key = "animation_effect_test.effect.loop";
     definition = effects::EffectManager::instance()->find_animation_effect_definition(loop_request.effect_key);
     require(definition != nullptr,"loop effect definition must be available to the factory");
+    auto loop_effect_result = effect_factory.create(loop_request,*definition);
+    require(loop_effect_result, "factory request must succeed");
     std::unique_ptr<effects::AnimationEffect> loop_effect =
-        effect_factory.create(loop_request,*definition);
+        std::move(*loop_effect_result);
     require(loop_effect != nullptr, "looping animation effect must be created");
     int loop_finished = 0;
     loop_effect->set_on_finished([&loop_finished](effects::AnimationEffect&) { ++loop_finished; });

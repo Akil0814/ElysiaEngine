@@ -6,6 +6,8 @@ This document explains how configurations generate animation, atlas, and `effect
 
 Runtime `EffectService` also supports solid/image screen `effects`. Images query loaded texture keys without new definitions. Independent `EffectManager` runtime uses logical viewport coordinates before/after UI. Instances belong to the current scene and clear on unbinding, never persisting across scenes. Content cleanup releases `effects` before borrowed textures.
 
+The five runtime effect requests return `std::expected` with a success value or `EffectRequestFailure`. Screen effects return handles; world-animation and floating-number success values are void. Request failures are separate from loading-time `EffectRegistrationFailure`. See the [animation and effects guide](../../user-guide/systems/animation-and-effects.md) for result handling.
+
 Missing-dependency queries and stage termination are distinct events: find_atlas/find_definition Warn records the dependency; later `Animation`/EffectDefinition Error records failed registration. Do not merge/delete these as duplicate logs.
 
 ## Core Animation

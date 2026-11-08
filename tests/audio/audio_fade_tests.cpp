@@ -28,14 +28,14 @@ struct MusicFixture
     int loops = 0;
     std::vector<std::string> starts;
     MusicPlaybackController::Backend backend{
-        [this](std::string_view key,int count,double initial)
+        [this](std::string_view key,int count,double initial)->AudioResult<void>
         {
-            if (fail) return false;
-            playing = true; gain = initial; loops = count; starts.emplace_back(key); return true;
+            if (fail) return std::unexpected(audio_failure(AudioError::BackendFailure,"Injected music start failure"));
+            playing = true; gain = initial; loops = count; starts.emplace_back(key); return {};
         },
-        [this] { playing = false; },
+        [this]()->AudioResult<void> { playing = false; return {}; },
         [this] { return playing; },
-        [this](double value) { gain = value; }
+        [this](double value)->AudioResult<void> { gain = value; return {}; }
     };
 };
 
@@ -68,9 +68,9 @@ void test_music()
     f.controller.update(0.5,f.backend); near(f.gain,1);
     require(f.starts.size() == 2 && f.loops == 2,"same track preserves position and loops");
     require(f.controller.transition("d",{.fade_out=1s},f.backend),"queue target before stop");
-    f.controller.stop(2s,f.backend);
+    require(f.controller.stop(2s,f.backend),"music stop accepted");
     f.controller.update(0.5,f.backend);
-    f.controller.stop(2s,f.backend);
+    require(f.controller.stop(2s,f.backend),"repeated music stop accepted");
     f.controller.update(0.5,f.backend);
     require(!f.playing && f.starts.size() == 2,"stop clears target and repeated stop preserves fade deadline");
 
@@ -95,7 +95,7 @@ void test_music()
     require(f.controller.play("j",-1,-1ms,f.backend),"negative fade starts immediately"); near(f.gain,1);
     require(f.controller.transition("k",{},f.backend),"zero duration switches immediately");
     require(f.starts.back() == "k","zero transition target starts synchronously");
-    f.controller.stop(0ms,f.backend); require(!f.playing,"zero stop is immediate");
+    require(f.controller.stop(0ms,f.backend),"immediate music stop accepted"); require(!f.playing,"zero stop is immediate");
 }
 
 void test_sounds()
@@ -106,8 +106,8 @@ void test_sounds()
     // Reuse channel zero after every stop, to catch stale instance volume writes.
     auto start = [&](std::string_view,int,SoundGroup,double gain) { ++starts; channels[0]=gain; return 0; };
     auto playing = [&](int channel) { return channels.contains(channel); };
-    auto stop = [&](int channel) { channels.erase(channel); };
-    auto volume = [&](int channel,SoundGroup,double gain) { require(channels.contains(channel),"only live channels receive volume"); channels[channel]=gain; };
+    auto stop = [&](int channel)->AudioResult<void> { channels.erase(channel); return {}; };
+    auto volume = [&](int channel,SoundGroup,double gain) { require(channels.contains(channel),"only live channels receive volume"); channels[channel]=gain; return AudioResult<void>{}; };
     auto update = [&](double dt) { scheduler.update(dt,start,playing,stop,volume); };
     require(scheduler.set_group_config(SoundGroup::Ambient,{.max_simultaneous=1}),"set one slot");
     SoundPlayOptions options{.loops=-1,.group=SoundGroup::Ambient,.start_delay=1s,.fade_in=1s};
@@ -116,36 +116,36 @@ void test_sounds()
     require(starts == 0,"invalid dt does not advance delay");
     update(10); near(channels[0],0);
     update(0.5); near(channels[0],0.5);
-    require(scheduler.stop_sound(*pending.handle,playing,stop,1s),"fade out during fade in");
+    require(scheduler.stop_sound(pending->handle,playing,stop,1s),"fade out during fade in");
     update(0.5); near(channels[0],0.25);
     options.start_delay=0ms;
-    require(scheduler.request_sound("b",options,start,playing,stop).status == SoundRequestStatus::Rejected,"fading sound retains capacity");
-    require(scheduler.stop_sound(*pending.handle,playing,stop,5s),"repeat stop accepted");
+    require(!scheduler.request_sound("b",options,start,playing,stop),"fading sound retains capacity");
+    require(scheduler.stop_sound(pending->handle,playing,stop,5s),"repeat stop accepted");
     update(0.5); require(channels.empty(),"repeat stop does not extend fade");
-    require(!scheduler.stop_sound(*pending.handle,playing,stop),"finished handle invalid");
+    require(!scheduler.stop_sound(pending->handle,playing,stop),"finished handle invalid");
     auto next = scheduler.request_sound("b",options,start,playing,stop);
     near(channels[0],0); update(1); near(channels[0],1);
-    require(scheduler.stop_sound(*next.handle,playing,stop,1s),"fade before replacement");
+    require(scheduler.stop_sound(next->handle,playing,stop,1s),"fade before replacement");
     require(scheduler.set_group_config(SoundGroup::Ambient,{.max_simultaneous=1,.overflow_policy=SoundOverflowPolicy::ReplaceOldest}),"replace config");
     auto replacement = scheduler.request_sound("c",options,start,playing,stop);
-    require(replacement.handle && !scheduler.stop_sound(*next.handle,playing,stop),"replaced handle invalid");
+    require(replacement->handle && !scheduler.stop_sound(next->handle,playing,stop),"replaced handle invalid");
     update(0.5); near(channels[0],0.5);
-    require(scheduler.stop_sound(*replacement.handle,playing,stop,0ms) && channels.empty(),"immediate stop overrides fade");
+    require(scheduler.stop_sound(replacement->handle,playing,stop,0ms) && channels.empty(),"immediate stop overrides fade");
     options.start_delay=1s;
     auto cancelled = scheduler.request_sound("cancel",options,start,playing,stop);
-    require(scheduler.stop_sound(*cancelled.handle,playing,stop,1s),"pending cancels immediately");
+    require(scheduler.stop_sound(cancelled->handle,playing,stop,1s),"pending cancels immediately");
     auto before = starts; update(2); require(starts == before,"cancelled sound never starts");
     options.start_delay=0ms; options.fade_in=-1ms;
     auto natural = scheduler.request_sound("natural",options,start,playing,stop);
     near(channels[0],1); channels.clear(); update(1);
-    require(!scheduler.stop_sound(*natural.handle,playing,stop),"natural end prunes handle");
+    require(!scheduler.stop_sound(natural->handle,playing,stop),"natural end prunes handle");
     auto active = scheduler.request_sound("active",options,start,playing,stop);
     options.start_delay=2s;
     auto delayed = scheduler.request_sound("delayed",options,start,playing,stop);
-    scheduler.stop_all_sounds(playing,stop,1s); update(1);
+    require(scheduler.stop_all_sounds(playing,stop,1s),"all-sound fade accepted"); update(1);
     require(channels.empty(),"stop all fades active sound");
     update(1); require(channels.contains(0),"stop all retains delayed requests");
-    require(scheduler.stop_sound(*delayed.handle,playing,stop),"delayed retains handle after start");
+    require(scheduler.stop_sound(delayed->handle,playing,stop),"delayed retains handle after start");
 }
 
 void test_service()
@@ -160,22 +160,34 @@ void test_service()
     require(resources->load_music(elysia::resources::MusicLoadRequest{"b",root / "assets/engine/audio/Elysian_Realm.ogg",{}}).has_value(),"load music b");
     auto* audio = AudioService::instance();
     require(audio->initialize({}),"service initializes");
-    const auto sound = audio->request_sound("sound",{.loops=-1,.group=SoundGroup::Ambient,.fade_in=1s});
-    require(sound.handle && elysia::tests::sound_gain(0) == 0.0f,"SDL channel begins silent");
+    const auto sound = audio->request_sound("sound",{.loops=-1,.group=SoundGroup::Ambient,.fade_in=1s,.scope=SoundScope::Global});
+    require(sound->handle && elysia::tests::sound_gain(0) == 0.0f,"SDL channel begins silent");
     audio->update(0.5); require(elysia::tests::sound_gain(0) == 0.5f,"SDL fade midpoint");
     audio->set_master_volume(50); require(elysia::tests::sound_gain(0) == 0.25f,"master composes with gain");
     audio->set_sound_volume(50); require(elysia::tests::sound_gain(0) == 0.125f,"sound composes with gain");
-    audio->set_sound_group_volume(SoundGroup::Ambient,50); require(elysia::tests::sound_gain(0) == 0.0625f,"group composes with gain");
+    require(audio->set_sound_group_volume(SoundGroup::Ambient,50),"group volume applies"); require(elysia::tests::sound_gain(0) == 0.0625f,"group composes with gain");
     require(audio->play_music("a",-1,1s),"service music starts");
     require(elysia::tests::music_gain() == 0.0f,"music begins silent");
     audio->update(0.5); require(elysia::tests::music_gain() == 0.25f,"music master times gain");
     audio->set_music_volume(50); require(elysia::tests::music_gain() == 0.125f,"music setting composes with gain");
     require(audio->transition_music("b",{.fade_out=1s,.fade_in=1s}),"service transition accepted");
+    auto& backend=detail::mixer_backend();
+    auto* previous_track=backend.music;
+    const auto previous_position=MIX_GetTrackPlaybackPosition(previous_track);
+    auto* saved_mixer=backend.mixer;
+    backend.mixer=nullptr; // Inject an actual SDL track-creation failure without touching the live mixer.
+    auto failed_replacement=audio->play_music("b",-1);
+    backend.mixer=saved_mixer;
+    require(!failed_replacement&&failed_replacement.error().code==AudioError::BackendFailure,
+        "SDL music preparation failure retains its specific error");
+    require(backend.music==previous_track&&MIX_TrackPlaying(previous_track)&&
+        MIX_GetTrackPlaybackPosition(previous_track)>=previous_position&&MIX_GetTrackGain(previous_track)==.125f,
+        "failed native music replacement preserves previous track, position and gain");
     require(!audio->transition_music("missing"),"invalid transition rejected");
     require(!audio->play_music("missing"),"invalid immediate play rejected");
     audio->update(1); require(elysia::tests::music_playing() && elysia::tests::music_gain() == 0.0f,"valid pending target survives invalid requests");
     audio->update(0.5); require(elysia::tests::music_gain() == 0.125f,"target fade begins at actual start");
-    audio->stop_music(1s); audio->stop_all_sounds(1s);
+    require(audio->stop_music(1s),"music fade-out accepted"); require(audio->stop_all_sounds(1s),"sound fade-out accepted");
     audio->update(0.5); require(elysia::tests::music_playing() && elysia::tests::sound_playing(0),"fading SDL voices remain live");
     audio->update(0.5); require(!elysia::tests::music_playing() && !elysia::tests::sound_playing(0),"SDL voices halt at fade completion");
     require(audio->settings().master_volume == 50 && audio->settings().music_volume == 50,"fades preserve user settings");
@@ -185,7 +197,7 @@ void test_service()
     require(audio->initialize({}),"reinitialize"); audio->update(10);
     require(!elysia::tests::music_playing(),"shutdown cleared pending music");
     require(audio->play_music("a",-1),"music restarts before resource unload");
-    require(audio->play_sound("sound",-1),"sound restarts before resource unload");
+    require(audio->request_sound("sound",{.loops=-1,.scope=SoundScope::Global}),"sound restarts before resource unload");
     resources->clear();
     auto& mixer=elysia::audio::detail::mixer_backend();
     require(MIX_GetTrackAudio(mixer.music)==nullptr && !MIX_TrackPlaying(mixer.music),"resource unload detaches and stops music");

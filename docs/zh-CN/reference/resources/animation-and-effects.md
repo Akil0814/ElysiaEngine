@@ -6,6 +6,8 @@
 
 运行时 `EffectService` 还支持纯色和静态图片屏幕特效；图片通过已加载的 texture 资源键查询，不新增 EffectDefinition 配置。屏幕特效由 `EffectManager` 内的独立运行时管理，使用逻辑视口坐标，在 UI 前或 UI 后绘制。所有实例属于当前场景，场景解绑时清理，不跨场景保留；内容清理先释放特效，再释放其借用的纹理。
 
+运行时五个特效请求使用 `std::expected` 返回成功结果或 `EffectRequestFailure`。屏幕特效的成功值是句柄，世界动画与浮动数字的成功值为 void；请求错误与加载时的 `EffectRegistrationFailure` 分开。请求结果的处理方式见[动画与特效指南](../../user-guide/systems/animation-and-effects.md)。
+
 依赖查询与阶段终止是两个独立事件：`find_atlas()` / `find_definition()` 查询失败时的 Warn 记录缺失依赖；随后 `Animation` 或 EffectDefinition 注册终止时的 Error 记录加载阶段失败。两条日志不得合并或按重复日志删除。
 
 ## 核心动画

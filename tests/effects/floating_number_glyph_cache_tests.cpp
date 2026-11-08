@@ -6,6 +6,7 @@
 #include "engine/resources/resource_service.h"
 #include "engine/resources/runtime/resource_manager.h"
 #include "tests/support/test_assertions.h"
+#include "effect_request_assertions.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -15,6 +16,7 @@
 namespace
 {
 using elysia::tests::require;
+using elysia::tests::require_effect_failure;
 
 struct GlyphCacheFixture
 {
@@ -62,11 +64,29 @@ void test_cache_domains_and_lifetime(GlyphCacheFixture& fixture)
 {
     using namespace elysia::effects;
     FloatingNumberGlyphCache cache;
+    require_effect_failure(cache.glyph(FloatingNumberColor::White, '8'), EffectRequestError::RuntimeUnavailable);
     require(!cache.configure(nullptr,fixture.font,1),"cache must reject a missing renderer");
     require(!cache.configure(fixture.renderer,nullptr,1),"cache must reject a missing font");
     require(cache.configure(fixture.renderer,fixture.font,1),"cache must accept complete dependencies");
     require(!FloatingNumberGlyphCache::supports('A'),"letters must not be accepted as number glyphs");
     require(!cache.glyph(FloatingNumberColor::White,'A').has_value(),"unsupported glyph lookup must fail safely");
+    require_effect_failure(cache.glyph(FloatingNumberColor::White, 'A'), EffectRequestError::InvalidRequest);
+    require_effect_failure(cache.glyph(FloatingNumberColor::Count, '8'), EffectRequestError::InvalidRequest);
+
+    // Force a real SDL texture creation failure without invalidating borrowed objects.
+    const auto properties = SDL_GetRendererProperties(fixture.renderer);
+    const auto max_size = SDL_GetNumberProperty(properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 0);
+    require(SDL_SetNumberProperty(properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 1),
+        "temporarily constrain renderer texture dimensions");
+    const auto failed_glyph = cache.glyph(FloatingNumberColor::White, '9');
+    require(SDL_SetNumberProperty(properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, max_size),
+        "restore renderer texture dimensions");
+    require_effect_failure(failed_glyph, EffectRequestError::CreationFailed);
+    SDL_SetError("later SDL operation replaced the error");
+    require(failed_glyph.error().diagnostic.message.find("SDL_CreateTextureFromSurface") != std::string::npos
+        && failed_glyph.error().diagnostic.message.find("limited to 1x1") != std::string::npos,
+        "glyph failure retains SDL details captured before surface cleanup and later operations");
+    require(cache.glyph(FloatingNumberColor::White, '9'), "failed creation must not poison a cache entry");
 
     const auto first = cache.glyph(FloatingNumberColor::White,'8');
     const auto reused = cache.glyph(FloatingNumberColor::White,'8');

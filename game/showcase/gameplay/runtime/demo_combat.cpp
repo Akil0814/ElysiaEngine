@@ -2,6 +2,7 @@
 
 #include "game/showcase/gameplay/runtime/block_actor.h"
 #include "engine/effects/effect_service.h"
+#include "engine/tools/logger.h"
 #include "engine/effects/effect_types.h"
 
 #include <algorithm>
@@ -170,7 +171,8 @@ void DemoCombatSession::flush_effects()
     auto effects = std::move(_pending_effects);
     _pending_effects.clear();
     for (const auto& effect : effects)
-        (void)ELYSIA_EFFECTS->request_floating_number_effect(effect);
+        if (auto result = ELYSIA_EFFECTS->request_floating_number_effect(effect); !result)
+            ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
 }
 
 void DemoCombatSession::on_hit_overlap(

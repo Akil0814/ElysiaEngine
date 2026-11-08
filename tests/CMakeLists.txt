@@ -33,6 +33,13 @@ add_elysia_test(sound_instance_control_tests
     SOURCES audio/sound_instance_control_tests.cpp
     SDL
 )
+add_elysia_test(audio_failure_contract_tests
+    LABEL audio
+    SOURCES audio/audio_failure_contract_tests.cpp
+    SDL
+)
+target_compile_definitions(audio_failure_contract_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+set_tests_properties(audio_failure_contract_tests PROPERTIES LABELS "audio;ui")
 target_compile_definitions(sound_instance_control_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_elysia_test(scene_audio_runtime_tests
     LABEL audio
@@ -40,6 +47,13 @@ add_elysia_test(scene_audio_runtime_tests
     SDL
 )
 target_compile_definitions(scene_audio_runtime_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+add_elysia_test(audio_service_scene_tests
+    LABEL audio
+    SOURCES audio/audio_service_scene_tests.cpp
+    SDL
+)
+target_compile_definitions(audio_service_scene_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 add_elysia_test(showcase_tests
     LABEL scene

@@ -14,6 +14,7 @@
 #include "engine/animation/animation_service.h"
 #include "engine/animation/runtime/animation_manager.h"
 #include "tests/support/test_assertions.h"
+#include "effect_request_assertions.h"
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -21,6 +22,7 @@
 using namespace elysia;
 using namespace elysia::effects;
 using elysia::tests::require;
+using elysia::tests::require_effect_failure;
 
 namespace
 {
@@ -326,12 +328,21 @@ void animation_tests(Fixture& fixture)
     r.fit = ScreenEffectFit::Contain; h = create();
     require(commands(runtime).front().screen_rect == core::Rect(10, 0, 60, 60), "animation contain uses first frame aspect"); runtime.clear();
     r.playback.end = ScreenEffectEnd::AnimationFinished; r.loop = true;
-    require(!create(), "loop and animation completion are incompatible");
+    require_effect_failure(create(), EffectRequestError::InvalidRequest);
     r.loop = false; r.placement.offset.x = std::numeric_limits<float>::quiet_NaN();
     require(!create(), "nonfinite placement rejected"); r.placement = {};
     require(!runtime.create(r, make(), definition, {8, 6}, std::numeric_limits<double>::infinity(), &scene), "nonfinite rotation rejected");
     require(!runtime.create(r, make(), definition, {8, 6}, 0, nullptr), "animation requires scene");
-    definition.fps = 0; require(!create(), "invalid animation FPS rejected"); definition.fps = 2;
+    definition.fps = 0;
+    require_effect_failure(create(), EffectRequestError::CreationFailed);
+    definition.fps = 2;
+    require_effect_failure(runtime.create(r, nullptr, definition, {8, 6}, 0, &scene), EffectRequestError::CreationFailed);
+    auto* saved_atlas = definition.atlas;
+    definition.atlas = nullptr;
+    require_effect_failure(create(), EffectRequestError::CreationFailed);
+    definition.atlas = saved_atlas;
+    require_effect_failure(runtime.create(r, make(), definition, {-1, 6}, 0, &scene), EffectRequestError::CreationFailed);
+    require(commands(runtime).empty(), "failed animation creation never inserts a playback slot");
     r.playback = {.end = ScreenEffectEnd::AnimationFinished, .hold_seconds = 0};
     h = runtime.create(r, make(), definition, {}, 0, &scene, 7);
     runtime.update(1, 1, false, 7); require(runtime.active(*h), "creation frame never advances animation");
@@ -405,7 +416,9 @@ public:
         {
             ScreenColorEffectRequest r;
             r.color = {0, 0, 0}; r.playback.hold_seconds = 0; r.playback.fade_out_seconds = 1;
-            entering = ELYSIA_EFFECTS->request_screen_color_effect(r);
+            auto result = ELYSIA_EFFECTS->request_screen_color_effect(r);
+            require(result, "scene screen effect request must succeed");
+            entering = *result;
         }
     }
     void on_exit() override {}
@@ -418,7 +431,9 @@ public:
             spawn_on_update = false;
             ScreenColorEffectRequest r;
             r.playback.fade_in_seconds = 1;
-            updating = ELYSIA_EFFECTS->request_screen_color_effect(r);
+            auto result = ELYSIA_EFFECTS->request_screen_color_effect(r);
+            require(result, "scene screen effect request must succeed");
+            updating = *result;
         }
     }
 };
@@ -427,7 +442,13 @@ void lifecycle_tests(Fixture& fixture)
 {
     auto* service = ELYSIA_EFFECTS;
     ScreenColorEffectRequest r;
-    require(!service->request_screen_color_effect(r), "service requires active scene");
+    r.playback.fade_in_seconds = -1;
+    require_effect_failure(service->request_screen_color_effect(r), EffectRequestError::NoActiveScene);
+    require_effect_failure(service->request_screen_image_effect({.texture_key = "missing"}), EffectRequestError::NoActiveScene);
+    require_effect_failure(service->request_screen_animation_effect({.effect_key = "missing"}), EffectRequestError::NoActiveScene);
+    require_effect_failure(service->request_animation_effect({.effect_key = "missing"}), EffectRequestError::NoActiveScene);
+    require_effect_failure(service->request_floating_number_effect({}), EffectRequestError::NoActiveScene);
+    r.playback = {};
     scene::SceneManager manager;
     io::ContentRegistry registry;
     scene::SceneRuntimeContext context(fixture.renderer, registry, 80, 60);
@@ -447,7 +468,38 @@ void lifecycle_tests(Fixture& fixture)
     require(EffectManager::instance()->register_animation_effect(er), "shared effect registration");
     ScreenAnimationEffectRequest sr; sr.effect_key = er.effect_key;
     sr.loop = true; sr.playback.end = ScreenEffectEnd::Manual;
-    require(!service->request_screen_animation_effect(ScreenAnimationEffectRequest{.effect_key = "missing"}), "missing effect key rejected");
+    require_effect_failure(service->request_screen_animation_effect({.effect_key = "missing"}),
+        EffectRequestError::MissingEffectDefinition);
+    require_effect_failure(service->request_screen_animation_effect({}), EffectRequestError::MissingEffectDefinition);
+    require_effect_failure(service->request_animation_effect({.effect_key = "missing"}), EffectRequestError::MissingEffectDefinition);
+    require_effect_failure(service->request_screen_image_effect({.texture_key = "missing"}), EffectRequestError::MissingTexture);
+    require_effect_failure(service->request_screen_image_effect({}), EffectRequestError::MissingTexture);
+    r.playback.fade_in_seconds = -1;
+    require_effect_failure(service->request_screen_color_effect(r), EffectRequestError::InvalidRequest);
+    r.playback = {};
+    ScreenImageEffectRequest invalid_image;
+    invalid_image.texture_key = "screen.test"; invalid_image.placement.scale.x = 0;
+    require_effect_failure(service->request_screen_image_effect(invalid_image), EffectRequestError::InvalidRequest);
+    auto invalid_animation = sr;
+    invalid_animation.playback.end = ScreenEffectEnd::AnimationFinished;
+    require_effect_failure(service->request_screen_animation_effect(invalid_animation), EffectRequestError::InvalidRequest);
+    require_effect_failure(service->request_floating_number_effect({}), EffectRequestError::InvalidRequest);
+    auto* animation_manager = animation::AnimationManager::instance();
+    animation_manager->clear();
+    const auto missing_animation = service->request_screen_animation_effect(sr);
+    require_effect_failure(missing_animation, EffectRequestError::MissingAnimation);
+    require(missing_animation.error().diagnostic.entries.front().subject_key == sr.effect_key,
+        "failure diagnostic identifies the requested effect key");
+    require_effect_failure(service->request_animation_effect({.effect_key = er.effect_key}), EffectRequestError::MissingAnimation);
+    require(animation_manager->register_animation(ar, &atlas), "restore animation after dependency failure");
+    require_effect_failure(service->request_floating_number_effect({.text = "1"}), EffectRequestError::RuntimeUnavailable);
+    std::vector<core::UiRenderCommand> rejected_commands;
+    EffectManager::instance()->append_screen_effect_commands(ScreenEffectLayer::AfterUi, {0, 0, 80, 60}, rejected_commands);
+    require(rejected_commands.empty(), "failed requests leave no screen effects");
+    std::size_t rejected_objects = 0;
+    static_cast<const object_query::IGameObjectQueryRuntime&>(*TestScene::current).visit_game_objects(
+        core::DepthLayerMask::all(), [&](core::GameObject&) { ++rejected_objects; return true; });
+    require(rejected_objects == 0, "failed requests leave no world objects");
     AnimationEffect* world = nullptr;
     AnimationEffectSpawnRequest wr; wr.effect_key = er.effect_key;
     wr.on_started = [&](AnimationEffect& effect) { world = &effect; };
@@ -543,7 +595,8 @@ void lifecycle_tests(Fixture& fixture)
     out.clear(); EffectManager::instance()->append_screen_effect_commands(ScreenEffectLayer::AfterUi, {0, 0, 80, 60}, out);
     require(out.front().color.a == 128, "default clock continues despite pause and global scaling");
     TestScene::current->resume();
-    h = TestScene::updating;
+    require(TestScene::updating.has_value(), "update stored the accepted screen handle");
+    h = *TestScene::updating;
     ScreenImageEffectRequest image;
     image.texture_key = "missing";
     require(!service->request_screen_image_effect(image), "missing resource rejected");

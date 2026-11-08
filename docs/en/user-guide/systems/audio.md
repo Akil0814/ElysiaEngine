@@ -1,191 +1,160 @@
 # Audio Playback
 
-This document covers resource queries/playback, handles, delayed requests, and volume. Resource existence, request acceptance, and actual playback are distinct states.
+Use `ELYSIA_AUDIO` to configure volume, request sounds, and control sources. Ordinary requests belong to the attached scene by default: exiting, resetting, or destroying that scene cleans up its sounds and reservations. Spatial sounds use the same entry point with a complete position and distance configuration.
 
-Use `ELYSIA_AUDIO` for loaded sounds/music. The application initializes, updates, and closes it; games should not repeat lifecycle calls. Declare Sound/Music in [resource manifests](../content/resources.md) and wait for loading success.
+The application initializes, updates, and shuts down audio. Declare sounds and music in the [resource manifest](../content/resources.md), wait for content loading, then request playback from scene entry, update, or input callbacks.
 
-## Playing and Managing a Sound
+## Requesting Sounds from a Scene
 
-Call this game function from input or game events. Configure its keys in the `audio` manifest and retain the returned handle in its skill/scene owner.
+Every `Scene` owns an audio runtime by default; no enable switch is needed. `scene_audio_available()` indicates an attached scene context; `is_initialized()` indicates device-service readiness. Normal SceneManager flow binds before the user attach callback and `on_enter`, and unbinds before detach and `on_exit`. Without a context, default requests return `NoActiveScene` rather than changing ownership.
 
-```cpp
-#include "engine/audio/audio_service.h"
-#include "engine/tools/logger.h"
-
-#include <optional>
-#include <chrono>
-
-std::optional<elysia::audio::SoundHandle> play_explosion()
-{
-    using namespace std::chrono_literals;
-    // Application scheduling advances pending sounds; handles do not imply audible playback.
-    const elysia::audio::SoundRequestResult result = ELYSIA_AUDIO->request_sound("skill.explosion", {
-        .group = elysia::audio::SoundGroup::Gameplay,
-        .start_delay = 300ms
-    });
-    if (result.status == elysia::audio::SoundRequestStatus::Rejected)
-    {
-        ELYSIA_LOG_WARN("audio", "Explosion sound rejected.");
-        return std::nullopt;
-    }
-    // Retain handles and explicitly cancel/stop on skill cancellation or scene exit.
-    return result.handle;
-}
-
-// Call before skill cancellation, scene exit, or owner destruction.
-void cancel_sound(std::optional<elysia::audio::SoundHandle>& handle)
-{
-    if (!handle)
-        return;
-    // false can also mean natural completion; no repeated stop is needed.
-    (void)ELYSIA_AUDIO->stop_sound(*handle);
-    handle.reset();
-}
-```
-
-The service does not automatically clean requests by scene/object. Handles extend neither resource nor object lifetime. Scheduled means accepted scheduling, not guaranteed future playback.
-
-## UI Sounds and Group Rules
-
-This fragment belongs in initialized game logic with `audio`/log headers. `audio` is borrowed from `elysia::audio::AudioService::instance()`; millisecond literals use `std::chrono_literals`. The project's manifest must supply the example keys.
-
-```cpp
-const elysia::audio::SoundRequestResult click = audio->request_sound("ui.button_click", {
-    .group = elysia::audio::SoundGroup::Ui
-});
-if (click.status == elysia::audio::SoundRequestStatus::Rejected)
-{
-    // Failed feedback sounds do not block UI; follow project logging policy.
-    ELYSIA_LOG_WARN("audio", "UI click sound rejected.");
-}
-```
-
-High-frequency skills can replace the group's oldest sound. Set rules before requesting playback; failed configuration retains old rules.
-
-```cpp
-elysia::audio::SoundGroupConfig gameplay_config{};
-gameplay_config.max_simultaneous = 8;
-gameplay_config.cooldown = 20ms;
-gameplay_config.overflow_policy = elysia::audio::SoundOverflowPolicy::ReplaceOldest;
-if (!audio->set_sound_group_config(elysia::audio::SoundGroup::Gameplay, gameplay_config))
-{
-    ELYSIA_LOG_WARN("audio", "Gameplay sound configuration rejected.");
-}
-```
-
-See [concurrency rules](../../reference/audio.md#concurrency-groups-cooldown-and-overflow) for hard limits, per-resource cooldown, and replacement boundaries. Do not bypass rejection with unlimited retries.
-
-## Ambient Volume and Music Switching
-
-Use group volume to lower ambience without affecting music/skills. This fragment uses `audio` from above:
-
-```cpp
-audio->set_sound_group_volume(elysia::audio::SoundGroup::Ambient, 45);
-```
-
-Group volume is runtime-only; persist preferences through [user configuration](../content/configuration.md). See [volume model](../../reference/audio.md#volume-model) for ranges/final gain.
-
-The following fades old music out before fading battle music in and starts looping rain. It belongs in host entry logic. `rain_handle` is an initially empty member `std::optional<elysia::audio::SoundHandle>`; clean the old handle before reentry.
-
-```cpp
-if (!audio->transition_music("bgm.battle", {
-        .fade_out = 800ms,
-        .fade_in = 500ms}))
-{
-    // Validation preserves state on failure; synchronous startup failure may have stopped old music.
-    ELYSIA_LOG_WARN("audio", "Battle music transition rejected.");
-}
-const elysia::audio::SoundRequestResult rain = audio->request_sound("ambient.rain", {
-    .loops = -1,
-    .group = elysia::audio::SoundGroup::Ambient,
-    .fade_in = 1000ms
-});
-rain_handle = rain.handle;
-if (rain.status == elysia::audio::SoundRequestStatus::Rejected)
-{
-    ELYSIA_LOG_WARN("audio", "Rain sound rejected.");
-}
-```
-
-On leaving this flow, run the following. After submitting fade-out, retaining the handle is unnecessary and clearing it prevents reuse on reentry.
-
-```cpp
-if (rain_handle)
-{
-    (void)audio->stop_sound(*rain_handle, 800ms);
-    rain_handle.reset();
-}
-```
-
-Successful switching means request acceptance only; future startup can still fail. See [music API](../../reference/audio.md#music-api). The current single music channel does not support simultaneous crossfading of two tracks.
-
-## Cleanup and Failure Diagnosis
-
-The application advances `audio` after scene updates. Delay, cooldown, and fades follow global time scale; scene pause does not pause global sound. Slow motion does not automatically change pitch/speed of started tracks.
-
-Check initialization and keys first, then distinguish rejection, accepted scheduling, and actual playback. Due requests can still drop for cooldown, concurrency, or backend failure. Playback return values are not completion notifications.
-
-Stop owned handles before scene exit, skill cancellation, or host destruction. Clearing all global sounds requires handling active playback and pending requests separately; see [stopping and cancellation](../../reference/audio.md#cancel_all_scheduled_sounds).
-
-## Controlling Instance Gain and Pause
-
-`SoundPlayOptions::gain` is a nonnegative instance multiplier independent of player volume, defaulting to 1. Retain the returned handle and use `set_sound_gain` to change it, or `set_sound_paused(handle, true/false)` to pause/resume. `sound_active` includes reservations, paused voices and fades; it does not establish that a sound is currently audible.
-
-Pausing freezes playback position and fade progress; an unstarted reservation freezes its remaining delay. Stopping a paused sound releases it immediately without requiring resume. The application still updates the global service; games must not advance it a second time.
-
-## Giving Sounds to a Scene
-
-Enable `SceneRuntimeFeatures::audio` for automatic pause and cleanup, then call `audio_runtime()` from the derived Scene. Use `request_sound` for ordinary owned sounds, `request_sound_at` for world-positioned sounds, and `create_loop` for persistent loops with distance-based sleeping and restart. The first two return normal playback results; loops return `LoopSoundId`.
-
-This complete class requires an already loaded `ambient.wind` sound in the manifest. Positions and distances use EU. The game updates the listener explicitly; it does not automatically follow a camera. These example distances are project choices, not engine defaults.
+This complete scene requires loaded `ambient.wind`, `skill.explosion`, and `ui.prompt` resources. The example distances are project choices in EU. The game explicitly updates the listener; it does not automatically follow the camera.
 
 ```cpp
 #include "engine/scene/scene.h"
+#include "engine/audio/audio_service.h"
+#include "engine/tools/logger.h"
+#include <optional>
+#include <chrono>
 
 class WindScene final : public elysia::scene::Scene
 {
 public:
-    WindScene() : Scene(elysia::scene::SceneRuntimeFeatures{
-        .audio = elysia::scene::SceneAudioConfig{}}) {}
-
     void move_listener(elysia::core::Vector2 position)
     {
-        (void)audio_runtime().set_listener_position(position);
+        check(ELYSIA_AUDIO->set_listener_position(position));
+    }
+
+    void explosion(elysia::core::Vector2 position)
+    {
+        auto result = ELYSIA_AUDIO->request_sound("skill.explosion", {
+            .group = elysia::audio::SoundGroup::Gameplay,
+            .gain = 0.8,
+            .spatial = elysia::audio::SpatialSoundConfig{
+                position, {50, 400, 480, 1.4}}
+        });
+        if (!result) report(result.error());
+    }
+
+    void ui_prompt()
+    {
+        auto result = ELYSIA_AUDIO->request_sound("ui.prompt", {
+            .group = elysia::audio::SoundGroup::Ui,
+            .pause_policy = elysia::audio::SoundPausePolicy::ContinueWhenPaused
+        });
+        if (!result) report(result.error());
     }
 
 protected:
     void on_enter(const elysia::scene::ScenePayload&) override
     {
-        (void)audio_runtime().set_listener_position({0, 0});
-        wind = audio_runtime().create_loop({
+        auto result = ELYSIA_AUDIO->create_loop({
             .key = "ambient.wind",
             .position = {100, 0},
             .distance = {50, 400, 480, 1.4},
             .gain = 0.5
         });
+        if (result) wind = *result;
+        else report(result.error());
     }
     void on_exit() override { wind.reset(); }
     void on_reset() override { wind.reset(); }
 
 private:
-    std::optional<elysia::scene::LoopSoundId> wind;
+    static void report(const elysia::audio::AudioFailure& failure)
+    {
+        ELYSIA_LOG_WARN("game.audio",
+            elysia::audio::audio_error_name(failure.code) << ": "
+            << failure.diagnostic.message);
+    }
+    static void check(const elysia::audio::AudioResult<void>& result)
+    {
+        if (!result) report(result.error());
+    }
+    std::optional<elysia::audio::LoopSoundId> wind;
 };
 ```
 
-The runtime refreshes distances after `on_after_update`. Positional one-shots continuously adjust gain and never restart after finishing. A loop pauses and preserves position beyond its audible cutoff of 400, then releases its channel beyond 480; returning to audible range starts playback from the beginning. `set_loop_enabled` and scene pause are tracked separately, so scene resume never enables a disabled source.
+A successful `request_sound` supplies `Started` or `Scheduled` and a nonzero handle. On failure, inspect `result.error().code` and `diagnostic`. Acceptance is not playback completion; a scheduled request can still fail when it becomes due.
 
-Sounds follow scene pause by default; UI feedback can pass `SceneSoundPausePolicy::ContinueWhenPaused` to `request_sound`. The runtime clears only its own sounds, leaving other scenes, global sounds and music alone. Exit, reset, failed entry and destruction clear ownership automatically; recreate sources in `on_enter` when reusing a scene.
+Omit `spatial` in `SoundPlayOptions` for an ordinary sound. When supplied, configure all distance fields: gain is 1 within the reference distance, then falls as `(reference_distance / distance)^exponent`, and is 0 beyond cutoff. Position and distances must be finite, reference distance positive, cutoff at least reference, release at least cutoff, and exponent positive.
 
-`loop_state` is a snapshot after the last update or source setter and never starts playback. `WaitingForVoice` means no channel has been acquired; acquisition retries at most once every 250 ms. `MissingResource` reports a missing asset, with one diagnostic per missing episode. The total remains 24 channels with at most 4 actual Ambient tracks by default; logical sources reserve no extra channels.
+Positional one-shots update gain as the listener moves, retire naturally, and never replay because distance changes. Persistent spatial ambience uses `create_loop`: beyond cutoff it pauses while preserving position; beyond release it frees the channel. Returning to audible range restarts playback from the beginning.
 
-## Integrating FlyMe2TheMoon
+## Controlling Sounds and Pause
 
-The project's initial gain, `set_sound_gain`, `set_sound_paused` and `sound_active` map directly to public service interfaces. Replace `World::set_listener` with the scene listener position, map `World::at` to `request_sound_at`, and replace owner-indexed loops with game-owned `LoopSoundId` values, updating their positions, gains and enabled states.
+Save `result->handle` to use `set_sound_gain`, `set_sound_paused`, and `stop_sound`. Instance gain accepts finite nonnegative values and multiplies master, sound, group, and fade gain. Global volume changes preserve instance gain; the service also preserves owned base gain and independent pause intent.
 
-Convert project distance models into `SoundDistanceConfig`. Character voices, crystal-chain rules, resource aliases and original parameters remain in the game. Remove duplicate manual pause/cleanup paths for migrated sounds; the project still chooses when to stop global music. This change does not modify FlyMe2TheMoon or expand engine channel budgets.
+Scene sounds follow scene pause by default. The UI example uses `SoundPausePolicy::ContinueWhenPaused`: it remains scene-owned but plays during pause. Instance and scene pause reasons combine; resuming a scene neither resumes a manually paused sound nor enables a disabled loop. Global sounds ignore scene pause policy.
+
+Pause freezes playback position, fades, and remaining reservation delay; paused tracks retain channels and group slots. Stopping a paused sound releases it immediately, even with a positive fade duration. `sound_active` includes reservations, pause, and fade-out, so it does not imply audibility. Completed, replaced, or cleaned-up handles are invalid; service restarts never reuse old handles.
+
+Loops have separate `LoopSoundId` handles. Modify them with `set_loop_position`, `set_loop_gain`, and `set_loop_enabled`; query snapshots with `loop_state` and destroy with `destroy_loop`. Successful creation means a logical source exists. `WaitingForVoice`, `MissingResource`, and `last_error` explain why it has no track. Acquiring a voice or no longer needing playback clears the error; an unchanged failure does not log every frame. Capacity retries occur at most once per 250 ms by default; `SceneRuntimeFeatures::audio` accepts `SceneAudioConfig` to increase that interval.
+
+## Global Sounds, Group Rules, and Music
+
+Set `scope = SoundScope::Global` for sounds that must survive scenes or play without a scene, and stop them explicitly. Built-in button, checkbox, radio-button, and slider feedback uses this ownership. `Global + spatial` returns `InvalidArgument` because the listener belongs to a scene. Ordinary UI prompts can also retain default scene ownership with a chosen pause policy.
+
+Configure groups and group volumes through the service and check `AudioResult<void>`; queries return value snapshots. There are still 24 sound channels: Ui 4, Gameplay 12, Ambient 4, Extra 4. See the [reference](../../reference/audio.md) for cooldown and overflow rules. Do not bypass ordinary-request capacity failures with frame-by-frame retries.
+
+Master, music, and sound volume setters retain a non-failing 0–100 clamping contract. Group volume also validates its group and submits to the backend. Group configuration is runtime-only; persist player preferences through [user configuration](../content/configuration.md).
+
+`play_music`, `transition_music`, and `stop_music` return `AudioResult<void>`. Music remains a global single-track facility: transitions fade out then fade in, without simultaneous crossfade. Synchronous validation or startup failure preserves controller state; a later startup failure ends the accepted transition and records a diagnostic.
+
+## Failure and Cleanup
+
+Callers handle or explicitly ignore synchronous failures; lower layers do not log them again. `AudioError` distinguishes initialization, scene context, parameters, resources, handles, cooldown, group capacity, total channels, and backend failures. See the [reference](../../reference/audio.md) for exact results and contracts. Due reservations log their key, handle, and error code on failure, then retire without unlimited retries or a full playback history.
+
+Distance and source state refresh at the end of scene update, after `on_after_update`. The application advances global scheduling after scenes. Time scaling affects delays, cooldown, and fades, without changing native playback speed or pitch. Game code must not update the service again.
+
+Exit, reuse/reset, entry failure, runtime detach, and destruction clean up owned tracks, reservations, and logical sources, including when user lifecycle callbacks throw. `clear_scene_sounds()` clears the current scene while preserving listener and pause state. Global sounds and music remain manually managed: `stop_all_sounds` handles active tracks, while `cancel_all_scheduled_sounds` separately cancels all reservations. Cleanup attempts every sound and aggregates diagnostics.
+
+## Migrating Old Interfaces and FlyMe2TheMoon
+
+This is a breaking update without deprecated wrappers. Review old `request_sound` calls in particular: previously manual global requests now default to the current scene.
+
+| Previous usage | Replacement |
+| --- | --- |
+| `play_sound(key, loops)` | `request_sound(key, {.loops = loops})`, inspect expected |
+| Old global `request_sound` behavior | Explicit `.scope = SoundScope::Global` |
+| `request_scene_sound` | Default `request_sound` |
+| `request_sound_at` / `World::at` | `.spatial = SpatialSoundConfig{position, distance}` in `request_sound` |
+| `SceneSoundPausePolicy` | `SoundPausePolicy` in options or loop requests |
+| `Rejected` / optional result handle | `!result` / `result.error()`; `result->handle` on success |
+| `bool` command results | `AudioResult<void>` with details in `error()` |
+| `has_audio` / `try_audio_runtime` / `audio_runtime` | Removed; query `scene_audio_available()` on the service |
+| Optional scene-audio enablement | Always provided; retain `SceneAudioConfig` for tuning |
+
+This FlyMe2TheMoon adapter returns ordinary handles for its existing cancellation flow. Optional global UI feedback explicitly discards the result.
+
+```cpp
+#include "engine/audio/audio_service.h"
+
+elysia::audio::AudioResult<elysia::audio::SoundHandle> play_world_at(
+    std::string_view key, elysia::core::Vector2 position,
+    const elysia::audio::SoundDistanceConfig& distance)
+{
+    auto result = ELYSIA_AUDIO->request_sound(key, {
+        .group = elysia::audio::SoundGroup::Gameplay,
+        .spatial = elysia::audio::SpatialSoundConfig{position, distance}
+    });
+    if (!result) return std::unexpected(result.error());
+    return result->handle;
+}
+
+void optional_global_click()
+{
+    (void)ELYSIA_AUDIO->request_sound("ui.click", {
+        .group = elysia::audio::SoundGroup::Ui,
+        .scope = elysia::audio::SoundScope::Global
+    });
+}
+```
+
+Map `World::set_listener` to `set_listener_position`; replace owner-managed loops with saved `LoopSoundId` values and position/gain/enabled updates. Remove duplicate manual pause and cleanup for the same scene-owned sound. Convert project distance models to `SoundDistanceConfig`. Character voices, crystal chains, resource keys, and concrete tuning remain game concerns. FlyMe2TheMoon was not modified in this update.
 
 ## Further Reading
 
-- [Audio interfaces and playback contracts](../../reference/audio.md): full parameters, results, boundaries.
-- [Audio architecture](../../architecture/subsystems/audio.md): scheduling order, track backend, fades.
-- [Resource loading](../content/resources.md), [back to user guide](../README.md).
+- [Audio interfaces and playback contracts](../../reference/audio.md)
+- [Audio architecture](../../architecture/subsystems/audio.md)
+- [Resource loading](../content/resources.md), [guide index](../README.md)

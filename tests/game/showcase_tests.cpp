@@ -9,12 +9,14 @@
 #include "engine/io/loaders/asset_config_types.h"
 #include "engine/ui/widgets/ui_button.h"
 #include "engine/ui/widgets/ui_slider.h"
+#include "engine/ui/widgets/label/ui_label.h"
 #include "engine/ui/containers/ui_scroll_container.h"
 #include "tests/support/scene_test_access.h"
 #include "tests/support/input_snapshot_builder.h"
 #include "tests/support/sdl_audio_fixture.h"
 #include "tests/support/test_assertions.h"
 #include <filesystem>
+#include <cmath>
 #include <set>
 #include <stdexcept>
 namespace {
@@ -72,17 +74,24 @@ int main()
     auto* audio=elysia::audio::AudioService::instance();
     const elysia::audio::AudioSettings saved{43,51,67};
     require(audio->initialize(saved),"audio service initializes");
-    audio->set_sound_group_volume(elysia::audio::SoundGroup::Gameplay,39);
+    require(audio->set_sound_group_volume(elysia::audio::SoundGroup::Gameplay,39),"group volume sets");
     require(audio->set_sound_group_config(elysia::audio::SoundGroup::Gameplay,{.max_simultaneous=3}),"group config sets");
     {
         elysia::io::ContentRegistry registry;elysia::scene::SceneRuntimeContext context(nullptr,registry,1280,720);
         example::scene::AudioShowcaseScene scene;elysia::scene::SceneTestAccess::bind(scene,context);
+        elysia::scene::SceneTestAccess::attach(scene);
         elysia::scene::SceneTestAccess::enter(scene,example::scene::ShowcaseEnterPayload{{.target=1}});
         auto* ui_root=elysia::scene::SceneTestAccess::ui_root(scene,0);
         auto* slider=dynamic_cast<elysia::ui::UiSlider*>(find(*ui_root,[](auto& element){return dynamic_cast<elysia::ui::UiSlider*>(&element)!=nullptr;}));
         require(slider!=nullptr,"audio controls expose volume");slider->set_value(12);require(audio->settings().master_volume==12,"volume action applies immediately");
-        const auto unrelated=audio->request_sound("showcase.tone",{.loops=-1,.group=elysia::audio::SoundGroup::Extra,.start_delay=std::chrono::milliseconds(700)});
-        require(unrelated.handle.has_value(),"external delayed sound schedules");
+        const auto unrelated=audio->request_sound("showcase.tone",{.loops=-1,.group=elysia::audio::SoundGroup::Extra,.start_delay=std::chrono::milliseconds(700),.scope=elysia::audio::SoundScope::Global});
+        require(unrelated,"external delayed sound schedules");
+        click(scene,"showcase.audio.once");
+        bool attenuated=false;
+        const double spatial_gain=.12*.67*.39*(80.0/200.0);
+        for(auto* track:elysia::audio::detail::mixer_backend().tracks)
+            attenuated|=MIX_TrackPlaying(track)&&std::abs(MIX_GetTrackGain(track)-spatial_gain)<1e-6;
+        require(attenuated,"one-shot action uses full spatial configuration and distance attenuation");
         click(scene,"showcase.audio.delay");
         click(scene,"showcase.audio.loop");
         click(scene,"showcase.audio.spatial_start");
@@ -102,17 +111,23 @@ int main()
         }));
         require(listener!=nullptr,"listener distance slider exists");listener->set_value(500);
         elysia::scene::SceneTestAccess::update(scene,0);
+        click(scene,"showcase.audio.limit");
+        require(find(*ui_root,[](auto& element){
+            const auto* label=dynamic_cast<elysia::ui::UiLabel*>(&element);
+            return label&&label->text_content().value=="Sound cooldown is active.";
+        })!=nullptr,"showcase displays the specific request rejection reason");
         click(scene,"showcase.audio.music_a");
         audio->update(0.1);
         require(elysia::tests::music_playing(),"music action starts playback");
         elysia::scene::SceneTestAccess::exit(scene);
         require(audio->settings()==saved && audio->sound_group_volume(elysia::audio::SoundGroup::Gameplay)==39,"exit restores audio volumes");
-        require(audio->sound_group_config(elysia::audio::SoundGroup::Gameplay).max_simultaneous==3,"exit restores group config");
+        require(audio->sound_group_config(elysia::audio::SoundGroup::Gameplay)->max_simultaneous==3,"exit restores group config");
         require(!elysia::tests::music_playing(),"exit stops owned music");
         audio->update(1);
         int active=0;for(std::size_t i=0;i<elysia::audio::kSoundChannelCount;++i)if(elysia::tests::sound_playing(int(i)))++active;
         require(active==1,"exit cancels only owned pending and active sounds");
-        require(audio->stop_sound(*unrelated.handle),"external delayed request survives showcase exit");
+        require(audio->stop_sound(unrelated->handle),"external delayed request survives showcase exit");
+        elysia::scene::SceneTestAccess::detach(scene);
     }
     audio->shutdown();
     {

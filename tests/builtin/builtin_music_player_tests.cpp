@@ -141,7 +141,7 @@ void test_isolation_and_lifetime(SDL_Renderer* renderer,
         "project and built-in music have independent playing tracks");
     audio.set_master_volume(10);
     audio.set_music_volume(10);
-    audio.stop_music();
+    require(audio.stop_music(),"project music stops");
     require(MIX_TrackPlaying(track) && MIX_GetTrackGain(track) == 0.25f,
         "project volume and stop do not affect the built-in track");
     require(audio.play_music("project.test"), "project music restarts");

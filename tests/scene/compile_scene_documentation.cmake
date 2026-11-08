@@ -84,7 +84,7 @@ function(elysia_add_scene_documentation_examples_language language target)
     elysia_extract_documentation_cpp("${documentation_root}/builtin-scenes/settings.md"
         "${generated_directory}/settings.cpp" 1 SettingsExampleScene)
     elysia_extract_documentation_cpp("${documentation_root}/systems/audio.md"
-        "${generated_directory}/audio.cpp" 1)
+        "${generated_directory}/audio.cpp" 2 WindScene)
     elysia_extract_documentation_cpp("${documentation_root}/systems/localization.md"
         "${generated_directory}/localization.cpp" 1)
     elysia_extract_documentation_cpp("${documentation_root}/tools/debug-draw.md"

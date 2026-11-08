@@ -80,26 +80,43 @@ void show_hit(elysia::core::Vector2 position)
     request.effect_key = "effect.test";
     request.position = position;
     request.anchor = elysia::effects::EffectAnchor::Center;
-    if (!ELYSIA_EFFECTS->request_animation_effect(request))
-        ELYSIA_LOG_WARN("effects", "Hit effect was not created.");
+    if (const auto result = ELYSIA_EFFECTS->request_animation_effect(request); !result)
+        ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
 
     elysia::effects::FloatingNumberEffectSpawnRequest number;
     number.text = "120";
     number.position = position;
     number.target_height = 20.0f;
     number.lifetime_seconds = 0.6;
-    if (!ELYSIA_EFFECTS->request_floating_number_effect(number))
-        ELYSIA_LOG_WARN("effects", "Damage number was not created.");
+    if (const auto result = ELYSIA_EFFECTS->request_floating_number_effect(number); !result)
+        ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
 }
 ```
 
-动画特效 position 是选定 anchor 的世界位置；可覆盖 size、angle_degrees、flip，设置 start_delay_seconds。缺少活动场景、定义或创建失败返回 false。该接口立即加入对象，true 不表示已经播放结束。
+动画特效 position 是选定 anchor 的世界位置；可覆盖 size、angle_degrees、flip，设置 start_delay_seconds。请求返回 `std::expected<void, EffectRequestFailure>`。成功表示对象已经加入活动场景；延迟播放、开始与结束回调仍按原有时间推进。缺少活动场景、定义或创建失败时，通过 `.error()` 读取原因。
 
 特效非循环动画完成后调用 on_finished 并标记销毁；循环动画不会自然结束。服务不返回可取消句柄。需要主动管理的长期表现优先由自己的对象持有 `Animation`；不要假设退出场景会触发完成回调。场景缓存复用时，特效可能仍保留在原场景中。
 
 on_started、on_finished 和 scheduled_callbacks 的回调参数是 `AnimationEffect`&；scheduled_callbacks 的 delay_seconds 相对于播放时间。回调捕获的数据必须覆盖实际执行期，不能把完成回调作为释放外部资源的唯一途径。
 
 浮动数字不需要配置动画清单，但需要有效字体与渲染依赖。text 支持 `0–9`、`-`、`.`、`/`、`%`，不支持加号或普通文字；普通文字使用 UI 文本。position、字号高度、时间必须合法，lifetime_seconds 和 target_height 为正，time_scale 非负。effects 可组合线性/弧线 motion、scale、fade，其 time_range 使用 0–1 生命周期进度。没有设置这些效果时仍按寿命结束并销毁。其 on_finished 参数为 `FloatingNumberEffect`&。
+
+## 处理请求结果
+
+五个 `request_*` 接口共用 `EffectRequestFailure`：`code` 供游戏判断失败类别，`diagnostic` 提供具体原因、来源位置和相关资源键。世界动画与浮动数字成功时不返回对象或句柄；屏幕请求成功时返回 `ScreenEffectHandle`，可继续停止、取消或查询。成功只表示创建并受理，播放完成仍使用现有完成回调。
+
+| 错误码 | 含义 |
+| --- | --- |
+| `NoActiveScene` | 没有活动场景，优先于资源与参数检查 |
+| `InvalidRequest` | 现有参数校验拒绝请求 |
+| `MissingEffectDefinition` / `MissingAnimation` / `MissingTexture` | 对应定义或资源缺失，包括空资源键 |
+| `RuntimeUnavailable` | 渲染器、字体解析器或可用字体缺失 |
+| `CreationFailed` | 动画、图集帧、纹理尺寸查询或字形创建失败 |
+| `SceneRejected` | 场景未接收已创建的对象 |
+
+调用方决定是否记录特效请求失败。上面的示例使用 `format_effect_request_failure(result.error())` 格式化错误码与诊断。共享资源、动画查询接口原有的缺失 Warn 仍保留；注册阶段继续使用独立的 `EffectRegistrationFailure`。
+
+请求沿用现有参数处理规则，负延迟按原有规则归零。非法场景阶段添加对象、对象注册异常仍向外传播，不会统一转换成请求失败。`stop_screen_effect`、`cancel_screen_effect` 和 `is_screen_effect_active` 继续返回 `bool`。
 
 ## 全屏特效
 
@@ -109,7 +126,7 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 `AnimationEf
 #include "engine/effects/effect_service.h"
 
 // 闪白：立即显示，然后在 0.2 秒内淡出。
-std::optional<elysia::effects::ScreenEffectHandle> flash_white()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> flash_white()
 {
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {255, 255, 255};
@@ -119,7 +136,7 @@ std::optional<elysia::effects::ScreenEffectHandle> flash_white()
 }
 
 // 图片必须已通过项目的纹理资源配置加载。
-std::optional<elysia::effects::ScreenEffectHandle> show_screen_image()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> show_screen_image()
 {
     elysia::effects::ScreenImageEffectRequest request;
     request.texture_key = "screen.blood"; // 项目提供的纹理 key
@@ -140,13 +157,13 @@ std::optional<elysia::effects::ScreenEffectHandle> show_screen_image()
 
 `BeforeUi` 位于世界和调试图形之后、UI 之前；`AfterUi` 覆盖 UI。开发工具面板在两者之后绘制。同一层内按创建顺序叠加。图片默认 `Stretch` 拉伸铺满；`Cover` 等比居中铺满并裁切；`Contain` 等比居中完整显示，未覆盖区域保持透明。
 
-创建返回 optional 句柄。没有活动场景、纹理缺失、时间为负或非有限、透明度不在 0–1、定时请求的三个时长全为 0 时返回空值并记录日志。图片借用已加载纹理，资源重载前必须通过现有内容清理流程清除特效；直接释放仍被引用的纹理不受支持。不支持 shader 后处理。
+创建返回 `std::expected<ScreenEffectHandle, EffectRequestFailure>`。没有活动场景、纹理缺失、时间为负或非有限、透明度不在 0–1、定时请求的三个时长全为 0 时返回失败诊断。图片借用已加载纹理，资源重载前必须通过现有内容清理流程清除特效；直接释放仍被引用的纹理不受支持。不支持 shader 后处理。
 
 ### 屏幕动画与共享布局
 
 `request_screen_animation_effect` 使用与世界动画特效相同的 `effect_key`，共享已加载的动画、`Atlas` 和纹理，每次请求有独立播放实例。默认 `loop=false`、`fit=Contain`、`end=AnimationFinished`、保持时长 0。资源定义中的循环设置不覆盖屏幕请求；角度默认沿用特效定义，也可以通过 `angle_degrees` 覆盖，`flip` 默认 None。
 
-下面是活动场景函数中的局部片段，需包含 `effect_service.h`。各次请求独立，实际调用后都应检查返回的 optional 句柄；片段中的图片键需由项目预先加载。
+下面是活动场景函数中的局部片段，需包含 `effect_service.h`。各次请求独立，实际调用后都应检查返回的 expected 结果；片段中的图片键需由项目预先加载。
 
 ```cpp
 // 单次居中演出：完整显示动画，播放完后淡出。
@@ -154,7 +171,7 @@ elysia::effects::ScreenAnimationEffectRequest single;
 single.effect_key = "effect.test";
 single.playback.fade_in_seconds = 0.2;
 single.playback.fade_out_seconds = 0.4;
-const std::optional<elysia::effects::ScreenEffectHandle> single_handle =
+const auto single_handle =
     ELYSIA_EFFECTS->request_screen_animation_effect(single);
 
 // 循环全屏遮罩：等待调用方 stop/cancel。
@@ -162,7 +179,7 @@ elysia::effects::ScreenAnimationEffectRequest overlay = single;
 overlay.loop = true;
 overlay.fit = elysia::effects::ScreenEffectFit::Cover;
 overlay.playback.end = elysia::effects::ScreenEffectEnd::Manual;
-const std::optional<elysia::effects::ScreenEffectHandle> overlay_handle =
+const auto overlay_handle =
     ELYSIA_EFFECTS->request_screen_animation_effect(overlay);
 
 // 右下角动画：原始尺寸，向内偏移 24 个逻辑像素。
@@ -171,7 +188,7 @@ corner.fit = elysia::effects::ScreenEffectFit::Natural;
 corner.placement.anchor = elysia::effects::EffectAnchor::BottomRight;
 corner.placement.offset = {-24, -24};
 corner.placement.scale = {0.5f, 0.5f};
-const std::optional<elysia::effects::ScreenEffectHandle> corner_handle =
+const auto corner_handle =
     ELYSIA_EFFECTS->request_screen_animation_effect(corner);
 
 // 静态图片也使用相同布局参数。
@@ -179,7 +196,7 @@ elysia::effects::ScreenImageEffectRequest image;
 image.texture_key = "demo.screen_effect";
 image.fit = corner.fit;
 image.placement = corner.placement;
-const std::optional<elysia::effects::ScreenEffectHandle> image_handle =
+const auto image_handle =
     ELYSIA_EFFECTS->request_screen_image_effect(image);
 ```
 
@@ -194,7 +211,7 @@ const std::optional<elysia::effects::ScreenEffectHandle> image_handle =
 旧场景请求渐黑，并用与特效相同的时钟累计时间；达到淡入时长后按现有场景路由接口请求切换。使用 `Manual` 让黑幕在切换前持续保持。创建失败时不要启动转场计时。
 
 ```cpp
-std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> begin_exit_blackout()
 {
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {0, 0, 0};
@@ -204,7 +221,7 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout()
 }
 
 // 在新场景 on_enter 中调用，在首次绘制前创建全黑遮罩。
-std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> begin_enter_blackout()
 {
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {0, 0, 0};
