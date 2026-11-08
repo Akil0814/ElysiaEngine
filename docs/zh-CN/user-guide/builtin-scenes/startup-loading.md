@@ -106,3 +106,5 @@ void configure_startup_background(
 - [仓库游戏模块示例](../../../../game/application/example_game_module.cpp)
 - [加载器实现](../../../../engine/loading/game_content_loader.cpp)
 - [游戏初始化](../game-initialization.md)、[返回使用指南](../README.md)
+
+内部模块关系与生命周期见[架构图](../../architecture/startup.md)。

@@ -55,3 +55,5 @@ Synchronous `add_object` / `clear_scene_objects` inside visitors/predicates is r
 
 - [Public interfaces and overloads](../../../../engine/object_query/game_object_query_service.h)
 - [Object ownership](../core_concepts.md), [back to user guide](../README.md)
+
+See the [architecture diagrams](../../architecture/subsystems/object-query.md) for internal relationships and lifecycles.

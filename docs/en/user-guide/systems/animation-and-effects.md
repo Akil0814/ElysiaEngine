@@ -304,3 +304,5 @@ Created animations do not update automatically; the owning `Updatable` drives th
 
 - [Animation API](../../../../engine/animation/animation.h), [effect parameters](../../../../engine/effects/effect_types.h)
 - [Scene lifetime](../scene/scene.md), [time](time-and-timers.md), [back to user guide](../README.md)
+
+See the [architecture diagrams](../../architecture/subsystems/animation-and-effects.md) for internal relationships and lifecycles.

@@ -18,24 +18,62 @@ Elysia Engine 将配置划分为三个职责明确的模块：
 - `engine/config/user/`：用户设置的运行时实现与持久化 Store。
 - `engine/bootstrap/`：`AppConfig`、`RuntimeSettings`、`BootstrapOutput` 及两阶段启动解析；Bootstrap 消费 `config::UserConfigData`，配置模块不再反向依赖启动编排。
 
+<a id="config-service-architecture"></a>
 ## 启动与内容加载
 
-```text
-Bootstrap
-  content_registry.json（解析一次） -> Application 持有 ContentRegistry
-  AppConfig -> UserConfigService -> renderer -> BuiltinResources
-  BuiltinResources -> LocalizationManager -> 项目 preload manifest（全部条目必需）
-  Application -> SceneRuntimeContext（向 Scene 提供只读 registry、逻辑画布与 Builtin Asset Cache）
+ConfigService 接收已构建快照，不解析文件。启动默认值与用户设置的链路见下方 UserConfigService 图，完整启动顺序见[启动全流程](../startup.md)。
 
-GameContentLoader
-  SceneRuntimeContext::content_registry() -> manifests.required.configs -> ConfigLoadPipeline
-    -> ConfigManifestLoader
-    -> ConfigDocumentLoader
-    -> ConfigSnapshotBuilder
-  全部资源成功注册 -> ConfigService::publish(snapshot)
+```mermaid
+flowchart TB
+  Registry["Application / SceneRuntimeContext<br/>持有和借用注册表快照"]
+  Loader["GameContentLoader / ContentManifestPipeline"]
+  Build["ConfigLoadPipeline<br/>ManifestLoader → DocumentLoader → SnapshotBuilder"]
+  Snapshot["不可变 ConfigSnapshot"]
+  Service["ConfigService / ELYSIA_CONFIG<br/>共享持有已发布快照"]
+  Caller["游戏代码<br/>强类型只读查询"]
+  Cleanup["clear_loaded_content<br/>重新加载或失败时 shutdown"]
+  Registry -->|提供 required.configs 入口| Loader
+  Loader -->|加载游戏配置| Build
+  Build -->|构建并交给加载器暂存| Snapshot
+  Loader -->|全部资源注册成功后 publish| Service
+  Service -->|shared_ptr 持有| Snapshot
+  Caller -->|contains / get_*| Service
+  Cleanup -->|撤销已发布快照| Service
 ```
 
+只有所有项目内容注册成功后才发布快照。失败或重新加载撤销已发布快照，不保留旧内容；普通成功后的 loader reset 不清除已发布配置。
+
+源码：[config_service.h](../../../../engine/config/config_service.h) · [content_manifest_pipeline.cpp](../../../../engine/loading/content_manifest_pipeline.cpp) · [game_content_loader.cpp](../../../../engine/loading/game_content_loader.cpp)
+
 Bootstrap 不解析或发布游戏玩法配置。内容加载、资源组装或资源注册失败时，已部分提交的内容会被清除，`ConfigService` 保持未初始化。成功加载后的普通 `reset()` 只释放加载器的临时状态，保留已发布快照和资源；新一轮 `start()` 会先清空当前内容，再从空状态加载。当前不支持热重载或在重载失败时保留旧内容。
+
+<a id="user-config-service-architecture"></a>
+## 用户配置服务架构
+
+用户设置包含运行时应用和磁盘保存两个提交阶段；设置页面还显式提供回滚基线。
+
+```mermaid
+flowchart TB
+  Bootstrap["Bootstrapper / AppConfig<br/>默认值与用户配置路径"]
+  Settings["SettingsScene<br/>草稿与显式回滚基线"]
+  Service["UserConfigService / ELYSIA_USER_CONFIG<br/>应用并保存事务"]
+  Runtime["UserConfig<br/>运行时设置与 restart_required"]
+  Handler["IUserConfigChangeHandler / Application<br/>音量、语言、帧率与窗口应用"]
+  Store["UserConfigStore<br/>加载、校验与可靠替换"]
+  File["user_config.json<br/>持久化用户设置"]
+  Rollback["UserConfigCommitFailure<br/>主失败与可选回滚失败"]
+  Bootstrap -->|initialize| Service
+  Settings -->|apply_and_save_user_config| Service
+  Service -->|持有并应用；事务失败按基线回滚| Runtime
+  Runtime -.->|借用已注册处理器，调用应用回调| Handler
+  Service -->|持有；加载或保存| Store
+  Store -->|读取与写入| File
+  Service -->|向调用方返回失败| Rollback
+```
+
+普通 setter、save_user_config 与 apply_and_save_user_config 的职责不同。图中的回滚属于 apply-and-save 事务；应用或保存失败会尝试恢复基线，原始失败与回滚失败分别返回。
+
+源码：[user_config_service.cpp](../../../../engine/config/user_config_service.cpp) · [user_config.h](../../../../engine/config/user_config.h) · [user_config_store.h](../../../../engine/config/user/user_config_store.h)
 
 ## AppConfig 与 UserConfig
 

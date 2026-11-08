@@ -2,25 +2,37 @@
 
 This page explains cooperation between resource ownership, request scheduling, tracks, and fades for audio maintainers. Game integration is in the [audio guide](../../user-guide/systems/audio.md); complete public contracts are in the [reference](../../reference/audio.md).
 
+<a id="audio-service-architecture"></a>
 ## Module Boundaries
 
 Audio has three layers: resource ownership, runtime scheduling, and backend playback.
 
-```text
-Audio manifest / content loading
-        │
-        ▼
-ResourceManager / AudioManager
-  Own MIX_Audio by key (separate sound/music indexes)
-        │
-        ▼
-AudioService
-  Validate resources, schedule, control volume, call SDL_mixer
-        │
-        ▼
-SDL_mixer
-  MIX_Track / MIX_PlayTrack / MIX_StopTrack
+The service owns global scheduling; a borrowed scene runtime manages ownership, spatial gain and pause for scene sounds.
+
+```mermaid
+flowchart LR
+  Caller["Game code / UI"]
+  App["Application"]
+  Service["AudioService / ELYSIA_AUDIO<br/>Routing, validation, gain and playback entry"]
+  Sound["SoundPlaybackScheduler<br/>Reservations, concurrency, handles and fades"]
+  Music["MusicPlaybackController<br/>Music transitions and fades"]
+  Runtime["SceneAudioRuntime<br/>Scene sounds, loop sources and listener"]
+  Scene["Scene<br/>Scene lifecycle and distance updates"]
+  Resources["ResourceService → ResourceManager / AudioManager<br/>Own MIX_Audio"]
+  Backend["Shared MixerBackend / SDL_mixer<br/>Device and tracks"]
+  Caller -->|Requests and instance control| Service
+  App -->|Initialize, update after scenes, shut down| Service
+  Service -->|Owns, advances and supplies playback callbacks| Sound
+  Service -->|Owns, advances and supplies music callbacks| Music
+  Scene -->|Owns, updates distances and clears owned sounds| Runtime
+  Service -.->|Borrow and route scene requests; runtime calls private service paths| Runtime
+  Service -.->|Borrow assets by key when playback starts| Resources
+  Service -->|Device, track, gain and playback operations| Backend
 ```
+
+Schedulers access playback through callbacks without depending directly on Scene or resource managers. Scene detach unbinds the service and clears owned sounds; application shutdown stops playback before releasing audio assets and backend devices.
+
+Source: [audio_service.cpp](../../../../engine/audio/audio_service.cpp) · [sound_playback_scheduler.h](../../../../engine/audio/sound_playback_scheduler.h) · [scene_audio_runtime.h](../../../../engine/scene/runtime/scene_audio_runtime.h)
 
 - `ResourceManager` finds loaded `MIX_Audio` by key (predecoded sounds, music decoded on demand) without deciding playback policy.
 - `AudioService` is the unified gameplay/UI entry point, owning the global scheduler and borrowing the attached SceneAudioRuntime for scene requests. It does not own Scene objects.

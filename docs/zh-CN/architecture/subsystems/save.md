@@ -4,6 +4,30 @@
 
 `engine/save/` 提供与具体 Gameplay 数据无关的类型化存档能力。引擎负责名称校验、内存文档、JSON 编码、可靠写入和恢复；Gameplay 负责数据键、业务校验、数据迁移以及保存时机。
 
+<a id="save-service-architecture"></a>
+## 存档服务架构
+
+服务持有打开的类型化文档，Store 负责文件校验、可靠替换和恢复。
+
+```mermaid
+flowchart TB
+  App["Application / PathManager.saves"]
+  Caller["游戏代码"]
+  Service["SaveService / ELYSIA_SAVE"]
+  Entries["SaveEntry / SaveData<br/>打开文档、dirty 与 revision"]
+  Store["detail::SaveStore<br/>校验、序列化、替换与恢复"]
+  Files["存档目录<br/>主文件 .json / 临时 .tmp / 备份 .bak"]
+  App -->|initialize / shutdown| Service
+  Caller -->|create / open / get / set / commit / close| Service
+  Service -->|持有文档；commit 成功才清 dirty| Entries
+  Service -->|持有；读取或提交文档| Store
+  Store -->|可靠替换；缺失或损坏时按规则恢复| Files
+```
+
+set 只更新内存，commit 才写盘；提交失败保留 dirty 与 revision。close 默认拒绝丢弃脏文档，shutdown 不自动提交。同步文件替换不承诺断电持久性或跨进程并发写入安全。
+
+源码：[save_service.h](../../../../engine/save/save_service.h) · [save_store.cpp](../../../../engine/save/detail/save_store.cpp)
+
 ## 基本使用
 
 `Application` 会使用 `PathManager::saves()` 初始化 `SaveService`。调用方只提供逻辑存档名，引擎自动在固定目录补充 `.json`：

@@ -88,3 +88,5 @@ Prefer existing UI text content interfaces so controls handle presentation inste
 - [Service definition](../../../../engine/localization/localization_service.h)
 - [Resources and internationalization](../content/resources.md), [UI guide](../ui/README.md#create-window)
 - [Back to user guide](../README.md)
+
+See the [architecture diagrams](../../architecture/subsystems/localization.md) for internal relationships and lifecycles.

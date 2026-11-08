@@ -2,23 +2,35 @@
 
 This document explains how global slots and scene runtimes divide camera responsibilities, and how following, manual motion, and final presentation cooperate. See the [camera guide](../../user-guide/systems/camera.md) for game integration examples.
 
+<a id="camera-service-architecture"></a>
 ## Module Structure
 
 The public camera entry and runtime layers are:
 
-```text
-CameraService (ELYSIA_CAMERA, active-scene routing and typed operation results)
-  → SceneCameraRuntime → CameraManager
+The service validates the active runtime and slot permissions, the scene runtime coordinates presentation, and the Manager owns four fixed slot pairs.
 
-CameraManager (global sole owner and write entry point)
-  ├─ Main       Camera + CameraController
-  ├─ Cinematic  Camera + CameraController
-  ├─ Auxiliary1 Camera + CameraController
-  └─ Auxiliary2 Camera + CameraController
-
-SceneCameraRuntime (optional scene capability)
-  └─ owned slots, final presentation slot, blending state, and scene handle ownership
+```mermaid
+flowchart TB
+  Caller["Game / Cinematic code"]
+  Scene["Scene<br/>Non-virtual lifecycle and camera advancement"]
+  Service["CameraService / ELYSIA_CAMERA<br/>Slot permissions, service generation, typed operations"]
+  Runtime["SceneCameraRuntime<br/>Owned slots, presented slot, blends, operation state"]
+  Manager["CameraManager<br/>Sole global slot owner and write entry"]
+  Slots["Four Camera + CameraController pairs<br/>Main / Cinematic / Auxiliary1 / Auxiliary2"]
+  Result["Camera value snapshots / CameraOperation<br/>Operation results share state and generation"]
+  Caller -->|Queries and operation requests| Service
+  Scene -->|Owns and advances when enabled| Runtime
+  Scene -->|attach / detach: bind and invalidate| Service
+  Service -.->|Borrow active instance and validate permissions| Runtime
+  Runtime -->|Forward commands and read slot state| Manager
+  Manager -->|Owns fixed pairs| Slots
+  Service -->|Return snapshots or operation results| Result
+  Runtime -->|Update completion, cancellation and invalidation| Result
 ```
+
+CameraService returns Camera value snapshots or typed operation results and does not own scenes. detach unbinds and advances the generation to invalidate old operations, then ends activity and synchronously clears transient effects in owned slots.
+
+Source: [camera_service.cpp](../../../../engine/camera/camera_service.cpp) · [scene_camera_runtime.h](../../../../engine/scene/runtime/scene_camera_runtime.h) · [camera_manager.h](../../../../engine/camera/camera_manager.h)
 
 - `Camera` stores the final rendering center, screen viewport size, and `zoom`, and converts between world and screen coordinates.
 - `CameraController` stores the logical center, focus, world bounds, follow strategy, shake, and single-slot pose motion.

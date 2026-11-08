@@ -18,24 +18,62 @@ The `engine/config/` root retains stable public entry points and paired implemen
 - `engine/config/user/`: runtime user settings and persistence Store.
 - `engine/bootstrap/`: `AppConfig`, `RuntimeSettings`, `BootstrapOutput`, and two-stage startup parsing. Bootstrap consumes `config::UserConfigData`; configuration no longer depends back on startup orchestration.
 
+<a id="config-service-architecture"></a>
 ## Startup and Content Loading
 
-```text
-Bootstrap
-  content_registry.json (parsed once) -> Application owns ContentRegistry
-  AppConfig -> UserConfigService -> renderer -> BuiltinResources
-  BuiltinResources -> LocalizationManager -> Project preload manifest (every entry required)
-  Application -> SceneRuntimeContext (read-only registry, logical canvas, Builtin Asset Cache)
+ConfigService receives built snapshots and does not parse files. Startup defaults and user settings follow the UserConfigService diagram below; see the [complete startup flow](../startup.md) for initialization order.
 
-GameContentLoader
-  SceneRuntimeContext::content_registry() -> manifests.required.configs -> ConfigLoadPipeline
-    -> ConfigManifestLoader
-    -> ConfigDocumentLoader
-    -> ConfigSnapshotBuilder
-  All resources registered -> ConfigService::publish(snapshot)
+```mermaid
+flowchart TB
+  Registry["Application / SceneRuntimeContext<br/>Own and borrow the registry snapshot"]
+  Loader["GameContentLoader / ContentManifestPipeline"]
+  Build["ConfigLoadPipeline<br/>ManifestLoader → DocumentLoader → SnapshotBuilder"]
+  Snapshot["Immutable ConfigSnapshot"]
+  Service["ConfigService / ELYSIA_CONFIG<br/>Shared ownership of the published snapshot"]
+  Caller["Game code<br/>Typed read-only queries"]
+  Cleanup["clear_loaded_content<br/>shutdown on reload or failure"]
+  Registry -->|Provide required.configs entry| Loader
+  Loader -->|Load gameplay configuration| Build
+  Build -->|Build and stage in the loader| Snapshot
+  Loader -->|publish after all resource registrations succeed| Service
+  Service -->|Owns through shared_ptr| Snapshot
+  Caller -->|contains / get_*| Service
+  Cleanup -->|Release the published snapshot| Service
 ```
 
+Snapshots are published only after all project content registrations succeed. Failure or reload releases published snapshots without retaining old content; an ordinary loader reset after success keeps published configuration.
+
+Source: [config_service.h](../../../../engine/config/config_service.h) · [content_manifest_pipeline.cpp](../../../../engine/loading/content_manifest_pipeline.cpp) · [game_content_loader.cpp](../../../../engine/loading/game_content_loader.cpp)
+
 Bootstrap neither parses nor publishes gameplay configuration. Content loading, assembly, or registration failure clears partially committed content and leaves `ConfigService` uninitialized. After successful loading, ordinary `reset()` releases temporary loader state while retaining published snapshots/resources. A new `start()` first clears existing content and loads from empty state. Hot reload and retaining old content after reload failure are unsupported.
+
+<a id="user-config-service-architecture"></a>
+## User Configuration Service Architecture
+
+User settings have runtime-application and disk-save stages; the settings page also provides an explicit rollback baseline.
+
+```mermaid
+flowchart TB
+  Bootstrap["Bootstrapper / AppConfig<br/>Defaults and user configuration path"]
+  Settings["SettingsScene<br/>Draft and explicit rollback baseline"]
+  Service["UserConfigService / ELYSIA_USER_CONFIG<br/>Apply-and-save transaction"]
+  Runtime["UserConfig<br/>Runtime settings and restart_required"]
+  Handler["IUserConfigChangeHandler / Application<br/>Apply volume, language, frame rate and window settings"]
+  Store["UserConfigStore<br/>Load, validate and reliably replace"]
+  File["user_config.json<br/>Persistent user settings"]
+  Rollback["UserConfigCommitFailure<br/>Primary and optional rollback failures"]
+  Bootstrap -->|initialize| Service
+  Settings -->|apply_and_save_user_config| Service
+  Service -->|Owns and applies; roll back to baseline on transaction failure| Runtime
+  Runtime -.->|Borrow registered handler; invoke apply callbacks| Handler
+  Service -->|Owns; loads or saves| Store
+  Store -->|Read and write| File
+  Service -->|Return failures to caller| Rollback
+```
+
+Ordinary setters, save_user_config and apply_and_save_user_config have different responsibilities. Rollback in this diagram belongs to the apply-and-save transaction: apply or save failure attempts to restore the baseline, returning primary and rollback failures separately.
+
+Source: [user_config_service.cpp](../../../../engine/config/user_config_service.cpp) · [user_config.h](../../../../engine/config/user_config.h) · [user_config_store.h](../../../../engine/config/user/user_config_store.h)
 
 ## AppConfig and UserConfig
 

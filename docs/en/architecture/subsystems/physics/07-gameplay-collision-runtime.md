@@ -2,6 +2,36 @@
 
 Physics reports engine shape identities and contact/overlap values, not hostility or damage. `GameplayCollisionRuntime` owns actor/team/role bindings and converts results into Body, PushBox, Sensor, and HitBox events.
 
+<a id="gameplay-collision-service-architecture"></a>
+## Gameplay Collision Service Architecture
+
+The physics world produces contact facts; the gameplay runtime interprets bindings, teams and attack instances before dispatching gameplay events.
+
+```mermaid
+flowchart TB
+  Caller["Game code"]
+  Service["GameplayCollisionService<br/>ELYSIA_GAMEPLAY_COLLISION"]
+  Scene["GameplayScene<br/>Optional gameplay collision capability"]
+  Runtime["GameplayCollisionRuntime<br/>Implements IGameplayCollisionRuntime"]
+  World["PhysicsWorld<br/>Contact and overlap events"]
+  Callback["ICollisionListener<br/>Physics listener contract"]
+  Bindings["Actor, collider and HitBox bindings<br/>Team relations and attack deduplication"]
+  Listeners["GameplayCollisionListener<br/>Body / PushBox / Sensor / HitBox events"]
+  Caller -->|Binding, listener and attack lifecycle requests| Service
+  Scene -->|Owns when enabled| Runtime
+  Scene -->|attach / detach: bind active instance| Service
+  Service -.->|Borrow sole active runtime and delegate| Runtime
+  Runtime -.->|Borrow world and register physics listener| World
+  World -->|Dispatch physics events| Callback
+  Callback -->|Runtime implements event handling| Runtime
+  Runtime -->|Owns value-based routing metadata and deduplication state| Bindings
+  Runtime -.->|Borrow listeners and dispatch gameplay events| Listeners
+```
+
+The service only borrows the active runtime and owns neither actors nor listeners. Unbinding does not clear a cached scene collision runtime; Reset does not automatically call collision_runtime.clear either. Listeners must outlive the event batch, and games decide damage policy.
+
+Source: [gameplay_collision_service.cpp](../../../../../engine/gameplay/collision/gameplay_collision_service.cpp) · [gameplay_collision_runtime.h](../../../../../engine/gameplay/collision/gameplay_collision_runtime.h) · [gameplay_scene.cpp](../../../../../engine/gameplay/scene/gameplay_scene.cpp)
+
 ## Gameplay Policy and Event Lifetime
 
 Attack deduplication and damage policy sit above physics. A sensor alone does not imply damage.

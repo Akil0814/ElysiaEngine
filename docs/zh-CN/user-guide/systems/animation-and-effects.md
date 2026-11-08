@@ -304,3 +304,5 @@ std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectReques
 
 - [动画接口](../../../../engine/animation/animation.h)、[特效请求参数](../../../../engine/effects/effect_types.h)
 - [场景生命周期](../scene/scene.md)、[时间](time-and-timers.md)、[返回使用指南](../README.md)
+
+内部模块关系与生命周期见[架构图](../../architecture/subsystems/animation-and-effects.md)。

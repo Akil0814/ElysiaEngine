@@ -2,23 +2,35 @@
 
 本文解释相机如何在全局槽位与场景运行时之间分工，以及跟随、手动运动和最终呈现如何协调。游戏接入示例见[相机使用指南](../../user-guide/systems/camera.md)。
 
+<a id="camera-service-architecture"></a>
 ## 模块结构
 
 相机公开入口与运行层次如下：
 
-```text
-CameraService（ELYSIA_CAMERA，活动场景路由与操作结果）
-  → SceneCameraRuntime → CameraManager
+服务校验活动运行时和槽权限，场景运行时协调演出，Manager 持有四组固定槽。
 
-CameraManager（全局唯一拥有者和写入口）
-  ├─ Main       Camera + CameraController
-  ├─ Cinematic  Camera + CameraController
-  ├─ Auxiliary1 Camera + CameraController
-  └─ Auxiliary2 Camera + CameraController
-
-SceneCameraRuntime（可选的场景能力）
-  └─ owned slots、最终呈现槽、混合状态和场景句柄所有权
+```mermaid
+flowchart TB
+  Caller["游戏 / 演出代码"]
+  Scene["Scene<br/>非虚生命周期与相机推进"]
+  Service["CameraService / ELYSIA_CAMERA<br/>槽权限、服务代次、类型化操作"]
+  Runtime["SceneCameraRuntime<br/>owned slots、呈现槽、混合、操作状态"]
+  Manager["CameraManager<br/>全局槽位的唯一拥有者与写入口"]
+  Slots["四组 Camera + CameraController<br/>Main / Cinematic / Auxiliary1 / Auxiliary2"]
+  Result["Camera 值快照 / CameraOperation<br/>操作结果共享状态与代次"]
+  Caller -->|查询与操作请求| Service
+  Scene -->|按能力持有并推进| Runtime
+  Scene -->|attach / detach：绑定与失效| Service
+  Service -.->|借用活动实例并校验权限| Runtime
+  Runtime -->|转交命令，读取槽位状态| Manager
+  Manager -->|固定持有| Slots
+  Service -->|返回快照或操作结果| Result
+  Runtime -->|更新完成、取消和失效状态| Result
 ```
+
+CameraService 返回 Camera 值快照或类型化操作结果，不拥有场景。detach 先解绑并推进代次，使旧操作失效，再结束活动并同步清理所属槽的瞬时效果。
+
+源码：[camera_service.cpp](../../../../engine/camera/camera_service.cpp) · [scene_camera_runtime.h](../../../../engine/scene/runtime/scene_camera_runtime.h) · [camera_manager.h](../../../../engine/camera/camera_manager.h)
 
 - `Camera` 保存最终渲染中心、屏幕视口大小和缩放倍率，并负责世界坐标与屏幕坐标之间的转换。
 - `CameraController` 保存逻辑中心、焦点、世界边界、跟随策略、震屏和单槽姿态运动。

@@ -2,25 +2,37 @@
 
 本页面向维护音频实现的开发者，解释资源持有、请求调度、轨道播放和渐变的协作。游戏接入见[音频指南](../../user-guide/systems/audio.md)，完整公开契约见[音频参考](../../reference/audio.md)。
 
+<a id="audio-service-architecture"></a>
 ## 模块边界
 
 音频流程分为资源持有、运行时调度与底层播放三层：
 
-```text
-音频 manifest / 内容加载
-        │
-        ▼
-ResourceManager / AudioManager
-  按 key 持有 MIX_Audio（音效与音乐分别索引）
-        │
-        ▼
-AudioService
-  校验资源、调度请求、音量控制、调用 SDL_mixer
-        │
-        ▼
-SDL_mixer
-  MIX_Track / MIX_PlayTrack / MIX_StopTrack
+全局调度由服务持有；场景声音通过借用的运行时管理归属、空间增益和暂停。
+
+```mermaid
+flowchart LR
+  Caller["游戏 / UI"]
+  App["Application"]
+  Service["AudioService / ELYSIA_AUDIO<br/>路由、校验、音量与播放入口"]
+  Sound["SoundPlaybackScheduler<br/>预约、并发、句柄、渐变"]
+  Music["MusicPlaybackController<br/>音乐切换与渐变"]
+  Runtime["SceneAudioRuntime<br/>场景声音、循环源、监听位置"]
+  Scene["Scene<br/>场景生命周期与距离更新"]
+  Resources["ResourceService → ResourceManager / AudioManager<br/>持有 MIX_Audio"]
+  Backend["共享 MixerBackend / SDL_mixer<br/>设备与轨道"]
+  Caller -->|请求与实例控制| Service
+  App -->|初始化、场景更新后 update、关闭| Service
+  Service -->|持有并推进，提供播放回调| Sound
+  Service -->|持有并推进，提供音乐回调| Music
+  Scene -->|持有，更新距离和清理所属声音| Runtime
+  Service -.->|借用并路由场景请求；运行时回调服务私有路径| Runtime
+  Service -.->|启动播放时按键借用资源| Resources
+  Service -->|设备、轨道、增益和播放操作| Backend
 ```
+
+调度器通过回调访问播放后端，不直接依赖 Scene 或资源管理器。场景脱离时先解除服务绑定并清理所属声音；应用关闭时先停止播放，再释放音频资源和后端设备。
+
+源码：[audio_service.cpp](../../../../engine/audio/audio_service.cpp) · [sound_playback_scheduler.h](../../../../engine/audio/sound_playback_scheduler.h) · [scene_audio_runtime.h](../../../../engine/scene/runtime/scene_audio_runtime.h)
 
 - `ResourceManager` 负责通过资源键查找已加载的 `MIX_Audio`（音效预解码、音乐按需解码），不负责播放策略。
 - `AudioService` 是游戏玩法与 UI 的统一入口，持有全局调度器，并借用当前附着的 SceneAudioRuntime 转发场景请求；不拥有 Scene 对象。

@@ -55,3 +55,5 @@ std::vector<elysia::core::GameObject*> nearby_items(
 
 - [公开接口与重载](../../../../engine/object_query/game_object_query_service.h)
 - [对象所有权](../core_concepts.md)、[返回使用指南](../README.md)
+
+内部模块关系与生命周期见[架构图](../../architecture/subsystems/object-query.md)。

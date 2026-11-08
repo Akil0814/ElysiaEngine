@@ -2,6 +2,35 @@
 
 This document describes the entire chain from device snapshots to actor commands, including ownership and lifetime at each layer. When maintaining input code, first identify the responsibility, then check how input consumption, controller binding, and fixed-step delivery relate.
 
+<a id="controller-service-architecture"></a>
+## Controller Service Architecture
+
+The service delegates session and controller operations; the Manager alone owns instances and command caches, while scene contexts provide identity and generation boundaries.
+
+```mermaid
+flowchart TB
+  Caller["Game code / Session owner"]
+  Service["ControllerService / ELYSIA_CONTROLLERS"]
+  Manager["ControllerManager<br/>Sessions, handles, controllers and command caches"]
+  Controllers["Controller / LocalPlayerController"]
+  Context["SceneControlContext<br/>Scene identity, generation, activity and target ownership"]
+  Scene["GameplayScene<br/>Input, fixed steps, object removal and lifecycle"]
+  Input["InputSystem → SceneInputRouter<br/>UI consumption, capture and player routing"]
+  Target["ControlCommandReceiver<br/>Game objects execute gameplay intent"]
+  Caller -->|Sessions, creation, queries, configuration and binding| Service
+  Service -->|Delegate without keeping controller copies| Manager
+  Manager -->|Sole owner| Controllers
+  Scene -->|Owns; activates, deactivates and resets| Context
+  Manager -.->|Validate identity, generation and target| Context
+  Input -->|Provide permitted player input| Scene
+  Scene -->|Input caching / Fixed-step advance / Cleanup| Manager
+  Manager -.->|Deliver commands; borrow bound targets| Target
+```
+
+Controllers require an explicit session and borrow their bound targets. Scene and Session scopes have different retention rules on exit, Reset and Recreate; binding changes and removals during callbacks obey safe commit boundaries described below.
+
+Source: [controller_service.cpp](../../../../../engine/gameplay/control/controller_service.cpp) · [controller_manager.h](../../../../../engine/gameplay/control/controller_manager.h) · [gameplay_scene.cpp](../../../../../engine/gameplay/scene/gameplay_scene.cpp)
+
 ## Responsibilities
 
 | Module | Responsibility |

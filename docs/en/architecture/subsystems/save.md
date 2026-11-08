@@ -4,6 +4,30 @@ This document explains in-memory data, file replacement, and diagnostics for sav
 
 `engine/save/` supplies typed `persistence` independent of specific Gameplay data. The engine validates names, manages memory documents, encodes JSON, writes reliably, and recovers copies. Gameplay defines keys, business validation, migration, and save timing.
 
+<a id="save-service-architecture"></a>
+## Save Service Architecture
+
+The service owns open typed documents; the Store handles file validation, reliable replacement and recovery.
+
+```mermaid
+flowchart TB
+  App["Application / PathManager.saves"]
+  Caller["Game code"]
+  Service["SaveService / ELYSIA_SAVE"]
+  Entries["SaveEntry / SaveData<br/>Open documents, dirty state and revision"]
+  Store["detail::SaveStore<br/>Validation, serialization, replacement and recovery"]
+  Files["Save directory<br/>Primary .json / Temporary .tmp / Backup .bak"]
+  App -->|initialize / shutdown| Service
+  Caller -->|create / open / get / set / commit / close| Service
+  Service -->|Owns documents; clear dirty only after commit succeeds| Entries
+  Service -->|Owns; reads or commits documents| Store
+  Store -->|Reliable replacement; recover missing or damaged files by policy| Files
+```
+
+set changes memory; commit writes to disk. Failed commits retain dirty state and revision. close rejects dirty documents by default, and shutdown does not commit automatically. Synchronous file replacement does not promise power-loss durability or cross-process concurrent-write safety.
+
+Source: [save_service.h](../../../../engine/save/save_service.h) · [save_store.cpp](../../../../engine/save/detail/save_store.cpp)
+
 ## Basic Usage
 
 `Application` initializes `SaveService` with `PathManager::saves()`. Callers supply logical names; the engine appends `.json` in the fixed directory:

@@ -2,6 +2,29 @@
 
 Box2D 负责宽阶段候选筛选、精确碰撞、连续碰撞和约束求解。Elysia 不维护第二套求解器，而是在其上提供引擎过滤、查询结果和玩法接入。
 
+<a id="collision-query-service-architecture"></a>
+## 物理查询服务契约
+
+这是由 PhysicsWorld 实现的抽象能力接口，不是全局 Service 单例。
+
+```mermaid
+flowchart TB
+  Caller["场景 / 玩法查询调用方"]
+  Contract["ICollisionQueryService<br/>射线、线段、重叠与形状扫掠契约"]
+  World["PhysicsWorld<br/>实现查询接口，持有物理世界"]
+  Box["Box2D / 内部查询适配<br/>候选、几何检测、过滤、排序与去重"]
+  Result["CollisionQueryHit / CollisionOverlapQueryHit<br/>引擎目标身份与世界单位 EU"]
+  Caller -.->|借用场景物理世界的查询能力| Contract
+  Contract -->|接口调用由实现执行| World
+  World -->|委托内部查询与身份映射| Box
+  World -->|返回值结果或填充输出列表| Result
+  Result -->|不转移被命中对象所有权| Caller
+```
+
+查询结果使用引擎身份和 EU，不暴露 Box2D 原生对象。结果不拥有命中对象，身份有效性受物理对象寿命约束；空间查询与 GameObjectQueryService 的对象集合过滤是两种能力。
+
+源码：[collision_query_service.h](../../../../../engine/physics/contracts/collision_query_service.h) · [physics_world.h](../../../../../engine/physics/physics_world.h)
+
 ## 过滤与形状响应
 
 引擎的类别、掩码和组过滤映射到原生形状。重叠形状作为传感器，忽略形状不创建原生碰撞形状；材质提供摩擦与恢复系数。

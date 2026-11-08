@@ -2,6 +2,14 @@
 
 This directory is for developers understanding, maintaining, or extending the engine. Topics explain module responsibilities, object ownership, and runtime flows in current source. For game-layer calling examples, start with the [User Guide](../user-guide/README.md).
 
+## Startup and Service Diagrams
+
+- [Complete Project Startup Flow](startup.md): entry, synchronous initialization, loading presentation, main menu, failures and shutdown.
+- [Service Architecture Overview](services.md): relationships and per-service index for 12 services and the physics query interface.
+- [Animations and Effects](subsystems/animation-and-effects.md): definitions, instances, screen effects and scene-object ownership.
+- [Localization and Text Caching](subsystems/localization.md): translation, font resolution, texture caches and validity.
+- [Active-scene Object Queries](subsystems/object-query.md): runtime binding, filtering and borrowed results.
+
 ## Scenes and Game Runtime
 
 - [Scene Lifecycle](subsystems/scene-lifecycle.md): caching, entry, exit, reset, safe mutation phases, exception recovery, and application shutdown order.

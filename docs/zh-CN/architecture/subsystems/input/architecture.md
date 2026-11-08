@@ -2,6 +2,35 @@
 
 本文说明输入从设备快照到角色命令的整条链路，以及各层的所有权与生命周期。维护输入代码时，先定位职责，再检查输入消费、控制器绑定和固定步交付之间的关系。
 
+<a id="controller-service-architecture"></a>
+## 控制器服务架构
+
+服务转发会话与控制器操作，Manager 唯一持有实例与命令缓存；场景上下文提供身份和代次边界。
+
+```mermaid
+flowchart TB
+  Caller["游戏代码 / 会话拥有者"]
+  Service["ControllerService / ELYSIA_CONTROLLERS"]
+  Manager["ControllerManager<br/>会话、句柄、控制器、命令缓存"]
+  Controllers["Controller / LocalPlayerController"]
+  Context["SceneControlContext<br/>场景身份、代次、活动性与目标归属"]
+  Scene["GameplayScene<br/>输入、固定步、对象移除与生命周期"]
+  Input["InputSystem → SceneInputRouter<br/>UI 消费、捕获与玩家分流"]
+  Target["ControlCommandReceiver<br/>游戏对象执行玩法意图"]
+  Caller -->|会话、创建、查询、配置与绑定| Service
+  Service -->|转发，不保存控制器副本| Manager
+  Manager -->|唯一持有| Controllers
+  Scene -->|持有；激活、停用与 reset| Context
+  Manager -.->|校验身份、代次与目标| Context
+  Input -->|提供允许的玩家输入| Scene
+  Scene -->|输入缓存 / 固定步 advance / 清理| Manager
+  Manager -.->|交付命令；绑定目标为借用| Target
+```
+
+控制器必须在显式会话中创建，目标绑定是借用。Scene 与 Session 作用域在退出、Reset 和 Recreate 时的保留策略不同；回调中的绑定变更和移除遵守安全提交边界，详见下文生命周期。
+
+源码：[controller_service.cpp](../../../../../engine/gameplay/control/controller_service.cpp) · [controller_manager.h](../../../../../engine/gameplay/control/controller_manager.h) · [gameplay_scene.cpp](../../../../../engine/gameplay/scene/gameplay_scene.cpp)
+
 ## 职责
 
 | 模块 | 职责 |

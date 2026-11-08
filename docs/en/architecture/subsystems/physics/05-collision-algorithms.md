@@ -2,6 +2,29 @@
 
 Box2D handles broad-phase candidates, precise collision, continuous collision, and constraint solving. Elysia adds filtering, results, and gameplay integration without maintaining a second solver.
 
+<a id="collision-query-service-architecture"></a>
+## Physics Query Service Contract
+
+This is an abstract capability implemented by PhysicsWorld, rather than a global Service singleton.
+
+```mermaid
+flowchart TB
+  Caller["Scene / Gameplay query callers"]
+  Contract["ICollisionQueryService<br/>Ray, segment, overlap and shape-cast contract"]
+  World["PhysicsWorld<br/>Implements query contract and owns physics world"]
+  Box["Box2D / Internal query adapter<br/>Candidates, geometry, filtering, sorting and deduplication"]
+  Result["CollisionQueryHit / CollisionOverlapQueryHit<br/>Engine target identity and world units EU"]
+  Caller -.->|Borrow query capability of the scene physics world| Contract
+  Contract -->|Implementation executes interface calls| World
+  World -->|Delegate internal queries and identity mapping| Box
+  World -->|Return value results or populate output lists| Result
+  Result -->|No ownership transfer of hit objects| Caller
+```
+
+Results use engine identities and EU without exposing native Box2D objects. They do not own hit objects, and identity validity follows physics-object lifetime. Spatial queries and GameObjectQueryService collection filtering are separate capabilities.
+
+Source: [collision_query_service.h](../../../../../engine/physics/contracts/collision_query_service.h) · [physics_world.h](../../../../../engine/physics/physics_world.h)
+
 ## Filtering and Shape Responses
 
 Engine category/mask/group filtering maps to native shapes. Overlap shapes become sensors; Ignore shapes create no native collision shape. Materials supply friction and restitution.

@@ -106,3 +106,5 @@ Preparation-thread failures return to the main thread, stop further loading, cle
 - [Repository game module](../../../../game/application/example_game_module.cpp)
 - [Loader implementation](../../../../engine/loading/game_content_loader.cpp)
 - [Game initialization](../game-initialization.md), [back to user guide](../README.md)
+
+See the [architecture diagrams](../../architecture/startup.md) for internal relationships and lifecycles.

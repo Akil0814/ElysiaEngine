@@ -2,6 +2,36 @@
 
 物理层报告引擎形状身份以及接触或重叠值，不判断攻击是否敌对、是否造成伤害。`GameplayCollisionRuntime` 持有角色、队伍和碰撞角色绑定，将物理结果转换成 Body、PushBox、Sensor 和 HitBox 事件。
 
+<a id="gameplay-collision-service-architecture"></a>
+## 玩法碰撞服务架构
+
+物理世界产生接触事实，玩法运行时解释绑定、队伍和攻击实例，再派发玩法事件。
+
+```mermaid
+flowchart TB
+  Caller["游戏代码"]
+  Service["GameplayCollisionService<br/>ELYSIA_GAMEPLAY_COLLISION"]
+  Scene["GameplayScene<br/>可选玩法碰撞能力"]
+  Runtime["GameplayCollisionRuntime<br/>实现 IGameplayCollisionRuntime"]
+  World["PhysicsWorld<br/>接触与重叠事件"]
+  Callback["ICollisionListener<br/>物理监听契约"]
+  Bindings["角色、碰撞体、HitBox 绑定<br/>队伍关系与攻击去重"]
+  Listeners["GameplayCollisionListener<br/>Body / PushBox / Sensor / HitBox 事件"]
+  Caller -->|登记、监听与攻击生命周期请求| Service
+  Scene -->|按能力持有| Runtime
+  Scene -->|attach / detach：绑定活动实例| Service
+  Service -.->|借用唯一活动运行时并转发| Runtime
+  Runtime -.->|借用并注册物理监听| World
+  World -->|分发物理事件| Callback
+  Callback -->|由运行时实现事件处理| Runtime
+  Runtime -->|持有按值路由信息与去重状态| Bindings
+  Runtime -.->|借用监听器并派发玩法事件| Listeners
+```
+
+服务只借用活动运行时，不持有角色或监听器。解绑服务不等于清空缓存场景的碰撞运行时；Reset 也不会自动调用 collision_runtime.clear。监听器须活过事件批次，伤害策略由游戏决定。
+
+源码：[gameplay_collision_service.cpp](../../../../../engine/gameplay/collision/gameplay_collision_service.cpp) · [gameplay_collision_runtime.h](../../../../../engine/gameplay/collision/gameplay_collision_runtime.h) · [gameplay_scene.cpp](../../../../../engine/gameplay/scene/gameplay_scene.cpp)
+
 ## 玩法策略与事件寿命
 
 攻击实例去重和伤害策略位于物理层之上。存在传感器不代表它一定能伤害目标。
