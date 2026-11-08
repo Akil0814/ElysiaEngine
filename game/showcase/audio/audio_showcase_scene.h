@@ -20,6 +20,8 @@ private:
     void stop_sounds();
     void cleanup();
     void report(bool success);
+    void report(const elysia::audio::AudioResult<void>& result);
+    void report_failure(const elysia::audio::AudioFailure& failure);
     void back();
     elysia::ui::UiWindow* _window=nullptr;
     example::showcase::ShowcaseFrame _view;
@@ -27,7 +29,7 @@ private:
     elysia::audio::AudioSettings _saved{};
     std::array<elysia::audio::SoundGroupConfig,elysia::audio::kSoundGroupCount> _groups{};
     std::array<int,elysia::audio::kSoundGroupCount> _volumes{};
-    std::optional<elysia::scene::LoopSoundId> _spatial_loop;
+    std::optional<elysia::audio::LoopSoundId> _spatial_loop;
     bool _spatial_enabled=true;
     bool _captured=false,_owns_music=false;
 };

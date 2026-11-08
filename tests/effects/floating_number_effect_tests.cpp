@@ -17,6 +17,7 @@
 #include "engine/scene/scene_manager.h"
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
+#include "effect_request_assertions.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -32,6 +33,7 @@
 namespace
 {
 using elysia::tests::require;
+using elysia::tests::require_effect_failure;
 
 class TestScene final : public elysia::scene::Scene
 {
@@ -134,26 +136,21 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     request.position = core::Vector2(50.0f, 50.0f);
     request.target_height = 20.0f;
     request.text.clear();
-    require(effect_factory.create(request) == nullptr,
-        "empty floating number text must be rejected");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::InvalidRequest);
     request.text = "12A";
-    require(effect_factory.create(request) == nullptr,
-        "letter characters must reject the complete floating number request");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::InvalidRequest);
     request.text = "12+";
-    require(effect_factory.create(request) == nullptr,
-        "unsupported symbols must reject the complete floating number request");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::InvalidRequest);
     request.text = "12%";
     request.lifetime_seconds = 0.0;
-    require(effect_factory.create(request) == nullptr,
-        "non-positive lifetimes must be rejected");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::InvalidRequest);
     request.lifetime_seconds = 0.6;
     request.effects.scale = effects::FloatingNumberScale{
         .from_scale = 1.0f,
         .to_scale = 2.0f,
         .time_range = { .start_progress = 0.8f, .end_progress = 0.2f }
     };
-    require(effect_factory.create(request) == nullptr,
-        "invalid effect time ranges must be rejected");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::InvalidRequest);
 
     request.effects.motion = effects::FloatingNumberLinearMotion{
         .offset = core::Vector2(10.0f, -20.0f)
@@ -166,14 +163,36 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         .from_alpha = 255,
         .to_alpha = 55
     };
-    require(effect_factory.create(request) == nullptr,
-        "floating number creation must reject a missing renderer");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::RuntimeUnavailable);
     effect_factory.set_runtime_dependencies(renderer,nullptr);
-    require(effect_factory.create(request) == nullptr,
-        "floating number creation must reject a missing FontResolver");
+    require_effect_failure(effect_factory.create(request), effects::EffectRequestError::RuntimeUnavailable);
+    typography::FontResolver unconfigured_font_resolver;
+    effect_factory.set_runtime_dependencies(renderer, &unconfigured_font_resolver);
+    const auto missing_font = effect_factory.create(request);
+    require_effect_failure(missing_font, effects::EffectRequestError::RuntimeUnavailable);
+    require(missing_font.error().diagnostic.message.find("not configured") != std::string::npos,
+        "factory preserves font resolver failure details");
     effect_factory.set_runtime_dependencies(renderer,&font_resolver);
+    request.color = effects::FloatingNumberColor::Count;
+    const auto invalid_color = effect_factory.create(request);
+    require_effect_failure(invalid_color, effects::EffectRequestError::InvalidRequest);
+    require(std::string(invalid_color.error().diagnostic.origin.file_name()).find("floating_number_glyph_cache.cpp") != std::string::npos,
+        "factory preserves glyph-cache diagnostic origin");
+    request.color = effects::FloatingNumberColor::Yellow;
+    const auto renderer_properties = SDL_GetRendererProperties(renderer);
+    const auto max_texture_size = SDL_GetNumberProperty(renderer_properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 0);
+    require(SDL_SetNumberProperty(renderer_properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 1),
+        "force factory glyph creation failure");
+    const auto failed_creation = effect_factory.create(request);
+    require(SDL_SetNumberProperty(renderer_properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, max_texture_size),
+        "restore factory renderer texture dimensions");
+    require_effect_failure(failed_creation, effects::EffectRequestError::CreationFailed);
+    require(failed_creation.error().diagnostic.message.find("limited to 1x1") != std::string::npos,
+        "factory propagates the originating SDL glyph creation error");
+    auto effect_result = effect_factory.create(request);
+    require(effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> effect =
-        effect_factory.create(request);
+        std::move(*effect_result);
     require(effect != nullptr, "valid floating number request must create an effect");
     std::vector<core::RenderCommand> commands;
     effect->submit_render_commands(commands);
@@ -185,18 +204,25 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
 
     effects::FloatingNumberEffectSpawnRequest left_request = request;
     left_request.alignment = effects::FloatingNumberAlignment::Left;
+    left_request.start_delay_seconds = -1;
+    auto left_effect_result = effect_factory.create(left_request);
+    require(left_effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> left_effect =
-        effect_factory.create(left_request);
+        std::move(*left_effect_result);
     require(left_effect != nullptr,"left-aligned floating number request must be created");
     commands.clear();
+    left_effect->update(0);
+    require(left_effect->is_started(), "negative start delays still clamp to zero");
     left_effect->submit_render_commands(commands);
     require(!commands.empty() && std::fabs(commands.front().command_rect.left() - request.position.x) < 0.001f,
         "left-aligned floating numbers must begin at their world position");
 
     effects::FloatingNumberEffectSpawnRequest right_request = request;
     right_request.alignment = effects::FloatingNumberAlignment::Right;
+    auto right_effect_result = effect_factory.create(right_request);
+    require(right_effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> right_effect =
-        effect_factory.create(right_request);
+        std::move(*right_effect_result);
     require(right_effect != nullptr,"right-aligned floating number request must be created");
     commands.clear();
     right_effect->submit_render_commands(commands);
@@ -219,8 +245,10 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         .offset = core::Vector2(20.0f, -20.0f),
         .arc_height = 10.0f
     };
+    auto arc_effect_result = effect_factory.create(arc_request);
+    require(arc_effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> arc_effect =
-        effect_factory.create(arc_request);
+        std::move(*arc_effect_result);
     require(arc_effect != nullptr, "arc motion request must create an effect");
     arc_effect->update(0.3);
     require(arc_effect->position().nearly_equals(core::Vector2(60.0f, 30.0f)),
@@ -232,8 +260,10 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     delayed_request.start_delay_seconds = 0.1;
     delayed_request.lifetime_seconds = 0.2;
     delayed_request.on_finished = [&finished](effects::FloatingNumberEffect&) { ++finished; };
+    auto delayed_effect_result = effect_factory.create(delayed_request);
+    require(delayed_effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> delayed_effect =
-        effect_factory.create(delayed_request);
+        std::move(*delayed_effect_result);
     require(delayed_effect != nullptr, "delayed floating number request must create an effect");
     commands.clear();
     delayed_effect->submit_render_commands(commands);
@@ -251,8 +281,10 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     scaled_request.text = "7";
     scaled_request.lifetime_seconds = 0.2;
     scaled_request.time_scale = 0.5;
+    auto scaled_effect_result = effect_factory.create(scaled_request);
+    require(scaled_effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> scaled_effect =
-        effect_factory.create(scaled_request);
+        std::move(*scaled_effect_result);
     require(scaled_effect != nullptr, "scaled floating number request must create an effect");
     scaled_effect->update(0.2);
     require(!scaled_effect->is_destroyed(), "local time scale must slow floating number lifetime");
@@ -262,8 +294,10 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     effects::FloatingNumberEffectSpawnRequest global_scaled_request;
     global_scaled_request.text = "6";
     global_scaled_request.lifetime_seconds = 0.2;
+    auto global_scaled_effect_result = effect_factory.create(global_scaled_request);
+    require(global_scaled_effect_result, "factory request must succeed");
     std::unique_ptr<effects::FloatingNumberEffect> global_scaled_effect =
-        effect_factory.create(global_scaled_request);
+        std::move(*global_scaled_effect_result);
     require(global_scaled_effect != nullptr, "global scaled floating number request must create an effect");
     core::Time::instance()->reset();
     core::Time::instance()->set_time_scale(0.5);
@@ -289,6 +323,21 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
         .target = first_scene_key,
         .reload_mode = scene::SceneReloadMode::Reuse
     });
+
+    require_effect_failure(effect_service->request_floating_number_effect({.text = "12A"}),
+        effects::EffectRequestError::InvalidRequest);
+    require(SDL_SetNumberProperty(renderer_properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 1),
+        "force service glyph creation failure");
+    const auto failed_spawn = effect_service->request_floating_number_effect({.text = "9"});
+    require(SDL_SetNumberProperty(renderer_properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, max_texture_size),
+        "restore service renderer texture dimensions");
+    require_effect_failure(failed_spawn, effects::EffectRequestError::CreationFailed);
+    require(failed_spawn.error().diagnostic.message.find("limited to 1x1") != std::string::npos,
+        "service preserves SDL details through the factory and manager");
+    std::size_t object_count = 0;
+    static_cast<const object_query::IGameObjectQueryRuntime&>(*TestScene::instance).visit_game_objects(
+        core::DepthLayerMask::all(), [&](core::GameObject&) { ++object_count; return true; });
+    require(object_count == 0, "failed glyph creation leaves no scene object");
 
     int scene_finished = 0;
     effects::FloatingNumberEffectSpawnRequest scene_request;

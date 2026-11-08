@@ -80,26 +80,43 @@ void show_hit(elysia::core::Vector2 position)
     request.effect_key = "effect.test";
     request.position = position;
     request.anchor = elysia::effects::EffectAnchor::Center;
-    if (!ELYSIA_EFFECTS->request_animation_effect(request))
-        ELYSIA_LOG_WARN("effects", "Hit effect was not created.");
+    if (const auto result = ELYSIA_EFFECTS->request_animation_effect(request); !result)
+        ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
 
     elysia::effects::FloatingNumberEffectSpawnRequest number;
     number.text = "120";
     number.position = position;
     number.target_height = 20.0f;
     number.lifetime_seconds = 0.6;
-    if (!ELYSIA_EFFECTS->request_floating_number_effect(number))
-        ELYSIA_LOG_WARN("effects", "Damage number was not created.");
+    if (const auto result = ELYSIA_EFFECTS->request_floating_number_effect(number); !result)
+        ELYSIA_LOG_WARN("effects", elysia::effects::format_effect_request_failure(result.error()));
 }
 ```
 
-`Animation` effect position is the chosen anchor's world position. Override size, `angle_degrees`, `flip`, or start_delay_seconds as needed. Missing active scene/definition or creation failure returns false. Creation is immediate; true does not mean playback completed.
+`Animation` effect position is the chosen anchor's world position. Override size, `angle_degrees`, `flip`, or start_delay_seconds as needed. Requests return `std::expected<void, EffectRequestFailure>`. Success means the object has joined the active scene; delayed playback and start/finish callbacks retain their existing timing. Read `.error()` for missing-scene, missing-definition, or creation failures.
 
 Non-looping completion calls on_finished and marks destruction; looping never ends naturally. No cancellation handle is returned. Prefer owning `Animation` in your own object for managed long-lived presentation. Exit need not invoke completion; cached Reuse scenes may retain effects.
 
 on_started, on_finished, and scheduled_callbacks receive `AnimationEffect`&; scheduled delay_seconds is relative to playback time. Captures must outlive actual execution; completion callbacks cannot be the only external cleanup path.
 
 Floating numbers need no animation manifest but require valid fonts/rendering. text supports `0–9`, `-`, `.`, `/`, `%`, not plus signs or ordinary text; use UI for text. Position, height, and times must be valid; lifetime_seconds/target_height positive, time_scale nonnegative. effects combine linear/arc motion, scale, and fade with 0–1 lifetime time_range. Without these, lifetime still ends in destruction. on_finished receives `FloatingNumberEffect`&.
+
+## Handling Request Results
+
+All five `request_*` functions use `EffectRequestFailure`: `code` identifies the failure category, while `diagnostic` provides the specific cause, source location, and related resource keys. Successful world-animation and floating-number requests return no object or handle. Screen requests return a `ScreenEffectHandle` for stopping, cancelling, and querying. Success means creation and acceptance; playback completion still uses the existing completion callbacks.
+
+| Error code | Meaning |
+| --- | --- |
+| `NoActiveScene` | No active scene; takes precedence over resource and parameter checks |
+| `InvalidRequest` | Existing parameter validation rejected the request |
+| `MissingEffectDefinition` / `MissingAnimation` / `MissingTexture` | Corresponding definition or resource is missing, including empty resource keys |
+| `RuntimeUnavailable` | Renderer, font resolver, or usable font is unavailable |
+| `CreationFailed` | Animation, atlas-frame, texture-size query, or glyph creation failed |
+| `SceneRejected` | The scene did not accept the created object |
+
+The caller decides whether to log an effect request failure. The example above uses `format_effect_request_failure(result.error())` to format the code and diagnostic. Existing missing-resource warnings from shared resource/animation lookup functions remain. Registration continues to use the separate `EffectRegistrationFailure`.
+
+Requests retain existing parameter handling, including negative-delay clamping. Adding objects during an invalid scene phase and object-registration exceptions still propagate instead of being converted into request failures. `stop_screen_effect`, `cancel_screen_effect`, and `is_screen_effect_active` continue returning `bool`.
 
 ## Full-Screen Effects
 
@@ -109,7 +126,7 @@ Floating numbers need no animation manifest but require valid fonts/rendering. t
 #include "engine/effects/effect_service.h"
 
 // White flash: display immediately, then fade out over 0.2 seconds.
-std::optional<elysia::effects::ScreenEffectHandle> flash_white()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> flash_white()
 {
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {255, 255, 255};
@@ -119,7 +136,7 @@ std::optional<elysia::effects::ScreenEffectHandle> flash_white()
 }
 
 // The image must already be loaded through project texture configuration.
-std::optional<elysia::effects::ScreenEffectHandle> show_screen_image()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> show_screen_image()
 {
     elysia::effects::ScreenImageEffectRequest request;
     request.texture_key = "screen.blood"; // Project-provided texture key
@@ -140,13 +157,13 @@ Solid/image requests share `ScreenEffectPlayback`. Defaults: target opacity 1, f
 
 `BeforeUi` draws after world/debug and before UI; `AfterUi` covers UI. Development panels follow both. Within a layer, creation order determines stacking. Image `Stretch` fills the viewport; `Cover` preserves aspect, centers, and crops; `Contain` preserves aspect and fully displays, leaving uncovered regions transparent.
 
-Creation returns optional handles. No active scene, missing texture, negative/non-finite times, opacity outside 0–1, or all-zero `Timed` durations return empty and log. Images borrow loaded textures; clear effects through existing content cleanup before reload. Directly freeing referenced textures is unsupported. Shader postprocessing is unsupported.
+Creation returns `std::expected<ScreenEffectHandle, EffectRequestFailure>`. No active scene, missing texture, negative/non-finite times, opacity outside 0–1, or all-zero `Timed` durations return failure diagnostics. Images borrow loaded textures; clear effects through existing content cleanup before reload. Directly freeing referenced textures is unsupported. Shader postprocessing is unsupported.
 
 ### Screen Animation and Shared Layout
 
 `request_screen_animation_effect` shares world effects' `effect_key`, loaded animation, `Atlas`, and textures, with independent players per request. Defaults: `loop=false`, `fit=Contain`, `end=AnimationFinished`, hold 0. Resource loop settings do not override screen requests. Angle follows the definition unless overridden with `angle_degrees`; `flip` defaults None.
 
-This fragment belongs in an active scene function including `effect_service.h`. Requests are independent; check each returned optional handle. Image keys must already be loaded.
+This fragment belongs in an active scene function including `effect_service.h`. Requests are independent; check each returned expected result. Image keys must already be loaded.
 
 ```cpp
 // One centered presentation: show the complete animation, then fade out.
@@ -154,7 +171,7 @@ elysia::effects::ScreenAnimationEffectRequest single;
 single.effect_key = "effect.test";
 single.playback.fade_in_seconds = 0.2;
 single.playback.fade_out_seconds = 0.4;
-const std::optional<elysia::effects::ScreenEffectHandle> single_handle =
+const auto single_handle =
     ELYSIA_EFFECTS->request_screen_animation_effect(single);
 
 // Looping full-screen mask: wait for caller stop/cancel.
@@ -162,7 +179,7 @@ elysia::effects::ScreenAnimationEffectRequest overlay = single;
 overlay.loop = true;
 overlay.fit = elysia::effects::ScreenEffectFit::Cover;
 overlay.playback.end = elysia::effects::ScreenEffectEnd::Manual;
-const std::optional<elysia::effects::ScreenEffectHandle> overlay_handle =
+const auto overlay_handle =
     ELYSIA_EFFECTS->request_screen_animation_effect(overlay);
 
 // Bottom-right animation: natural size, inset by 24 logical pixels.
@@ -171,7 +188,7 @@ corner.fit = elysia::effects::ScreenEffectFit::Natural;
 corner.placement.anchor = elysia::effects::EffectAnchor::BottomRight;
 corner.placement.offset = {-24, -24};
 corner.placement.scale = {0.5f, 0.5f};
-const std::optional<elysia::effects::ScreenEffectHandle> corner_handle =
+const auto corner_handle =
     ELYSIA_EFFECTS->request_screen_animation_effect(corner);
 
 // Static images use the same placement parameters.
@@ -179,7 +196,7 @@ elysia::effects::ScreenImageEffectRequest image;
 image.texture_key = "demo.screen_effect";
 image.fit = corner.fit;
 image.placement = corner.placement;
-const std::optional<elysia::effects::ScreenEffectHandle> image_handle =
+const auto image_handle =
     ELYSIA_EFFECTS->request_screen_image_effect(image);
 ```
 
@@ -194,7 +211,7 @@ Offsets/angles must be finite, scales finite and positive. Missing effect/animat
 The old scene requests fade-to-black and accumulates the same clock, requesting a route switch after fade-in. `Manual` holds black before switching. Do not start transition timing if creation fails.
 
 ```cpp
-std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> begin_exit_blackout()
 {
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {0, 0, 0};
@@ -204,7 +221,7 @@ std::optional<elysia::effects::ScreenEffectHandle> begin_exit_blackout()
 }
 
 // Call in the new scene's on_enter to create a black mask before first rendering.
-std::optional<elysia::effects::ScreenEffectHandle> begin_enter_blackout()
+std::expected<elysia::effects::ScreenEffectHandle, elysia::effects::EffectRequestFailure> begin_enter_blackout()
 {
     elysia::effects::ScreenColorEffectRequest request;
     request.color = {0, 0, 0};

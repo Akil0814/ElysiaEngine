@@ -203,10 +203,11 @@ void require_services_unbound()
     require(!gameplay::collision::GameplayCollisionService::instance()->has_active_runtime(),
         "gameplay collision runtime must be unbound");
     LogCapture logs;
-    require(!effects::EffectService::instance()->request_animation_effect({.effect_key = "missing"}),
-        "effect request must fail without an active scene");
-    require(logs.output.str().find("there is no active scene") != std::string::npos,
+    const auto result = effects::EffectService::instance()->request_animation_effect({.effect_key = "missing"});
+    require(!result && result.error().code == effects::EffectRequestError::NoActiveScene,
         "effect manager must have no active scene, not merely an unknown effect definition");
+    require(!result.error().diagnostic.message.empty(), "unbound effect service must return a diagnostic");
+    require(logs.output.str().empty(), "effect request failures leave logging to the caller");
 }
 
 std::size_t occurrences(const std::string& text, const std::string& needle)

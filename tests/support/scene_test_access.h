@@ -10,6 +10,7 @@ namespace elysia::scene
 class SceneTestAccess final
 {
 public:
+    static SceneAudioRuntime& audio_runtime(Scene& scene) { return *scene._audio_runtime; }
     static void attach(Scene& scene) { scene.attach_runtime_services(); }
     static void detach(Scene& scene) { scene.detach_runtime_services(); }
     static SceneCameraRuntime& camera_runtime(Scene& scene) { return scene.camera_runtime(); }
