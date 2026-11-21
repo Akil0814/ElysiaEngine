@@ -18,6 +18,7 @@
 #include "engine/typography/font_resolver.h"
 #include "tests/support/test_assertions.h"
 #include "effect_request_assertions.h"
+#include "collision_effect_scene.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -35,17 +36,7 @@ namespace
 using elysia::tests::require;
 using elysia::tests::require_effect_failure;
 
-class TestScene final : public elysia::scene::Scene
-{
-public:
-    TestScene() { instance = this; }
-    ~TestScene() override { instance = nullptr; }
-	inline static TestScene* instance = nullptr;
-
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
-};
+using TestScene = elysia::tests::CollisionEffectScene;
 
 class SecondTestScene final : public elysia::scene::Scene
 {
@@ -354,6 +345,12 @@ void test_floating_number_validation_motion_timing_and_scene_lifecycle(FloatingN
     TestScene::instance->resume();
     scene_manager.on_update(0.2);
     require(scene_finished == 1, "resumed scenes must complete attached floating numbers");
+
+    TestScene::instance->verify_collision_spawn(scene_manager, [&] {
+        require_effect_failure(effect_service->request_floating_number_effect({.text = "12A"}),
+            effects::EffectRequestError::InvalidRequest);
+        require(effect_service->request_floating_number_effect({.text = "4"}), "accept effect during collision");
+    });
 
     int switch_finished = 0;
     effects::FloatingNumberEffectSpawnRequest switch_pending_request;

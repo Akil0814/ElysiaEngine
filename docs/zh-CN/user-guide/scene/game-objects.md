@@ -48,7 +48,16 @@ public:
 
 对象加入场景时才注册更新接口；不要又从场景手动调用它的 `update()`。对象自身时间缩放需要显式使用 `scaled_delta()`，引擎不会自动替你乘一次。该示例没有物理刚体，直接改位置即可。
 
-`add_object` 同步注册；不要在对象 `update()`、UI 呈现动画、渲染、查询或物理模拟步回调中增删场景对象。在对象中记录生成请求，由场景 `on_before_update` / `on_after_update` 处理。场景固定步钩子和输入快照回调也允许同步添加；注册回调允许嵌套添加，但不能清空场景。完整规则见[阶段表](scene.md#常用操作与扩展点)。
+碰撞监听器生成掉落物时，可以把构造好的对象交给场景队列。例如，游戏中定义了 `LootDrop` 类型时，可以在监听器中把命中位置传给下面的函数，并检查提交结果。
+
+```cpp
+bool queue_drop(elysia::scene::Scene& scene, elysia::core::Vector2 position)
+{
+    return scene.enqueue_object(std::make_unique<LootDrop>(position));
+}
+```
+
+`true` 表示场景已接收对象。世界对象和 UI 根节点按提交顺序，在本帧物理步结束后、`on_after_update()` 前注册。注册后可查询和渲染，下次更新才参与模拟。处理这批对象期间（包括它们的注册回调）或处理结束后提交的对象，会等到下次更新。清空或退出场景会释放待入场对象。需要立即注册时，在安全阶段使用 `add_object()`。
 
 ## 位置、绘制与资源
 

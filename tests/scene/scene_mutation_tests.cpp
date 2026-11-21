@@ -39,11 +39,11 @@ public:
     bool owns(const core::SceneObject& object) const { return owns_object(object); }
     std::size_t body_count() const { return physics_world().registered_object_count(); }
 
-    std::function<void()> before, after, fixed, collision;
+    std::function<void()> entering, before, after, fixed, collision;
     std::function<void(core::SceneObject&)> registered, removing;
 
 private:
-    void on_enter(const scene::ScenePayload&) override {}
+    void on_enter(const scene::ScenePayload&) override { if (entering) entering(); }
     void on_exit() override {}
     void on_reset() override {}
     void on_before_update(double) override { if (before) before(); }
@@ -419,6 +419,130 @@ void test_safe_hooks_and_input_mutation()
     SceneTestAccess::exit(scene);
 }
 
+void test_collision_queue(SDL_Renderer* renderer)
+{
+    TestScene scene;
+    SceneTestAccess::enter(scene);
+    scene.create_and_add_object<BodyProbe>();
+    scene.create_and_add_object<BodyProbe>();
+    int ticks = 0, updates = 0, renders = 0;
+    bool submitted = false;
+    std::vector<core::SceneObject*> expected, registered;
+    scene.fixed = [&] {
+        ++ticks;
+        require(scene.body_count() == 2, "queued body must skip every physics substep");
+    };
+    scene.collision = [&] {
+        if (std::exchange(submitted, true)) return;
+        auto world = std::make_unique<WorldProbe>();
+        world->updating = [&] { ++updates; };
+        world->rendering = [&] { ++renders; };
+        auto ui = std::make_unique<UiProbe>();
+        auto body = std::make_unique<BodyProbe>();
+        expected = {world.get(), ui.get(), body.get()};
+        require(scene.enqueue_object(std::move(world)) && scene.enqueue_object(std::move(ui))
+            && scene.enqueue_object(std::move(body)), "accept mixed collision submissions");
+        scene.visit([&](core::GameObject& object) {
+            require(&object != expected.front() && &object != expected.back(), "pending objects are invisible");
+            return true;
+        });
+    };
+    scene.registered = [&](core::SceneObject& object) {
+        registered.push_back(&object);
+        if (registered.size() == 1)
+            require(scene.enqueue_object(std::make_unique<UiProbe>()), "accept nested queue entry");
+    };
+    scene.after = [&] {
+        require(submitted && registered == expected && scene.body_count() == 3, "register batch in FIFO order");
+        require(scene.enqueue_object(std::make_unique<UiProbe>()), "accept late entry");
+    };
+    SceneTestAccess::update(scene, 3.0 / 60.0);
+    SceneTestAccess::render(scene, renderer);
+    require(ticks >= 2 && updates == 0 && renders == 1, "queued drop renders before its first update");
+    scene.after = {};
+    scene.fixed = {};
+    scene.pause();
+    SceneTestAccess::update(scene, 0);
+    require(registered.size() == 5, "nested and late entries register even while paused");
+    scene.resume();
+    SceneTestAccess::update(scene, 0);
+    require(updates == 1, "drop updates normally after registration");
+    scene.clear();
+    SceneTestAccess::exit(scene);
+}
+
+void test_pending_cleanup()
+{
+    int constructed = 0, destroyed = 0;
+    TestScene scene;
+    const auto enqueue = [&] {
+        return scene.enqueue_object(std::make_unique<CountedProbe>(constructed, destroyed));
+    };
+    require(!enqueue() && constructed == destroyed, "inactive scene releases rejected ownership");
+    scene.entering = [&] {
+        require(enqueue(), "accept during entry");
+        throw std::runtime_error("entry failure");
+    };
+    try { SceneTestAccess::enter(scene); } catch (const std::runtime_error&) {}
+    require(constructed == destroyed, "failed entry discards pending objects");
+    scene.entering = {};
+    SceneTestAccess::enter(scene);
+    require(enqueue(), "queue before clear");
+    scene.clear();
+    require(constructed == destroyed, "clear releases pending objects");
+    require(enqueue(), "queue before exit");
+    SceneTestAccess::exit(scene);
+    SceneTestAccess::reset(scene);
+    SceneTestAccess::enter(scene);
+    SceneTestAccess::update(scene, 0);
+    require(constructed == destroyed, "reuse starts without stale entries");
+
+    require(enqueue() && enqueue() && enqueue(), "submit batch");
+    int registrations = 0;
+    scene.registered = [&](core::SceneObject&) {
+        if (++registrations == 2)
+        {
+            require(enqueue(), "enqueue before registration failure");
+            throw std::runtime_error("batch registration failure");
+        }
+    };
+    scene.removing = [&](core::SceneObject&) { require(!enqueue(), "reject during rollback or retirement"); };
+    bool failed = false;
+    try { SceneTestAccess::update(scene, 0); }
+    catch (const scene::SceneBoundaryTagged& error) { failed = error.scene_boundary() == scene::SceneBoundary::ObjectRegistration; }
+    require(failed && constructed == destroyed + 1, "rollback preserves only registered batch prefix");
+    SceneTestAccess::update(scene, 0);
+    require(registrations == 2, "failed batch never retries");
+    scene.clear();
+    require(constructed == destroyed, "all accepted and rejected objects destroyed exactly once");
+    SceneTestAccess::exit(scene);
+}
+
+void test_queue_without_physics()
+{
+    class PlainScene final : public scene::Scene
+    {
+        void on_enter(const scene::ScenePayload&) override {}
+        void on_exit() override {}
+        void on_reset() override {}
+    };
+    int constructions = 0, destructions = 0;
+    {
+        PlainScene scene;
+        SceneTestAccess::enter(scene);
+        require(!scene.enqueue_object(std::unique_ptr<WorldProbe>{}), "reject null ownership");
+        require(!scene.enqueue_object(std::make_unique<core::GameObject>(core::DepthLayer::Count)),
+            "reject invalid layer at submission");
+        require(scene.enqueue_object(std::make_unique<CountedProbe>(constructions, destructions)),
+            "scene without physics accepts pending object");
+        SceneTestAccess::update(scene, 0);
+        require(SceneTestAccess::game_object(scene, 0) != nullptr, "register without fixed step or physics");
+        require(scene.enqueue_object(std::make_unique<CountedProbe>(constructions, destructions)),
+            "queue before scene destruction");
+    }
+    require(constructions == 2 && destructions == 2, "destruction releases pending and registered objects");
+}
+
 void test_reentrant_clear_has_no_marking_side_effect()
 {
     TestScene scene;
@@ -443,6 +567,9 @@ void test_reentrant_clear_has_no_marking_side_effect()
 int main()
 {
     SoftwareRenderer renderer;
+    test_collision_queue(renderer.renderer);
+    test_pending_cleanup();
+    test_queue_without_physics();
     test_dangerous_phases(renderer.renderer);
     test_exception_unwinds_every_phase(renderer.renderer);
     test_nested_queries_and_internal_retirement();

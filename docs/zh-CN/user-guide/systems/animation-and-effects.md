@@ -7,7 +7,7 @@
 | 需求 | 入口与归属 |
 | --- | --- |
 | 对象自己播放动画 | `AnimationService::create_animation()` 返回由调用方持有、更新的播放器 |
-| 世界中的命中特效或飘字 | `EffectService` 将特效对象同步加入活动场景，由场景更新与回收 |
+| 世界中的命中特效或飘字 | `EffectService` 将特效对象交给活动场景，由场景更新与回收 |
 | 闪白、黑幕或屏幕动画 | `EffectService` 返回屏幕特效句柄，退出所属场景时清除 |
 
 ## 播放对象动画
@@ -68,7 +68,7 @@ private:
 
 ## 请求场景特效
 
-以下辅助函数在活动场景的安全阶段调用，例如在 `on_enter`、`on_before_update` 或 `on_after_update` 中处理本帧积累的表现请求。特效对象通过同步 `add_object` 加入场景；不要在对象更新、UI 呈现动画、渲染、查询、物理模拟步的碰撞监听或对象特效完成回调中直接插入新特效，应先保存值请求。`on_after_update` 在物理和相机之后、标记对象回收之前执行。完整规则见[场景阶段表](../scene/scene.md#常用操作与扩展点)。
+碰撞监听器可以直接调用下面的 `show_hit(position)`。世界动画和飘字在调用时完成资源校验和构造。场景允许添加对象时立即注册；在碰撞或对象更新期间，场景将特效排队，在 `on_after_update()` 前注册。注册阶段的异常由场景报告。
 
 ```cpp
 #include "engine/effects/effect_service.h"
@@ -93,7 +93,7 @@ void show_hit(elysia::core::Vector2 position)
 }
 ```
 
-动画特效 position 是选定 anchor 的世界位置；可覆盖 size、angle_degrees、flip，设置 start_delay_seconds。请求返回 `std::expected<void, EffectRequestFailure>`。成功表示对象已经加入活动场景；延迟播放、开始与结束回调仍按原有时间推进。缺少活动场景、定义或创建失败时，通过 `.error()` 读取原因。
+动画特效 position 是选定 anchor 的世界位置；可覆盖 size、angle_degrees、flip，设置 start_delay_seconds。请求返回 `std::expected<void, EffectRequestFailure>`。成功表示活动场景已接收对象；延迟播放、开始与结束回调仍按原有时间推进。缺少活动场景、定义或创建失败时，通过 `.error()` 读取原因。
 
 特效非循环动画完成后调用 on_finished 并标记销毁；循环动画不会自然结束。服务不返回可取消句柄。需要主动管理的长期表现优先由自己的对象持有 `Animation`；不要假设退出场景会触发完成回调。场景缓存复用时，特效可能仍保留在原场景中。
 

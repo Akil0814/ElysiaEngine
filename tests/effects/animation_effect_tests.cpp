@@ -12,6 +12,7 @@
 #include "engine/scene/scene_manager.h"
 #include "tests/support/test_assertions.h"
 #include "effect_request_assertions.h"
+#include "collision_effect_scene.h"
 
 #include <SDL3/SDL.h>
 
@@ -26,13 +27,7 @@ namespace
 using elysia::tests::require;
 using elysia::tests::require_effect_failure;
 
-class TestScene final : public elysia::scene::Scene
-{
-public:
-    void on_enter(const elysia::scene::ScenePayload&) override {}
-    void on_exit() override {}
-    void on_reset() override {}
-};
+using TestScene = elysia::tests::CollisionEffectScene;
 
 class SecondTestScene final : public elysia::scene::Scene
 {
@@ -260,6 +255,12 @@ void test_animation_effect_creation_playback_and_scene_lifecycle(AnimationEffect
     scene_manager.on_update(0.2);
     require(spawned_started == 1 && spawned_callbacks == 1 && spawned_finished == 1,
         "spawn requests must configure lifecycle and scheduled callbacks");
+
+    TestScene::instance->verify_collision_spawn(scene_manager, [&] {
+        require_effect_failure(effect_service->request_animation_effect(unknown_request),
+            effects::EffectRequestError::MissingEffectDefinition);
+        require(effect_service->request_animation_effect({.effect_key = scene_request.effect_key}), "accept effect during collision");
+    });
 
     scene::SceneRequest switch_request;
     switch_request.type = scene::SceneRequestType::Switch;

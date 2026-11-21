@@ -29,7 +29,7 @@
 
 ## 更新与对象变更
 
-一次更新为 `on_before_update` → 普通对象更新 → UI 呈现动画 → 固定步 → 物理 `finalize_frame` → 相机 → `on_after_update` → 标记对象回收。`GameplayScene` 的每个实际固定步先交付控制命令，再执行 `on_game_fixed_update`，最后进入可选物理模拟步。
+一次更新为 `on_before_update` → 普通对象更新 → UI 呈现动画 → 固定步 → 物理 `finalize_frame` → 相机 → 待入场对象注册 → `on_after_update` → 标记对象回收。`GameplayScene` 的每个实际固定步先交付控制命令，再执行 `on_game_fixed_update`，最后进入可选物理模拟步。
 
 `add_object` 同步完成所有权接收、接口和物理注册，再通知 `on_scene_object_registered`。注册失败会回滚该对象；注册钩子允许嵌套添加独立对象，但整个注册过程禁止清空场景，防止释放正在注册的对象。对象更新、UI 呈现、渲染、对象查询与物理模拟步中禁止同步增删；场景前后更新钩子、模拟步前的场景固定步钩子及输入快照回调可以修改对象集合。物理查询的 `noexcept` 回调必须只读。
 

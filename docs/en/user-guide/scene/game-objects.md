@@ -48,7 +48,16 @@ public:
 
 Update interfaces register only when the object joins the scene; do not also call its `update()` manually. Object time scaling requires explicit `scaled_delta()`; the engine does not multiply automatically. This example has no rigid body and may directly change position.
 
-`add_object` registers synchronously. Do not add/remove scene objects in object `update()`, UI presentation animations, rendering, queries, or physics simulation callbacks. Record spawn requests in objects and process them in scene `on_before_update` / `on_after_update`. Scene fixed hooks and input snapshot callbacks also permit synchronous addition. Registration callbacks permit nested addition, but not clearing. See the [phase table](scene.md#common-operations-and-extension-points).
+A collision listener can queue a drop at the hit position. For a game that defines `LootDrop`, call this helper with the hit position and check its result.
+
+```cpp
+bool queue_drop(elysia::scene::Scene& scene, elysia::core::Vector2 position)
+{
+    return scene.enqueue_object(std::make_unique<LootDrop>(position));
+}
+```
+
+A successful submission transfers ownership. World objects and UI roots register in submission order after physics and before `on_after_update()`. They can then be queried and rendered, and participate in simulation from the next update. Entries queued while this batch is being registered, or after it finishes, wait for the following update. Clearing or exiting the scene discards pending objects. Use `add_object()` in a safe phase for immediate registration.
 
 ## Position, Drawing, and Resources
 

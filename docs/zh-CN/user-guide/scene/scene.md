@@ -77,6 +77,7 @@ inline void register_room(elysia::scene::SceneManager& scenes)
 | --- | --- |
 | `create_and_add_object<T>(...)` | 创建 `GameObject` 或 `UiElement` 派生对象并交给场景；返回借用指针，失败可返回空 |
 | `add_object(std::unique_ptr<T>)` | 转移现有对象所有权；调用后不自行释放它 |
+| `enqueue_object(std::unique_ptr<T>)` | 转移所有权并排队，返回 `true` 表示已接收 |
 | `pause()` / `resume()` | 改变场景暂停状态；相机播放默认冻结，可由 `advance_when_paused` 覆盖 |
 | `on_before_update(double)` / `on_after_update(double)` | 普通对象更新前 / 物理和相机推进后的业务逻辑；框架自动调度，不调用基类更新入口 |
 | `on_reset()` | Reset 路由中的业务重置；引擎已重置输入、暂停状态、固定步和相机运行时 |
@@ -96,7 +97,7 @@ inline void register_room(elysia::scene::SceneManager& scenes)
 
 相机与物理一样是按需能力。纯 UI 场景不配置相机；需要提交世界绘制命令或世界 `DebugDraw` 的场景必须在 `SceneRuntimeFeatures` 或 `GameplaySceneFeatures` 中显式提供 `CameraSceneConfig`。默认 `GameplayScene` 只启用固定步与控制能力。
 
-`add_object` 同步转移所有权并注册接口，不是延迟命令。禁止修改的阶段会在修改容器前抛出契约异常；把生成请求暂存到 `on_before_update` 或 `on_after_update` 再执行。`clear_scene_objects()` 也必须在安全阶段调用。
+`add_object()` 同步注册对象，受限阶段调用会抛出异常。进入或运行中的场景可以通过 `enqueue_object()` 接收对象，在 `on_after_update()` 前统一注册。`clear_scene_objects()` 需要在安全阶段调用，并会释放待入场对象。
 
 | 当前阶段 | 同步添加场景对象 | 清空场景对象 |
 | --- | --- | --- |
@@ -112,7 +113,7 @@ inline void register_room(elysia::scene::SceneManager& scenes)
 
 物理查询中的 `noexcept` 回调必须只读：不要依赖抛出异常来退出这种回调，更不能在回调中执行场景增删。`destroy()` 只设置标记，但查询和绘制回调仍应保持只读。输入快照只保护当前分发；回调清空对象后，自己的代码仍须停止使用失效的借用指针。
 
-一次更新的顺序为：`on_before_update` → 普通对象更新 → UI 呈现动画 → 零次或多次固定步（场景固定步钩子 → 可选物理模拟步）→ 物理插值收尾 → 可选相机推进 → `on_after_update` → 回收已标记销毁的对象。`on_after_update` 在回收之前，不能假定已标记对象已经释放。即使业务更新抛异常，框架也会尝试末尾回收。
+一次更新的顺序为：`on_before_update` → 普通对象更新 → UI 呈现动画 → 零次或多次固定步（场景固定步钩子 → 可选物理模拟步）→ 物理插值收尾 → 可选相机推进 → 待入场对象注册 → `on_after_update` → 回收已标记销毁的对象。`on_after_update` 在回收之前，不能假定已标记对象已经释放。即使业务更新抛异常，框架也会尝试末尾回收。
 
 ## 切换、返回与退出
 

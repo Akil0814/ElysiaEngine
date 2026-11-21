@@ -7,7 +7,7 @@ Declare atlases, animations, and effects in [resources](../content/resources.md)
 | Need | Entry point and ownership |
 | --- | --- |
 | Object animation | `AnimationService::create_animation()` returns a caller-owned, caller-updated player |
-| World hit effects/floating numbers | `EffectService` synchronously adds effect objects to the active scene for updates/reclamation |
+| World hit effects/floating numbers | `EffectService` submits effect objects to the active scene for updates/reclamation |
 | Flash, blackout, screen animation | `EffectService` returns screen-effect handles; effects clear on owning scene exit |
 
 ## Playing Object Animation
@@ -68,7 +68,7 @@ The caller owns the player, which borrows `Atlas` and frame textures. Destroy/de
 
 ## Requesting Scene Effects
 
-Call this helper in a safe active-scene phase, such as `on_enter`, `on_before_update`, or `on_after_update` processing accumulated presentation requests. Effects synchronously use `add_object`; do not directly spawn from object updates, UI presentation animation, rendering, queries, physics collision listeners, or object-effect completion callbacks. Save value requests first. `on_after_update` follows physics/camera and precedes reclamation. See [scene phase table](../scene/scene.md#common-operations-and-extension-points).
+A collision listener can call `show_hit(position)` directly. World animations and floating numbers validate resources and construct the effect during the call. The scene registers it immediately when possible. During collision or object updates it queues the effect for registration before `on_after_update()`. The scene reports failures during deferred registration.
 
 ```cpp
 #include "engine/effects/effect_service.h"
@@ -93,7 +93,7 @@ void show_hit(elysia::core::Vector2 position)
 }
 ```
 
-`Animation` effect position is the chosen anchor's world position. Override size, `angle_degrees`, `flip`, or start_delay_seconds as needed. Requests return `std::expected<void, EffectRequestFailure>`. Success means the object has joined the active scene; delayed playback and start/finish callbacks retain their existing timing. Read `.error()` for missing-scene, missing-definition, or creation failures.
+`Animation` effect position is the chosen anchor's world position. Override size, `angle_degrees`, `flip`, or start_delay_seconds as needed. Requests return `std::expected<void, EffectRequestFailure>`. Success means the active scene accepted the object; delayed playback and start/finish callbacks retain their existing timing. Read `.error()` for missing-scene, missing-definition, or creation failures.
 
 Non-looping completion calls on_finished and marks destruction; looping never ends naturally. No cancellation handle is returned. Prefer owning `Animation` in your own object for managed long-lived presentation. Exit need not invoke completion; cached Reuse scenes may retain effects.
 

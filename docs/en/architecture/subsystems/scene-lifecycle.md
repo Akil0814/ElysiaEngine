@@ -29,7 +29,7 @@ Failed `on_enter` does not receive a compensating `on_exit`: the candidate only 
 
 ## Update and Object Mutation
 
-An update runs `on_before_update` → ordinary object updates → UI presentation animation → fixed steps → physics `finalize_frame` → camera → `on_after_update` → reclamation. Each actual `GameplayScene` fixed step delivers control commands, runs `on_game_fixed_update`, then enters optional physics simulation.
+An update runs `on_before_update` → ordinary object updates → UI presentation animation → fixed steps → physics `finalize_frame` → camera → queued object registration → `on_after_update` → reclamation. Each actual `GameplayScene` fixed step delivers control commands, runs `on_game_fixed_update`, then enters optional physics simulation.
 
 `add_object` synchronously accepts ownership, registers interfaces and physics, then calls `on_scene_object_registered`. Failed registration rolls back that object. Registration hooks may add independent objects recursively, but the entire registration process prohibits clearing the scene, which could release an object currently being registered. Synchronous addition/removal is prohibited during object update, UI presentation, rendering, object queries, and physics simulation. Before/after-update hooks, scene fixed-step hooks before simulation, and input snapshot callbacks may mutate collections. Physics query `noexcept` callbacks must be read-only.
 

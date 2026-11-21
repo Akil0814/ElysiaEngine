@@ -77,6 +77,7 @@ Game SceneKey values use `1..999`; do not reuse engine-reserved identifiers or r
 | --- | --- |
 | `create_and_add_object<T>(...)` | Create a `GameObject` or `UiElement` subclass and transfer it to the scene; returns a borrowed pointer, possibly null on failure |
 | `add_object(std::unique_ptr<T>)` | Transfer existing ownership; do not release it yourself afterward |
+| `enqueue_object(std::unique_ptr<T>)` | Transfer ownership for deferred registration. Returns `true` when accepted |
 | `pause()` / `resume()` | Change pause state; camera playback freezes by default, overridable with `advance_when_paused` |
 | `on_before_update(double)` / `on_after_update(double)` | Business logic before ordinary updates / after physics and camera advancement; automatically scheduled, do not call base update entry points |
 | `on_reset()` | Business reset for `Reset` routes; engine has reset input, pause, fixed steps, and camera runtime |
@@ -96,7 +97,7 @@ See [input](../systems/input.md), [time](../systems/time-and-timers.md) for fixe
 
 Like physics, cameras are optional. Pure UI scenes need no camera; scenes submitting world commands or world `DebugDraw` must explicitly provide `CameraSceneConfig` in `SceneRuntimeFeatures` or `GameplaySceneFeatures`. Default `GameplayScene` enables fixed stepping and control only.
 
-`add_object` synchronously transfers ownership and registers interfaces; it is not a deferred command. Prohibited phases throw contract exceptions before changing containers. Buffer spawn requests until `on_before_update` or `on_after_update`. `clear_scene_objects()` also requires a safe phase.
+`add_object()` registers immediately and throws during protected traversals. An entering or active scene can accept objects through `enqueue_object()` for registration before `on_after_update()`. Calling `clear_scene_objects()` in a safe phase also discards pending objects.
 
 | Current phase | Synchronous addition | Clearing objects |
 | --- | --- | --- |
@@ -112,7 +113,7 @@ Like physics, cameras are optional. Pure UI scenes need no camera; scenes submit
 
 Physics query `noexcept` callbacks must be read-only. Do not rely on exceptions to exit them or mutate scene membership inside them. `destroy()` only marks, but query/drawing callbacks should still stay read-only. Input snapshots protect current dispatch only; after a callback clears objects, its own code must stop using invalid borrowed pointers.
 
-Update order: `on_before_update` → ordinary objects → UI presentation animation → zero or more fixed steps (scene hook → optional physics simulation) → physics interpolation finalization → optional camera → `on_after_update` → reclaim marked objects. `on_after_update` precedes reclamation; marked objects need not already be freed. The framework attempts final reclamation even if business updates throw.
+Update order: `on_before_update` → ordinary objects → UI presentation animation → zero or more fixed steps (scene hook → optional physics simulation) → physics interpolation finalization → optional camera → queued object registration → `on_after_update` → reclaim marked objects. `on_after_update` precedes reclamation; marked objects need not already be freed. The framework attempts final reclamation even if business updates throw.
 
 ## Switching, Returning, and Quitting
 
