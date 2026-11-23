@@ -102,6 +102,8 @@ The first argument is a category; the second supports stream expressions, not pr
 
 `ELYSIA_LOG_TERMINATING` records Terminating level without requesting exit. Applications own logging lifetime; ordinary objects should not repeatedly initialize/shut down `Logger`.
 
+Set `LoggerConfig::file_mode` before initialization: `Disabled` disables file output, `Overwrite` clears the file named by `overwrite_file_name` (default `Elysia.log`) when opening it for a new logging lifecycle, and `NewRunFile` creates a separate timestamped file each run (the default). Files are stored in the logs directory managed by `PathManager`. Repeated initialization during the same lifecycle keeps the current file and its entries; `console_enabled` controls console output independently.
+
 Logging Error does not recover, switch scenes, or terminate automatically. Check service results and decide whether to stop, notify, or enter [application failure flow](../builtin-scenes/application-failure.md). Logging does not replace handling errors from interfaces such as `std::expected`.
 
 ## JSON Files and Field Validation

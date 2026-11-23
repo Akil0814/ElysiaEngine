@@ -102,6 +102,8 @@ ELYSIA_LOG_WARN("inventory", "Reward skipped because inventory is full.");
 
 `ELYSIA_LOG_TERMINATING` 记录 Terminating 级别日志，本身不发出退出请求。应用负责日志设施的生命周期，普通游戏对象不重复初始化或关闭 `Logger`。
 
+初始化前通过 `LoggerConfig::file_mode` 选择文件模式：`Disabled` 不写文件；`Overwrite` 在新的日志生命周期中打开文件时清空旧内容，文件名由 `overwrite_file_name` 指定，默认为 `Elysia.log`；`NewRunFile` 每次运行创建带时间戳的独立文件，也是默认模式。日志文件写入 `PathManager` 管理的日志目录。同一生命周期内重复初始化会保留当前文件及其内容，控制台输出由 `console_enabled` 独立控制。
+
 打印 Error 不会自动恢复操作、切换场景或终止应用。调用方仍要检查服务返回值并决定停止操作、提示用户或进入[应用错误流程](../builtin-scenes/application-failure.md)。日志也不替代 `std::expected` 等接口的错误处理。
 
 ## JSON 文件与字段检查

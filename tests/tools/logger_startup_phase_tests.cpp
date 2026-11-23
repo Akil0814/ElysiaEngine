@@ -84,8 +84,8 @@ void test_console_precedes_paths_and_file_follows()
     std::streambuf* previous = std::clog.rdbuf(&captured);
 
     tools::LoggerConfig config;
-    config.file_mode = tools::LogFileMode::Append;
-    config.append_file_name = "logger-startup-phase.log";
+    config.file_mode = tools::LogFileMode::Overwrite;
+    config.overwrite_file_name = "logger-startup-phase.log";
     config.console_color_mode = tools::ConsoleColorMode::Always;
     require(logger->configure(config),
         "startup logger must accept configuration before either phase starts");
@@ -127,7 +127,7 @@ void test_console_precedes_paths_and_file_follows()
 
     require(paths->initialize(ELYSIA_SOURCE_DIR) && paths->ensure_runtime_dirs(),
         "the test must restore the real project paths before attaching the file sink");
-    const std::filesystem::path log_path = paths->logs() / config.append_file_name;
+    const std::filesystem::path log_path = paths->logs() / config.overwrite_file_name;
     remove_path(log_path);
 
     logger->initialize_file();
@@ -165,8 +165,8 @@ void test_file_failure_can_retry_without_disabling_console()
     std::streambuf* previous = std::clog.rdbuf(&captured);
 
     tools::LoggerConfig config;
-    config.file_mode = tools::LogFileMode::Append;
-    config.append_file_name = blocked_path.filename().string();
+    config.file_mode = tools::LogFileMode::Overwrite;
+    config.overwrite_file_name = blocked_path.filename().string();
     config.console_color_mode = tools::ConsoleColorMode::Always;
     require(logger->configure(config),
         "logger must allow reconfiguration after the previous shutdown");

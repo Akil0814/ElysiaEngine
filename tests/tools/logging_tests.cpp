@@ -319,8 +319,8 @@ void test_logger_console_sink()
     const std::filesystem::path dual_sink_path = path_manager->logs() / "ui-lifecycle-console-dual.log";
     remove_test_path(dual_sink_path);
     tools::LoggerConfig dual_sink_config;
-    dual_sink_config.file_mode = tools::LogFileMode::Append;
-    dual_sink_config.append_file_name = dual_sink_path.filename().string();
+    dual_sink_config.file_mode = tools::LogFileMode::Overwrite;
+    dual_sink_config.overwrite_file_name = dual_sink_path.filename().string();
     dual_sink_config.console_color_mode = tools::ConsoleColorMode::Always;
     require(logger->configure(dual_sink_config),"logger must accept dual-sink configuration");
     logger->initialize();
@@ -354,8 +354,8 @@ void test_logger_console_sink()
     const std::filesystem::path silent_path = path_manager->logs() / "ui-lifecycle-console-silent.log";
     remove_test_path(silent_path);
     tools::LoggerConfig silent_config;
-    silent_config.file_mode = tools::LogFileMode::Append;
-    silent_config.append_file_name = silent_path.filename().string();
+    silent_config.file_mode = tools::LogFileMode::Overwrite;
+    silent_config.overwrite_file_name = silent_path.filename().string();
     silent_config.console_enabled = false;
     silent_config.console_color_mode = tools::ConsoleColorMode::Always;
     require(logger->configure(silent_config),"logger must accept silent console configuration");
@@ -375,8 +375,8 @@ void test_logger_console_sink()
     require(!directory_error,"console logger test must create a blocking directory");
     captured.messages.clear();
     tools::LoggerConfig fallback_config;
-    fallback_config.file_mode = tools::LogFileMode::Append;
-    fallback_config.append_file_name = blocked_path.filename().string();
+    fallback_config.file_mode = tools::LogFileMode::Overwrite;
+    fallback_config.overwrite_file_name = blocked_path.filename().string();
     fallback_config.console_enabled = true;
     fallback_config.console_color_mode = tools::ConsoleColorMode::Never;
     require(logger->configure(fallback_config),"logger must accept file-fallback configuration");
@@ -414,40 +414,45 @@ void test_logger_file_modes_and_noexcept()
     require(!logger->configure(disabled_config),"logger configuration must be fixed after initialization");
     logger->shutdown();
 
-    const std::filesystem::path append_path = path_manager->logs() / "ui-lifecycle-logger-append.log";
-    remove_test_path(append_path);
-    tools::LoggerConfig append_config;
-    append_config.file_mode = tools::LogFileMode::Append;
-    append_config.append_file_name = append_path.filename().string();
-    require(logger->configure(append_config),"logger must accept append configuration");
+    const std::filesystem::path overwrite_path = path_manager->logs() / "ui-lifecycle-logger-overwrite.log";
+    remove_test_path(overwrite_path);
+    tools::LoggerConfig overwrite_config;
+    overwrite_config.file_mode = tools::LogFileMode::Overwrite;
+    overwrite_config.overwrite_file_name = overwrite_path.filename().string();
+    require(logger->configure(overwrite_config),"logger must accept overwrite configuration");
     logger->initialize();
-    const unsigned int append_call_line = __LINE__ + 1;
-    logger->info("logger-test","append first marker");
-    const auto active_append_path = logger->active_file_path();
-    require(active_append_path.has_value() && *active_append_path == append_path,
-        "append logger must expose its active file path");
+    const unsigned int overwrite_call_line = __LINE__ + 1;
+    logger->info("logger-test","overwrite first marker");
+    const auto active_overwrite_path = logger->active_file_path();
+    require(active_overwrite_path.has_value() && *active_overwrite_path == overwrite_path,
+        "overwrite logger must expose its active file path");
     logger->shutdown();
-    require(read_text_file(append_path).find("append first marker") != std::string::npos,
-        "append logger must create and write its configured file");
-    require(read_text_file(append_path).find("logging_tests.cpp:" + std::to_string(append_call_line)) != std::string::npos,
+    require(read_text_file(overwrite_path).find("overwrite first marker") != std::string::npos,
+        "overwrite logger must create and write its configured file");
+    require(read_text_file(overwrite_path).find("logging_tests.cpp:" + std::to_string(overwrite_call_line)) != std::string::npos,
         "logger must retain the call-site source location");
 
-    require(logger->configure(append_config),"logger must allow reconfiguration after shutdown");
+    require(logger->configure(overwrite_config),"logger must allow reconfiguration after shutdown");
     logger->initialize();
-    logger->warn("logger-test","append second marker");
+    require(read_text_file(overwrite_path).empty(),
+        "overwrite logger must truncate the old file when initialization opens it");
+    logger->warn("logger-test","overwrite second marker");
+    logger->initialize_file();
+    logger->info("logger-test","overwrite current run marker");
     logger->shutdown();
-    const std::string append_contents = read_text_file(append_path);
-    require(append_contents.find("append first marker") != std::string::npos
-            && append_contents.find("append second marker") != std::string::npos,
-        "append logger must preserve earlier content");
-    remove_test_path(append_path);
+    const std::string overwrite_contents = read_text_file(overwrite_path);
+    require(overwrite_contents.find("overwrite first marker") == std::string::npos
+            && overwrite_contents.find("overwrite second marker") != std::string::npos
+            && overwrite_contents.find("overwrite current run marker") != std::string::npos,
+        "overwrite logger must discard the previous run and retain the current run");
+    remove_test_path(overwrite_path);
 
     const std::filesystem::path filtered_path = path_manager->logs() / "ui-lifecycle-logger-filtered.log";
     remove_test_path(filtered_path);
     tools::LoggerConfig filtered_config;
     filtered_config.minimum_level = tools::LogLevel::Warn;
-    filtered_config.file_mode = tools::LogFileMode::Append;
-    filtered_config.append_file_name = filtered_path.filename().string();
+    filtered_config.file_mode = tools::LogFileMode::Overwrite;
+    filtered_config.overwrite_file_name = filtered_path.filename().string();
     require(logger->configure(filtered_config),"logger must accept level filtering configuration");
     logger->initialize();
     logger->debug("logger-test","filtered debug marker");
@@ -463,8 +468,8 @@ void test_logger_file_modes_and_noexcept()
     remove_test_path(error_filtered_path);
     tools::LoggerConfig error_filtered_config;
     error_filtered_config.minimum_level = tools::LogLevel::Error;
-    error_filtered_config.file_mode = tools::LogFileMode::Append;
-    error_filtered_config.append_file_name = error_filtered_path.filename().string();
+    error_filtered_config.file_mode = tools::LogFileMode::Overwrite;
+    error_filtered_config.overwrite_file_name = error_filtered_path.filename().string();
     require(logger->configure(error_filtered_config),"logger must accept error-level filtering configuration");
     logger->initialize();
     logger->warn("logger-test","filtered warn marker");
@@ -482,8 +487,8 @@ void test_logger_file_modes_and_noexcept()
     remove_test_path(terminating_filtered_path);
     tools::LoggerConfig terminating_filtered_config;
     terminating_filtered_config.minimum_level = tools::LogLevel::Terminating;
-    terminating_filtered_config.file_mode = tools::LogFileMode::Append;
-    terminating_filtered_config.append_file_name = terminating_filtered_path.filename().string();
+    terminating_filtered_config.file_mode = tools::LogFileMode::Overwrite;
+    terminating_filtered_config.overwrite_file_name = terminating_filtered_path.filename().string();
     require(logger->configure(terminating_filtered_config),"logger must accept terminating-level filtering configuration");
     logger->initialize();
     logger->error("logger-test","filtered error marker");
@@ -521,8 +526,8 @@ void test_logger_file_modes_and_noexcept()
     std::filesystem::create_directory(blocked_path,directory_error);
     require(!directory_error,"logger test must create a blocking directory");
     tools::LoggerConfig blocked_config;
-    blocked_config.file_mode = tools::LogFileMode::Append;
-    blocked_config.append_file_name = blocked_path.filename().string();
+    blocked_config.file_mode = tools::LogFileMode::Overwrite;
+    blocked_config.overwrite_file_name = blocked_path.filename().string();
     require(logger->configure(blocked_config),"logger must accept blocking-file configuration");
     logger->initialize();
     require(!logger->active_file_path().has_value(),"failed file open must disable the file sink");
