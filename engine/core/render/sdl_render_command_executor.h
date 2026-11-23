@@ -62,10 +62,11 @@ inline void execute_textured_render_command(
     if (!texture)
         return;
 
-    SDL_FRect destination_rect = to_sdl_frect(to_sdl_rect(destination_rect_value));
+    // Keep projected tile edges and sprite pivots in subpixel screen space.
+    SDL_FRect destination_rect = to_sdl_frect(destination_rect_value);
     SDL_FPoint sdl_rotation_origin{
-        static_cast<float>(static_cast<int>(rotation_origin.x * destination_rect.w)),
-        static_cast<float>(static_cast<int>(rotation_origin.y * destination_rect.h))
+        rotation_origin.x * destination_rect.w,
+        rotation_origin.y * destination_rect.h
     };
 
     const SDL_FRect* src_rect = nullptr;

@@ -117,6 +117,13 @@ add_elysia_test(sdl3_gpu_integration_tests
 target_compile_definitions(sdl3_gpu_integration_tests PRIVATE ELYSIA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 set_tests_properties(sdl3_gpu_integration_tests PROPERTIES RUN_SERIAL TRUE)
 
+add_elysia_test(texture_projection_gpu_tests
+    LABEL gpu
+    SOURCES application/texture_projection_gpu_tests.cpp
+    SDL
+)
+set_tests_properties(texture_projection_gpu_tests PROPERTIES RUN_SERIAL TRUE)
+
 add_elysia_test(sdl3_application_smoke_tests
     LABEL gpu
     SOURCES application/sdl3_application_smoke_tests.cpp
