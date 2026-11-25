@@ -51,6 +51,7 @@ public:
         SDL_Window& window,
         SDL_Renderer& renderer) = 0;
     virtual void process_event(const SDL_Event& event) = 0;
+    // Uses real frame time, independent of the global time scale.
     virtual void begin_frame(double delta_seconds) = 0;
     virtual void render(SDL_Renderer& renderer) = 0;
     virtual void shutdown() noexcept = 0;
