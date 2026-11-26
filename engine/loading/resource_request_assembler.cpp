@@ -96,6 +96,8 @@ std::expected<ResourceLoadPlan,ContentLoadFailure> ResourceRequestAssembler::ass
                     module.key_namespace,entry,plan.sound_requests())))
                 return std::unexpected(std::move(*failure));
 
+    plan.particle_effect_build_requests() = config.animation_effect_manifest.particle_effects;
+
     auto validation = ResourceLoadPlanValidator{}.validate(plan);
     if (!validation)
         return std::unexpected(make_content_load_failure(

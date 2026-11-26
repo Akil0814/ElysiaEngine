@@ -727,3 +727,9 @@ add_elysia_test(physics_debug_visualization_tests LABEL physics SOURCES physics/
 
 add_test(NAME physics_exception_safety_debug_extended COMMAND physics_exception_safety_tests debug_extended)
 set_tests_properties(physics_exception_safety_debug_extended PROPERTIES LABELS physics)
+
+foreach(PARTICLE_TEST IN ITEMS particle_effect_tests particle_render_tests particle_lifecycle_tests)
+    add_elysia_test(${PARTICLE_TEST} LABEL effects SOURCES effects/${PARTICLE_TEST}.cpp LIBRARIES ${ELYSIA_SDL_LIBRARIES} SDL)
+endforeach()
+add_test(NAME particle_render_gpu_tests COMMAND particle_render_tests --gpu)
+set_tests_properties(particle_render_gpu_tests PROPERTIES LABELS "effects;gpu" RUN_SERIAL TRUE TIMEOUT 30)

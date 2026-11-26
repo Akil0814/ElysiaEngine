@@ -57,14 +57,15 @@ void test_minimal_repository_resource_plan()
         "the minimal manifests must assemble into a valid resource plan");
     const auto& plan = *plan_result;
 
-    require(plan.texture_requests().size() == 2
+    require(plan.texture_requests().size() == 3
             && plan.sound_requests().size() == 3
             && plan.music_requests().size() == 2
             && plan.font_requests().size() == 10
             && plan.atlas_build_requests().size() == 9
             && plan.animation_build_requests().size() == 9
             && plan.animation_effect_build_requests().size() == 1
-            && plan.total_request_count() == 36,
+            && plan.particle_effect_build_requests().size() == 2
+            && plan.total_request_count() == 39,
         "the plan must contain the reviewed core resources and eight Ryougi animation clips");
 
     const auto* texture = find_request(
@@ -205,7 +206,7 @@ void test_minimal_repository_resource_plan()
     auto no_fonts = assembler.assemble(content, std::span<const int>{});
     require(no_fonts
             && no_fonts->font_requests().empty()
-            && no_fonts->total_request_count() == 26,
+            && no_fonts->total_request_count() == 29,
         "an empty project font-size set must omit only project font requests");
 }
 }

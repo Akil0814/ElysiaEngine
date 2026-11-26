@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../resources/resource_origin.h"
+#include "../../resources/resource_types.h"
 #include "../json/json_loader.h"
 
 #include <cstddef>
@@ -117,6 +117,7 @@ struct AnimationEffectManifestEntry
 struct AnimationEffectManifest
 {
 	std::vector<AnimationEffectManifestEntry> effects;
+	std::vector<elysia::resources::ParticleEffectBuildRequest> particle_effects;
 };
 
 struct EntityManifestEntry

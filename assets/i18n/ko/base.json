@@ -466,7 +466,7 @@
     },
     "effects": {
       "title": "효과",
-      "description": "떠오르는 숫자, 색상 오버레이 및 화면 효과.",
+      "description": "입자 그룹, 숫자 효과, 색상 오버레이와 화면 효과.",
       "damage": "피해",
       "critical": "치명타",
       "heal": "회복",
@@ -519,6 +519,17 @@
         "scale_half": "배율: 0.5x",
         "scale_large": "배율: 1.5x",
         "layout_image": "현재 배치로 이미지 재생"
+      },
+      "particles": {
+        "burst": "불꽃 터뜨리기",
+        "smoke": "연기 연속 방출",
+        "move": "방출 위치 이동",
+        "stop": "방출 중지",
+        "cancel": "입자 지우기",
+        "ready": "입자: 준비",
+        "active": "입자: 재생 중",
+        "finished": "입자: 종료",
+        "failed": "입자 생성 실패"
       }
     },
     "physics": {

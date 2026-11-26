@@ -466,7 +466,7 @@
     },
     "effects": {
       "title": "Effects",
-      "description": "Floating numbers, color overlays and screen effects.",
+      "description": "Particle groups, floating numbers, color overlays and screen effects.",
       "damage": "Damage",
       "critical": "Critical",
       "heal": "Heal",
@@ -519,6 +519,17 @@
         "scale_half": "Scale: 0.5x",
         "scale_large": "Scale: 1.5x",
         "layout_image": "Play layout image"
+      },
+      "particles": {
+        "burst": "Burst sparks",
+        "smoke": "Continuous smoke",
+        "move": "Move emitter",
+        "stop": "Stop emission",
+        "cancel": "Clear particles",
+        "ready": "Particles: ready",
+        "active": "Particles: active",
+        "finished": "Particles: finished",
+        "failed": "Particle request failed"
       }
     },
     "physics": {

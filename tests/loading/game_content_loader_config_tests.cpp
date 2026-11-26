@@ -4,6 +4,9 @@
 #include "engine/animation/animation_service.h"
 #include "engine/config/config_service.h"
 #include "engine/effects/runtime/effect_manager.h"
+#include "engine/effects/effect_service.h"
+#include "engine/scene/scene.h"
+#include "engine/scene/scene_manager.h"
 #include "engine/io/loaders/content_registry_loader.h"
 #include "engine/io/path/path_manager.h"
 #include "engine/loading/content_runtime_cleanup.h"
@@ -19,6 +22,8 @@
 
 #include <algorithm>
 #include <array>
+#include <filesystem>
+#include <fstream>
 #include <string_view>
 
 namespace
@@ -61,6 +66,16 @@ bool ryougi_sample_is_unavailable(
                 || resources.find_atlas(key) != nullptr;
         });
 }
+
+class ParticleScene final : public elysia::scene::Scene
+{
+public:
+    ParticleScene() : Scene({.camera = elysia::scene::CameraSceneConfig{}}) {}
+private:
+    void on_enter(const elysia::scene::ScenePayload&) override {}
+    void on_exit() override {}
+    void on_reset() override {}
+};
 
 void run_to_completion(elysia::loading::GameContentLoader& loader)
 {
@@ -122,6 +137,17 @@ int main()
 		&& resource_service->find_music("scene.main_menu") == nullptr,
 		"ResourceService must expose the complete minimal runtime resource set");
 
+    effects->set_runtime_dependencies(renderer, nullptr);
+    elysia::scene::SceneManager manager;
+    elysia::scene::SceneRuntimeContext context(renderer, *content_registry, 64, 64);
+    manager.initialize(context);
+    manager.register_game_scene<ParticleScene>(101);
+    manager.start({.target = 101});
+    const elysia::effects::ParticleEffectSpawnRequest sparks{.effect_key = "showcase.particles.sparks"};
+    require(effects->particle_count() == 0, "content loading only registers particle definitions");
+    const auto first_burst = ELYSIA_EFFECTS->request_particle_effect(sparks);
+    require(first_burst && effects->particle_count() == 150, "the startup-loaded preset spawns the configured burst");
+
     loader.reset();
 	require(configs->is_initialized()
 		&& resources->resource_count() > 0
@@ -139,6 +165,42 @@ int main()
 		&& effects->find_animation_effect_definition("effect.test") == nullptr,
 		"a new loading cycle must not expose the old content while it is preparing");
 	run_to_completion(loader);
+
+    require(!ELYSIA_EFFECTS->is_particle_effect_active(*first_burst), "content reload invalidates old particle instances");
+    require(ELYSIA_EFFECTS->request_particle_effect(sparks), "a subsequent load restores the particle preset");
+
+    const auto invalid_manifest = std::filesystem::temp_directory_path() / "elysia_particle_out_of_bounds_manifest.json";
+    std::ofstream(invalid_manifest) << R"({
+        "effects": [{"key":"effect.test","animation_key":"test.animation"}],
+        "particle_effects": [
+            {"key":"effect.first","texture_key":"demo.particle_dot"},
+            {"key":"effect.invalid","texture_key":"demo.particle_dot","source_rect":[0,0,999,999]}
+        ]
+    })";
+    auto invalid_registry = *content_registry;
+    invalid_registry.required.effects = invalid_manifest;
+    const auto invalid_start = loader.start(renderer, invalid_registry, project_font_point_sizes);
+    std::filesystem::remove(invalid_manifest);
+    require(invalid_start, "source rectangle bounds must be checked after texture loading");
+    for (int step = 0; loader.is_running() && step < 10000; ++step)
+    {
+        loader.update();
+        SDL_Delay(1);
+    }
+    require(loader.has_failed() && loader.failure()->code == elysia::loading::ContentLoadError::Effect
+        && loader.failure()->diagnostic.entries.front().declaration_path.filename() == invalid_manifest.filename()
+        && loader.failure()->diagnostic.entries.front().declaration_pointer == "/particle_effects/1/source_rect",
+        "runtime bounds failure reports the manifest and offending source rectangle");
+    const auto rolled_back = ELYSIA_EFFECTS->request_particle_effect({.effect_key = "effect.first"});
+    require(!rolled_back && rolled_back.error().code == elysia::effects::EffectRequestError::MissingEffectDefinition
+        && effects->particle_count() == 0 && resources->resource_count() == 0 && !configs->is_initialized(),
+        "failed content loading rolls back particle definitions, instances and resources");
+
+    require(loader.start(renderer, *content_registry, project_font_point_sizes), "restart after a particle registration failure");
+    run_to_completion(loader);
+    require(ELYSIA_EFFECTS->request_particle_effect(sparks), "restart registers usable presets again");
+    require(manager.shutdown(), "particle test scene shuts down");
+    effects->set_runtime_dependencies(nullptr, nullptr);
 
 	require(!loader.start(nullptr, *content_registry, project_font_point_sizes),
 		"an invalid renderer must fail the new content loading cycle");

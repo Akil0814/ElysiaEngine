@@ -6,7 +6,7 @@
 
 运行时 `EffectService` 还支持纯色和静态图片屏幕特效；图片通过已加载的 texture 资源键查询，不新增 EffectDefinition 配置。屏幕特效由 `EffectManager` 内的独立运行时管理，使用逻辑视口坐标，在 UI 前或 UI 后绘制。所有实例属于当前场景，场景解绑时清理，不跨场景保留；内容清理先释放特效，再释放其借用的纹理。
 
-运行时五个特效请求使用 `std::expected` 返回成功结果或 `EffectRequestFailure`。屏幕特效的成功值是句柄，世界动画与浮动数字的成功值为 void；请求错误与加载时的 `EffectRegistrationFailure` 分开。请求结果的处理方式见[动画与特效指南](../../user-guide/systems/animation-and-effects.md)。
+运行时特效请求使用 `std::expected` 返回成功结果或 `EffectRequestFailure`。屏幕特效与粒子特效的成功值是各自的句柄，世界动画与浮动数字的成功值为 void；请求错误与加载时的 `EffectRegistrationFailure` 分开。请求结果的处理方式见[动画与特效指南](../../user-guide/systems/animation-and-effects.md)。
 
 依赖查询与阶段终止是两个独立事件：`find_atlas()` / `find_definition()` 查询失败时的 Warn 记录缺失依赖；随后 `Animation` 或 EffectDefinition 注册终止时的 Error 记录加载阶段失败。两条日志不得合并或按重复日志删除。
 
@@ -166,6 +166,25 @@ first frame              ..._00_000.png             ..._01_000.png
 
 若项目自行配置名为 `character_effects`、命名空间为 `effect` 的模块，资源键可以是 `RyougiShiki.effect.attack_normal.0`，文件前缀可以由模块模板配置为 `RyougiShiki_effects_attack_normal_00`。这些是配置结果示例，不是当前 `ryougi_sample` 默认提供的特效键；相应特效配置与素材需要项目自行提供。加载时先完成 `Animation` 注册，再注册 EffectDefinition。
 
+<a id="particle-effect-manifest"></a>
+## 粒子预设清单
+
+现有 `effects_manifest.json` 中的 `effects` 数组保存动画特效，始终必填，可以为空。粒子放在可选的 `particle_effects` 数组中。每项必填 `key` 和 `texture_key`，分别用于播放请求和引用加载计划中的纹理资源。粒子键在粒子注册表内必须唯一。
+
+启动和内容重载会在纹理加载完成后注册粒子预设。此时会校验源矩形是否位于纹理内。配置失败会提供清单路径和对应的 JSON Pointer。播放方式见[动画与特效指南](../../user-guide/systems/animation-and-effects.md)。
+
+| 可选字段 | 格式与默认值 |
+| --- | --- |
+| `max_particles`、`burst_count` | 非负整数，默认 `1024` 和 `32`。容量必须大于零。 |
+| `emission_rate`、`emission_duration_seconds` | 默认每秒发射 `0` 个，发射时长默认省略。设置时长时必须为正。 |
+| `velocity_min`、`velocity_max`、`acceleration` | `[x, y]`，默认均为 `[0, 0]`。 |
+| `lifetime_seconds`、`angle_degrees`、`angular_velocity_degrees` | `{ "min": ..., "max": ... }`，默认范围分别为 `0.4–0.8`、`0–0`、`0–0`。 |
+| `start_size`、`end_size` | `[width, height]`，默认 `[8, 8]` 和 `[0, 0]`。 |
+| `start_color`、`end_color` | `[r, g, b, a]`，各通道为 `0–255` 整数，默认 `[255, 255, 255, 255]` 和 `[255, 255, 255, 0]`。 |
+| `source_rect` | 像素坐标 `[x, y, width, height]`，省略时使用整张纹理。 |
+| `layer` | 默认 `"effect_front"`。可选 `background`、`terrain`、`effect_back`、`item`、`character`、`effect_front`、`foreground`。 |
+| `blend` | 默认 `"alpha"`，也支持 `"add"`。 |
+
 ## 资源键冲突
 
-核心与所有模块的请求会按 `Atlas`、`Animation`、`Effect`、Texture、Font、Sound、Music 注册表分别去重。同一字符串可出现在不同注册表；同一注册表冲突会在提交前失败，并在诊断中提供首次与重复声明的项目相对路径、JSON 路径指针、来源范围、模块、能力声明、实体、逻辑名和分段。
+核心与所有模块的请求会按 `Atlas`、`Animation`、`Effect`、`ParticleEffect`、Texture、Font、Sound、Music 注册表分别去重。同一字符串可出现在不同注册表；同一注册表冲突会在提交前失败，并在诊断中提供首次与重复声明的项目相对路径、JSON 路径指针、来源范围、模块、能力声明、实体、逻辑名和分段。

@@ -12,6 +12,7 @@
 #include "engine/effects/runtime/effect_manager.h"
 #include "engine/animation/runtime/animation_manager.h"
 #include "engine/io/loaders/asset_config_types.h"
+#include "engine/io/loaders/animation_effect_manifest_loader.h"
 #include "engine/object_query/game_object_query_service.h"
 #include "engine/resources/resource_service.h"
 #include "engine/resources/runtime/resource_manager.h"
@@ -599,6 +600,16 @@ void test_escape_returns_the_full_caller_route()
         require(demo_atlas.add_frame({},sheet.get(),sheet.get(),
             elysia::core::Rect{i*sheet_width/14,0,sheet_width/14,sheet_height}), "demo animation frames must register");
     require(elysia::resources::ResourceManager::instance()->store_texture("test.animation.sheet",std::move(sheet)), "demo animation texture must register");
+    elysia::resources::TexturePtr particle_texture(IMG_LoadTexture(fixture.renderer(),
+        (elysia::io::PathManager::instance()->textures() / "effects" / "particle_dot.png").string().c_str()));
+    require(particle_texture && elysia::resources::ResourceManager::instance()->store_texture("demo.particle_dot",std::move(particle_texture)),
+        "demo particle texture must load and register");
+    const auto effect_manifest = elysia::io::AnimationEffectManifestLoader{}.load(
+        std::filesystem::path{ELYSIA_SOURCE_DIR} / "assets/configs/manifests/effects_manifest.json");
+    require(effect_manifest && effect_manifest->particle_effects.size() == 2, "load showcase presets from the project manifest");
+    for (const auto& request : effect_manifest->particle_effects)
+        require(elysia::effects::EffectManager::instance()->register_particle_effect(request.definition),
+            "register manifest presets in the isolated showcase fixture");
     elysia::resources::AnimationBuildRequest animation_request;
     animation_request.animation_key="test.animation"; animation_request.atlas_key="test.animation";
     animation_request.fps=10; animation_request.loop=true;
@@ -741,6 +752,21 @@ void test_escape_returns_the_full_caller_route()
         return commands;
     };
     capture_screen("01_controls");
+    click_mouse(scene_manager,144,592);
+    require(elysia::effects::EffectManager::instance()->particle_count()==150, "spark button requests one burst group");
+    elysia::core::Time::instance()->begin_frame(0.15); scene_manager.on_update(0.15);
+    capture_screen("06_particle_sparks");
+    click_mouse(scene_manager,383,592);
+    elysia::core::Time::instance()->begin_frame(0.8); scene_manager.on_update(0.8);
+    require(elysia::effects::EffectManager::instance()->particle_count()>0, "smoke button starts continuous emission");
+    click_mouse(scene_manager,623,592);
+    capture_screen("07_particle_smoke");
+    click_mouse(scene_manager,862,592);
+    elysia::core::Time::instance()->begin_frame(4); scene_manager.on_update(4);
+    require(elysia::effects::EffectManager::instance()->particle_count()==0, "stop button drains existing particles");
+    click_mouse(scene_manager,144,592);
+    click_mouse(scene_manager,1102,592);
+    require(elysia::effects::EffectManager::instance()->particle_count()==0, "cancel button clears the whole particle group");
     click_mouse(scene_manager,640,138); // Hold black button.
     elysia::core::Time::instance()->begin_frame(0.5);
     scene_manager.on_update(0.5);

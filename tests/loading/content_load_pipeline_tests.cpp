@@ -1,6 +1,7 @@
 ﻿#define SDL_MAIN_HANDLED
 
 #include "engine/io/loaders/content_registry_loader.h"
+#include "engine/io/loaders/animation_effect_manifest_loader.h"
 #include "engine/io/path/path_manager.h"
 #include "engine/loading/animated_entity_content_loader.h"
 #include "engine/loading/content_manifest_pipeline.h"
@@ -50,6 +51,43 @@ std::filesystem::path write_registry(
 		+ manifests + "}");
 }
 
+void test_particle_manifest()
+{
+    using namespace elysia::io;
+    const auto root = std::filesystem::temp_directory_path() / "elysia_particle_manifest_test";
+    std::filesystem::create_directories(root);
+    const auto load = [&](const std::string& document) {
+        return AnimationEffectManifestLoader{}.load(write_file(root, "effects.json", document));
+    };
+    const auto legacy = load(R"({"effects":[{"key":"effect.old","animation_key":"animation.old"}]})");
+    require(legacy && legacy->effects.size() == 1 && legacy->particle_effects.empty(), "legacy manifest remains valid");
+    const auto minimal = load(R"({"effects":[],"particle_effects":[{"key":"effect.test","texture_key":"texture.test"}]})");
+    require(minimal && minimal->particle_effects.size() == 1, "particle-only manifest with empty animation array");
+    const auto& preset = minimal->particle_effects.front();
+    require(preset.definition.burst_count == 32 && preset.definition.max_particles == 1024
+        && preset.definition.layer == elysia::core::DepthLayer::EffectFront
+        && !preset.definition.source_rect && preset.origin.json_pointer == "/particle_effects/0", "use C++ defaults and retain declaration origin");
+
+    const auto reject = [&](std::string fields, std::string_view pointer, ManifestLoadError code) {
+        auto result = load(R"({"effects":[],"particle_effects":[{"key":"effect.test","texture_key":"texture.test",)"
+            + fields + "}]}");
+        require(!result && result.error().code == code
+            && result.error().diagnostic.entries.front().declaration_pointer == pointer,
+            "particle parse failure identifies the field and category");
+    };
+    reject(R"("unexpected":true)", "/particle_effects/0/unexpected", ManifestLoadError::UnknownField);
+    reject(R"("burst_count":2.5)", "/particle_effects/0/burst_count", ManifestLoadError::InvalidField);
+    reject(R"("max_particles":18446744073709551616)", "/particle_effects/0/max_particles", ManifestLoadError::InvalidField);
+    reject(R"("layer":"ui")", "/particle_effects/0/layer", ManifestLoadError::InvalidField);
+    reject(R"("blend":"multiply")", "/particle_effects/0/blend", ManifestLoadError::InvalidField);
+    reject(R"("velocity_max":[1e50,0])", "/particle_effects/0/velocity_max", ManifestLoadError::InvalidField);
+    reject(R"("start_color":[255,256,0,255])", "/particle_effects/0/start_color", ManifestLoadError::InvalidField);
+    reject(R"("lifetime_seconds":{"min":2,"max":1})", "/particle_effects/0/lifetime_seconds", ManifestLoadError::InvalidValue);
+    reject(R"("burst_count":1,"burst_count":2)", "/particle_effects/0/burst_count", ManifestLoadError::DuplicateKey);
+    std::filesystem::remove(root / "effects.json");
+    std::filesystem::remove(root);
+}
+
 void test_current_repository_loads_minimal_sample()
 {
 	auto* path_manager = elysia::io::PathManager::instance();
@@ -88,11 +126,12 @@ void test_current_repository_loads_minimal_sample()
 		&& module->second.texture_entries.empty()
 		&& module->second.audio_entries.empty()
 		&& result.font_manifest.fonts.size() == 5
-		&& result.texture_manifest.textures.size() == 2
+		&& result.texture_manifest.textures.size() == 3
 		&& result.audio_manifest.sounds.size() == 3
 		&& result.audio_manifest.music.size() == 2
 		&& result.animation_manifest.animations.size() == 1
-		&& result.animation_effect_manifest.effects.size() == 1,
+		&& result.animation_effect_manifest.effects.size() == 1
+		&& result.animation_effect_manifest.particle_effects.size() == 2,
 		"the standalone repository must expose the reviewed core resources and Ryougi animation sample");
 }
 
@@ -230,7 +269,8 @@ void test_texture_only_and_audio_only_modules()
 	require(!missing_layout
 		&& !missing_layout.error().diagnostic.entries.empty()
 		&& missing_layout.error().diagnostic.entries.front().expected_path
-			== "texture_layout.json"
+			== elysia::core::normalize_diagnostic_path(texture_layout,
+				elysia::io::PathManager::instance()->root())
 		&& missing_layout.error().diagnostic.message.find("texture_layout.json")
 			!= std::string::npos,
 		"missing additional-module layouts must preserve their exact safe diagnostic path");
@@ -334,6 +374,7 @@ void test_config_manifest_registry_contract()
 
 int main()
 {
+	test_particle_manifest();
 	test_current_repository_loads_minimal_sample();
 	test_arbitrary_and_empty_additional_module();
 	test_module_schema_rejections();

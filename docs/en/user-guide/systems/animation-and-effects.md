@@ -8,6 +8,7 @@ Declare atlases, animations, and effects in [resources](../content/resources.md)
 | --- | --- |
 | Object animation | `AnimationService::create_animation()` returns a caller-owned, caller-updated player |
 | World hit effects/floating numbers | `EffectService` submits effect objects to the active scene for updates/reclamation |
+| World-space particles | `EffectService` returns a group handle; `ParticleRuntime` updates and reclaims the group |
 | Flash, blackout, screen animation | `EffectService` returns screen-effect handles; effects clear on owning scene exit |
 
 ## Playing Object Animation
@@ -101,18 +102,49 @@ on_started, on_finished, and scheduled_callbacks receive `AnimationEffect`&; sch
 
 Floating numbers need no animation manifest but require valid fonts/rendering. text supports `0–9`, `-`, `.`, `/`, `%`, not plus signs or ordinary text; use UI for text. Position, height, and times must be valid; lifetime_seconds/target_height positive, time_scale nonnegative. effects combine linear/arc motion, scale, and fade with 0–1 lifetime time_range. Without these, lifetime still ends in destruction. on_finished receives `FloatingNumberEffect`&.
 
+## CPU Particle Effects
+
+Each particle group is a `ParticleEffect` instance owned by the `ParticleRuntime` inside `EffectManager`. Neither groups nor individual particles are scene objects, and callers do not update them manually. Particles use world coordinates, require an active scene camera, advance with scene time, and follow scene pause. It does not handle damage, gameplay collisions, or character states.
+
+Declare the texture in the texture manifest and add the preset to `particle_effects` in the effect manifest. Startup registers the preset. After content finishes loading, request it by key in the active scene. This example uses the showcase smoke preset. See the [particle manifest reference](../../reference/resources/animation-and-effects.md#particle-effect-manifest) for fields and defaults.
+
+```cpp
+#include "engine/effects/effect_service.h"
+
+std::expected<elysia::effects::ParticleEffectHandle,
+    elysia::effects::EffectRequestFailure>
+show_smoke(elysia::core::Vector2 position)
+{
+    return ELYSIA_EFFECTS->request_particle_effect({
+        .effect_key = "showcase.particles.smoke", .position = position});
+}
+```
+
+`burst_count` creates initial particles immediately when a request succeeds. `emission_rate` specifies subsequent particles per second; without `emission_duration_seconds`, emission continues until stopped. A positive emission duration ends emission automatically. Once emission has ended and remaining particles expire, the instance is retired. Time does not advance in the creation frame; updates start next frame. `max_particles` must be positive. Excess emission is dropped at capacity without accumulating catch-up debt.
+
+Velocity x/y components are sampled independently between `velocity_min` and `velocity_max`. Lifetime, initial angle, and angular velocity use ordered ranges. Acceleration is constant; size and color interpolate linearly over each particle's lifetime. Optional `source_rect` uses texture pixel coordinates and must lie inside the texture; omission selects the whole texture. Defaults are `EffectFront` and Alpha blending; Add is also supported. A group shares one texture and fixed UV region, without frame-by-frame atlas animation.
+
+Store the returned `ParticleEffectHandle` and call `set_particle_effect_position(handle, position)` to move future emission. Existing particles retain their world positions. This returns `expected<void, EffectRequestFailure>`: stale handles yield `InvalidHandle` and non-finite positions yield `InvalidRequest`. Game code can provide character positions each frame without storing a character pointer in the effect.
+
+`stop_particle_effect(handle)` ends emission while existing particles dissipate. `cancel_particle_effect(handle)` clears the entire group immediately. Both report whether state changed. `is_particle_effect_active(handle)` remains true while residual particles exist. Requests may supply a `seed` to reproduce simulation with identical inputs; omitted seeds use independent instance sequences.
+
+Scene exit, including cached reuse, failed entry, fault recovery, shutdown, and content cleanup, clears particles and invalidates handles. Resources own textures; cleanup releases particles before textures. Each world depth layer draws its particle groups after ordinary objects, in group creation order, without interleaving with ordinary objects. Particle birth order is preserved inside each group. Each visible nonempty group submits one textured geometry batch, reusing reserved simulation, vertex, and index storage.
+
+The showcase particle controls offer burst sparks, continuous smoke, moving the emission position, stopping emission, and clearing particles, with current-group activity status.
+
 ## Handling Request Results
 
-All five `request_*` functions use `EffectRequestFailure`: `code` identifies the failure category, while `diagnostic` provides the specific cause, source location, and related resource keys. Successful world-animation and floating-number requests return no object or handle. Screen requests return a `ScreenEffectHandle` for stopping, cancelling, and querying. Success means creation and acceptance; playback completion still uses the existing completion callbacks.
+All `request_*` functions use `EffectRequestFailure`: `code` identifies the failure category, while `diagnostic` provides the specific cause, source location, and related resource keys. Successful world-animation and floating-number requests return no object or handle. Screen requests return a `ScreenEffectHandle` for stopping, cancelling, and querying. Success means creation and acceptance; animation and floating-number completion still uses the existing callbacks, while particles use group activity queries.
 
 | Error code | Meaning |
 | --- | --- |
 | `NoActiveScene` | No active scene; takes precedence over resource and parameter checks |
 | `InvalidRequest` | Existing parameter validation rejected the request |
 | `MissingEffectDefinition` / `MissingAnimation` / `MissingTexture` | Corresponding definition or resource is missing, including empty resource keys |
-| `RuntimeUnavailable` | Renderer, font resolver, or usable font is unavailable |
+| `RuntimeUnavailable` | Renderer, required particle scene camera, font resolver, or usable font is unavailable |
 | `CreationFailed` | Animation, atlas-frame, texture-size query, or glyph creation failed |
 | `SceneRejected` | The scene did not accept the created object |
+| `InvalidHandle` | Particle position control used an inactive handle |
 
 The caller decides whether to log an effect request failure. The example above uses `format_effect_request_failure(result.error())` to format the code and diagnostic. Existing missing-resource warnings from shared resource/animation lookup functions remain. Registration continues to use the separate `EffectRegistrationFailure`.
 

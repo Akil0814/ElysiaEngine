@@ -7,6 +7,26 @@
 
 namespace elysia::effects
 {
+std::expected<void, EffectRegistrationFailure> EffectManager::register_particle_effect(const ParticleEffectDefinition& definition)
+{
+    auto valid = ParticleEffect::validate(definition, ELYSIA_RESOURCES->find_texture(definition.texture_key));
+    if (!valid) return std::unexpected(std::move(valid.error()));
+    _particle_definitions[definition.effect_key] = definition;
+    return {};
+}
+std::expected<ParticleEffectHandle, EffectRequestFailure> EffectManager::dispatch(const ParticleEffectSpawnRequest& request)
+{
+    if (!_active_scene) return std::unexpected(make_effect_request_failure(EffectRequestError::NoActiveScene,
+        "Particle effect requires an active scene.", request.effect_key));
+    const auto it = _particle_definitions.find(request.effect_key);
+    if (it == _particle_definitions.end()) return std::unexpected(make_effect_request_failure(EffectRequestError::MissingEffectDefinition,
+        "Particle effect definition does not exist.", request.effect_key));
+    if (!_renderer || !_active_scene->has_camera()) return std::unexpected(make_effect_request_failure(EffectRequestError::RuntimeUnavailable,
+        "World particles require a renderer and scene camera.", request.effect_key));
+    return _particles.create(it->second, ELYSIA_RESOURCES->find_texture(it->second.texture_key), request,
+        _active_scene, elysia::core::Time::instance()->frame_count());
+}
+
 std::expected<ScreenEffectHandle, EffectRequestFailure> EffectManager::dispatch(const ScreenColorEffectRequest& request)
 {
     return _screen_effects.create(request, _active_scene, elysia::core::Time::instance()->frame_count());
@@ -44,6 +64,8 @@ void EffectManager::set_runtime_dependencies(
 	SDL_Renderer* renderer,
 	const elysia::typography::FontResolver* font_resolver) noexcept
 {
+    if (_renderer != renderer) _particles.clear();
+    _renderer = renderer;
 	_floating_number_effect_factory.set_runtime_dependencies(renderer,font_resolver);
 }
 
@@ -144,7 +166,8 @@ std::expected<void, EffectRequestFailure> EffectManager::dispatch(const Floating
 
 void EffectManager::clear_content() noexcept
 {
-	_screen_effects.clear();
+    clear_transient_effects();
+    _particle_definitions.clear();
 	_animation_effect_definitions.clear();
 	_floating_number_effect_factory.clear_cache();
 }
@@ -156,6 +179,7 @@ void EffectManager::bind_active_scene(elysia::scene::Scene& scene) noexcept
 
 void EffectManager::unbind_active_scene(const elysia::scene::Scene& scene) noexcept
 {
+    _particles.unbind(&scene);
 	_screen_effects.unbind(&scene);
 	if (_active_scene == &scene)
 		_active_scene = nullptr;

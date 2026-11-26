@@ -5,7 +5,8 @@
 namespace example::showcase::effects {
 void EffectsControlsView::build(elysia::ui::UiWindow& window,std::array<std::function<void()>,6> actions,
                                std::array<std::function<void()>,9> screen_actions,std::function<void()> back,
-                               std::array<std::function<void()>,8> animation_actions)
+                               std::array<std::function<void()>,8> animation_actions,
+                               std::array<std::function<void()>,5> particle_actions)
 {
     clear();
     using namespace elysia::ui;
@@ -61,7 +62,27 @@ void EffectsControlsView::build(elysia::ui::UiWindow& window,std::array<std::fun
         window.add_child(std::move(row),ShowcaseFrame::at({24,start==0?246.0f:294.0f,width-48,40}));
         window.register_focus_scope(*scope);
     }
+    auto particle_row = std::make_unique<UiListContainer>(elysia::core::Rect{0,0,width-48,40});
+    particle_row->set_direction(UiListDirection::Horizontal); particle_row->set_item_spacing(8);
+    const char* particle_keys[] = {"showcase.effects.particles.burst", "showcase.effects.particles.smoke",
+        "showcase.effects.particles.move", "showcase.effects.particles.stop", "showcase.effects.particles.cancel"};
+    for (std::size_t i = 0; i < particle_actions.size(); ++i)
+    {
+        auto button = std::make_unique<UiButton>(elysia::core::Rect{0,0,button_width,40});
+        button->set_text_content(ui_text_key(particle_keys[i])); button->set_on_click(std::move(particle_actions[i]));
+        particle_row->add_back(std::move(button));
+    }
+    auto* particle_scope = particle_row.get();
+    window.add_child(std::move(particle_row), ShowcaseFrame::at({24,height-148,width-48,40}));
+    window.register_focus_scope(*particle_scope);
+    auto particle_status = std::make_unique<UiLabel>(elysia::core::Rect{0,0,width-48,24},0,ui_text_key("showcase.effects.particles.ready"));
+    _particle_status = particle_status.get();
+    window.add_child(std::move(particle_status), ShowcaseFrame::at({24,height-104,width-48,24}));
     window.focus_first_available_scope();
+}
+void EffectsControlsView::update_particles(const char* status_key)
+{
+    if (_particle_status) _particle_status->set_text_content(elysia::ui::ui_text_key(status_key));
 }
 void EffectsControlsView::update_animation(const AnimationControlsData& data)
 {

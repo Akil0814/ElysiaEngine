@@ -2,6 +2,7 @@
 
 #include "effect_request_failure.h"
 #include "effect_types.h"
+#include "particle/particle_effect_types.h"
 #include "screen/screen_effect_types.h"
 #include "../tools/singleton.h"
 
@@ -16,6 +17,12 @@ class EffectService final : public elysia::tools::Singleton<EffectService>
 	friend elysia::tools::Singleton<EffectService>;
 
 public:
+    [[nodiscard]] std::expected<ParticleEffectHandle, EffectRequestFailure> request_particle_effect(const ParticleEffectSpawnRequest& request);
+    [[nodiscard]] std::expected<void, EffectRequestFailure> set_particle_effect_position(ParticleEffectHandle handle, elysia::core::Vector2 position);
+    bool stop_particle_effect(ParticleEffectHandle handle) noexcept;
+    bool cancel_particle_effect(ParticleEffectHandle handle) noexcept;
+    [[nodiscard]] bool is_particle_effect_active(ParticleEffectHandle handle) const noexcept;
+
 	// Screen effects belong to the active scene and never survive its exit.
 	[[nodiscard]] std::expected<ScreenEffectHandle, EffectRequestFailure> request_screen_color_effect(const ScreenColorEffectRequest& request);
 	[[nodiscard]] std::expected<ScreenEffectHandle, EffectRequestFailure> request_screen_image_effect(const ScreenImageEffectRequest& request);

@@ -213,7 +213,7 @@ void GameContentLoader::update()
 
 	if (_state == GameContentLoaderState::RegisteringEffects)
 	{
-		if (!register_animation_effects())
+		if (!register_effects())
 			return;
 		if (!_config_snapshot)
 		{
@@ -300,7 +300,8 @@ bool GameContentLoader::initialize_streaming_work()
 		+ _load_plan.sound_requests().size()
 		+ _load_plan.music_requests().size()
 		+ _load_plan.animation_build_requests().size()
-		+ _load_plan.animation_effect_build_requests().size();
+		+ _load_plan.animation_effect_build_requests().size()
+		+ _load_plan.particle_effect_build_requests().size();
 
 	start_worker_threads();
 	return true;
@@ -784,7 +785,7 @@ bool GameContentLoader::register_animations()
 	return true;
 }
 
-bool GameContentLoader::register_animation_effects()
+bool GameContentLoader::register_effects()
 {
 	elysia::effects::EffectManager* effect_manager = elysia::effects::EffectManager::instance();
 	for (const elysia::resources::AnimationEffectBuildRequest& request : _load_plan.animation_effect_build_requests())
@@ -799,6 +800,26 @@ bool GameContentLoader::register_animation_effects()
 
 		++_completed_work_units;
 	}
+
+    for (const auto& request : _load_plan.particle_effect_build_requests())
+    {
+        auto result = effect_manager->register_particle_effect(request.definition);
+        if (!result)
+        {
+            auto& failure = result.error();
+            auto pointer = request.origin.json_pointer;
+            if (!failure.field.empty())
+                pointer += "/" + std::string(failure.field);
+            failure.diagnostic.entries = {elysia::core::make_failure_diagnostic_entry(
+                "particle-effect", request.definition.effect_key, {}, request.origin.config_path,
+                std::move(pointer), failure.diagnostic.message, failure.diagnostic.origin)};
+            elysia::core::normalize_failure_diagnostic_paths(
+                failure.diagnostic, elysia::io::PathManager::instance()->root());
+            fail(make_content_load_failure(ContentLoadError::Effect, std::move(failure.diagnostic)));
+            return false;
+        }
+        ++_completed_work_units;
+    }
 
 	return true;
 }

@@ -411,6 +411,7 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
 
     {
         const ObjectMutationScope mutation_scope(*this, "world render");
+        std::size_t layer_index = 0;
         for (const auto& layer : _object_layers)
         {
             render_commands.clear();
@@ -420,11 +421,16 @@ void Scene::lifecycle_render(SDL_Renderer* renderer)
                 if (object && !object->is_destroyed() && object->is_visible())
                     object->submit_render_commands(render_commands);
             }
-            if (render_commands.empty())
-                continue;
-            elysia::core::project_render_commands_to_screen(
-                render_commands, camera(), projected_render_commands);
-            elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,projected_render_commands));
+            if (!render_commands.empty())
+            {
+                elysia::core::project_render_commands_to_screen(
+                    render_commands, camera(), projected_render_commands);
+                elysia::core::require_render_success(elysia::core::execute_render_commands(renderer,projected_render_commands));
+            }
+            if (has_camera())
+                elysia::core::require_render_success(elysia::effects::EffectManager::instance()->render_particle_effects(
+                    renderer, static_cast<elysia::core::DepthLayer>(layer_index), camera()));
+            ++layer_index;
         }
     }
 

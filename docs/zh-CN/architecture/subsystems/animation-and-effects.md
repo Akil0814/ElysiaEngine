@@ -32,7 +32,7 @@ find_definition 返回借用，create_animation 返回调用方拥有的 unique_
 <a id="effect-service-architecture"></a>
 ## 特效服务架构
 
-屏幕特效由 Manager 的运行时持有，动画和飘字特效对象转交活动 Scene 持有。
+屏幕特效与 CPU 粒子组由 Manager 的独立运行时持有，动画和飘字特效对象转交活动 Scene 持有。
 
 ```mermaid
 flowchart TB
@@ -41,6 +41,7 @@ flowchart TB
   Loader["GameContentLoader"]
   Manager["EffectManager<br/>定义注册表与请求分发"]
   Screen["ScreenEffectRuntime<br/>持有屏幕特效与句柄状态"]
+  Particles["ParticleRuntime / ParticleEffect<br/>粒子组、连续数组与组级句柄"]
   Factories["AnimationEffectFactory / FloatingNumberEffectFactory"]
   Dependencies["AnimationService / FontResolver<br/>动画实例与数字字形缓存依赖"]
   Scene["活动 Scene<br/>持有生成的 AnimationEffect / FloatingNumberEffect"]
@@ -49,6 +50,7 @@ flowchart TB
   Service -->|转发请求与屏幕特效控制| Manager
   Loader -->|register_animation_effect| Manager
   Manager -->|持有；分发屏幕请求| Screen
+  Manager -->|持有；分发粒子请求| Particles
   Manager -->|持有；创建场景对象特效| Factories
   Factories -->|创建动画 / 借用字体解析能力| Dependencies
   Manager -.->|借用活动场景，转交对象所有权| Scene
@@ -59,5 +61,13 @@ flowchart TB
 EffectManager 借用活动场景和渲染、字体依赖；缺少运行时或定义时返回明确失败。屏幕特效不跨场景退出；场景对象特效遵循对象生命周期，不能将 EffectService 视为资源加载器。
 
 源码：[effect_service.cpp](../../../../engine/effects/effect_service.cpp) · [effect_manager.h](../../../../engine/effects/runtime/effect_manager.h) · [effect_manager.cpp](../../../../engine/effects/runtime/effect_manager.cpp)
+
+## 粒子运行时
+
+纹理就绪后，GameContentLoader 通过 EffectManager 校验并注册清单里的粒子定义。游戏侧通过 EffectService 请求和控制实例，实例创建时复制参数并借用纹理。ParticleRuntime 按 slot/generation 管理组级句柄，每组 ParticleEffect 持有连续粒子数组和预分配绘制缓存，不注册 GameObject，也不产生逐粒子回调。
+
+SceneManager 在场景对象更新前推进粒子，使用缩放后的场景 delta，并跳过创建帧和暂停帧。Scene 在各个世界深度层的普通对象绘制后调用粒子批量绘制，包括没有普通对象的层；同层组按创建顺序提交，每组使用一次 SDL_RenderGeometry。绘制按粒子寿命计算顶点颜色和大小，应用相机投影，并在成功和失败时恢复借用纹理的混合模式。
+
+停止仅结束发射，取消立即回收实例。场景解绑、故障恢复、关闭和内容清理均清除粒子；清理发生在纹理释放之前。碰撞、伤害和角色生命周期仍由游戏负责，发射位置由值参数更新。
 
 相关入口：[服务架构总览](../services.md) · [架构首页](../README.md)。

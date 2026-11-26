@@ -52,6 +52,7 @@ void EffectsShowcaseScene::on_after_update(double delta)
     (void)delta;
     refresh_character_debug_draw();
     refresh_screen_status();
+    refresh_particle_status();
 }
 
 void EffectsShowcaseScene::on_shortcuts(const elysia::input::RawInputFrame &input,
@@ -243,11 +244,16 @@ void EffectsShowcaseScene::build_feature_controls()
         {[this]{trigger_animation_action(AnimationAction::Play);},[this]{trigger_animation_action(AnimationAction::Loop);},
          [this]{trigger_animation_action(AnimationAction::End);},[this]{trigger_animation_action(AnimationAction::Fit);},
          [this]{trigger_animation_action(AnimationAction::Anchor);},[this]{trigger_animation_action(AnimationAction::Offset);},
-         [this]{trigger_animation_action(AnimationAction::Scale);},[this]{trigger_animation_action(AnimationAction::Image);}});
+         [this]{trigger_animation_action(AnimationAction::Scale);},[this]{trigger_animation_action(AnimationAction::Image);}},
+        {[this]{trigger_particle_action(ParticleAction::Burst);}, [this]{trigger_particle_action(ParticleAction::Smoke);},
+         [this]{trigger_particle_action(ParticleAction::Move);}, [this]{trigger_particle_action(ParticleAction::Stop);},
+         [this]{trigger_particle_action(ParticleAction::Cancel);}});
 }
 
 void EffectsShowcaseScene::destroy_feature_controls() noexcept
 {
+    if (_particle_effect) (void)ELYSIA_EFFECTS->cancel_particle_effect(*_particle_effect);
+    _particle_effect.reset(); _particle_failed = false;
     cancel_screen_effect();
     _view.clear();
     _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
@@ -256,6 +262,48 @@ void EffectsShowcaseScene::destroy_feature_controls() noexcept
     if (_controls_window)
         _controls_window->destroy();
     _controls_window = nullptr;
+}
+
+void EffectsShowcaseScene::refresh_particle_status()
+{
+    _view.update_particles(_particle_failed ? "showcase.effects.particles.failed" : !_particle_effect ? "showcase.effects.particles.ready"
+        : ELYSIA_EFFECTS->is_particle_effect_active(*_particle_effect) ? "showcase.effects.particles.active" : "showcase.effects.particles.finished");
+}
+
+void EffectsShowcaseScene::trigger_particle_action(ParticleAction action)
+{
+    using namespace elysia::effects;
+    auto* service = ELYSIA_EFFECTS;
+    _particle_failed = false;
+    if (action == ParticleAction::Stop) { if (_particle_effect) (void)service->stop_particle_effect(*_particle_effect); refresh_particle_status(); return; }
+    if (action == ParticleAction::Cancel)
+    {
+        if (_particle_effect) (void)service->cancel_particle_effect(*_particle_effect);
+        _particle_effect.reset(); refresh_particle_status(); return;
+    }
+    if (action == ParticleAction::Move)
+    {
+        if (_particle_effect)
+        {
+            _particle_moved = !_particle_moved;
+            auto position = _particle_position; position.x += _particle_moved ? 150.0f : 0.0f;
+            if (auto result = service->set_particle_effect_position(*_particle_effect, position); !result)
+            {
+                _particle_failed = true;
+                ELYSIA_LOG_WARN("effects", format_effect_request_failure(result.error()));
+            }
+        }
+        refresh_particle_status();
+        return;
+    }
+    const char* effect_key = action == ParticleAction::Burst ? "showcase.particles.sparks" : "showcase.particles.smoke";
+    if (_particle_effect) (void)service->cancel_particle_effect(*_particle_effect);
+    _particle_effect.reset(); _particle_moved = false;
+    _particle_position = camera().screen_to_world({camera().viewport_size().x/2, camera().viewport_size().y*0.7f});
+    auto result = service->request_particle_effect({.effect_key = effect_key, .position = _particle_position});
+    if (result) _particle_effect = *result;
+    else { _particle_failed = true; ELYSIA_LOG_WARN("effects", format_effect_request_failure(result.error())); }
+    refresh_particle_status();
 }
 
 void EffectsShowcaseScene::trigger_screen_action(ScreenAction action)

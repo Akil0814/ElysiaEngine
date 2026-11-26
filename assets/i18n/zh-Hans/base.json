@@ -466,7 +466,7 @@
     },
     "effects": {
       "title": "特效",
-      "description": "飘字、颜色覆盖与屏幕特效。",
+      "description": "粒子组、飘字、颜色覆盖与屏幕特效。",
       "damage": "伤害",
       "critical": "暴击",
       "heal": "治疗",
@@ -519,6 +519,17 @@
         "scale_half": "缩放：0.5 倍",
         "scale_large": "缩放：1.5 倍",
         "layout_image": "按当前布局播放图片"
+      },
+      "particles": {
+        "burst": "爆发火花",
+        "smoke": "持续烟雾",
+        "move": "移动发射位置",
+        "stop": "停止发射",
+        "cancel": "清除粒子",
+        "ready": "粒子：就绪",
+        "active": "粒子：播放中",
+        "finished": "粒子：已结束",
+        "failed": "粒子请求失败"
       }
     },
     "physics": {

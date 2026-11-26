@@ -466,7 +466,7 @@
     },
     "effects": {
       "title": "特效",
-      "description": "飄字、顏色覆蓋與螢幕特效。",
+      "description": "粒子組、飄字、顏色覆蓋與畫面特效。",
       "damage": "傷害",
       "critical": "暴擊",
       "heal": "治療",
@@ -519,6 +519,17 @@
         "scale_half": "縮放：0.5 倍",
         "scale_large": "縮放：1.5 倍",
         "layout_image": "按目前佈局播放圖片"
+      },
+      "particles": {
+        "burst": "爆發火花",
+        "smoke": "持續煙霧",
+        "move": "移動發射位置",
+        "stop": "停止發射",
+        "cancel": "清除粒子",
+        "ready": "粒子：就緒",
+        "active": "粒子：播放中",
+        "finished": "粒子：已結束",
+        "failed": "粒子請求失敗"
       }
     },
     "physics": {

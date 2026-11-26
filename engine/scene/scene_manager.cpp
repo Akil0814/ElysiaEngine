@@ -110,6 +110,8 @@ void SceneManager::on_update(double delta)
         elysia::effects::EffectManager::instance()->_screen_effects.update(
             elysia::core::Time::instance()->raw_delta(), delta, _current_scene->is_paused(),
             elysia::core::Time::instance()->frame_count());
+        elysia::effects::EffectManager::instance()->_particles.update(delta, _current_scene->is_paused(),
+            elysia::core::Time::instance()->frame_count());
         _current_scene->lifecycle_update(delta);
     }
     catch (const elysia::core::RenderBackendError&) { throw; }
@@ -454,7 +456,7 @@ void SceneManager::recover_from_failure(const SceneBoundaryFailure& failure)
             [&] { discard_scene(previous_key,previous_scene); });
     cleanup_failures.attempt_cleanup(failure.scene,SceneBoundary::ObjectRemoval,"Discard failed scene before recovery",
         [&] { discard_scene(failure.scene,nullptr); });
-    elysia::effects::EffectManager::instance()->clear_screen_effects();
+    elysia::effects::EffectManager::instance()->clear_transient_effects();
     elysia::tools::DebugDraw::instance()->clear();
 
     try
@@ -562,7 +564,7 @@ bool SceneManager::shutdown() noexcept
         (void)exiting_key;
     }
     cleanup([] { elysia::tools::DebugDraw::instance()->clear(); });
-    cleanup([] { elysia::effects::EffectManager::instance()->clear_screen_effects(); });
+    cleanup([] { elysia::effects::EffectManager::instance()->clear_transient_effects(); });
     cleanup([] { elysia::camera::CameraManager::instance()->reset_all(); });
     cleanup([&] {
         if (!_scene_factory.destroy_all_scene())

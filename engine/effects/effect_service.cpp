@@ -4,6 +4,18 @@
 
 namespace elysia::effects
 {
+std::expected<ParticleEffectHandle, EffectRequestFailure> EffectService::request_particle_effect(const ParticleEffectSpawnRequest& request)
+{
+    return EffectManager::instance()->dispatch(request);
+}
+std::expected<void, EffectRequestFailure> EffectService::set_particle_effect_position(ParticleEffectHandle handle, elysia::core::Vector2 position)
+{
+    return EffectManager::instance()->_particles.set_position(handle, position);
+}
+bool EffectService::stop_particle_effect(ParticleEffectHandle handle) noexcept { return EffectManager::instance()->_particles.stop(handle); }
+bool EffectService::cancel_particle_effect(ParticleEffectHandle handle) noexcept { return EffectManager::instance()->_particles.cancel(handle); }
+bool EffectService::is_particle_effect_active(ParticleEffectHandle handle) const noexcept { return EffectManager::instance()->_particles.active(handle); }
+
 std::expected<ScreenEffectHandle, EffectRequestFailure> EffectService::request_screen_color_effect(const ScreenColorEffectRequest& request)
 {
     return EffectManager::instance()->dispatch(request);

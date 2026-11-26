@@ -94,7 +94,7 @@ private:
 	bool load_fonts();
 	bool load_audio();
 	bool register_animations();
-	bool register_animation_effects();
+	bool register_effects();
 	void update_progress_value();
 	void fail(ContentLoadFailure failure);
 

@@ -6,6 +6,7 @@
 
 #include "../core/geometry/vector2.h"
 #include "resource_origin.h"
+#include "../effects/particle/particle_effect_types.h"
 
 namespace elysia::resources
 {
@@ -69,6 +70,12 @@ struct AnimationBuildRequest
 	double fps = 10.0;
 	bool loop = true;
 	size_t segment_index = 0;
+	ResourceOrigin origin;
+};
+
+struct ParticleEffectBuildRequest
+{
+	elysia::effects::ParticleEffectDefinition definition;
 	ResourceOrigin origin;
 };
 

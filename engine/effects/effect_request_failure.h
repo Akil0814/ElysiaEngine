@@ -13,7 +13,8 @@ enum class EffectRequestError
     MissingTexture,
     RuntimeUnavailable,
     CreationFailed,
-    SceneRejected
+    SceneRejected,
+    InvalidHandle
 };
 
 struct EffectRequestFailure
@@ -42,6 +43,7 @@ struct EffectRequestFailure
     case EffectRequestError::RuntimeUnavailable: return "RuntimeUnavailable";
     case EffectRequestError::CreationFailed: return "CreationFailed";
     case EffectRequestError::SceneRejected: return "SceneRejected";
+    case EffectRequestError::InvalidHandle: return "InvalidHandle";
     }
     return "Unknown";
 }

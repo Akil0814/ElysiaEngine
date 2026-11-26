@@ -32,7 +32,7 @@ Source: [animation_service.cpp](../../../../engine/animation/animation_service.c
 <a id="effect-service-architecture"></a>
 ## Effect Service Architecture
 
-The Manager runtime owns screen effects; spawned animation and floating-number effect objects are transferred to the active Scene.
+Separate Manager runtimes own screen effects and CPU particle groups; spawned animation and floating-number effect objects are transferred to the active Scene.
 
 ```mermaid
 flowchart TB
@@ -41,6 +41,7 @@ flowchart TB
   Loader["GameContentLoader"]
   Manager["EffectManager<br/>Definition registry and request dispatch"]
   Screen["ScreenEffectRuntime<br/>Own screen effects and handle state"]
+  Particles["ParticleRuntime / ParticleEffect<br/>Groups, contiguous arrays and group handles"]
   Factories["AnimationEffectFactory / FloatingNumberEffectFactory"]
   Dependencies["AnimationService / FontResolver<br/>Animation instances and number glyph cache dependencies"]
   Scene["Active Scene<br/>Own spawned AnimationEffect / FloatingNumberEffect"]
@@ -49,6 +50,7 @@ flowchart TB
   Service -->|Delegate requests and screen-effect controls| Manager
   Loader -->|register_animation_effect| Manager
   Manager -->|Owns; dispatches screen requests| Screen
+  Manager -->|Owns; dispatches particle requests| Particles
   Manager -->|Owns; creates scene-object effects| Factories
   Factories -->|Create animations / Borrow font resolution| Dependencies
   Manager -.->|Borrow active scene; transfer spawned object ownership| Scene
@@ -59,5 +61,13 @@ flowchart TB
 EffectManager borrows the active scene and rendering/font dependencies; unavailable runtimes or definitions return explicit failures. Screen effects do not survive scene exit. Spawned effects follow scene-object lifetimes; EffectService does not load resources.
 
 Source: [effect_service.cpp](../../../../engine/effects/effect_service.cpp) · [effect_manager.h](../../../../engine/effects/runtime/effect_manager.h) · [effect_manager.cpp](../../../../engine/effects/runtime/effect_manager.cpp)
+
+## Particle Runtime
+
+After textures load, GameContentLoader registers and validates manifest presets through EffectManager. Game code requests and controls instances through EffectService. New instances copy parameters and borrow loaded textures. ParticleRuntime manages slot/generation group handles. Each ParticleEffect owns contiguous particle data and preallocated rendering storage, without GameObject registration or per-particle callbacks.
+
+SceneManager advances particles before scene objects using scaled scene delta, skipping creation frames and paused frames. Scene draws particle batches after ordinary objects in each world depth layer, including empty layers. Groups retain creation order and each submits one SDL_RenderGeometry call. Rendering derives vertex color and size from particle lifetime, applies camera projection, and restores borrowed texture blend state on success and failure.
+
+Stopping ends emission; cancellation retires the instance immediately. Scene unbinding, fault recovery, shutdown, and content cleanup clear particles before borrowed textures are released. Game code retains responsibility for collisions, damage, and character lifetime, updating emission positions by value.
 
 Related: [Service Architecture Overview](../services.md) · [Architecture Index](../README.md).

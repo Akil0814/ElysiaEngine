@@ -5,7 +5,7 @@
 ## 计划中的能力
 
 - Shader 特效系统。
-- 粒子系统。
+- GPU 粒子模拟、屏幕空间粒子与图集逐帧粒子动画（CPU 世界空间粒子已支持）。
 - [网络联机支持](player-host-networking-and-input-design.md)。ENet 目前是传输层依赖，网络会话与状态复制尚未实现。
 
 ## 仍需评估的方向

@@ -4,6 +4,7 @@
 
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace elysia::loading
 {
@@ -76,6 +77,8 @@ std::expected<void,ResourceLoadPlanValidationError> ResourceLoadPlanValidator::v
 			[](const auto& request) -> const std::string& { return request.animation_key; }, error)
 		|| !validate_registry("Effect", plan.animation_effect_build_requests(),
 			[](const auto& request) -> const std::string& { return request.effect_key; }, error)
+		|| !validate_registry("ParticleEffect", plan.particle_effect_build_requests(),
+			[](const auto& request) -> const std::string& { return request.definition.effect_key; }, error)
 		|| !validate_registry("Texture", plan.texture_requests(),
 			[](const auto& request) -> const std::string& { return request.key; }, error)
 		|| !validate_registry("Font", plan.font_requests(),
@@ -116,6 +119,21 @@ std::expected<void,ResourceLoadPlanValidationError> ResourceLoadPlanValidator::v
 			return std::unexpected(std::move(error));
 		}
 	}
+    std::unordered_set<std::string> texture_keys;
+    for (const auto& request : plan.texture_requests())
+        texture_keys.insert(request.key);
+    for (const auto& request : plan.particle_effect_build_requests())
+    {
+        if (texture_keys.contains(request.definition.texture_key))
+            continue;
+        error.registry = "ParticleEffect";
+        error.key = request.definition.effect_key;
+        error.first = request.origin;
+        error.first.json_pointer += "/texture_key";
+        error.message = "Particle effect references missing Texture key: " + request.definition.texture_key;
+        error.origin = std::source_location::current();
+        return std::unexpected(std::move(error));
+    }
 	return {};
 }
 }

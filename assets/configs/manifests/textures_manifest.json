@@ -5,6 +5,9 @@
     },
     "demo.screen_effect": {
       "path": "ui/screen_effect_test.svg"
+    },
+    "demo.particle_dot": {
+      "path": "effects/particle_dot.png"
     }
   }
 }

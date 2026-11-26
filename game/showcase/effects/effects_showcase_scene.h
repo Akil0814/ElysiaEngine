@@ -6,6 +6,7 @@
 #include "game/showcase/shared/showcase_enter_payload.h"
 
 #include "engine/effects/screen/screen_effect_types.h"
+#include "engine/effects/particle/particle_effect_types.h"
 
 #include <cstddef>
 #include <optional>
@@ -27,6 +28,7 @@ namespace example::scene
 class EffectsShowcaseScene final : public elysia::gameplay::GameplayScene
 {
     enum class ScreenAction { Flash, FadeBlack, HoldBlack, Stop, Cancel, Stretch, Cover, Contain, ToggleLayer };
+    enum class ParticleAction { Burst, Smoke, Move, Stop, Cancel };
     enum class AnimationAction { Play, Loop, End, Fit, Anchor, Offset, Scale, Image };
     enum class FloatingNumberPreset
     {
@@ -58,6 +60,8 @@ private:
     void build_feature_controls();
     void cancel_screen_effect() noexcept;
     void trigger_screen_action(ScreenAction action);
+    void trigger_particle_action(ParticleAction action);
+    void refresh_particle_status();
     void trigger_animation_action(AnimationAction action);
     void refresh_screen_status();
     void clear_screen_effect_or_return();
@@ -75,6 +79,10 @@ private:
     elysia::ui::UiWindow* _controls_window = nullptr;
     example::showcase::effects::EffectsControlsView _view;
     std::optional<elysia::effects::ScreenEffectHandle> _screen_effect;
+    std::optional<elysia::effects::ParticleEffectHandle> _particle_effect;
+    elysia::core::Vector2 _particle_position;
+    bool _particle_moved = false;
+    bool _particle_failed = false;
     elysia::effects::ScreenEffectLayer _screen_layer = elysia::effects::ScreenEffectLayer::AfterUi;
     elysia::effects::ScreenAnimationEffectRequest _animation_request;
     const char* _screen_action_key = "showcase.effects.screen.ready";

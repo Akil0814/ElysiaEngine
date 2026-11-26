@@ -4,5 +4,36 @@
       "key": "effect.test",
       "animation_key": "test.animation"
     }
+  ],
+  "particle_effects": [
+    {
+      "key": "showcase.particles.sparks",
+      "texture_key": "demo.particle_dot",
+      "max_particles": 512,
+      "burst_count": 150,
+      "velocity_min": [-180, -220],
+      "velocity_max": [180, 30],
+      "acceleration": [0, 200],
+      "lifetime_seconds": { "min": 0.5, "max": 1.4 },
+      "start_size": [8, 8],
+      "start_color": [255, 200, 70, 255],
+      "end_color": [255, 80, 10, 0],
+      "blend": "add"
+    },
+    {
+      "key": "showcase.particles.smoke",
+      "texture_key": "demo.particle_dot",
+      "max_particles": 512,
+      "burst_count": 0,
+      "emission_rate": 60,
+      "velocity_min": [-18, -70],
+      "velocity_max": [18, -35],
+      "lifetime_seconds": { "min": 1.5, "max": 3 },
+      "start_size": [12, 12],
+      "end_size": [60, 60],
+      "start_color": [180, 190, 210, 110],
+      "end_color": [100, 110, 130, 0],
+      "angular_velocity_degrees": { "min": -35, "max": 35 }
+    }
   ]
 }

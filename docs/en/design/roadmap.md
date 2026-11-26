@@ -5,7 +5,7 @@ This document records implemented capabilities and future directions to clarify 
 ## Planned Capabilities
 
 - Shader effects.
-- Particle system.
+- GPU particle simulation, screen-space particles, and frame-by-frame atlas particles (CPU world-space particles are supported).
 - [Networking](player-host-networking-and-input-design.md). ENet is currently a transport dependency; network sessions/state replication are not implemented.
 
 ## Directions Requiring Evaluation

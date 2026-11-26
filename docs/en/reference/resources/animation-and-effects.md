@@ -6,7 +6,7 @@ This document explains how configurations generate animation, atlas, and `effect
 
 Runtime `EffectService` also supports solid/image screen `effects`. Images query loaded texture keys without new definitions. Independent `EffectManager` runtime uses logical viewport coordinates before/after UI. Instances belong to the current scene and clear on unbinding, never persisting across scenes. Content cleanup releases `effects` before borrowed textures.
 
-The five runtime effect requests return `std::expected` with a success value or `EffectRequestFailure`. Screen effects return handles; world-animation and floating-number success values are void. Request failures are separate from loading-time `EffectRegistrationFailure`. See the [animation and effects guide](../../user-guide/systems/animation-and-effects.md) for result handling.
+Runtime effect requests return `std::expected` with a success value or `EffectRequestFailure`. Screen and particle effects return their respective handles; world-animation and floating-number success values are void. Request failures are separate from loading-time `EffectRegistrationFailure`. See the [animation and effects guide](../../user-guide/systems/animation-and-effects.md) for result handling.
 
 Missing-dependency queries and stage termination are distinct events: find_atlas/find_definition Warn records the dependency; later `Animation`/EffectDefinition Error records failed registration. Do not merge/delete these as duplicate logs.
 
@@ -166,6 +166,25 @@ These next two examples are hypothetical and require project configurations/`ani
 
 A custom `character_effects` module with `effect` namespace can generate `RyougiShiki.effect.attack_normal.0` and template prefix `RyougiShiki_effects_attack_normal_00`. These are possible configured results, not default `ryougi_sample` keys; projects supply files/assets. `Animation` registration precedes definitions.
 
+<a id="particle-effect-manifest"></a>
+## Particle Presets
+
+The required `effects` array in `effects_manifest.json` holds animation effects and may be empty. Declare particles in the optional `particle_effects` array. Each preset requires a unique particle `key` for playback requests and a `texture_key` that references a texture in the load plan.
+
+Startup and content reload register particle presets after textures load so the loader can check source rectangles against their textures. Configuration failures include the manifest path and JSON Pointer. See the [animation and effects guide](../../user-guide/systems/animation-and-effects.md) for playback.
+
+| Optional fields | Format and defaults |
+| --- | --- |
+| `max_particles`, `burst_count` | Nonnegative integers, defaulting to `1024` and `32`. Capacity must be positive. |
+| `emission_rate`, `emission_duration_seconds` | Rate defaults to `0` particles per second. Duration is omitted by default and must be positive when set. |
+| `velocity_min`, `velocity_max`, `acceleration` | `[x, y]`, all defaulting to `[0, 0]`. |
+| `lifetime_seconds`, `angle_degrees`, `angular_velocity_degrees` | `{ "min": ..., "max": ... }`, defaulting to `0.4–0.8`, `0–0`, and `0–0` respectively. |
+| `start_size`, `end_size` | `[width, height]`, defaulting to `[8, 8]` and `[0, 0]`. |
+| `start_color`, `end_color` | `[r, g, b, a]` with integer channels from `0–255`, defaulting to `[255, 255, 255, 255]` and `[255, 255, 255, 0]`. |
+| `source_rect` | `[x, y, width, height]` in texture pixels. Omit to use the full texture. |
+| `layer` | Defaults to `"effect_front"`. Choices are `background`, `terrain`, `effect_back`, `item`, `character`, `effect_front`, and `foreground`. |
+| `blend` | Defaults to `"alpha"` and also accepts `"add"`. |
+
 ## Resource Key Conflicts
 
-Core/all-module requests deduplicate separately for `Atlas`/`Animation`/`Effect`/Texture/Font/Sound/Music. Strings may repeat across registries. Same-registry conflicts fail before submission, with both relative paths, JSON pointers, scopes, modules, `capabilities`, entities, logical names, segments.
+Core/all-module requests deduplicate separately for `Atlas`/`Animation`/`Effect`/`ParticleEffect`/Texture/Font/Sound/Music. Strings may repeat across registries. Same-registry conflicts fail before submission, with both relative paths, JSON pointers, scopes, modules, `capabilities`, entities, logical names, segments.

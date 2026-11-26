@@ -8,6 +8,7 @@
 | --- | --- |
 | 对象自己播放动画 | `AnimationService::create_animation()` 返回由调用方持有、更新的播放器 |
 | 世界中的命中特效或飘字 | `EffectService` 将特效对象交给活动场景，由场景更新与回收 |
+| 世界空间粒子 | `EffectService` 返回组级句柄，由 `ParticleRuntime` 更新与回收 |
 | 闪白、黑幕或屏幕动画 | `EffectService` 返回屏幕特效句柄，退出所属场景时清除 |
 
 ## 播放对象动画
@@ -101,18 +102,49 @@ on_started、on_finished 和 scheduled_callbacks 的回调参数是 `AnimationEf
 
 浮动数字不需要配置动画清单，但需要有效字体与渲染依赖。text 支持 `0–9`、`-`、`.`、`/`、`%`，不支持加号或普通文字；普通文字使用 UI 文本。position、字号高度、时间必须合法，lifetime_seconds 和 target_height 为正，time_scale 非负。effects 可组合线性/弧线 motion、scale、fade，其 time_range 使用 0–1 生命周期进度。没有设置这些效果时仍按寿命结束并销毁。其 on_finished 参数为 `FloatingNumberEffect`&。
 
+## CPU 粒子特效
+
+一组粒子是一个 `ParticleEffect` 实例，由 `EffectManager` 内的 `ParticleRuntime` 持有。粒子和粒子组均不注册为场景对象，也不需要调用方手动更新。使用世界坐标，要求活动场景启用相机，按场景时间推进并随场景暂停；不处理伤害、游戏碰撞或角色状态。
+
+先在纹理清单声明纹理，再在特效清单的 `particle_effects` 数组中配置预设。启动加载会注册预设。等内容加载完成，就可以在活动场景内按 key 请求。下面使用 showcase 自带的烟雾预设。字段和默认值见[粒子清单参考](../../reference/resources/animation-and-effects.md#particle-effect-manifest)。
+
+```cpp
+#include "engine/effects/effect_service.h"
+
+std::expected<elysia::effects::ParticleEffectHandle,
+    elysia::effects::EffectRequestFailure>
+show_smoke(elysia::core::Vector2 position)
+{
+    return ELYSIA_EFFECTS->request_particle_effect({
+        .effect_key = "showcase.particles.smoke", .position = position});
+}
+```
+
+`burst_count` 在请求成功时立即生成初始粒子；`emission_rate` 指定后续每秒发射数量，未设置 `emission_duration_seconds` 时持续至主动停止。设置正的发射时长可自动结束发射；发射结束且残留粒子消散后，整个实例回收。创建帧不推进时间，下一帧开始更新。`max_particles` 必须为正；达到容量时丢弃超量发射，不积累补发债务。
+
+初速度的 x/y 分量分别在 `velocity_min` 与 `velocity_max` 之间随机取值；寿命、初始角度和角速度使用有序范围。加速度保持不变，尺寸和颜色按每个粒子的寿命线性插值。可选 `source_rect` 使用纹理像素坐标，必须完全位于纹理内；省略时使用整张纹理。默认层为 `EffectFront`、混合为 Alpha，也支持 Add。粒子组共用纹理和固定 UV 区域，不支持逐帧图集动画。
+
+保存成功结果中的 `ParticleEffectHandle`，通过 `set_particle_effect_position(handle, position)` 改变后续发射位置；已有粒子保留原来的世界位置。调用返回 `expected<void, EffectRequestFailure>`，失效句柄为 `InvalidHandle`，非有限位置为 `InvalidRequest`。游戏层可以每帧提供角色位置，不需要让特效持有角色指针。
+
+`stop_particle_effect(handle)` 停止继续发射，已有粒子继续消散；`cancel_particle_effect(handle)` 立即清除整组。两者返回是否改变了状态。`is_particle_effect_active(handle)` 在仍有残留粒子时继续为 true。请求可指定 `seed` 复现相同输入下的模拟；省略时实例使用独立随机序列。
+
+场景退出，包括缓存复用、进入失败、故障恢复、关闭和内容清理，均移除粒子并使句柄失效。纹理由资源系统持有，清理先释放粒子再释放纹理。粒子在每个世界深度层的普通对象之后绘制，同层粒子组按创建顺序叠加，不与普通对象交错排序；组内保持出生顺序。每个可见的非空粒子组用一次纹理几何批次提交，更新、顶点和索引缓存复用预留容量。
+
+showcase 的粒子操作区提供爆发火花、持续烟雾、移动发射位置、停止发射和清除粒子，并显示当前组是否活跃。
+
 ## 处理请求结果
 
-五个 `request_*` 接口共用 `EffectRequestFailure`：`code` 供游戏判断失败类别，`diagnostic` 提供具体原因、来源位置和相关资源键。世界动画与浮动数字成功时不返回对象或句柄；屏幕请求成功时返回 `ScreenEffectHandle`，可继续停止、取消或查询。成功只表示创建并受理，播放完成仍使用现有完成回调。
+各个 `request_*` 接口共用 `EffectRequestFailure`：`code` 供游戏判断失败类别，`diagnostic` 提供具体原因、来源位置和相关资源键。世界动画与浮动数字成功时不返回对象或句柄；屏幕请求成功时返回 `ScreenEffectHandle`，可继续停止、取消或查询。成功只表示创建并受理，动画与浮动数字的播放完成仍使用现有完成回调；粒子使用组级活跃查询。
 
 | 错误码 | 含义 |
 | --- | --- |
 | `NoActiveScene` | 没有活动场景，优先于资源与参数检查 |
 | `InvalidRequest` | 现有参数校验拒绝请求 |
 | `MissingEffectDefinition` / `MissingAnimation` / `MissingTexture` | 对应定义或资源缺失，包括空资源键 |
-| `RuntimeUnavailable` | 渲染器、字体解析器或可用字体缺失 |
+| `RuntimeUnavailable` | 渲染器、粒子所需场景相机、字体解析器或可用字体缺失 |
 | `CreationFailed` | 动画、图集帧、纹理尺寸查询或字形创建失败 |
 | `SceneRejected` | 场景未接收已创建的对象 |
+| `InvalidHandle` | 粒子位置控制使用了失效句柄 |
 
 调用方决定是否记录特效请求失败。上面的示例使用 `format_effect_request_failure(result.error())` 格式化错误码与诊断。共享资源、动画查询接口原有的缺失 Warn 仍保留；注册阶段继续使用独立的 `EffectRegistrationFailure`。
 

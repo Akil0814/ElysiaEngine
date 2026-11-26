@@ -466,7 +466,7 @@
     },
     "effects": {
       "title": "エフェクト",
-      "description": "フローティング数値、色の重ね合わせと画面エフェクト。",
+      "description": "粒子グループ、数値表示、色の重ね合わせと画面エフェクト。",
       "damage": "ダメージ",
       "critical": "クリティカル",
       "heal": "回復",
@@ -519,6 +519,17 @@
         "scale_half": "倍率：0.5x",
         "scale_large": "倍率：1.5x",
         "layout_image": "同じ配置で画像を再生"
+      },
+      "particles": {
+        "burst": "火花を放出",
+        "smoke": "煙を連続放出",
+        "move": "放出位置を移動",
+        "stop": "放出を停止",
+        "cancel": "粒子を消去",
+        "ready": "粒子：準備完了",
+        "active": "粒子：再生中",
+        "finished": "粒子：終了",
+        "failed": "粒子の生成に失敗"
       }
     },
     "physics": {

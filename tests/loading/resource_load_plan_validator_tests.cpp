@@ -312,6 +312,30 @@ void test_reference_integrity()
 			"complete Atlas -> Animation -> Effect references must pass validation");
 	}
 }
+
+void test_particle_plan()
+{
+    using namespace elysia::resources;
+    ResourceLoadPlan plan;
+    ParticleEffectBuildRequest request;
+    request.definition.effect_key = "fx.shared";
+    request.definition.texture_key = "texture.particle";
+    request.origin = make_resource_origin("effects.json", "/particle_effects/0", {}, "particle_effects");
+    plan.particle_effect_build_requests().push_back(request);
+    auto missing = ResourceLoadPlanValidator{}.validate(plan);
+    require(!missing && !missing.error().duplicate && missing.error().first.json_pointer == "/particle_effects/0/texture_key",
+        "missing particle dependency identifies the texture_key field");
+    plan.texture_requests().push_back({.key = request.definition.texture_key});
+    require(ResourceLoadPlanValidator{}.validate(plan), "particle texture from the combined plan resolves");
+    request.origin.json_pointer = "/particle_effects/1";
+    plan.particle_effect_build_requests().push_back(request);
+    auto duplicate = ResourceLoadPlanValidator{}.validate(plan);
+    require(!duplicate && duplicate.error().duplicate
+        && duplicate.error().first.json_pointer == "/particle_effects/0"
+        && duplicate.error().second.json_pointer == "/particle_effects/1",
+        "duplicate particle keys report both declarations");
+}
+
 }
 
 int main()
@@ -319,6 +343,7 @@ int main()
 	test_duplicate_key_diagnostics_for_every_registry();
 	test_same_key_is_legal_across_different_registries();
 	test_reference_integrity();
+	test_particle_plan();
 	std::cout << "resource load plan validator tests passed\n";
 	return EXIT_SUCCESS;
 }
