@@ -31,6 +31,7 @@ public:
 	bool stop_screen_effect(ScreenEffectHandle handle) noexcept;
 	bool cancel_screen_effect(ScreenEffectHandle handle) noexcept;
 	[[nodiscard]] bool is_screen_effect_active(ScreenEffectHandle handle) const noexcept;
+
 	// World effects validate during the call. The scene can defer registration until after physics.
 	[[nodiscard]] std::expected<void, EffectRequestFailure> request_animation_effect(
 		const AnimationEffectSpawnRequest& request);
